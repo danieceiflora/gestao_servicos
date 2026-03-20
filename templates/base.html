@@ -1,0 +1,100 @@
+{% load static %}
+{% load pwa %}
+<!DOCTYPE html>
+<html lang="pt-br" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}Gestão de Serviços{% endblock %}</title>
+    
+    <!-- Google Fonts: Inter (Padrão Shadcn) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="{% static 'dist/output.css' %}">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- PWA -->
+    {% progressive_web_app_meta %}
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="h-full flex flex-col text-slate-950 antialiased">
+    
+    <!-- Desktop Header -->
+    <header class="hidden md:flex sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div class="container mx-auto flex h-16 items-center justify-between px-4">
+            <div class="flex items-center gap-2">
+                <div class="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center">
+                    <i data-lucide="briefcase" class="h-5 w-5 text-white"></i>
+                </div>
+                <span class="text-lg font-bold tracking-tight">Gestão de Serviços</span>
+            </div>
+            <nav class="flex items-center gap-6">
+                <a href="{% url 'home' %}" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Dashboard</a>
+                <a href="{% url 'client_list' %}" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Clientes</a>
+                <a href="#" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Ordens</a>
+                <div class="h-8 w-8 rounded-full bg-slate-200 border border-slate-300"></div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Mobile Header -->
+    <header class="flex md:hidden sticky top-0 z-40 w-full border-b border-slate-200 bg-white px-4 py-3 items-center justify-between">
+        <span class="text-base font-bold tracking-tight">Gestão de Serviços</span>
+        <i data-lucide="bell" class="h-5 w-5 text-slate-500"></i>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 container mx-auto px-4 py-6 mb-24 md:mb-0">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Mobile Bottom Navigation (IHC: Thumb Zone) -->
+    <nav class="md:hidden fixed bottom-0 left-0 z-50 w-full bg-white border-t border-slate-200 safe-area-bottom">
+        <div class="grid h-16 grid-cols-4 items-center justify-around">
+            <a href="{% url 'home' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'home' %}text-slate-900{% else %}text-slate-500{% endif %}">
+                <i data-lucide="layout-dashboard" class="h-5 w-5"></i>
+                <span class="text-[10px] font-medium">Início</span>
+            </a>
+            <a href="{% url 'client_list' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'client_list' %}text-slate-900{% else %}text-slate-500{% endif %}">
+                <i data-lucide="users" class="h-5 w-5"></i>
+                <span class="text-[10px] font-medium">Clientes</span>
+            </a>
+            <a href="#" class="flex flex-col items-center justify-center gap-1 text-slate-500">
+                <i data-lucide="clipboard-list" class="h-5 w-5"></i>
+                <span class="text-[10px] font-medium">Serviços</span>
+            </a>
+            <a href="#" class="flex flex-col items-center justify-center gap-1 text-slate-500">
+                <i data-lucide="user" class="h-5 w-5"></i>
+                <span class="text-[10px] font-medium">Perfil</span>
+            </a>
+        </div>
+    </nav>
+
+    <script>
+        lucide.createIcons();
+
+        // Feedback de carregamento global para botões de submit
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function() {
+                const btn = form.querySelector('button[type="submit"]');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = `<i data-lucide="loader-2" class="h-5 w-5 animate-spin"></i> Aguarde...`;
+                    lucide.createIcons();
+                }
+            });
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

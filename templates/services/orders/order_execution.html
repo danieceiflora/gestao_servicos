@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+
+{% block title %}Execução OS #{{ order.id.hex|slice:":8" }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-8">
+    <!-- Header Operacional -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'service_order_list' %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            <i data-lucide="chevron-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">Execução de Serviço</h2>
+            <div class="flex items-center gap-2">
+                <p class="text-sm text-slate-500">Local: {{ order.client_property.address }}, {{ order.client_property.number }}</p>
+                {% if order.client_property.latitude and order.client_property.longitude %}
+                <a href="https://www.google.com/maps/dir/?api=1&destination={{ order.client_property.latitude|stringformat:".16f" }},{{ order.client_property.longitude|stringformat:".16f" }}&travelmode=driving" target="_blank" class="inline-flex items-center gap-1.5 text-[10px] font-bold text-white bg-blue-600 px-3 py-1.5 rounded-lg uppercase tracking-wider hover:bg-blue-700 shadow-sm transition-all active:scale-95">
+                    <i data-lucide="navigation" class="h-3.5 w-3.5"></i>
+                    Abrir no GPS
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Card -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-6 space-y-6">
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Cliente</span>
+                    <p class="font-medium text-slate-900">{{ order.client_property.client.name }}</p>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Status Atual</span>
+                    <p class="font-medium text-blue-600">{{ order.get_status_display }}</p>
+                </div>
+            </div>
+
+            <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Resumo da Solicitação</span>
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-100 text-slate-700">
+                    {{ order.description|linebreaks }}
+                </div>
+            </div>
+
+            {% if order.technical_notes %}
+            <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Instruções Técnicas</span>
+                <div class="p-4 rounded-xl bg-blue-50 border border-blue-100 text-blue-800">
+                    {{ order.technical_notes|linebreaks }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Lista de Itens (Sem Valores) -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <h3 class="font-semibold text-slate-900 text-sm">O que deve ser executado</h3>
+            <i data-lucide="check-square" class="h-4 w-4 text-slate-400"></i>
+        </div>
+        <div class="divide-y divide-slate-100">
+            {% for item in order.items.all %}
+            <div class="p-4 flex items-center gap-4">
+                <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">
+                    {{ forloop.counter }}
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-900">{{ item.description }}</p>
+                    <p class="text-xs text-slate-500">Qtd: {{ item.quantity|floatformat:0 }}</p>
+                </div>
+            </div>
+            {% empty %}
+            <p class="p-8 text-center text-sm text-slate-400 italic">Nenhum item detalhado no orçamento.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Upload de Evidências Finais -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-slate-100 bg-slate-50/50">
+            <h3 class="font-semibold text-slate-900 text-sm">Evidências Finais (Conclusão)</h3>
+        </div>
+        <form method="post" enctype="multipart/form-data" class="p-6 space-y-6">
+            {% csrf_token %}
+            
+            <div class="relative group">
+                <div class="flex flex-col items-center justify-center w-full min-h-[140px] border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 group-hover:bg-slate-100 group-hover:border-blue-300 transition-all cursor-pointer">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-500">
+                        <i data-lucide="camera" class="h-6 w-6 text-blue-600 mb-2"></i>
+                        <p class="text-sm font-medium text-slate-900">Adicionar Fotos/Vídeos</p>
+                        <p class="text-xs text-slate-400">Pós-execução</p>
+                    </div>
+                    <input type="file" name="files" id="final_files" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*,video/*" onchange="this.form.submit()">
+                </div>
+            </div>
+
+            <!-- Listagem de Mídias já enviadas nesta fase -->
+            <div class="grid grid-cols-4 gap-2">
+                {% for media in order.medias.all %}
+                    {% if media.media_type == 'FINISHED' %}
+                    <div class="aspect-square rounded-lg bg-slate-100 border border-slate-200 overflow-hidden relative group">
+                        {% if media.is_video %}
+                            <div class="w-full h-full flex items-center justify-center"><i data-lucide="video" class="h-5 w-5 text-slate-400"></i></div>
+                        {% else %}
+                            <img src="{{ media.file.url }}" class="w-full h-full object-cover">
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            <!-- Observações Finais -->
+            <div class="space-y-2">
+                <label for="final_notes" class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Observações de Conclusão</label>
+                <textarea name="final_notes" id="final_notes" rows="3" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Relate como foi a execução, se houve alguma intercorrência...">{{ order.technical_notes }}</textarea>
+            </div>
+
+            <div class="pt-6 border-t border-slate-100">
+                <button type="submit" name="finish_service" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl hover:bg-green-700 shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95">
+                    <i data-lucide="check-circle" class="h-5 w-5"></i>
+                    Finalizar Serviço
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

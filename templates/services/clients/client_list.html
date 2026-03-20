@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+
+{% block title %}Clientes - Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">Clientes</h2>
+            <p class="text-sm text-slate-500">Gerencie sua base de clientes e seus imóveis.</p>
+        </div>
+        <a href="{% url 'client_create' %}" class="hidden md:inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            Novo Cliente
+        </a>
+        <!-- Floating Action Button for Mobile -->
+        <a href="{% url 'client_create' %}" class="md:hidden fixed right-6 bottom-24 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl active:scale-90 transition-transform">
+            <i data-lucide="plus" class="h-6 w-6"></i>
+        </a>
+    </div>
+
+    <!-- Desktop View (Table) -->
+    <div class="hidden md:block rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium">
+                    <tr>
+                        <th class="px-6 py-3">Nome</th>
+                        <th class="px-6 py-3">Contatos</th>
+                        <th class="px-6 py-3">Imóveis</th>
+                        <th class="px-6 py-3 text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for client in clients %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-slate-900">{{ client.name }}</div>
+                            <div class="text-xs text-slate-500">CPF: {{ client.cpf|default:"---" }}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-col gap-1">
+                                {% for phone in client.phones.all %}
+                                    <span class="inline-flex items-center gap-1 text-xs text-slate-600">
+                                        <i data-lucide="phone" class="h-3 w-3 text-slate-400"></i>
+                                        {{ phone.phone }}
+                                    </span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="space-y-2">
+                                {% for property in client.properties.all %}
+                                <div class="flex items-center justify-between gap-4 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                                    <div class="text-xs">
+                                        <div class="font-medium text-slate-900">{{ property.get_classification_display }}</div>
+                                        <div class="text-slate-500">{{ property.address }}, {{ property.number }}</div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        {% if property.latitude and property.longitude %}
+                                        <a href="https://www.google.com/maps/dir/?api=1&destination={{ property.latitude|stringformat:".16f" }},{{ property.longitude|stringformat:".16f" }}&travelmode=driving" target="_blank" title="Abrir no GPS" class="p-1.5 rounded-md bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition-colors shadow-sm">
+                                            <i data-lucide="navigation" class="h-4 w-4"></i>
+                                        </a>
+                                        {% endif %}
+                                        <a href="{% url 'service_order_create' property.id %}" title="Nova Vistoria" class="p-1.5 rounded-md bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition-colors shadow-sm">
+                                            <i data-lucide="clipboard-check" class="h-4 w-4"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <span class="text-xs text-slate-400 italic">Nenhum imóvel.</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end gap-2">
+                                <a href="{% url 'client_edit' client.id %}" title="Editar Cliente" class="p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                                    <i data-lucide="edit-2" class="h-4 w-4"></i>
+                                </a>
+                                <a href="{% url 'property_create' client.id %}" title="Adicionar Imóvel" class="p-2 text-slate-400 hover:text-green-600 transition-colors">
+                                    <i data-lucide="home" class="h-4 w-4"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-10 text-center text-slate-500 italic">Nenhum cliente cadastrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Mobile View (Cards) -->
+    <div class="md:hidden space-y-4">
+        {% for client in clients %}
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-4 active:bg-slate-50 transition-colors">
+            <!-- Client Info -->
+            <div class="flex items-start justify-between">
+                <div>
+                    <h3 class="text-base font-bold text-slate-900">{{ client.name }}</h3>
+                    <div class="flex flex-col mt-1 gap-1">
+                        {% for phone in client.phones.all %}
+                        <p class="text-xs text-slate-500 flex items-center gap-1">
+                            <i data-lucide="phone" class="h-3 w-3"></i> {{ phone.phone }}
+                        </p>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <a href="{% url 'client_edit' client.id %}" class="p-2 rounded-lg bg-slate-100 text-slate-600">
+                        <i data-lucide="edit-2" class="h-4 w-4"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Properties Cards -->
+            <div class="space-y-2">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Imóveis & Serviços</p>
+                {% for property in client.properties.all %}
+                <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <div class="text-xs">
+                        <p class="font-semibold text-slate-900">{{ property.get_classification_display }}</p>
+                        <p class="text-slate-500">{{ property.address }}, {{ property.number }}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        {% if property.latitude and property.longitude %}
+                        <a href="https://www.google.com/maps/dir/?api=1&destination={{ property.latitude|stringformat:".16f" }},{{ property.longitude|stringformat:".16f" }}&travelmode=driving" target="_blank" class="flex items-center justify-center p-2 rounded-lg bg-blue-100 text-blue-700 shadow-sm">
+                            <i data-lucide="navigation" class="h-4 w-4"></i>
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'service_order_create' property.id %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                            <i data-lucide="clipboard-check" class="h-3 w-3"></i> OS
+                        </a>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-xs text-slate-400 italic px-1">Nenhum imóvel cadastrado.</p>
+                {% endfor %}
+            </div>
+            
+            <a href="{% url 'property_create' client.id %}" class="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-dashed border-slate-200 text-slate-500 text-xs font-medium hover:bg-slate-50">
+                <i data-lucide="plus" class="h-3.5 w-3.5"></i> Adicionar Imóvel
+            </a>
+        </div>
+        {% empty %}
+        <div class="p-12 text-center text-slate-500 italic">Nenhum cliente encontrado.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

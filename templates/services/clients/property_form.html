@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <div class="space-y-2">
+        <h2 class="text-2xl font-bold tracking-tight">{{ title }}</h2>
+        <p class="text-slate-500">Cadastre um novo imóvel para o cliente {{ client.name }}.</p>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Tipo de Imóvel</label>
+                    {{ form.classification }}
+                    {% if form.classification.errors %}<p class="text-xs text-red-500">{{ form.classification.errors }}</p>{% endif %}
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">CEP</label>
+                    {{ form.cep }}
+                    <p id="cep-loading" class="text-xs text-blue-500 hidden italic">Buscando endereço...</p>
+                    {% if form.cep.errors %}<p class="text-xs text-red-500">{{ form.cep.errors }}</p>{% endif %}
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-medium text-slate-700">Logradouro</label>
+                {{ form.address }}
+                {% if form.address.errors %}<p class="text-xs text-red-500">{{ form.address.errors }}</p>{% endif %}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Número</label>
+                    {{ form.number }}
+                    {% if form.number.errors %}<p class="text-xs text-red-500">{{ form.number.errors }}</p>{% endif %}
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Complemento</label>
+                    {{ form.complement }}
+                    {% if form.complement.errors %}<p class="text-xs text-red-500">{{ form.complement.errors }}</p>{% endif %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Bairro</label>
+                    {{ form.neighborhood }}
+                </div>
+                <div class="space-y-2 md:col-span-1">
+                    <label class="text-sm font-medium text-slate-700">Cidade</label>
+                    {{ form.city }}
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">UF</label>
+                    {{ form.state }}
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-medium text-slate-900">Geolocalização</h4>
+                        <p class="text-xs text-slate-500">Capture as coordenadas exatas para ajudar a equipe de campo.</p>
+                    </div>
+                    <button type="button" onclick="getLocation()" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 hover:bg-slate-50">
+                        <i data-lucide="map-pin" class="h-3 w-3"></i>
+                        Capturar Localização
+                    </button>
+                </div>
+                {{ form.latitude }}
+                {{ form.longitude }}
+                <div id="location-status" class="mt-2 text-xs font-medium hidden"></div>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3">
+            <a href="{% url 'client_list' %}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 transition-colors">
+                Cancelar
+            </a>
+            <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors shadow-sm">
+                Salvar Imóvel
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Estilização dos widgets do Django para combinar com Shadcn -->
+<style>
+    select, input[type="text"], input[type="email"], input[type="number"] {
+        display: block; width: 100%; border-radius: 0.5rem; border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; font-size: 0.875rem; line-height: 1.25rem;
+    }
+    select:focus, input:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #94a3b8; ring: 2px; }
+</style>
+
+<script>
+    function buscarCep(cep) {
+        const value = cep.replace(/\D/g, '');
+        if (value.length !== 8) return;
+
+        const loading = document.getElementById('cep-loading');
+        loading.classList.remove('hidden');
+
+        fetch(`https://viacep.com.br/ws/${value}/json/`)
+            .then(response => response.json())
+            .then(data => {
+                loading.classList.add('hidden');
+                if (!data.erro) {
+                    document.querySelector('[name="address"]').value = data.logradouro;
+                    document.querySelector('[name="neighborhood"]').value = data.bairro;
+                    document.querySelector('[name="city"]').value = data.localidade;
+                    document.querySelector('[name="state"]').value = data.uf;
+                    document.querySelector('[name="number"]').focus();
+                }
+            })
+            .catch(() => {
+                loading.classList.add('hidden');
+            });
+    }
+
+    function getLocation() {
+        const status = document.getElementById('location-status');
+        status.classList.remove('hidden', 'text-green-600', 'text-red-600', 'text-slate-500');
+        status.textContent = "Solicitando acesso ao GPS...";
+        status.classList.add('text-blue-600', 'animate-pulse');
+
+        if (!navigator.geolocation) {
+            status.textContent = "Geolocalização não é suportada pelo seu navegador.";
+            status.classList.replace('text-blue-600', 'text-red-600');
+            status.classList.remove('animate-pulse');
+            return;
+        }
+
+        // Configurações para maior precisão (IHC: Qualidade dos dados)
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        };
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                document.querySelector('[name="latitude"]').value = position.coords.latitude;
+                document.querySelector('[name="longitude"]').value = position.coords.longitude;
+                status.textContent = "✓ Localização capturada com precisão!";
+                status.classList.remove('animate-pulse', 'text-blue-600');
+                status.classList.add('text-green-600');
+                
+                // Feedback visual das coordenadas para o usuário
+                console.log("Lat:", position.coords.latitude, "Long:", position.coords.longitude);
+            },
+            (error) => {
+                status.classList.remove('animate-pulse', 'text-blue-600');
+                status.classList.add('text-red-600');
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        status.textContent = "Permissão negada. Por favor, habilite o GPS nas configurações do seu navegador.";
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        status.textContent = "Informações de localização indisponíveis no momento.";
+                        break;
+                    case error.TIMEOUT:
+                        status.textContent = "Tempo esgotado ao tentar obter localização.";
+                        break;
+                    default:
+                        status.textContent = "Erro desconhecido ao obter localização.";
+                }
+            },
+            options
+        );
+    }
+
+    // Proatividade IHC: Verificar permissão ao carregar (sem disparar o popup ainda)
+    window.addEventListener('load', () => {
+        if (navigator.permissions) {
+            navigator.permissions.query({ name: 'geolocation' }).then(result => {
+                const status = document.getElementById('location-status');
+                if (result.state === 'denied') {
+                    status.classList.remove('hidden');
+                    status.classList.add('text-amber-600');
+                    status.textContent = "⚠ O acesso à localização está bloqueado. Clique no ícone de cadeado na barra de endereços para liberar.";
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-8">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'client_list' %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            <i data-lucide="chevron-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ title }}</h2>
+            <p class="text-sm text-slate-500">Imóvel: {{ property.address }}, {{ property.number }} - {{ property.client.name }}</p>
+        </div>
+    </div>
+
+    <!-- Form Card -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <form method="post" enctype="multipart/form-data" class="p-6 space-y-6">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="p-4 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+
+            <!-- Problem Description -->
+            <div class="space-y-2">
+                <label for="{{ form.description.id_for_label }}" class="text-sm font-medium text-slate-700">
+                    {{ form.description.label }}
+                </label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                <p class="text-xs text-red-600">{{ form.description.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Technical Notes -->
+            <div class="space-y-2">
+                <label for="{{ form.technical_notes.id_for_label }}" class="text-sm font-medium text-slate-700">
+                    {{ form.technical_notes.label }}
+                </label>
+                {{ form.technical_notes }}
+                {% if form.technical_notes.errors %}
+                <p class="text-xs text-red-600">{{ form.technical_notes.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Media Upload -->
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <label class="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="camera" class="h-4 w-4 text-blue-600"></i>
+                        Evidências da Vistoria
+                    </label>
+                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Obrigatório</span>
+                </div>
+                
+                <div class="relative group">
+                    <div class="flex flex-col items-center justify-center w-full min-h-[160px] border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 group-hover:bg-slate-100 group-hover:border-blue-300 transition-all cursor-pointer">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-500">
+                            <div class="p-3 rounded-full bg-white shadow-sm mb-3 group-hover:scale-110 transition-transform">
+                                <i data-lucide="upload-cloud" class="h-6 w-6 text-blue-600"></i>
+                            </div>
+                            <p class="mb-1 text-sm font-medium text-slate-900">Clique para selecionar fotos/vídeos</p>
+                            <p class="text-xs text-slate-400">ou arraste e solte múltiplos arquivos</p>
+                        </div>
+                        <input type="file" name="files" id="id_files" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*,video/*">
+                    </div>
+                </div>
+
+                <!-- Preview Container (JS will populate this) -->
+                <div id="media-preview" class="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4 hidden">
+                    <!-- Previews go here -->
+                </div>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="pt-6 border-t border-slate-100 flex gap-3">
+                <button type="submit" class="flex-1 bg-slate-900 text-white font-semibold py-3 px-4 rounded-xl hover:bg-slate-800 focus:ring-4 focus:ring-slate-200 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="h-5 w-5"></i>
+                    Salvar Vistoria
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('id_files');
+    const previewContainer = document.getElementById('media-preview');
+
+    fileInput.addEventListener('change', function() {
+        previewContainer.innerHTML = '';
+        if (this.files && this.files.length > 0) {
+            previewContainer.classList.remove('hidden');
+            
+            Array.from(this.files).forEach(file => {
+                const reader = new FileReader();
+                const div = document.createElement('div');
+                div.className = 'relative aspect-square rounded-lg bg-slate-100 border border-slate-200 overflow-hidden';
+                
+                reader.onload = function(e) {
+                    if (file.type.startsWith('image/')) {
+                        div.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
+                    } else if (file.type.startsWith('video/')) {
+                        div.innerHTML = `
+                            <div class="w-full h-full flex items-center justify-center">
+                                <i data-lucide="video" class="h-8 w-8 text-slate-400"></i>
+                            </div>
+                        `;
+                        lucide.createIcons();
+                    }
+                }
+                reader.readAsDataURL(file);
+                previewContainer.appendChild(div);
+            });
+        } else {
+            previewContainer.classList.add('hidden');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,19 @@
+{
+  "name": "gestao_servicos",
+  "version": "1.0.0",
+  "description": "Uma aplicação fullstack desenvolvida em Django para gestão de equipes externas, orçamentos, execução de serviços e integração com a API do WhatsApp. A aplicação é um Progressive Web App (PWA) projetado para rodar em dispositivos móveis como se fosse um app nativo.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tailwindcss -i static/src/input.css -o static/dist/output.css",
+    "watch": "tailwindcss -i static/src/input.css -o static/dist/output.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "tailwindcss": "^4.2.2"
+  },
+  "dependencies": {
+    "@tailwindcss/cli": "^4.2.2"
+  }
+}

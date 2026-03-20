@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}Ordens de Serviço - Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">Ordens de Serviço</h2>
+            <p class="text-sm text-slate-500">Acompanhe o ciclo de vida dos serviços.</p>
+        </div>
+    </div>
+
+    <!-- Desktop Table -->
+    <div class="hidden md:block rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium">
+                    <tr>
+                        <th class="px-6 py-3">OS ID</th>
+                        <th class="px-6 py-3">Cliente / Imóvel</th>
+                        <th class="px-6 py-3">Status</th>
+                        <th class="px-6 py-3">Valor Total</th>
+                        <th class="px-6 py-3 text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for order in orders %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4 font-mono text-xs text-slate-500">
+                            #{{ order.id.hex|slice:":8" }}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center justify-between gap-2">
+                                <div>
+                                    <div class="font-medium text-slate-900">{{ order.client_property.client.name }}</div>
+                                    <div class="text-xs text-slate-500">{{ order.client_property.address }}, {{ order.client_property.number }}</div>
+                                </div>
+                                {% if order.client_property.latitude and order.client_property.longitude %}
+                                <a href="https://www.google.com/maps/dir/?api=1&destination={{ order.client_property.latitude|stringformat:".16f" }},{{ order.client_property.longitude|stringformat:".16f" }}&travelmode=driving" target="_blank" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Abrir no GPS">
+                                    <i data-lucide="navigation" class="h-4 w-4"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
+                        </td>
+                        <td class="px-6 py-4 font-medium text-slate-900">
+                            R$ {{ order.total_value|floatformat:2 }}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end gap-2">
+                                <a href="{% url 'service_order_detail' order.id %}" class="p-2 text-slate-400 hover:text-slate-900"><i data-lucide="eye" class="h-4 w-4"></i></a>
+                                {% if order.status == 'APPROVED' or order.status == 'EXECUTING' %}
+                                    <a href="{% url 'service_order_execution' order.id %}" class="p-2 text-slate-400 hover:text-green-600"><i data-lucide="play-circle" class="h-4 w-4"></i></a>
+                                {% endif %}
+                                {% if order.status == 'INSPECTION' or order.status == 'BUDGETING' %}
+                                    <a href="{% url 'service_order_budget' order.id %}" class="p-2 text-slate-400 hover:text-amber-600"><i data-lucide="calculator" class="h-4 w-4"></i></a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Mobile Cards -->
+    <div class="md:hidden space-y-4">
+        {% for order in orders %}
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <div class="flex items-center justify-between">
+                <span class="text-[10px] font-mono font-bold text-slate-400 tracking-widest">#{{ order.id.hex|slice:":8" }}</span>
+                {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
+            </div>
+            
+            <div class="space-y-1">
+                <h3 class="font-bold text-slate-900 leading-tight">{{ order.client_property.client.name }}</h3>
+                <p class="text-xs text-slate-500">{{ order.client_property.address }}, {{ order.client_property.number }}</p>
+            </div>
+
+            <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                <div class="text-sm font-bold text-slate-900">R$ {{ order.total_value|floatformat:2 }}</div>
+                <div class="flex gap-1">
+                    <a href="{% url 'service_order_detail' order.id %}" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-900 text-xs font-semibold">
+                        <i data-lucide="eye" class="h-3.5 w-3.5"></i> Ver
+                    </a>
+                    {% if order.status == 'APPROVED' or order.status == 'EXECUTING' %}
+                    <a href="{% url 'service_order_execution' order.id %}" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold">
+                        <i data-lucide="play" class="h-3.5 w-3.5 fill-current"></i> Iniciar
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
