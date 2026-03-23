@@ -1,0 +1,630 @@
+{% extends 'base.html' %}
+
+{% block title %}Agenda Geral - Gestão de Serviços{% endblock %}
+
+{% block extra_css %}
+<!-- FullCalendar CSS -->
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.css' rel='stylesheet' />
+<style>
+    :root {
+        --fc-border-color: #e2e8f0;
+        --fc-daygrid-event-dot-width: 8px;
+        --fc-list-event-dot-width: 10px;
+        --fc-event-border-color: transparent;
+        --fc-today-bg-color: #f8fafc;
+    }
+    .fc .fc-toolbar-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .fc .fc-button-primary {
+        background-color: #f1f5f9;
+        border-color: #e2e8f0;
+        color: #475569;
+        font-weight: 600;
+        text-transform: capitalize;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+    .fc .fc-button-primary:hover {
+        background-color: #e2e8f0;
+        border-color: #cbd5e1;
+        color: #0f172a;
+    }
+    .fc .fc-button-primary:not(:disabled).fc-button-active {
+        background-color: #0f172a;
+        border-color: #0f172a;
+        color: white;
+    }
+    .fc .fc-button-primary:focus {
+        box-shadow: none;
+    }
+    .fc-event {
+        cursor: pointer;
+        padding: 2px 4px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border: none !important;
+    }
+    .fc-v-event .fc-event-main {
+        color: inherit;
+    }
+    .fc-daygrid-event {
+        margin-top: 2px !important;
+    }
+    #calendar-container {
+        min-height: 700px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6 pb-12">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">Agenda Geral</h2>
+            <p class="text-sm text-slate-500">Visualize e gerencie todos os agendamentos da empresa.</p>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <button onclick="openQuickCreateModal()" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md flex items-center gap-2">
+                <i data-lucide="plus" class="h-4 w-4"></i>
+                Agendar Serviço
+            </button>
+            <div class="relative min-w-[200px]">
+                <select id="professional-filter" class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none">
+                    <option value="">Todos os Colaboradores</option>
+                    {% for prof in professionals %}
+                    <option value="{{ prof.id }}">{{ prof.name }}</option>
+                    {% endfor %}
+                </select>
+                <i data-lucide="users" class="absolute left-3 top-2.5 h-4 w-4 text-slate-400"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Card -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-hidden">
+        <div id="calendar-container">
+            <div id="calendar"></div>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="flex flex-wrap gap-6 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+        <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+            <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">Orçamento</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+            <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">Execução</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-slate-500"></span>
+            <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">Bloqueio / Indisponível</span>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: EVENT DETAIL -->
+<div id="event-detail-modal" class="hidden fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <h3 id="ed-title" class="font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="info" class="h-5 w-5 text-blue-600"></i>
+                Detalhes do Agendamento
+            </h3>
+            <button onclick="closeEventDetailModal()" class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+                <i data-lucide="x" class="h-5 w-5 text-slate-500"></i>
+            </button>
+        </div>
+        
+        <div class="p-6 space-y-6">
+            <!-- Header Info -->
+            <div class="flex items-start gap-4">
+                <div id="ed-icon-container" class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0">
+                    <!-- Icon placeholder -->
+                </div>
+                <div class="min-w-0 flex-1">
+                    <h4 id="ed-client-name" class="text-lg font-bold text-slate-900 truncate"></h4>
+                    <p id="ed-type-badge" class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1"></p>
+                </div>
+            </div>
+
+            <!-- Details Grid -->
+            <div class="grid grid-cols-1 gap-4">
+                <div class="flex items-start gap-3">
+                    <div class="mt-1 p-1.5 bg-slate-100 rounded-lg">
+                        <i data-lucide="map-pin" class="h-4 w-4 text-slate-500"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Endereço</span>
+                        <p id="ed-address" class="text-sm text-slate-700 font-medium"></p>
+                        <p id="ed-neighborhood" class="text-xs text-slate-500"></p>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                    <div class="mt-1 p-1.5 bg-slate-100 rounded-lg">
+                        <i data-lucide="calendar" class="h-4 w-4 text-slate-500"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Horário</span>
+                        <p id="ed-time" class="text-sm text-slate-700 font-medium"></p>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                    <div class="mt-1 p-1.5 bg-slate-100 rounded-lg">
+                        <i data-lucide="activity" class="h-4 w-4 text-slate-500"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Status da OS</span>
+                        <p id="ed-status" class="text-sm text-slate-700 font-medium"></p>
+                    </div>
+                </div>
+                
+                <div id="ed-description-container" class="flex items-start gap-3">
+                    <div class="mt-1 p-1.5 bg-slate-100 rounded-lg">
+                        <i data-lucide="align-left" class="h-4 w-4 text-slate-500"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Descrição</span>
+                        <p id="ed-description" class="text-sm text-slate-600 italic"></p>
+                    </div>
+                </div>
+
+                <div id="ed-team-container" class="flex items-start gap-3">
+                    <div class="mt-1 p-1.5 bg-slate-100 rounded-lg">
+                        <i data-lucide="users" class="h-4 w-4 text-slate-500"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Equipe</span>
+                        <p id="ed-team" class="text-sm text-slate-700 font-medium"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="pt-6 border-t border-slate-100 flex gap-3">
+                <button id="ed-btn-detail" class="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
+                    <i data-lucide="external-link" class="h-4 w-4"></i>
+                    Ver OS Completa
+                </button>
+                <button onclick="closeEventDetailModal()" class="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: QUICK CREATE OS -->
+<div id="quick-create-modal" class="hidden fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="calendar-plus" class="h-5 w-5 text-blue-600"></i>
+                Novo Agendamento
+            </h3>
+            <button onclick="closeQuickCreateModal()" class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+                <i data-lucide="x" class="h-5 w-5 text-slate-500"></i>
+            </button>
+        </div>
+        
+        <form id="quick-order-form" class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            <!-- Client Selection (Searchable) -->
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Cliente</label>
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <input type="text" id="qc-client-search" placeholder="Buscar cliente..." class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500">
+                        <select id="qc-client" class="hidden">
+                            <option value="">Selecione um cliente...</option>
+                        </select>
+                        <div id="client-results" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto"></div>
+                    </div>
+                    <button type="button" onclick="openFullClientForm()" class="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 text-slate-600 shadow-sm transition-all" title="Novo Cliente">
+                        <i data-lucide="plus" class="h-5 w-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Property Selection -->
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Imóvel</label>
+                <div class="flex gap-2">
+                    <select id="qc-property" required disabled class="flex-1 px-3 py-2 border rounded-lg text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecione o imóvel...</option>
+                    </select>
+                    <button type="button" id="btn-add-property" onclick="redirectToPropertyForm()" disabled class="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 text-slate-600 shadow-sm transition-all disabled:opacity-50" title="Novo Imóvel">
+                        <i data-lucide="plus" class="h-5 w-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Tipo de Agendamento</label>
+                <select id="qc-type" required class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500">
+                    <option value="INSPECTION">Vistoria Inicial</option>
+                    <option value="EXECUTION">Execução de Serviço</option>
+                    <option value="WARRANTY">Retorno de Garantia</option>
+                </select>
+            </div>
+
+            <!-- SECTION: TEAM MEMBERS -->
+            <div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                <div class="p-3 border-b border-slate-200 bg-white flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Equipe</span>
+                    <button type="button" onclick="addQCProfessionalRow()" class="text-[10px] font-bold text-blue-600 uppercase hover:text-blue-700 transition-colors">
+                        + Adicionar
+                    </button>
+                </div>
+                <div id="qc-team-container" class="p-3 space-y-3">
+                    <div class="qc-team-row grid grid-cols-2 gap-2 relative group">
+                        <select class="qc-prof-id px-2 py-1.5 border rounded-lg text-xs bg-white focus:ring-2 focus:ring-blue-500" required>
+                            <option value="">Colaborador...</option>
+                            {% for prof in professionals %}
+                            <option value="{{ prof.id }}">{{ prof.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <select class="qc-prof-role px-2 py-1.5 border rounded-lg text-xs bg-white focus:ring-2 focus:ring-blue-500">
+                            <option value="">Função...</option>
+                            {% for role in professional_roles %}
+                            <option value="{{ role.id }}">{{ role.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Data e Horário Geral</label>
+                <input type="datetime-local" id="qc-scheduled-at" required class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Descrição (Opcional)</label>
+                <textarea id="qc-description" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500" placeholder="Breve resumo do problema..."></textarea>
+            </div>
+
+            <div class="pt-4 border-t border-slate-100">
+                <button type="submit" class="w-full py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="h-5 w-5"></i>
+                    Confirmar Agendamento
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL PARA FORMULÁRIOS COMPLETOS (IFRAME) -->
+<div id="full-form-modal" class="hidden fixed inset-0 z-[130] bg-slate-900/80 backdrop-blur-sm items-center justify-center p-4">
+    <div class="bg-white w-full max-w-4xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <h3 id="full-form-title" class="font-bold text-slate-900">Cadastro</h3>
+            <button onclick="closeFullFormModal()" class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+                <i data-lucide="x" class="h-5 w-5 text-slate-500"></i>
+            </button>
+        </div>
+        <div class="flex-1 bg-white">
+            <iframe id="full-form-iframe" src="" class="w-full h-full border-none"></iframe>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- FullCalendar JS -->
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+<script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.10/locales/pt-br.global.min.js'></script>
+
+<script>
+    let allClients = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const calendarEl = document.getElementById('calendar');
+        const profFilter = document.getElementById('professional-filter');
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const isSelectMode = urlParams.get('mode') === 'select';
+        const initialProfId = urlParams.get('professional_id');
+
+        if (initialProfId) profFilter.value = initialProfId;
+
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            locale: 'pt-br',
+            initialView: isSelectMode ? 'timeGridWeek' : 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+            },
+            themeSystem: 'standard',
+            height: 'auto',
+            nowIndicator: true,
+            editable: false,
+            selectable: true,
+            selectMirror: true,
+            events: {
+                url: '{% url "api_calendar_events" %}',
+                extraParams: function() { return { professional_id: profFilter.value }; }
+            },
+            select: function(info) {
+                if (isSelectMode) {
+                    window.parent.postMessage({ type: 'dateSelected', date: info.startStr }, '*');
+                } else {
+                    openQuickCreateModal(info.startStr);
+                }
+                calendar.unselect();
+            },
+            eventClick: function(info) {
+                if (isSelectMode) return;
+                
+                info.jsEvent.preventDefault();
+                const props = info.event.extendedProps;
+                
+                if (props.type === 'block') {
+                    // Tratar bloqueio de forma simples ou outro modal
+                    alert(`Bloqueio: ${props.professional}\nMotivo: ${props.reason}`);
+                    return;
+                }
+
+                openEventDetailModal(info.event);
+            }
+        });
+
+        calendar.render();
+        profFilter.addEventListener('change', () => calendar.refetchEvents());
+        window.calendarInstance = calendar;
+        
+        populateInitialClients();
+    });
+
+    // --- MODAL & API LOGIC ---
+
+    const qcModal = document.getElementById('quick-create-modal');
+    const edModal = document.getElementById('event-detail-modal');
+    const fullFormModal = document.getElementById('full-form-modal');
+
+    const clientSearchInput = document.getElementById('qc-client-search');
+    const clientResults = document.getElementById('client-results');
+    const clientSelect = document.getElementById('qc-client');
+    const propSelect = document.getElementById('qc-property');
+    const addPropBtn = document.getElementById('btn-add-property');
+    
+    function openEventDetailModal(event) {
+        const props = event.extendedProps;
+        const start = event.start;
+        
+        document.getElementById('ed-client-name').textContent = props.client;
+        document.getElementById('ed-address').textContent = props.address;
+        document.getElementById('ed-neighborhood').textContent = props.neighborhood || '';
+        document.getElementById('ed-status').textContent = props.status;
+        document.getElementById('ed-description').textContent = props.description || 'Sem descrição.';
+        
+        const teamContainer = document.getElementById('ed-team-container');
+        if (props.team && props.team.length > 0) {
+            teamContainer.classList.remove('hidden');
+            document.getElementById('ed-team').textContent = props.team.join(', ');
+        } else {
+            teamContainer.classList.add('hidden');
+        }
+
+        const timeStr = start.toLocaleDateString('pt-BR', { 
+            weekday: 'long', 
+            day: '2-digit', 
+            month: 'long', 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        document.getElementById('ed-time').textContent = timeStr;
+
+        const badge = document.getElementById('ed-type-badge');
+        const iconCont = document.getElementById('ed-icon-container');
+        
+        if (props.type === 'budget') {
+            badge.textContent = 'Vistoria / Orçamento';
+            badge.className = 'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1 bg-blue-100 text-blue-700';
+            iconCont.className = 'w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-blue-50 text-blue-600';
+            iconCont.innerHTML = '<i data-lucide="clipboard-check" class="h-6 w-6"></i>';
+        } else {
+            badge.textContent = 'Execução de Serviço';
+            badge.className = 'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mt-1 bg-emerald-100 text-emerald-700';
+            iconCont.className = 'w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600';
+            iconCont.innerHTML = '<i data-lucide="wrench" class="h-6 w-6"></i>';
+        }
+
+        document.getElementById('ed-btn-detail').onclick = () => {
+            window.location.href = event.url;
+        };
+
+        edModal.classList.remove('hidden');
+        edModal.classList.add('flex');
+        
+        // Re-run lucide icons
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function closeEventDetailModal() {
+        edModal.classList.add('hidden');
+        edModal.classList.remove('flex');
+    }
+
+    function openQuickCreateModal(dateStr = null) {
+        qcModal.classList.remove('hidden');
+        qcModal.classList.add('flex');
+        if (dateStr) {
+            const dt = new Date(dateStr);
+            document.getElementById('qc-scheduled-at').value = dt.toISOString().slice(0, 16);
+        }
+        const filterVal = document.getElementById('professional-filter').value;
+        if (filterVal) {
+            const firstProfSelect = document.querySelector('.qc-prof-id');
+            if (firstProfSelect) firstProfSelect.value = filterVal;
+        }
+    }
+
+    function closeQuickCreateModal() {
+        qcModal.classList.add('hidden');
+        qcModal.classList.remove('flex');
+    }
+
+    function openFullClientForm() {
+        fullFormTitle.textContent = "Novo Cliente";
+        fullFormIframe.src = "{% url 'client_create' %}?popup=1";
+        fullFormModal.classList.remove('hidden');
+        fullFormModal.classList.add('flex');
+    }
+
+    function openFullPropertyForm() {
+        const clientId = clientSelect.value;
+        if (!clientId) return;
+        fullFormTitle.textContent = "Novo Imóvel";
+        fullFormIframe.src = `/clients/${clientId}/property/new/?popup=1`;
+        fullFormModal.classList.remove('hidden');
+        fullFormModal.classList.add('flex');
+    }
+
+    function closeFullFormModal() {
+        fullFormModal.classList.add('hidden');
+        fullFormModal.classList.remove('flex');
+        fullFormIframe.src = "";
+    }
+
+    function addQCProfessionalRow() {
+        const container = document.getElementById('qc-team-container');
+        const firstRow = container.querySelector('.qc-team-row');
+        const newRow = firstRow.cloneNode(true);
+        newRow.querySelectorAll('select').forEach(s => s.value = '');
+        
+        // Add remove button if not first
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'absolute -right-2 -top-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity';
+        removeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+        removeBtn.onclick = () => newRow.remove();
+        newRow.appendChild(removeBtn);
+        
+        container.appendChild(newRow);
+    }
+
+    function redirectToPropertyForm() {
+        const clientId = clientSelect.value;
+        if (!clientId) return alert("Selecione um cliente primeiro.");
+        window.location.href = `/clients/${clientId}/property/new/`;
+    }
+
+    // --- CLIENT SEARCH LOGIC ---
+    async function populateInitialClients() {
+        const response = await fetch('/api/clients/list/');
+        allClients = await response.json();
+    }
+
+    clientSearchInput.addEventListener('input', function() {
+        const term = this.value.toLowerCase();
+        if (term.length < 2) {
+            clientResults.classList.add('hidden');
+            return;
+        }
+
+        const filtered = allClients.filter(c => c.name.toLowerCase().includes(term));
+        if (filtered.length > 0) {
+            clientResults.innerHTML = filtered.map(c => `
+                <div class="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm" onclick="selectClient('${c.id}', '${c.name}')">
+                    ${c.name}
+                </div>
+            `).join('');
+            clientResults.classList.remove('hidden');
+        } else {
+            clientResults.innerHTML = '<div class="px-3 py-2 text-slate-400 text-xs">Nenhum cliente encontrado</div>';
+            clientResults.classList.remove('hidden');
+        }
+    });
+
+    function selectClient(id, name) {
+        clientSelect.value = id;
+        clientSearchInput.value = name;
+        clientResults.classList.add('hidden');
+        
+        propSelect.disabled = false;
+        addPropBtn.disabled = false;
+        propSelect.classList.remove('bg-slate-50');
+        loadProperties(id);
+    }
+
+    async function loadProperties(clientId, selectedId = null) {
+        const response = await fetch(`/api/properties/list/?client_id=${clientId}`);
+        const data = await response.json();
+        
+        propSelect.innerHTML = '<option value="">Selecione o imóvel...</option>';
+        data.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.address;
+            if (selectedId && p.id === selectedId) opt.selected = true;
+            propSelect.appendChild(opt);
+        });
+        
+        if (data.length === 1) propSelect.value = data[0].id;
+    }
+
+    window.addEventListener('message', function(event) {
+        if (event.data.type === 'objectCreated') {
+            if (event.data.model === 'client') {
+                populateInitialClients().then(() => {
+                    selectClient(event.data.id, event.data.name);
+                    closeFullFormModal();
+                });
+            } else if (event.data.model === 'property') {
+                loadProperties(clientSelect.value, event.data.id);
+                closeFullFormModal();
+            }
+        }
+    });
+
+    document.getElementById('quick-order-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const team = [];
+        document.querySelectorAll('.qc-team-row').forEach(row => {
+            const profId = row.querySelector('.qc-prof-id').value;
+            const roleId = row.querySelector('.qc-prof-role').value;
+            if (profId) {
+                team.push({ professional_id: profId, role_id: roleId });
+            }
+        });
+
+        const payload = {
+            property_id: propSelect.value,
+            team: team,
+            scheduled_at: document.getElementById('qc-scheduled-at').value,
+            description: document.getElementById('qc-description').value,
+            type: document.getElementById('qc-type').value
+        };
+
+        const response = await fetch('/api/orders/quick-create/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (data.success) {
+            window.calendarInstance.refetchEvents();
+            closeQuickCreateModal();
+            // Reset team rows
+            const container = document.getElementById('qc-team-container');
+            while (container.children.length > 1) {
+                container.lastElementChild.remove();
+            }
+            container.querySelector('select').value = '';
+        } else {
+            alert("Erro ao criar agendamento: " + (data.error || "Erro desconhecido"));
+        }
+    });
+</script>
+{% endblock %}

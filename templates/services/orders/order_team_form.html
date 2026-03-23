@@ -11,7 +11,7 @@
         </a>
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Designar Equipe</h2>
-            <p class="text-sm text-slate-500">Selecione os profissionais para orçamento e execução.</p>
+            <p class="text-sm text-slate-500">Gerencie os profissionais alocados em cada etapa do serviço.</p>
         </div>
     </div>
 
@@ -27,45 +27,72 @@
                 <span class="px-3 py-1 rounded-full bg-white/10 text-xs font-bold">{{ order.get_status_display }}</span>
             </div>
         </div>
+        <div class="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-white/10">
+            <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Visita Técnica</span>
+                <p class="text-sm font-medium">{{ order.budget_scheduled_at|date:"d/m/Y H:i"|default:"Não agendado" }}</p>
+            </div>
+            <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Execução do Serviço</span>
+                <p class="text-sm font-medium">{{ order.execution_scheduled_at|date:"d/m/Y H:i"|default:"Não agendado" }}</p>
+            </div>
+        </div>
     </div>
 
     <form method="post" class="space-y-8">
         {% csrf_token %}
         
-        <!-- SECTION: BUDGET TEAM -->
+        {% if f_inspection.errors or f_execution.errors or f_warranty.errors %}
+        <div class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+            <h4 class="font-bold mb-1">Houve um problema ao salvar as equipes:</h4>
+            <p>Verifique os campos destacados em cada seção.</p>
+            {{ f_inspection.non_form_errors }}
+            {{ f_execution.non_form_errors }}
+            {{ f_warranty.non_form_errors }}
+        </div>
+        {% endif %}
+        
+        <!-- SEÇÃO A: EQUIPE DE VISTORIA -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="p-4 border-b border-slate-100 bg-blue-50/30 flex items-center justify-between">
+            <div class="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <i data-lucide="clipboard-list" class="h-4 w-4 text-blue-500"></i>
-                    <h3 class="font-semibold text-slate-900 text-sm">Equipe de Orçamento</h3>
+                    <i data-lucide="clipboard-check" class="h-4 w-4 text-amber-600"></i>
+                    <h3 class="font-semibold text-slate-900 text-sm">Seção A: Equipe de Vistoria / Orçamento</h3>
                 </div>
-                <button type="button" class="add-member-btn text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors" data-prefix="budget">
-                    + Adicionar Profissional
+                <button type="button" onclick="addMember('inspection')" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
+                    + Adicionar Vistoriador
                 </button>
             </div>
-            
             <div class="p-6">
-                {{ formset_budget.management_form }}
-                <div id="budget-formset-container" class="space-y-4">
-                    {% for form in formset_budget %}
-                    <div class="team-row grid grid-cols-1 md:grid-cols-7 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 items-end">
+                {{ f_inspection.management_form }}
+                <div id="inspection-container" class="space-y-4">
+                    {% for form in f_inspection %}
+                    <div class="team-row grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 items-end relative">
                         {% for hidden in form.hidden_fields %} {{ hidden }} {% endfor %}
                         
-                        <div class="md:col-span-3">
+                        <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Profissional</label>
                             {{ form.professional }}
-                        </div>
-                        <div class="md:col-span-3">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Função</label>
-                            {{ form.role }}
-                        </div>
-                        <div class="flex items-center justify-center pb-2">
-                            {% if formset_budget.can_delete %}
-                                <div class="flex items-center gap-2 text-red-500 hover:text-red-700 transition-colors cursor-pointer">
-                                    {{ form.DELETE }}
-                                    <i data-lucide="trash-2" class="h-5 w-5"></i>
-                                </div>
+                            {% if form.professional.errors %}
+                                <p class="text-[10px] text-red-500 mt-1 font-bold">{{ form.professional.errors.0 }}</p>
                             {% endif %}
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Função</label>
+                            <div class="flex items-center gap-2">
+                                <div class="flex-1">
+                                    {{ form.role }}
+                                    {% if form.role.errors %}
+                                        <p class="text-[10px] text-red-500 mt-1 font-bold">{{ form.role.errors.0 }}</p>
+                                    {% endif %}
+                                </div>
+                                {% if f_inspection.can_delete %}
+                                    <div class="flex items-center gap-2 text-red-500 hover:text-red-700 transition-colors cursor-pointer px-2">
+                                        {{ form.DELETE }}
+                                        <i data-lucide="trash-2" class="h-5 w-5"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
@@ -73,40 +100,95 @@
             </div>
         </div>
 
-        <!-- SECTION: EXECUTION TEAM -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="p-4 border-b border-slate-100 bg-green-50/30 flex items-center justify-between">
+        <!-- SEÇÃO B: EQUIPE DE EXECUÇÃO -->
+        <div class="bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden border-l-4 border-l-blue-500">
+            <div class="p-4 border-b border-slate-100 bg-blue-50/50 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                    <i data-lucide="wrench" class="h-4 w-4 text-green-600"></i>
-                    <h3 class="font-semibold text-slate-900 text-sm">Equipe de Execução</h3>
+                    <i data-lucide="hammer" class="h-4 w-4 text-blue-600"></i>
+                    <h3 class="font-semibold text-slate-900 text-sm">Seção B: Equipe de Execução (Gera Comissão 💰)</h3>
                 </div>
-                <button type="button" class="add-member-btn text-[10px] font-bold text-green-600 uppercase tracking-wider hover:text-green-700 transition-colors" data-prefix="execution">
-                    + Adicionar Profissional
+                <button type="button" onclick="addMember('execution')" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
+                    + Adicionar Executor
                 </button>
             </div>
-            
             <div class="p-6">
-                {{ formset_execution.management_form }}
-                <div id="execution-formset-container" class="space-y-4">
-                    {% for form in formset_execution %}
-                    <div class="team-row grid grid-cols-1 md:grid-cols-7 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 items-end">
+                {{ f_execution.management_form }}
+                <div id="execution-container" class="space-y-4">
+                    {% for form in f_execution %}
+                    <div class="team-row grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-blue-50/30 border border-blue-100 items-end relative">
                         {% for hidden in form.hidden_fields %} {{ hidden }} {% endfor %}
                         
-                        <div class="md:col-span-3">
+                        <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Profissional</label>
                             {{ form.professional }}
-                        </div>
-                        <div class="md:col-span-3">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Função</label>
-                            {{ form.role }}
-                        </div>
-                        <div class="flex items-center justify-center pb-2">
-                            {% if formset_execution.can_delete %}
-                                <div class="flex items-center gap-2 text-red-500 hover:text-red-700 transition-colors cursor-pointer">
-                                    {{ form.DELETE }}
-                                    <i data-lucide="trash-2" class="h-5 w-5"></i>
-                                </div>
+                            {% if form.professional.errors %}
+                                <p class="text-[10px] text-red-500 mt-1 font-bold">{{ form.professional.errors.0 }}</p>
                             {% endif %}
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Função (Comissão %)</label>
+                            <div class="flex items-center gap-2">
+                                <div class="flex-1">
+                                    {{ form.role }}
+                                    {% if form.role.errors %}
+                                        <p class="text-[10px] text-red-500 mt-1 font-bold">{{ form.role.errors.0 }}</p>
+                                    {% endif %}
+                                </div>
+                                {% if f_execution.can_delete %}
+                                    <div class="flex items-center gap-2 text-red-500 hover:text-red-700 transition-colors cursor-pointer px-2">
+                                        {{ form.DELETE }}
+                                        <i data-lucide="trash-2" class="h-5 w-5"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- SEÇÃO C: EQUIPE DE GARANTIA -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="shield-check" class="h-4 w-4 text-emerald-600"></i>
+                    <h3 class="font-semibold text-slate-900 text-sm">Seção C: Equipe de Garantia</h3>
+                </div>
+                <button type="button" onclick="addMember('warranty')" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
+                    + Adicionar Garantia
+                </button>
+            </div>
+            <div class="p-6">
+                {{ f_warranty.management_form }}
+                <div id="warranty-container" class="space-y-4">
+                    {% for form in f_warranty %}
+                    <div class="team-row grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 items-end relative">
+                        {% for hidden in form.hidden_fields %} {{ hidden }} {% endfor %}
+                        
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Profissional</label>
+                            {{ form.professional }}
+                            {% if form.professional.errors %}
+                                <p class="text-[10px] text-red-500 mt-1 font-bold">{{ form.professional.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Função</label>
+                            <div class="flex items-center gap-2">
+                                <div class="flex-1">
+                                    {{ form.role }}
+                                    {% if form.role.errors %}
+                                        <p class="text-[10px] text-red-500 mt-1 font-bold">{{ form.role.errors.0 }}</p>
+                                    {% endif %}
+                                </div>
+                                {% if f_warranty.can_delete %}
+                                    <div class="flex items-center gap-2 text-red-500 hover:text-red-700 transition-colors cursor-pointer px-2">
+                                        {{ form.DELETE }}
+                                        <i data-lucide="trash-2" class="h-5 w-5"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
@@ -129,41 +211,46 @@
 
 {% block extra_js %}
 <script>
-    document.querySelectorAll('.add-member-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const prefix = this.dataset.prefix;
-            const container = document.getElementById(`${prefix}-formset-container`);
-            const totalForms = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
-            const formNum = parseInt(totalForms.value);
-            
-            const firstRow = container.querySelector('.team-row');
-            const newRow = firstRow.cloneNode(true);
-            
-            // Update indices
-            newRow.querySelectorAll('input, select').forEach(input => {
-                if (input.name) {
-                    // Replace prefix and index: budget-0-professional -> budget-1-professional
-                    const regex = new RegExp(`${prefix}-(\\d+)-`);
-                    input.name = input.name.replace(regex, `${prefix}-${formNum}-`);
-                    input.id = input.id.replace(regex, `${prefix}-${formNum}-`);
-                    
-                    if (input.type !== 'hidden') input.value = '';
-                    if (input.type === 'checkbox') input.checked = false;
+    function addMember(prefix) {
+        const container = document.getElementById(`${prefix}-container`);
+        const totalForms = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+        const formNum = parseInt(totalForms.value);
+        
+        const rows = container.querySelectorAll('.team-row');
+        const firstRow = rows[0];
+        const newRow = firstRow.cloneNode(true);
+        
+        // Update indices
+        newRow.querySelectorAll('input, select').forEach(input => {
+            if (input.name) {
+                const regex = new RegExp(`${prefix}-(\\d+)-`);
+                input.name = input.name.replace(regex, `${prefix}-${formNum}-`);
+                input.id = input.id.replace(regex, `${prefix}-${formNum}-`);
+                
+                if (input.type !== 'hidden') {
+                    input.value = '';
+                } else if (input.name.includes('-id')) {
+                    input.value = '';
                 }
-            });
-
-            // Update labels
-            newRow.querySelectorAll('label').forEach(label => {
-                if (label.getAttribute('for')) {
-                    const regex = new RegExp(`${prefix}-(\\d+)-`);
-                    label.setAttribute('for', label.getAttribute('for').replace(regex, `${prefix}-${formNum}-`));
-                }
-            });
-
-            totalForms.value = formNum + 1;
-            container.appendChild(newRow);
-            lucide.createIcons();
+            }
         });
-    });
+
+        // Update labels
+        newRow.querySelectorAll('label').forEach(label => {
+            if (label.getAttribute('for')) {
+                const regex = new RegExp(`${prefix}-(\\d+)-`);
+                label.setAttribute('for', label.getAttribute('for').replace(regex, `${prefix}-${formNum}-`));
+            }
+        });
+
+        // Remove any previous warnings/errors
+        const warning = newRow.querySelector('.availability-warning');
+        if (warning) warning.remove();
+        newRow.querySelectorAll('p.text-red-500').forEach(e => e.remove());
+
+        totalForms.value = formNum + 1;
+        container.appendChild(newRow);
+        lucide.createIcons();
+    }
 </script>
 {% endblock %}

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <script>
+        // Envia os dados do novo objeto para a janela pai (Agenda)
+        window.parent.postMessage({
+            type: 'objectCreated',
+            model: '{{ model }}',
+            id: '{{ object.id }}',
+            {% if model == 'client' %}
+            name: '{{ object.name }}'
+            {% else %}
+            name: '{{ object.address }}, {{ object.number }}'
+            {% endif %}
+        }, '*');
+    </script>
+    <div style="font-family: sans-serif; text-align: center; padding: 40px;">
+        <h2 style="color: #10b981;">Sucesso!</h2>
+        <p>Registro salvo. Esta janela fechará automaticamente...</p>
+    </div>
+</body>
+</html>

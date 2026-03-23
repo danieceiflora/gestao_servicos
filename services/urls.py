@@ -17,9 +17,21 @@ urlpatterns = [
     
     # Ordens de Serviço
     path('orders/', views.service_order_list, name='service_order_list'),
+    path('orders/new/', views.service_order_scheduling, name='service_order_scheduling'),
+    path('orders/calendar/', views.service_order_calendar, name='service_order_calendar'),
     path('orders/<uuid:order_id>/', views.service_order_detail, name='service_order_detail'),
     path('orders/<uuid:order_id>/team/', views.service_order_team, name='service_order_team'),
+    path('orders/<uuid:order_id>/edit/', views.service_order_edit, name='service_order_edit'),
     path('orders/<uuid:order_id>/budget/', views.service_order_budget, name='service_order_budget'),
     path('orders/<uuid:order_id>/execute/', views.service_order_execution, name='service_order_execution'),
     path('property/<uuid:property_id>/service/new/', views.service_order_create, name='service_order_create'),
+    
+    # API
+    path('api/check-availability/', views.api_check_availability, name='api_check_availability'),
+    path('api/calendar-events/', views.api_calendar_events, name='api_calendar_events'),
+    path('api/clients/list/', views.api_get_clients, name='api_get_clients'),
+    path('api/clients/quick-create/', views.api_quick_create_client, name='api_quick_create_client'),
+    path('api/properties/quick-create/', views.api_quick_create_property, name='api_quick_create_property'),
+    path('api/properties/list/', views.api_get_properties, name='api_get_properties'),
+    path('api/orders/quick-create/', views.api_quick_create_order, name='api_quick_create_order'),
 ]

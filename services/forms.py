@@ -1,6 +1,6 @@
 from django import forms
 from django.forms import inlineformset_factory
-from .models import Client, ClientPhone, ClientEmail, Property, ServiceOrder, ServiceMedia, ServiceItem, ServiceOrderTeam, Professional, ProfessionalRole, ProfessionalAvailability
+from .models import Client, ClientPhone, ClientEmail, Property, ServiceOrder, ServiceMedia, ServiceItem, ServiceOrderTeam, Professional, ProfessionalRole, ProfessionalAvailability, ProfessionalScheduleBlock
 
 # --- UTILS FOR MULTIPLE UPLOAD ---
 
@@ -99,11 +99,89 @@ PropertyFormSet = inlineformset_factory(
 
 # --- SERVICE ORDER FORMS ---
 
-class ServiceOrderForm(forms.ModelForm):
+class ServiceOrderSchedulingForm(forms.ModelForm):
+    SCHEDULING_TYPES = [
+        ('INSPECTION', 'Vistoria Inicial / Orçamento'),
+        ('EXECUTION', 'Execução de Serviço (Direto)'),
+        ('WARRANTY', 'Retorno de Garantia'),
+    ]
+    
+    scheduling_type = forms.ChoiceField(
+        choices=SCHEDULING_TYPES,
+        initial='INSPECTION',
+        label="Finalidade do Agendamento",
+        widget=forms.RadioSelect(attrs={'class': 'flex gap-4 p-2 bg-slate-50 rounded-xl border border-slate-100'})
+    )
+
+    client = forms.ModelChoiceField(
+        queryset=Client.objects.all(),
+        label="Cliente",
+        required=True,
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white search-select'
+        })
+    )
+
     class Meta:
         model = ServiceOrder
-        fields = ['status', 'description', 'technical_notes', 'scheduled_for']
+        fields = ['client', 'client_property', 'description', 'budget_scheduled_at', 'execution_scheduled_at']
         widgets = {
+            'client_property': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
+            }),
+            'description': forms.Textarea(attrs={
+                'rows': 3, 
+                'placeholder': 'Descreva o problema ou solicitação...',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+            'budget_scheduled_at': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+            'execution_scheduled_at': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['client_property'].queryset = Property.objects.none()
+
+        if 'client' in self.data:
+            try:
+                client_id = self.data.get('client')
+                self.fields['client_property'].queryset = Property.objects.filter(client_id=client_id).order_by('address')
+            except (ValueError, TypeError):
+                pass
+        elif self.instance.pk and hasattr(self.instance, 'client_property') and self.instance.client_property:
+            self.fields['client'].initial = self.instance.client_property.client
+            self.fields['client_property'].queryset = self.instance.client_property.client.properties.order_by('address')
+
+        # Format dates for datetime-local input (YYYY-MM-DDTHH:MM)
+        if self.instance.pk:
+            if self.instance.budget_scheduled_at:
+                self.initial['budget_scheduled_at'] = self.instance.budget_scheduled_at.strftime('%Y-%m-%dT%H:%M')
+            if self.instance.execution_scheduled_at:
+                self.initial['execution_scheduled_at'] = self.instance.execution_scheduled_at.strftime('%Y-%m-%dT%H:%M')
+
+class ServiceOrderForm(forms.ModelForm):
+    client = forms.ModelChoiceField(
+        queryset=Client.objects.all(),
+        label="Cliente",
+        required=True,
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white search-select'
+        })
+    )
+
+    class Meta:
+        model = ServiceOrder
+        fields = ['client', 'client_property', 'status', 'description', 'technical_notes', 'budget_scheduled_at', 'execution_scheduled_at']
+        widgets = {
+            'client_property': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
+            }),
             'status': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
             }),
@@ -117,10 +195,55 @@ class ServiceOrderForm(forms.ModelForm):
                 'placeholder': 'Notas técnicas da vistoria...',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
-            'scheduled_for': forms.DateTimeInput(attrs={
+            'budget_scheduled_at': forms.DateTimeInput(attrs={
                 'type': 'datetime-local',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
+            'execution_scheduled_at': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['client_property'].queryset = Property.objects.none()
+
+        if 'client' in self.data:
+            try:
+                client_id = self.data.get('client')
+                self.fields['client_property'].queryset = Property.objects.filter(client_id=client_id).order_by('address')
+            except (ValueError, TypeError):
+                pass
+        elif self.instance.pk and hasattr(self.instance, 'client_property') and self.instance.client_property:
+            self.fields['client'].initial = self.instance.client_property.client
+            self.fields['client_property'].queryset = self.instance.client_property.client.properties.order_by('address')
+
+        # Format dates for datetime-local input (YYYY-MM-DDTHH:MM)
+        if self.instance.pk:
+            if self.instance.budget_scheduled_at:
+                self.initial['budget_scheduled_at'] = self.instance.budget_scheduled_at.strftime('%Y-%m-%dT%H:%M')
+            if self.instance.execution_scheduled_at:
+                self.initial['execution_scheduled_at'] = self.instance.execution_scheduled_at.strftime('%Y-%m-%dT%H:%M')
+
+    def clean(self):
+        cleaned_data = super().clean()
+        budget_at = cleaned_data.get('budget_scheduled_at')
+        execution_at = cleaned_data.get('execution_scheduled_at')
+        
+        # Lógica de validação de conflitos será implementada de forma centralizada 
+        # para ser usada tanto aqui quanto na designação de equipe.
+        return cleaned_data
+
+class ProfessionalScheduleBlockForm(forms.ModelForm):
+    class Meta:
+        model = ProfessionalScheduleBlock
+        fields = ['professional', 'start_at', 'end_at', 'reason', 'is_all_day']
+        widgets = {
+            'professional': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'start_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'end_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'reason': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
         }
 
 class ServiceInspectionForm(forms.ModelForm):
@@ -224,11 +347,12 @@ AvailabilityFormSet = inlineformset_factory(
 
 ServiceOrderTeamFormSet = inlineformset_factory(
     ServiceOrder, ServiceOrderTeam,
-    fields=['professional', 'role'],
+    fields=['professional', 'role', 'category'],
     extra=1,
     can_delete=True,
     widgets={
         'professional': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
         'role': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+        'category': forms.HiddenInput(),
     }
 )

@@ -28,12 +28,29 @@
                     </label>
                     {{ form.status }}
                 </div>
-                <div class="space-y-2 md:col-span-2">
+                <div class="space-y-2">
                     <label class="text-sm font-semibold text-slate-900 flex items-center gap-2">
                         <i data-lucide="calendar" class="h-4 w-4 text-blue-600"></i>
-                        Agendamento
+                        Orçamento
                     </label>
-                    {{ form.scheduled_for }}
+                    <div class="flex items-center gap-2">
+                        {{ form.budget_scheduled_at }}
+                        <button type="button" class="open-calendar-btn p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all" data-target="id_budget_scheduled_at">
+                            <i data-lucide="calendar-days" class="h-5 w-5"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="calendar-check" class="h-4 w-4 text-emerald-600"></i>
+                        Execução
+                    </label>
+                    <div class="flex items-center gap-2">
+                        {{ form.execution_scheduled_at }}
+                        <button type="button" class="open-calendar-btn p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all" data-target="id_execution_scheduled_at">
+                            <i data-lucide="calendar-days" class="h-5 w-5"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             

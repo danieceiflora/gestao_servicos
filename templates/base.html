@@ -24,6 +24,17 @@
     <style>
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
         .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        
+        /* Hide native calendar picker indicator */
+        .calendar-input::-webkit-calendar-picker-indicator {
+            display: none !important;
+            -webkit-appearance: none;
+        }
+        .calendar-input {
+            appearance: none;
+            -moz-appearance: none;
+            -webkit-appearance: none;
+        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
@@ -42,7 +53,8 @@
                 <a href="{% url 'home' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'home' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Dashboard</a>
                 <a href="{% url 'client_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'client_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Clientes</a>
                 <a href="{% url 'professional_list' %}" class="text-sm font-medium {% if 'professional' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Equipe</a>
-                <a href="{% url 'service_order_list' %}" class="text-sm font-medium {% if 'order' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Ordens</a>
+                <a href="{% url 'service_order_calendar' %}" class="text-sm font-medium {% if 'calendar' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Agenda</a>
+                <a href="{% url 'service_order_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Ordens</a>
                 <div class="h-8 w-8 rounded-full bg-slate-200 border border-slate-300"></div>
             </nav>
         </div>
@@ -70,11 +82,11 @@
                 <i data-lucide="users" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Equipe</span>
             </a>
-            <a href="{% url 'client_list' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'client_list' %}text-slate-900{% else %}text-slate-500{% endif %}">
-                <i data-lucide="briefcase" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Clientes</span>
+            <a href="{% url 'service_order_calendar' %}" class="flex flex-col items-center justify-center gap-1 {% if 'calendar' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
+                <i data-lucide="calendar" class="h-5 w-5"></i>
+                <span class="text-[10px] font-medium">Agenda</span>
             </a>
-            <a href="{% url 'service_order_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'order' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
+            <a href="{% url 'service_order_list' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="clipboard-list" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Ordens</span>
             </a>
@@ -83,6 +95,66 @@
 
     <script>
         lucide.createIcons();
+
+        // --- GLOBAL CALENDAR MODAL LOGIC ---
+        let calendarTargetInput = null;
+
+        function openCalendarModal(targetInputId, professionalId = '') {
+            calendarTargetInput = document.getElementById(targetInputId);
+            const modal = document.getElementById('calendar-modal');
+            const iframe = document.getElementById('calendar-iframe');
+            
+            // Load calendar in selection mode
+            let url = "{% url 'service_order_calendar' %}?mode=select";
+            if (professionalId) {
+                url += `&professional_id=${professionalId}`;
+            }
+            
+            iframe.src = url;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeCalendarModal() {
+            const modal = document.getElementById('calendar-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.body.style.overflow = '';
+        }
+
+        // Listen for date selection from iframe
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'dateSelected' && calendarTargetInput) {
+                // FullCalendar returns ISO string, we need to format for datetime-local (YYYY-MM-DDTHH:MM)
+                const date = new Date(event.data.date);
+                const formattedDate = date.toISOString().slice(0, 16);
+                calendarTargetInput.value = formattedDate;
+                
+                // Trigger change event for any validation
+                calendarTargetInput.dispatchEvent(new Event('change'));
+                
+                closeCalendarModal();
+            }
+        });
+
+        // Delegate listener for calendar buttons and inputs
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.open-calendar-btn');
+            const input = e.target.closest('.calendar-input');
+            const trigger = btn || input;
+            
+            if (trigger) {
+                const targetId = trigger.dataset.target || trigger.id;
+                const row = trigger.closest('.team-row');
+                let profId = '';
+                if (row) {
+                    const select = row.querySelector('select[name$="-professional"]');
+                    if (select) profId = select.value;
+                }
+                openCalendarModal(targetId, profId);
+            }
+        });
 
         // Feedback de carregamento global para botões de submit
         document.querySelectorAll('form').forEach(form => {
@@ -96,6 +168,27 @@
             });
         });
     </script>
+
+    <!-- Calendar Modal Structure -->
+    <div id="calendar-modal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
+        <div class="bg-white w-full max-w-5xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="calendar" class="h-5 w-5 text-blue-600"></i>
+                    <h3 class="font-bold text-slate-900">Selecionar Horário na Agenda</h3>
+                </div>
+                <button onclick="closeCalendarModal()" class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+                    <i data-lucide="x" class="h-5 w-5 text-slate-500"></i>
+                </button>
+            </div>
+            <div class="flex-1 bg-white">
+                <iframe id="calendar-iframe" src="" class="w-full h-full border-none"></iframe>
+            </div>
+            <div class="p-4 bg-slate-50 border-t border-slate-100 text-center">
+                <p class="text-xs text-slate-500 font-medium italic">Clique em um dia ou horário livre para selecionar</p>
+            </div>
+        </div>
+    </div>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

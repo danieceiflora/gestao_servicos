@@ -186,10 +186,11 @@ class ProfessionalAvailability(models.Model):
 
 class ServiceOrder(models.Model):
     class Status(models.TextChoices):
-        WAITING_BUDGET = 'WAITING_BUDGET', 'Aguardando Orçamento'
+        WAITING_VISIT = 'WAITING_VISIT', 'Aguardando visita inicial'
+        WAITING_BUDGET = 'WAITING_BUDGET', 'Aguardando envio de orçamento'
         BUDGET_SCHEDULED = 'BUDGET_SCHEDULED', 'Orçamento Agendado'
         WAITING_APPROVAL = 'WAITING_APPROVAL', 'Aguardando Aprovação do Cliente'
-        APPROVED_WAITING_SCHEDULE = 'APPROVED_WAITING_SCHEDULE', 'Aprovado - Aguardando Agendamento'
+        APPROVED_WAITING_SCHEDULE = 'APPROVED_WAITING_SCHEDULE', 'Aprovado - Aguardando Agendamento de execução'
         WAITING_EXECUTION = 'WAITING_EXECUTION', 'Aguardando Execução'
         FINISHED = 'FINISHED', 'Finalizado'
         CANCELLED = 'CANCELLED', 'Cancelado'
@@ -205,7 +206,11 @@ class ServiceOrder(models.Model):
     # Datas
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    scheduled_for = models.DateTimeField(null=True, blank=True, verbose_name="Agendado para")
+    
+    # Agendamentos Distintos
+    budget_scheduled_at = models.DateTimeField(null=True, blank=True, verbose_name="Visita de Orçamento Agendada para")
+    execution_scheduled_at = models.DateTimeField(null=True, blank=True, verbose_name="Execução de Serviço Agendada para")
+    
     finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
 
     def __str__(self):
@@ -219,25 +224,43 @@ class ServiceOrder(models.Model):
         verbose_name = "Ordem de Serviço"
         verbose_name_plural = "Ordens de Serviço"
 
+# --- AGENDAMENTO & BLOQUEIOS ---
+
+class ProfessionalScheduleBlock(models.Model):
+    professional = models.ForeignKey(Professional, on_delete=models.CASCADE, related_name='schedule_blocks', verbose_name="Profissional")
+    start_at = models.DateTimeField(verbose_name="Início do Bloqueio")
+    end_at = models.DateTimeField(verbose_name="Fim do Bloqueio")
+    reason = models.CharField(max_length=255, verbose_name="Motivo (Ex: Férias, Folga, Manutenção)")
+    is_all_day = models.BooleanField(default=False, verbose_name="Dia Inteiro")
+
+    def __str__(self):
+        return f"Bloqueio: {self.professional.name} ({self.start_at.strftime('%d/%m %H:%M')})"
+
+    class Meta:
+        verbose_name = "Bloqueio de Agenda"
+        verbose_name_plural = "Bloqueios de Agenda"
+        ordering = ['-start_at']
+
 class ServiceOrderTeam(models.Model):
-    class AssignmentType(models.TextChoices):
-        BUDGET = 'BUDGET', 'Orçamento'
-        EXECUTION = 'EXECUTION', 'Execução'
+    class Category(models.TextChoices):
+        INSPECTION = 'INSPECTION', 'Vistoria/Orçamento'
+        EXECUTION = 'EXECUTION', 'Execução/Instalação'
+        WARRANTY = 'WARRANTY', 'Garantia'
 
     service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='team_members')
     professional = models.ForeignKey(Professional, on_delete=models.CASCADE, related_name='service_alocations')
     role = models.ForeignKey(ProfessionalRole, on_delete=models.SET_NULL, null=True, verbose_name="Função no Serviço")
-    assignment_type = models.CharField(
+    category = models.CharField(
         max_length=20, 
-        choices=AssignmentType.choices, 
-        default=AssignmentType.EXECUTION,
-        verbose_name="Tipo de Designação"
+        choices=Category.choices, 
+        default=Category.EXECUTION,
+        verbose_name="Categoria de Atuação"
     )
 
     class Meta:
         verbose_name = "Membro da Equipe"
         verbose_name_plural = "Equipe do Serviço"
-        unique_together = ('service_order', 'professional', 'assignment_type')
+        unique_together = ('service_order', 'professional', 'category')
 
 class ServiceItem(models.Model):
     service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='items')

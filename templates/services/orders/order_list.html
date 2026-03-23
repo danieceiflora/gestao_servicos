@@ -10,6 +10,14 @@
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Ordens de Serviço</h2>
             <p class="text-sm text-slate-500">Acompanhe o ciclo de vida dos serviços.</p>
         </div>
+        <a href="{% url 'service_order_scheduling' %}" class="hidden md:inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+            <i data-lucide="calendar-plus" class="h-4 w-4"></i>
+            Novo Agendamento
+        </a>
+        <!-- Floating Action Button for Mobile -->
+        <a href="{% url 'service_order_scheduling' %}" class="md:hidden fixed right-6 bottom-24 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl active:scale-90 transition-transform">
+            <i data-lucide="calendar-plus" class="h-6 w-6"></i>
+        </a>
     </div>
 
     <!-- Desktop Table -->

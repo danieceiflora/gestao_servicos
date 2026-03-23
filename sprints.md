@@ -42,23 +42,34 @@ Acompanhamento detalhado das tarefas para execução do projeto.
   - [x] Campos para detalhamento técnico e valores.
   - [x] Cálculo automático de total do orçamento (JS).
   - [x] View de detalhamento da Ordem de Serviço.
-- [ ] **3.4 Designação de Equipe (Administrador):**
-  - [ ] Vincular múltiplos colaboradores a uma Ordem de Serviço.
-  - [ ] Definir a função específica (Técnico, Ajudante, etc) para cada colaborador na execução daquela OS.
+- [x] **3.4 Designação de Equipe (Administrador):**
+  - [x] Vincular múltiplos colaboradores a uma Ordem de Serviço.
+  - [x] Definir a função específica (Técnico, Ajudante, etc) para cada colaborador na execução daquela OS.
 
 ---
 
-## 🚀 Sprint 4: Cadastro de Instaladores e Colaboradores (EM DEFINIÇÃO)
-*Foco: Gestão da força de trabalho e competências.*
+## 🚀 Sprint 3.5: Gestão de Agenda Central (EM ANDAMENTO)
+*Foco: O motor de horários e a visualização mestre.*
 
-- [ ] **4.1 Estrutura de Dados do Profissional:**
-  - [ ] Modelo `Professional` (Nome, CPF, Telefone, E-mail - espelhando campos do Cliente).
-  - [ ] Sistema de Funções (Técnico, Ajudante, etc) com suporte a múltiplas funções por pessoa.
-- [ ] **4.2 Gestão de Disponibilidade:**
-  - [ ] Modelo para Grade de Horários (Dias da semana e intervalos de disponibilidade).
-- [ ] **4.3 Interfaces de Gestão:**
-  - [ ] CRUD de Instaladores (Lista, Cadastro e Edição).
-  - [ ] Interface visual para marcação de disponibilidade.
+- [x] **3.5.1 Regras de Negócio:** Documentação das regras de 1:30h e conflitos (`agenda.md`).
+- [x] **3.5.2 Estrutura de Dados:** Campos de agendamento em `ServiceOrder` e modelo `ProfessionalScheduleBlock`.
+- [x] **3.5.3 Motor de Validação:** API de checagem de disponibilidade com regra de buffer (`utils.py`).
+- [ ] **3.5.4 Dashboard de Calendário:** 
+    - [ ] Implementar FullCalendar.js para visualização de Orçamentos e Execuções.
+    - [ ] Filtro por Profissional no calendário.
+- [ ] **3.5.5 Interface de Bloqueios:** Tela para cadastrar folgas/férias de colaboradores.
+
+---
+
+## 🚀 Sprint 4: Gestão de Equipes e Disponibilidade
+*Foco: Integração do agendamento com a alocação de pessoas.*
+
+- [x] **4.1 Cadastro de Profissionais:** CRUD de Instaladores e suas funções.
+- [x] **4.2 Disponibilidade Base:** Configuração de horários de trabalho semanais.
+- [x] **4.3 Designação Inteligente:** 
+    - [ ] Integrar avisos de conflito em tempo real na tela de designar equipe.
+    - [ ] Impedir salvamento de equipes em horários de conflito (Validação no Servidor).
+  - [] Interface visual para agendar orçamentos e execuções para colaboradores. 
 
 ---
 
