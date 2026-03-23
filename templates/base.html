@@ -39,9 +39,10 @@
                 <span class="text-lg font-bold tracking-tight">Gestão de Serviços</span>
             </div>
             <nav class="flex items-center gap-6">
-                <a href="{% url 'home' %}" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Dashboard</a>
-                <a href="{% url 'client_list' %}" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Clientes</a>
-                <a href="#" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Ordens</a>
+                <a href="{% url 'home' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'home' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Dashboard</a>
+                <a href="{% url 'client_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'client_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Clientes</a>
+                <a href="{% url 'professional_list' %}" class="text-sm font-medium {% if 'professional' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Equipe</a>
+                <a href="{% url 'service_order_list' %}" class="text-sm font-medium {% if 'order' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Ordens</a>
                 <div class="h-8 w-8 rounded-full bg-slate-200 border border-slate-300"></div>
             </nav>
         </div>
@@ -65,17 +66,17 @@
                 <i data-lucide="layout-dashboard" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Início</span>
             </a>
-            <a href="{% url 'client_list' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'client_list' %}text-slate-900{% else %}text-slate-500{% endif %}">
+            <a href="{% url 'professional_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'professional' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="users" class="h-5 w-5"></i>
+                <span class="text-[10px] font-medium">Equipe</span>
+            </a>
+            <a href="{% url 'client_list' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'client_list' %}text-slate-900{% else %}text-slate-500{% endif %}">
+                <i data-lucide="briefcase" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Clientes</span>
             </a>
-            <a href="#" class="flex flex-col items-center justify-center gap-1 text-slate-500">
+            <a href="{% url 'service_order_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'order' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="clipboard-list" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Serviços</span>
-            </a>
-            <a href="#" class="flex flex-col items-center justify-center gap-1 text-slate-500">
-                <i data-lucide="user" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Perfil</span>
+                <span class="text-[10px] font-medium">Ordens</span>
             </a>
         </div>
     </nav>

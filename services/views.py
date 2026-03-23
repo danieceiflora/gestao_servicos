@@ -1,23 +1,81 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from .models import Client, Property, ServiceOrder, ServiceMedia, ServiceItem
+from django.views.generic import ListView, CreateView, UpdateView
+from django.urls import reverse_lazy
+from .models import Client, Property, ServiceOrder, ServiceMedia, ServiceItem, Professional, ProfessionalRole, ServiceOrderTeam
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, 
     PropertyForm, ServiceInspectionForm, ServiceItemFormSet,
-    ServiceOrderForm
+    ServiceOrderForm, ProfessionalForm, AvailabilityFormSet,
+    ServiceOrderTeamFormSet
 )
+
+class ProfessionalListView(ListView):
+    model = Professional
+    template_name = 'services/professionals/professional_list.html'
+    context_object_name = 'professionals'
+
+class ProfessionalCreateView(CreateView):
+    model = Professional
+    form_class = ProfessionalForm
+    template_name = 'services/professionals/professional_form.html'
+    success_url = reverse_lazy('professional_list')
+
+    def get_context_data(self, **kwargs):
+        data = super().get_context_data(**kwargs)
+        if self.request.POST:
+            data['availabilities'] = AvailabilityFormSet(self.request.POST)
+        else:
+            data['availabilities'] = AvailabilityFormSet()
+        return data
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        availabilities = context['availabilities']
+        if availabilities.is_valid():
+            self.object = form.save()
+            availabilities.instance = self.object
+            availabilities.save()
+            return super().form_valid(form)
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
+
+class ProfessionalUpdateView(UpdateView):
+    model = Professional
+    form_class = ProfessionalForm
+    template_name = 'services/professionals/professional_form.html'
+    success_url = reverse_lazy('professional_list')
+
+    def get_context_data(self, **kwargs):
+        data = super().get_context_data(**kwargs)
+        if self.request.POST:
+            data['availabilities'] = AvailabilityFormSet(self.request.POST, instance=self.object)
+        else:
+            data['availabilities'] = AvailabilityFormSet(instance=self.object)
+        return data
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        availabilities = context['availabilities']
+        if availabilities.is_valid():
+            self.object = form.save()
+            availabilities.instance = self.object
+            availabilities.save()
+            return super().form_valid(form)
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
 
 def home(request):
     active_orders = ServiceOrder.objects.exclude(status__in=[ServiceOrder.Status.FINISHED, ServiceOrder.Status.CANCELLED]).count()
-    pending_approval = ServiceOrder.objects.filter(status=ServiceOrder.Status.PENDING_APPROVAL).count()
-    warranty_orders = ServiceOrder.objects.filter(status=ServiceOrder.Status.WARRANTY).count()
+    pending_approval = ServiceOrder.objects.filter(status=ServiceOrder.Status.WAITING_APPROVAL).count()
+    waiting_execution = ServiceOrder.objects.filter(status=ServiceOrder.Status.WAITING_EXECUTION).count()
     
     recent_orders = ServiceOrder.objects.all().order_by('-updated_at')[:5]
     
     return render(request, 'services/home.html', {
         'active_orders': active_orders,
         'pending_approval': pending_approval,
-        'warranty_orders': warranty_orders,
+        'waiting_execution': waiting_execution,
         'recent_orders': recent_orders
     })
 
@@ -117,7 +175,7 @@ def service_order_create(request, property_id):
         if form.is_valid():
             service_order = form.save(commit=False)
             service_order.client_property = property_obj
-            service_order.status = ServiceOrder.Status.INSPECTION
+            service_order.status = ServiceOrder.Status.WAITING_BUDGET
             service_order.save()
             
             # Handle Multiple Files
@@ -129,7 +187,7 @@ def service_order_create(request, property_id):
                     media_type=ServiceMedia.MediaType.INSPECTION
                 )
             
-            messages.success(request, 'Ordem de Serviço criada e vistoria iniciada!')
+            messages.success(request, 'Ordem de Serviço criada com sucesso!')
             return redirect('service_order_list')
     else:
         form = ServiceInspectionForm()
@@ -149,9 +207,9 @@ def service_order_budget(request, order_id):
             form.save()
             formset.save()
             
-            # Auto-update status only if it's still in INSPECTION and items were added
-            if order.status == ServiceOrder.Status.INSPECTION and order.items.exists():
-                order.status = ServiceOrder.Status.BUDGETING
+            # Auto-update status only if it's still in initial stages and items were added
+            if order.status in [ServiceOrder.Status.WAITING_BUDGET, ServiceOrder.Status.BUDGET_SCHEDULED] and order.items.exists():
+                order.status = ServiceOrder.Status.WAITING_APPROVAL
                 order.save()
                 
             messages.success(request, 'Orçamento e status atualizados com sucesso!')
@@ -170,6 +228,63 @@ def service_order_budget(request, order_id):
 def service_order_detail(request, order_id):
     order = get_object_or_404(ServiceOrder, id=order_id)
     return render(request, 'services/orders/order_detail.html', {'order': order})
+
+def service_order_team(request, order_id):
+    order = get_object_or_404(ServiceOrder, id=order_id)
+    
+    if request.method == 'POST':
+        formset_budget = ServiceOrderTeamFormSet(
+            request.POST, 
+            instance=order, 
+            prefix='budget',
+            queryset=ServiceOrderTeam.objects.filter(assignment_type=ServiceOrderTeam.AssignmentType.BUDGET)
+        )
+        formset_execution = ServiceOrderTeamFormSet(
+            request.POST, 
+            instance=order, 
+            prefix='execution',
+            queryset=ServiceOrderTeam.objects.filter(assignment_type=ServiceOrderTeam.AssignmentType.EXECUTION)
+        )
+        
+        if formset_budget.is_valid() and formset_execution.is_valid():
+            # Salvar orçamento
+            budget_members = formset_budget.save(commit=False)
+            for member in budget_members:
+                member.assignment_type = ServiceOrderTeam.AssignmentType.BUDGET
+                member.save()
+            formset_budget.save_m2m()
+            
+            # Salvar execução
+            exec_members = formset_execution.save(commit=False)
+            for member in exec_members:
+                member.assignment_type = ServiceOrderTeam.AssignmentType.EXECUTION
+                member.save()
+            formset_execution.save_m2m()
+
+            # Tratar deleções
+            for obj in formset_budget.deleted_objects: obj.delete()
+            for obj in formset_execution.deleted_objects: obj.delete()
+
+            messages.success(request, 'Equipes atualizadas com sucesso!')
+            return redirect('service_order_detail', order_id=order.id)
+    else:
+        formset_budget = ServiceOrderTeamFormSet(
+            instance=order, 
+            prefix='budget',
+            queryset=ServiceOrderTeam.objects.filter(assignment_type=ServiceOrderTeam.AssignmentType.BUDGET)
+        )
+        formset_execution = ServiceOrderTeamFormSet(
+            instance=order, 
+            prefix='execution',
+            queryset=ServiceOrderTeam.objects.filter(assignment_type=ServiceOrderTeam.AssignmentType.EXECUTION)
+        )
+    
+    return render(request, 'services/orders/order_team_form.html', {
+        'order': order,
+        'formset_budget': formset_budget,
+        'formset_execution': formset_execution,
+        'title': 'Designar Equipes'
+    })
 
 def service_order_execution(request, order_id):
     order = get_object_or_404(ServiceOrder, id=order_id)

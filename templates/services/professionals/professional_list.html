@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}Profissionais - Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">Profissionais</h2>
+            <p class="text-sm text-slate-500">Gerencie sua equipe operacional e prestadores.</p>
+        </div>
+        <a href="{% url 'professional_create' %}" class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+            <i data-lucide="user-plus" class="h-4 w-4"></i>
+            Novo Profissional
+        </a>
+    </div>
+
+    <!-- View Desktop -->
+    <div class="hidden md:block rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium">
+                    <tr>
+                        <th class="px-6 py-3">Profissional</th>
+                        <th class="px-6 py-3">Funções</th>
+                        <th class="px-6 py-3">Contato</th>
+                        <th class="px-6 py-3">Status</th>
+                        <th class="px-6 py-3 text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for professional in professionals %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-slate-900">{{ professional.name }}</div>
+                            <div class="text-xs text-slate-500">CPF: {{ professional.cpf|default:"---" }}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-wrap gap-1">
+                                {% for role in professional.roles.all %}
+                                <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider border border-blue-100">
+                                    {{ role.name }}
+                                </span>
+                                {% empty %}
+                                <span class="text-xs text-slate-400 italic">Nenhuma função</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="text-xs text-slate-600 flex flex-col gap-0.5">
+                                <span class="flex items-center gap-1.5"><i data-lucide="phone" class="h-3 w-3"></i>{{ professional.phone }}</span>
+                                <span class="flex items-center gap-1.5"><i data-lucide="mail" class="h-3 w-3"></i>{{ professional.email|default:"---" }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if professional.is_active %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold uppercase">
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Ativo
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold uppercase">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Inativo
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="{% url 'professional_edit' professional.id %}" class="p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                                <i data-lucide="edit-2" class="h-4 w-4"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-slate-500 italic">Nenhum profissional cadastrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- View Mobile -->
+    <div class="md:hidden space-y-4">
+        {% for professional in professionals %}
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-4">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="font-bold text-slate-900">{{ professional.name }}</h3>
+                    <div class="flex flex-wrap gap-1 mt-1">
+                        {% for role in professional.roles.all %}
+                        <span class="text-[9px] font-bold text-blue-600 uppercase">{{ role.name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <a href="{% url 'professional_edit' professional.id %}" class="p-2 bg-slate-50 rounded-lg text-slate-400">
+                    <i data-lucide="edit-2" class="h-4 w-4"></i>
+                </a>
+            </div>
+            <div class="grid grid-cols-2 gap-2 pt-3 border-t border-slate-50">
+                <div class="text-[10px] text-slate-500 flex items-center gap-1.5">
+                    <i data-lucide="phone" class="h-3 w-3"></i> {{ professional.phone }}
+                </div>
+                <div class="text-[10px] text-slate-500 flex items-center gap-1.5">
+                    <i data-lucide="check-circle" class="h-3 w-3 {% if professional.is_active %}text-green-500{% else %}text-slate-300{% endif %}"></i>
+                    {% if professional.is_active %}Ativo{% else %}Inativo{% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

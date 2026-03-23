@@ -18,11 +18,12 @@
         <div class="flex items-center gap-3">
             <span class="inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold 
                 {% if order.status == 'FINISHED' %}bg-green-100 text-green-800
-                {% elif order.status == 'INSPECTION' %}bg-blue-100 text-blue-800
-                {% elif order.status == 'BUDGETING' %}bg-amber-100 text-amber-800
-                {% elif order.status == 'PENDING' %}bg-purple-100 text-purple-800
-                {% elif order.status == 'APPROVED' %}bg-emerald-100 text-emerald-800
-                {% elif order.status == 'EXECUTING' %}bg-indigo-100 text-indigo-800
+                {% elif order.status == 'WAITING_BUDGET' %}bg-blue-100 text-blue-800
+                {% elif order.status == 'BUDGET_SCHEDULED' %}bg-indigo-100 text-indigo-800
+                {% elif order.status == 'WAITING_APPROVAL' %}bg-amber-100 text-amber-800
+                {% elif order.status == 'APPROVED_WAITING_SCHEDULE' %}bg-emerald-100 text-emerald-800
+                {% elif order.status == 'WAITING_EXECUTION' %}bg-purple-100 text-purple-800
+                {% elif order.status == 'CANCELLED' %}bg-red-100 text-red-800
                 {% else %}bg-slate-100 text-slate-800{% endif %} shadow-sm border border-current opacity-80">
                 <span class="w-2 h-2 rounded-full bg-current mr-2 animate-pulse"></span>
                 {{ order.get_status_display }}
@@ -64,6 +65,63 @@
                                 Abrir no GPS
                             </a>
                             {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Equipe Designada -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+                    <h3 class="font-semibold text-slate-900">Equipes Designadas</h3>
+                    <a href="{% url 'service_order_team' order.id %}" class="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline">
+                        Gerenciar Equipes
+                    </a>
+                </div>
+                <div class="p-6 space-y-6">
+                    <!-- Equipe de Orçamento -->
+                    <div>
+                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <i data-lucide="clipboard-list" class="h-3 w-3 text-blue-500"></i>
+                            Orçamento
+                        </h4>
+                        <div class="flex flex-wrap gap-4">
+                            {% for member in order.team_members.all %}
+                                {% if member.assignment_type == 'BUDGET' %}
+                                <div class="flex items-center gap-3 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
+                                    <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
+                                        {{ member.professional.name|slice:":1" }}
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-slate-900">{{ member.professional.name }}</p>
+                                        <p class="text-[10px] font-medium text-blue-600 uppercase tracking-wider">{{ member.role.name }}</p>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Equipe de Execução -->
+                    <div>
+                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <i data-lucide="wrench" class="h-3 w-3 text-green-600"></i>
+                            Execução
+                        </h4>
+                        <div class="flex flex-wrap gap-4">
+                            {% for member in order.team_members.all %}
+                                {% if member.assignment_type == 'EXECUTION' %}
+                                <div class="flex items-center gap-3 p-3 rounded-xl bg-green-50/50 border border-green-100">
+                                    <div class="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-xs font-bold text-green-600">
+                                        {{ member.professional.name|slice:":1" }}
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-slate-900">{{ member.professional.name }}</p>
+                                        <p class="text-[10px] font-medium text-green-600 uppercase tracking-wider">{{ member.role.name }}</p>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
                         </div>
                     </div>
                 </div>
@@ -152,14 +210,14 @@
                         <span class="text-2xl font-black text-slate-900">R$ {{ order.total_value|floatformat:2 }}</span>
                     </div>
 
-                    {% if order.status == 'INSPECTION' or order.status == 'BUDGETING' %}
+                    {% if order.status == 'WAITING_BUDGET' or order.status == 'BUDGET_SCHEDULED' or order.status == 'WAITING_APPROVAL' %}
                     <a href="{% url 'service_order_budget' order.id %}" class="w-full inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-all shadow-md hover:shadow-lg mt-4">
                         <i data-lucide="edit-3" class="h-4 w-4"></i>
                         Editar Orçamento
                     </a>
                     {% endif %}
 
-                    {% if order.status == 'BUDGETING' %}
+                    {% if order.status == 'WAITING_APPROVAL' %}
                     <button class="w-full inline-flex items-center justify-center gap-2 bg-slate-900 text-white font-bold py-3 px-4 rounded-xl hover:bg-slate-800 transition-all shadow-md hover:shadow-lg mt-2">
                         <i data-lucide="send" class="h-4 w-4"></i>
                         Enviar via WhatsApp

@@ -1,6 +1,6 @@
 from django import forms
 from django.forms import inlineformset_factory
-from .models import Client, ClientPhone, ClientEmail, Property, ServiceOrder, ServiceMedia, ServiceItem
+from .models import Client, ClientPhone, ClientEmail, Property, ServiceOrder, ServiceMedia, ServiceItem, ServiceOrderTeam, Professional, ProfessionalRole, ProfessionalAvailability
 
 # --- UTILS FOR MULTIPLE UPLOAD ---
 
@@ -170,4 +170,65 @@ ServiceItemFormSet = inlineformset_factory(
     form=ServiceItemForm,
     extra=1,
     can_delete=True
+)
+
+# --- PROFESSIONAL FORMS ---
+
+from .models import Professional, ProfessionalRole, ProfessionalAvailability
+
+class ProfessionalForm(forms.ModelForm):
+    roles = forms.ModelMultipleChoiceField(
+        queryset=ProfessionalRole.objects.all(),
+        widget=forms.CheckboxSelectMultiple(attrs={
+            'class': 'grid grid-cols-2 gap-2 p-2'
+        }),
+        label="Funções"
+    )
+
+    class Meta:
+        model = Professional
+        fields = [
+            'name', 'cpf', 'phone', 'email', 'roles', 
+            'cep', 'address', 'number', 'complement', 
+            'neighborhood', 'city', 'state', 'base_salary',
+            'is_active', 'user'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'cpf': forms.TextInput(attrs={'class': 'cpf-mask w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'phone': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'email': forms.EmailInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'cep': forms.TextInput(attrs={'class': 'cep-input w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'onblur': 'buscarCep(this.value)'}),
+            'address': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'number': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'complement': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'neighborhood': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'city': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'state': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'base_salary': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'user': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
+        }
+
+AvailabilityFormSet = inlineformset_factory(
+    Professional, ProfessionalAvailability,
+    fields=['day_of_week', 'start_time', 'end_time'],
+    extra=1,
+    can_delete=True,
+    widgets={
+        'day_of_week': forms.Select(attrs={'class': 'w-full px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500'}),
+        'start_time': forms.TimeInput(attrs={'type': 'time', 'class': 'w-full px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500'}),
+        'end_time': forms.TimeInput(attrs={'type': 'time', 'class': 'w-full px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500'}),
+    }
+)
+
+ServiceOrderTeamFormSet = inlineformset_factory(
+    ServiceOrder, ServiceOrderTeam,
+    fields=['professional', 'role'],
+    extra=1,
+    can_delete=True,
+    widgets={
+        'professional': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+        'role': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+    }
 )

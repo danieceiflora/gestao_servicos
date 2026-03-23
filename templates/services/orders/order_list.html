@@ -53,10 +53,10 @@
                         <td class="px-6 py-4 text-right">
                             <div class="flex justify-end gap-2">
                                 <a href="{% url 'service_order_detail' order.id %}" class="p-2 text-slate-400 hover:text-slate-900"><i data-lucide="eye" class="h-4 w-4"></i></a>
-                                {% if order.status == 'APPROVED' or order.status == 'EXECUTING' %}
+                                {% if order.status == 'WAITING_EXECUTION' %}
                                     <a href="{% url 'service_order_execution' order.id %}" class="p-2 text-slate-400 hover:text-green-600"><i data-lucide="play-circle" class="h-4 w-4"></i></a>
                                 {% endif %}
-                                {% if order.status == 'INSPECTION' or order.status == 'BUDGETING' %}
+                                {% if order.status == 'WAITING_BUDGET' or order.status == 'BUDGET_SCHEDULED' or order.status == 'WAITING_APPROVAL' %}
                                     <a href="{% url 'service_order_budget' order.id %}" class="p-2 text-slate-400 hover:text-amber-600"><i data-lucide="calculator" class="h-4 w-4"></i></a>
                                 {% endif %}
                             </div>
@@ -88,7 +88,7 @@
                     <a href="{% url 'service_order_detail' order.id %}" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-900 text-xs font-semibold">
                         <i data-lucide="eye" class="h-3.5 w-3.5"></i> Ver
                     </a>
-                    {% if order.status == 'APPROVED' or order.status == 'EXECUTING' %}
+                    {% if order.status == 'WAITING_EXECUTION' %}
                     <a href="{% url 'service_order_execution' order.id %}" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold">
                         <i data-lucide="play" class="h-3.5 w-3.5 fill-current"></i> Iniciar
                     </a>

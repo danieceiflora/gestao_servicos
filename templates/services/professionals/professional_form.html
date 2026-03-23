@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ professional.name|default:"Novo Profissional" }} - Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto pb-12">
+    <!-- Header -->
+    <div class="flex items-center gap-4 mb-8">
+        <a href="{% url 'professional_list' %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            <i data-lucide="chevron-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">{% if professional %}Editar{% else %}Cadastrar{% endif %} Profissional</h2>
+            <p class="text-sm text-slate-500">Preencha os dados e defina a grade de disponibilidade.</p>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-8">
+        {% csrf_token %}
+        
+        <!-- Seção: Dados Básicos -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                <i data-lucide="user" class="h-4 w-4 text-slate-400"></i>
+                <h3 class="font-semibold text-slate-900 text-sm">Informações Gerais</h3>
+            </div>
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="md:col-span-2">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Nome Completo</label>
+                    {{ form.name }}
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">CPF</label>
+                    {{ form.cpf }}
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">WhatsApp / Telefone</label>
+                    {{ form.phone }}
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">E-mail</label>
+                    {{ form.email }}
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Salário Base (R$)</label>
+                    {{ form.base_salary }}
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Usuário Vinculado (Login)</label>
+                    {{ form.user }}
+                    <p class="text-[10px] text-slate-400 mt-1 italic">Vincule a um usuário para permitir acesso ao PWA.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção: Endereço -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                <i data-lucide="map-pin" class="h-4 w-4 text-slate-400"></i>
+                <h3 class="font-semibold text-slate-900 text-sm">Endereço (Opcional)</h3>
+            </div>
+            <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">CEP</label>
+                    {{ form.cep }}
+                </div>
+                <div class="md:col-span-2">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Logradouro</label>
+                    {{ form.address }}
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Número</label>
+                    {{ form.number }}
+                </div>
+                <div class="md:col-span-2">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Complemento</label>
+                    {{ form.complement }}
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Bairro</label>
+                    {{ form.neighborhood }}
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Cidade</label>
+                    {{ form.city }}
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">UF</label>
+                    {{ form.state }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção: Funções -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                <i data-lucide="briefcase" class="h-4 w-4 text-slate-400"></i>
+                <h3 class="font-semibold text-slate-900 text-sm">Competências / Funções</h3>
+            </div>
+            <div class="p-6">
+                <p class="text-xs text-slate-500 mb-4 italic">Selecione todas as funções que este profissional pode desempenhar.</p>
+                {{ form.roles }}
+            </div>
+        </div>
+
+        <!-- Seção: Disponibilidade -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>
+                    <h3 class="font-semibold text-slate-900 text-sm">Grade de Disponibilidade</h3>
+                </div>
+                <button type="button" id="add-availability" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
+                    + Adicionar Horário
+                </button>
+            </div>
+            <div class="p-6">
+                {{ availabilities.management_form }}
+                <div id="availability-formset" class="space-y-4">
+                    {% for av_form in availabilities %}
+                    <div class="availability-row grid grid-cols-1 md:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 items-end">
+                        {% for hidden in av_form.hidden_fields %} {{ hidden }} {% endfor %}
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Dia da Semana</label>
+                            {{ av_form.day_of_week }}
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Horário Início</label>
+                            {{ av_form.start_time }}
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Horário Fim</label>
+                            {{ av_form.end_time }}
+                        </div>
+                        <div class="flex items-center gap-2 pb-1.5">
+                            {% if availabilities.can_delete %}
+                                <div class="flex items-center gap-2 text-xs text-red-500">
+                                    {{ av_form.DELETE }}
+                                    <span class="text-[10px] font-bold uppercase">Excluir</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Ações -->
+        <div class="flex items-center justify-end gap-3 pt-4">
+            <a href="{% url 'professional_list' %}" class="px-6 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-all">Cancelar</a>
+            <button type="submit" class="px-8 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-sm hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl active:scale-95">
+                Salvar Profissional
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function buscarCep(cep) {
+        cep = cep.replace(/\D/g, '');
+        if (cep !== "" && cep.length === 8) {
+            fetch(`https://viacep.com.br/ws/${cep}/json/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.erro) {
+                        document.querySelector('[name="address"]').value = data.logradouro;
+                        document.querySelector('[name="neighborhood"]').value = data.bairro;
+                        document.querySelector('[name="city"]').value = data.localidade;
+                        document.querySelector('[name="state"]').value = data.uf;
+                        document.querySelector('[name="number"]').focus();
+                    }
+                });
+        }
+    }
+
+    // Gerenciamento Dinâmico de Formset
+ (Simplificado)
+    document.getElementById('add-availability').addEventListener('click', function() {
+        const container = document.getElementById('availability-formset');
+        const totalForms = document.getElementById('id_availabilities-TOTAL_FORMS');
+        const formNum = parseInt(totalForms.value);
+        
+        const firstRow = container.querySelector('.availability-row');
+        const newRow = firstRow.cloneNode(true);
+        
+        // Limpar valores e atualizar IDs/Names
+        newRow.querySelectorAll('input, select').forEach(input => {
+            const name = input.name.replace('-0-', `-${formNum}-`);
+            const id = input.id.replace('-0-', `-${formNum}-`);
+            input.name = name;
+            input.id = id;
+            if (input.type !== 'hidden') input.value = '';
+            if (input.type === 'checkbox') input.checked = false;
+        });
+
+        // Corrigir labels
+        newRow.querySelectorAll('label').forEach(label => {
+            if (label.getAttribute('for')) {
+                label.setAttribute('for', label.getAttribute('for').replace('-0-', `-${formNum}-`));
+            }
+        });
+
+        totalForms.value = formNum + 1;
+        container.appendChild(newRow);
+    });
+</script>
+{% endblock %}
