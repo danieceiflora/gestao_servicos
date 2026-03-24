@@ -782,6 +782,9 @@
   .border-red-200 {
     border-color: var(--color-red-200);
   }
+  .border-red-500 {
+    border-color: var(--color-red-500);
+  }
   .border-slate-50 {
     border-color: var(--color-slate-50);
   }
@@ -1299,6 +1302,9 @@
     @supports (color: color-mix(in lab, red, red)) {
       --tw-shadow-color: color-mix(in oklab, var(--color-slate-200) var(--tw-shadow-alpha), transparent);
     }
+  }
+  .ring-red-200 {
+    --tw-ring-color: var(--color-red-200);
   }
   .outline {
     outline-style: var(--tw-outline-style);

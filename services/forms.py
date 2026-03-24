@@ -37,9 +37,36 @@ class ClientForm(forms.ModelForm):
             }),
         }
 
+    def clean_cpf(self):
+        cpf = self.cleaned_data.get('cpf')
+        if cpf:
+            cpf = ''.join(filter(str.isdigit, cpf))
+            if len(cpf) != 11:
+                raise forms.ValidationError("CPF deve conter 11 dígitos.")
+        return cpf
+
+class ClientPhoneForm(forms.ModelForm):
+    class Meta:
+        model = ClientPhone
+        fields = ['phone', 'is_primary']
+        widgets = {
+            'phone': forms.TextInput(attrs={
+                'placeholder': '(00) 00000-0000',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+        }
+
+    def clean_phone(self):
+        phone = self.cleaned_data.get('phone')
+        if phone:
+            phone = ''.join(filter(str.isdigit, phone))
+            if len(phone) < 10 or len(phone) > 11:
+                raise forms.ValidationError("Telefone deve conter 10 ou 11 dígitos (incluindo DDD).")
+        return phone
+
 PhoneFormSet = inlineformset_factory(
     Client, ClientPhone, 
-    fields=['phone', 'is_primary'], 
+    form=ClientPhoneForm,
     extra=1, 
     can_delete=True
 )
@@ -332,6 +359,22 @@ class ProfessionalForm(forms.ModelForm):
             'user': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
         }
+
+    def clean_cpf(self):
+        cpf = self.cleaned_data.get('cpf')
+        if cpf:
+            cpf = ''.join(filter(str.isdigit, cpf))
+            if len(cpf) != 11:
+                raise forms.ValidationError("CPF deve conter 11 dígitos.")
+        return cpf
+
+    def clean_phone(self):
+        phone = self.cleaned_data.get('phone')
+        if phone:
+            phone = ''.join(filter(str.isdigit, phone))
+            if len(phone) < 10 or len(phone) > 11:
+                raise forms.ValidationError("Telefone deve conter 10 ou 11 dígitos (incluindo DDD).")
+        return phone
 
 AvailabilityFormSet = inlineformset_factory(
     Professional, ProfessionalAvailability,

@@ -161,20 +161,70 @@
 <script>
     function buscarCep(cep) {
         cep = cep.replace(/\D/g, '');
-        if (cep !== "" && cep.length === 8) {
-            fetch(`https://viacep.com.br/ws/${cep}/json/`)
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.erro) {
-                        document.querySelector('[name="address"]').value = data.logradouro;
-                        document.querySelector('[name="neighborhood"]').value = data.bairro;
-                        document.querySelector('[name="city"]').value = data.localidade;
-                        document.querySelector('[name="state"]').value = data.uf;
-                        document.querySelector('[name="number"]').focus();
-                    }
-                });
+        if (cep === "" || cep.length !== 8) return;
+
+        const input = document.querySelector('[name="cep"]');
+        const fieldAddress = document.querySelector('[name="address"]');
+        const fieldNeighborhood = document.querySelector('[name="neighborhood"]');
+        const fieldCity = document.querySelector('[name="city"]');
+        const fieldState = document.querySelector('[name="state"]');
+
+        fetch(`https://viacep.com.br/ws/${cep}/json/`)
+            .then(response => response.json())
+            .then(data => {
+                if (!data.erro) {
+                    fieldAddress.value = data.logradouro;
+                    fieldNeighborhood.value = data.bairro;
+                    fieldCity.value = data.localidade;
+                    fieldState.value = data.uf;
+                    document.querySelector('[name="number"]').focus();
+                    toggleError(input, false);
+                } else {
+                    fieldAddress.value = '';
+                    fieldNeighborhood.value = '';
+                    fieldCity.value = '';
+                    fieldState.value = '';
+                    toggleError(input, true, "CEP não encontrado");
+                }
+            })
+            .catch(() => {
+                toggleError(input, true, "Erro ao buscar CEP");
+            });
+    }
+
+    function toggleError(input, hasError, message) {
+        let errorMsg = input.parentNode.querySelector('.js-error-msg');
+        if (hasError) {
+            input.classList.add('border-red-500', 'ring-red-200');
+            if (!errorMsg) {
+                errorMsg = document.createElement('p');
+                errorMsg.className = 'js-error-msg text-[10px] text-red-500 mt-1 font-medium';
+                input.parentNode.appendChild(errorMsg);
+            }
+            errorMsg.textContent = message;
+        } else {
+            input.classList.remove('border-red-500', 'ring-red-200');
+            if (errorMsg) errorMsg.remove();
         }
     }
+
+    // Masks logic
+    function maskCPF(value) {
+        return value.replace(/\D/g, "").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2").substring(0, 14);
+    }
+    function maskPhone(value) {
+        value = value.replace(/\D/g, "");
+        if (value.length <= 10) return value.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d)/, "$1-$2").substring(0, 14);
+        return value.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2").substring(0, 15);
+    }
+    function maskCEP(value) {
+        return value.replace(/\D/g, "").replace(/(\d{5})(\d)/, "$1-$2").substring(0, 9);
+    }
+
+    document.querySelector('[name="cpf"]').addEventListener('input', (e) => e.target.value = maskCPF(e.target.value));
+    document.querySelector('[name="phone"]').addEventListener('input', (e) => e.target.value = maskPhone(e.target.value));
+    document.querySelector('[name="cep"]').addEventListener('input', (e) => e.target.value = maskCEP(e.target.value));
+    document.querySelector('[name="cep"]').addEventListener('blur', function() { buscarCep(this.value); });
 
     // Gerenciamento Dinâmico de Formset
  (Simplificado)
