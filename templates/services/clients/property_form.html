@@ -62,20 +62,31 @@
                 </div>
             </div>
 
-            <div class="pt-4 border-t border-slate-100">
+            <div class="pt-4 border-t border-slate-100 space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
                         <h4 class="text-sm font-medium text-slate-900">Geolocalização</h4>
-                        <p class="text-xs text-slate-500">Capture as coordenadas exatas para ajudar a equipe de campo.</p>
+                        <p class="text-xs text-slate-500">Insira manualmente ou capture as coordenadas exatas.</p>
                     </div>
                     <button type="button" onclick="getLocation()" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 hover:bg-slate-50">
                         <i data-lucide="map-pin" class="h-3 w-3"></i>
                         Capturar Localização
                     </button>
                 </div>
-                {{ form.latitude }}
-                {{ form.longitude }}
-                <div id="location-status" class="mt-2 text-xs font-medium hidden"></div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold uppercase text-slate-400">Latitude</label>
+                        {{ form.latitude }}
+                        {% if form.latitude.errors %}<p class="text-xs text-red-500">{{ form.latitude.errors }}</p>{% endif %}
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold uppercase text-slate-400">Longitude</label>
+                        {{ form.longitude }}
+                        {% if form.longitude.errors %}<p class="text-xs text-red-500">{{ form.longitude.errors }}</p>{% endif %}
+                    </div>
+                </div>
+                <div id="location-status" class="text-xs font-medium hidden"></div>
             </div>
         </div>
 
@@ -129,6 +140,8 @@
                     fieldNeighborhood.value = '';
                     fieldCity.value = '';
                     fieldState.value = '';
+                    document.querySelector('[name="latitude"]').value = '';
+                    document.querySelector('[name="longitude"]').value = '';
                     toggleError(input, true, "CEP não encontrado");
                 }
             })

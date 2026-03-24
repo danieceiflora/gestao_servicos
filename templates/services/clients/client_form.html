@@ -187,11 +187,13 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-1">
                                 <label class="text-[10px] font-bold uppercase text-slate-400">Latitude</label>
-                                <input type="text" name="{{ f.latitude.html_name }}" id="{{ f.latitude.id_for_label }}" value="{{ f.latitude.value|unlocalize|default:'' }}" readonly class="bg-slate-50 text-slate-500 cursor-not-allowed">
+                                {{ f.latitude }}
+                                {% if f.latitude.errors %}<p class="text-[10px] text-red-500">{{ f.latitude.errors }}</p>{% endif %}
                             </div>
                             <div class="space-y-1">
                                 <label class="text-[10px] font-bold uppercase text-slate-400">Longitude</label>
-                                <input type="text" name="{{ f.longitude.html_name }}" id="{{ f.longitude.id_for_label }}" value="{{ f.longitude.value|unlocalize|default:'' }}" readonly class="bg-slate-50 text-slate-500 cursor-not-allowed">
+                                {{ f.longitude }}
+                                {% if f.longitude.errors %}<p class="text-[10px] text-red-500">{{ f.longitude.errors }}</p>{% endif %}
                             </div>
                         </div>
                         <p class="location-status text-[10px] font-medium text-slate-400 italic text-right"></p>
@@ -391,6 +393,8 @@
                     fieldNeighborhood.value = '';
                     fieldCity.value = '';
                     fieldState.value = '';
+                    container.querySelector('[name*="-latitude"]').value = '';
+                    container.querySelector('[name*="-longitude"]').value = '';
                     toggleError(input, true, "CEP não encontrado");
                 }
             })
