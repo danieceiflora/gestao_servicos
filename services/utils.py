@@ -1,10 +1,15 @@
 from datetime import timedelta
 from django.db.models import Q
-from .models import ServiceOrder, ServiceOrderTeam, ProfessionalAvailability, ProfessionalScheduleBlock
+from .models import ServiceOrder, ServiceOrderTeam, ProfessionalAvailability, ProfessionalScheduleBlock, ServiceOrderTask
 
-def check_professional_availability(professional, timestamp):
+def check_professional_availability(professional, timestamp, exclude_task_id=None):
     """
     Retorna (bool, message) indicando se o profissional está disponível no timestamp.
+    
+    Args:
+        professional: Instância do Professional
+        timestamp: datetime do agendamento
+        exclude_task_id: UUID da task a excluir da verificação (útil ao editar)
     """
     if not timestamp:
         return True, ""
@@ -33,29 +38,27 @@ def check_professional_availability(professional, timestamp):
     if blocks:
         return False, f"O profissional {professional.name} possui um bloqueio de agenda neste período."
 
-    # 3. Verificar Conflitos de 1h30min (Buffer)
+    # 3. Verificar Conflitos de 1h30min (Buffer) com outras Tasks
     buffer = timedelta(hours=1, minutes=30)
     start_buffer = timestamp - buffer
     end_buffer = timestamp + buffer
 
-    # Procurar por OS onde o profissional está alocado (Orçamento ou Execução)
-    # que comecem dentro da janela de conflito
-    conflicts = ServiceOrderTeam.objects.filter(
-        professional=professional
-    ).filter(
-        # Orçamentos agendados no intervalo
-        Q(service_order__budget_scheduled_at__gt=start_buffer, 
-          service_order__budget_scheduled_at__lt=end_buffer,
-          assignment_type='BUDGET') |
-        # Execuções agendadas no intervalo
-        Q(service_order__execution_scheduled_at__gt=start_buffer, 
-          service_order__execution_scheduled_at__lt=end_buffer,
-          assignment_type='EXECUTION')
-    ).select_related('service_order')
+    # Buscar tasks agendadas onde o profissional está alocado
+    conflicts = ServiceOrderTask.objects.filter(
+        team_members__professional=professional,
+        status__in=[ServiceOrderTask.TaskStatus.SCHEDULED, ServiceOrderTask.TaskStatus.IN_PROGRESS],
+        scheduled_at__gt=start_buffer,
+        scheduled_at__lt=end_buffer
+    ).select_related('service_order__client_property__client')
+    
+    # Excluir a task atual se estiver editando
+    if exclude_task_id:
+        conflicts = conflicts.exclude(id=exclude_task_id)
 
     if conflicts.exists():
         conflict = conflicts.first()
-        tipo = "Orçamento" if conflict.assignment_type == 'BUDGET' else "Execução"
-        return False, f"{professional.name} já tem um(a) {tipo} agendado(a) próximo a este horário (Intervalo < 1:30h)."
+        tipo = conflict.get_task_type_display()
+        cliente = conflict.service_order.client_property.client.name
+        return False, f"{professional.name} já tem um(a) {tipo} agendado(a) para {cliente} próximo a este horário (Intervalo < 1:30h)."
 
     return True, "Disponível"

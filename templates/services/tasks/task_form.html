@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6 pb-24">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'service_order_detail' order.id %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            <i data-lucide="arrow-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h2 class="text-2xl font-bold text-slate-900">{{ title }}</h2>
+            <p class="text-sm text-slate-500">OS #{{ order.id.hex|slice:":8" }} - {{ order.client_property.client.name }}</p>
+        </div>
+    </div>
+
+    <!-- Formulário -->
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+            <h3 class="font-bold text-slate-900 flex items-center gap-2 pb-2 border-b border-slate-100">
+                <i data-lucide="calendar-clock" class="h-5 w-5 text-slate-400"></i>
+                Informações da Etapa
+            </h3>
+
+            <!-- Tipo de Etapa -->
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Tipo de Etapa</label>
+                {{ form.task_type }}
+                {% if form.task_type.errors %}
+                    <p class="text-xs text-red-600 mt-1">{{ form.task_type.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Data e Hora -->
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora do Agendamento</label>
+                {{ form.scheduled_at }}
+                {% if form.scheduled_at.errors %}
+                    <p class="text-xs text-red-600 mt-1">{{ form.scheduled_at.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Observações -->
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Observações</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                    <p class="text-xs text-red-600 mt-1">{{ form.notes.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Equipe -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="users" class="h-5 w-5 text-slate-400"></i>
+                    Equipe Alocada
+                </h3>
+                <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
+                    Obrigatório
+                </span>
+            </div>
+
+            {{ formset.management_form }}
+            
+            <div id="team-formset" class="space-y-4">
+                {% for team_form in formset %}
+                <div class="team-form-item p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                    {{ team_form.id }}
+                    {% if team_form.DELETE %}
+                        <div class="hidden">{{ team_form.DELETE }}</div>
+                    {% endif %}
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Profissional</label>
+                            {{ team_form.professional }}
+                            {% if team_form.professional.errors %}
+                                <p class="text-xs text-red-600 mt-1">{{ team_form.professional.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Função</label>
+                            {{ team_form.role }}
+                            {% if team_form.role.errors %}
+                                <p class="text-xs text-red-600 mt-1">{{ team_form.role.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if not forloop.first %}
+                    <button type="button" class="text-xs text-red-600 hover:text-red-700 font-bold flex items-center gap-1" onclick="removeTeamMember(this)">
+                        <i data-lucide="trash-2" class="h-3 w-3"></i>
+                        Remover membro
+                    </button>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <button type="button" id="add-team-member" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-sm font-bold text-slate-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center gap-2">
+                <i data-lucide="plus-circle" class="h-4 w-4"></i>
+                Adicionar Membro
+            </button>
+        </div>
+
+        <!-- Mensagens de erro -->
+        {% if messages %}
+        <div class="bg-red-50 border border-red-200 rounded-2xl p-4">
+            {% for message in messages %}
+            <p class="text-sm text-red-700">{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Botões de Ação -->
+        <div class="flex gap-3">
+            <a href="{% url 'service_order_detail' order.id %}" class="flex-1 py-4 rounded-xl border border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                Cancelar
+            </a>
+            <button type="submit" class="flex-1 py-4 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-lg">
+                {% if task %}Atualizar Etapa{% else %}Adicionar Etapa{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Adicionar membro à equipe
+    document.getElementById('add-team-member')?.addEventListener('click', function() {
+        const formset = document.getElementById('team-formset');
+        const totalForms = document.querySelector('[name$="TOTAL_FORMS"]');
+        const newFormIdx = parseInt(totalForms.value);
+        
+        const emptyForm = formset.children[0].cloneNode(true);
+        emptyForm.innerHTML = emptyForm.innerHTML.replace(/team_members-\d+/g, `team_members-${newFormIdx}`);
+        emptyForm.querySelectorAll('input, select').forEach(input => {
+            input.value = '';
+            if (input.type === 'checkbox') input.checked = false;
+        });
+        
+        formset.appendChild(emptyForm);
+        totalForms.value = newFormIdx + 1;
+        
+        // Reinitialize Lucide icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+
+    // Remover membro da equipe
+    function removeTeamMember(button) {
+        const formItem = button.closest('.team-form-item');
+        const deleteCheckbox = formItem.querySelector('[name$="DELETE"]');
+        if (deleteCheckbox) {
+            deleteCheckbox.checked = true;
+            formItem.style.display = 'none';
+        } else {
+            formItem.remove();
+        }
+    }
+</script>
+{% endblock %}

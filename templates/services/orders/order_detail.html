@@ -1,274 +1,262 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}OS #{{ order.id.hex|slice:":8" }} - Detalhes{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto space-y-6">
-    <!-- Breadcrumb & Header -->
+<div class="space-y-6 pb-20">
+    <!-- Header Contextual -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div class="space-y-1">
-            <div class="flex items-center gap-2 text-sm text-slate-500">
-                <a href="{% url 'service_order_list' %}" class="hover:text-slate-900 transition-colors">Ordens de Serviço</a>
-                <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                <span class="font-medium text-slate-900">#{{ order.id.hex|slice:":8" }}</span>
-            </div>
-            <h2 class="text-3xl font-bold tracking-tight text-slate-900">Ordem de Serviço</h2>
-        </div>
-        
-        <div class="flex items-center gap-3">
-            <a href="{% url 'service_order_edit' order.id %}" class="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-bold text-slate-600 border border-slate-200 rounded-full hover:bg-slate-50 transition-all">
-                <i data-lucide="edit-3" class="h-4 w-4"></i>
-                Editar OS
+        <div class="flex items-center gap-4">
+            <a href="{% url 'service_order_list' %}" class="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                <i data-lucide="arrow-left" class="h-6 w-6 text-slate-600"></i>
             </a>
-            <span class="inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold 
-                {% if order.status == 'FINISHED' %}bg-green-100 text-green-800
-                {% elif order.status == 'WAITING_BUDGET' %}bg-blue-100 text-blue-800
-                {% elif order.status == 'BUDGET_SCHEDULED' %}bg-indigo-100 text-indigo-800
-                {% elif order.status == 'WAITING_APPROVAL' %}bg-amber-100 text-amber-800
-                {% elif order.status == 'APPROVED_WAITING_SCHEDULE' %}bg-emerald-100 text-emerald-800
-                {% elif order.status == 'WAITING_EXECUTION' %}bg-purple-100 text-purple-800
-                {% elif order.status == 'CANCELLED' %}bg-red-100 text-red-800
-                {% else %}bg-slate-100 text-slate-800{% endif %} shadow-sm border border-current opacity-80">
-                <span class="w-2 h-2 rounded-full bg-current mr-2 animate-pulse"></span>
-                {{ order.get_status_display }}
-            </span>
+            <div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-[10px] font-mono font-bold text-slate-400 tracking-widest bg-slate-100 px-2 py-0.5 rounded">
+                        #{{ order.id.hex|slice:":8" }}
+                    </span>
+                    {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
+                </div>
+                <h2 class="text-2xl font-bold text-slate-900 leading-tight">
+                    {{ order.client_property.client.name }}
+                </h2>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+            <a href="{% url 'service_order_budget' order.id %}" class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
+                <i data-lucide="calculator" class="h-4 w-4"></i>
+                Orçamento
+            </a>
+            <a href="{% url 'service_order_execution' order.id %}" class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition-all shadow-sm">
+                <i data-lucide="play" class="h-4 w-4 fill-current"></i>
+                Painel de Execução
+            </a>
         </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Main Content -->
+        <!-- Coluna Esquerda: Informações Gerais -->
         <div class="lg:col-span-2 space-y-6">
-            <!-- Client & Property Info -->
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div class="p-6 border-b border-slate-100 flex items-center justify-between">
-                    <h3 class="font-semibold text-slate-900">Informações Gerais</h3>
-                    <i data-lucide="info" class="h-4 w-4 text-slate-400"></i>
-                </div>
-                <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cliente</label>
-                        <p class="font-medium text-slate-900">{{ order.client_property.client.name }}</p>
-                        {% for phone in order.client_property.client.phones.all %}
-                            <p class="text-sm text-slate-500 flex items-center gap-1 mt-1">
-                                <i data-lucide="phone" class="h-3 w-3"></i>
-                                {{ phone.phone }}
-                            </p>
-                        {% endfor %}
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Local do Serviço</label>
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <p class="font-medium text-slate-900">{{ order.client_property.get_classification_display }}</p>
-                                <p class="text-sm text-slate-500">{{ order.client_property.address }}, {{ order.client_property.number }}</p>
-                                <p class="text-xs text-slate-400">{{ order.client_property.neighborhood }} - {{ order.client_property.city }}/{{ order.client_property.state }}</p>
-                            </div>
-                            {% if order.client_property.latitude and order.client_property.longitude %}
-                            <a href="https://www.google.com/maps/dir/?api=1&destination={{ order.client_property.latitude|stringformat:".16f" }},{{ order.client_property.longitude|stringformat:".16f" }}&travelmode=driving" target="_blank" class="shrink-0 inline-flex items-center gap-1.5 text-[10px] font-bold text-white bg-blue-600 px-3 py-1.5 rounded-lg uppercase tracking-wider hover:bg-blue-700 shadow-sm transition-all active:scale-95">
-                                <i data-lucide="navigation" class="h-3.5 w-3.5"></i>
-                                Abrir no GPS
-                            </a>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Equipe Designada -->
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div class="p-6 border-b border-slate-100 flex items-center justify-between">
-                    <h3 class="font-semibold text-slate-900">Equipes Designadas</h3>
-                    <a href="{% url 'service_order_team' order.id %}" class="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline">
-                        Gerenciar Equipes
+            <!-- Timeline de Etapas (O Coração da Nova Estrutura) -->
+            <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="list-checks" class="h-5 w-5 text-slate-500"></i>
+                        Linha do Tempo do Serviço
+                    </h3>
+                    {% if order.status != 'FINISHED' and order.status != 'CANCELLED' %}
+                    <a href="{% url 'task_add' order.id %}" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-all">
+                        <i data-lucide="plus-circle" class="h-4 w-4"></i>
+                        Nova Etapa
                     </a>
-                </div>
-                <div class="p-6 space-y-6">
-                    <!-- Equipe de Orçamento -->
-                    <div>
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <i data-lucide="clipboard-list" class="h-3 w-3 text-amber-500"></i>
-                            Vistoria / Orçamento
-                        </h4>
-                        <div class="flex flex-wrap gap-4">
-                            {% for member in order.team_members.all %}
-                                {% if member.category == 'INSPECTION' %}
-                                <div class="flex items-center gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100">
-                                    <div class="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-600">
-                                        {{ member.professional.name|slice:":1" }}
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <p class="text-sm font-semibold text-slate-900">{{ member.professional.name }}</p>
-                                        <div class="flex items-center gap-2">
-                                            <p class="text-[10px] font-medium text-amber-600 uppercase tracking-wider">{{ member.role.name }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% endif %}
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    <!-- Equipe de Execução -->
-                    <div>
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <i data-lucide="hammer" class="h-3 w-3 text-blue-600"></i>
-                            Execução
-                        </h4>
-                        <div class="flex flex-wrap gap-4">
-                            {% for member in order.team_members.all %}
-                                {% if member.category == 'EXECUTION' %}
-                                <div class="flex items-center gap-3 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
-                                    <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
-                                        {{ member.professional.name|slice:":1" }}
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <p class="text-sm font-semibold text-slate-900">{{ member.professional.name }}</p>
-                                        <div class="flex items-center gap-2">
-                                            <p class="text-[10px] font-medium text-blue-600 uppercase tracking-wider">{{ member.role.name }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% endif %}
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    <!-- Equipe de Garantia -->
-                    <div>
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <i data-lucide="shield-check" class="h-3 w-3 text-emerald-600"></i>
-                            Garantia
-                        </h4>
-                        <div class="flex flex-wrap gap-4">
-                            {% for member in order.team_members.all %}
-                                {% if member.category == 'WARRANTY' %}
-                                <div class="flex items-center gap-3 p-3 rounded-xl bg-emerald-50/50 border border-emerald-100">
-                                    <div class="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-600">
-                                        {{ member.professional.name|slice:":1" }}
-                                    </div>
-                                    <div class="flex flex-col gap-1">
-                                        <p class="text-sm font-semibold text-slate-900">{{ member.professional.name }}</p>
-                                        <div class="flex items-center gap-2">
-                                            <p class="text-[10px] font-medium text-emerald-600 uppercase tracking-wider">{{ member.role.name }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% endif %}
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Description & Technical Notes -->
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div class="p-6 space-y-6">
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Solicitação / Problema</label>
-                        <div class="p-4 rounded-xl bg-slate-50 border border-slate-100 text-slate-700 leading-relaxed">
-                            {{ order.description|linebreaks|default:"Nenhuma descrição fornecida." }}
-                        </div>
-                    </div>
-                    {% if order.technical_notes %}
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block text-blue-600">Relatório da Vistoria</label>
-                        <div class="p-4 rounded-xl bg-blue-50/50 border border-blue-100 text-slate-700 leading-relaxed italic">
-                            {{ order.technical_notes|linebreaks }}
-                        </div>
-                    </div>
                     {% endif %}
                 </div>
-            </div>
-
-            <!-- Media Evidence -->
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div class="p-6 border-b border-slate-100 flex items-center justify-between">
-                    <h3 class="font-semibold text-slate-900">Evidências (Fotos e Vídeos)</h3>
-                    <span class="text-xs font-medium text-slate-400">{{ order.medias.count }} arquivos</span>
-                </div>
                 <div class="p-6">
-                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                        {% for media in order.medias.all %}
-                        <div class="group relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-sm transition-all hover:shadow-md">
-                            {% if media.is_video %}
-                                <div class="w-full h-full flex items-center justify-center">
-                                    <i data-lucide="video" class="h-8 w-8 text-slate-400"></i>
+                    <div class="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-slate-200 before:via-slate-200 before:to-transparent">
+                        {% for task in tasks %}
+                        <div class="relative flex items-start gap-6 group">
+                            <!-- Icone da Etapa -->
+                            <div class="absolute left-0 flex items-center justify-center w-10 h-10 rounded-full bg-white border-2 {% if task.status == 'COMPLETED' %}border-green-500 bg-green-50{% elif task.status == 'IN_PROGRESS' %}border-blue-500 bg-blue-50 animate-pulse{% else %}border-slate-200{% endif %} shadow-sm z-10 transition-colors">
+                                {% if task.task_type == 'BUDGET' %}
+                                    <i data-lucide="search" class="h-5 w-5 {% if task.status == 'COMPLETED' %}text-green-600{% else %}text-slate-400{% endif %}"></i>
+                                {% elif task.task_type == 'EXECUTION' %}
+                                    <i data-lucide="wrench" class="h-5 w-5 {% if task.status == 'COMPLETED' %}text-green-600{% else %}text-slate-400{% endif %}"></i>
+                                {% else %}
+                                    <i data-lucide="shield-check" class="h-5 w-5 {% if task.status == 'COMPLETED' %}text-green-600{% else %}text-slate-400{% endif %}"></i>
+                                {% endif %}
+                            </div>
+
+                            <div class="ml-12 flex-1 pt-1">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                                    <div>
+                                        <h4 class="font-bold text-slate-900">{{ task.get_task_type_display }}</h4>
+                                        <p class="text-xs text-slate-500 font-medium">
+                                            Agendado: {{ task.scheduled_at|date:"d/m/Y H:i" }}
+                                        </p>
+                                    </div>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold {% if task.status == 'COMPLETED' %}bg-green-100 text-green-700{% elif task.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                                        {{ task.get_status_display }}
+                                    </span>
                                 </div>
-                            {% else %}
-                                <img src="{{ media.file.url }}" class="w-full h-full object-cover transition-transform group-hover:scale-110">
-                            {% endif %}
-                            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                <a href="{{ media.file.url }}" target="_blank" class="p-2 bg-white rounded-full text-slate-900 hover:scale-110 transition-transform">
-                                    <i data-lucide="external-link" class="h-4 w-4"></i>
-                                </a>
+
+                                <!-- Equipe da Etapa -->
+                                {% if task.team_members.exists %}
+                                <div class="flex flex-wrap gap-2 mt-3">
+                                    {% for member in task.team_members.all %}
+                                    <div class="flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100 text-[11px] font-semibold text-slate-700">
+                                        <div class="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[8px]">
+                                            {{ member.professional.name|slice:":1" }}
+                                        </div>
+                                        {{ member.professional.name }}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+
+                                <!-- Mídias da Etapa -->
+                                {% if task.medias.exists %}
+                                <div class="grid grid-cols-4 sm:grid-cols-6 gap-2 mt-4">
+                                    {% for media in task.medias.all %}
+                                    <a href="{{ media.file.url }}" target="_blank" class="aspect-square rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-slate-900 transition-all">
+                                        {% if media.is_video %}
+                                            <div class="w-full h-full bg-slate-100 flex items-center justify-center">
+                                                <i data-lucide="play-circle" class="h-6 w-6 text-slate-400"></i>
+                                            </div>
+                                        {% else %}
+                                            <img src="{{ media.file.url }}" class="w-full h-full object-cover" alt="Evidência">
+                                        {% endif %}
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                
+                                {% if task.notes %}
+                                <div class="mt-3 p-3 bg-slate-50 rounded-xl text-xs text-slate-600 italic border-l-2 border-slate-200">
+                                    "{{ task.notes }}"
+                                </div>
+                                {% endif %}
+
+                                <!-- Ações da Etapa -->
+                                <div class="mt-4 flex gap-2">
+                                    {% if task.status == 'SCHEDULED' or task.status == 'IN_PROGRESS' %}
+                                    <a href="{% url 'task_execution' task.id %}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all">
+                                        <i data-lucide="play" class="h-3 w-3"></i>
+                                        {% if task.status == 'IN_PROGRESS' %}Continuar{% else %}Executar{% endif %}
+                                    </a>
+                                    {% endif %}
+                                    
+                                    {% if task.status != 'COMPLETED' and task.status != 'CANCELLED' %}
+                                    <a href="{% url 'task_edit' task.id %}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-all">
+                                        <i data-lucide="edit-3" class="h-3 w-3"></i>
+                                        Editar
+                                    </a>
+                                    <a href="{% url 'task_cancel' task.id %}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-bold hover:bg-red-100 transition-all">
+                                        <i data-lucide="x-circle" class="h-3 w-3"></i>
+                                        Cancelar
+                                    </a>
+                                    {% endif %}
+
+                                    {% if task.status == 'COMPLETED' %}
+                                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                                        <i data-lucide="clock" class="h-3 w-3"></i>
+                                        {% if task.started_at and task.finished_at %}
+                                        Início: {{ task.started_at|date:"d/m H:i" }} | Fim: {{ task.finished_at|date:"d/m H:i" }}
+                                        {% elif task.finished_at %}
+                                        Finalizado: {{ task.finished_at|date:"d/m/Y H:i" }}
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
                             </div>
-                            <div class="absolute bottom-2 left-2">
-                                <span class="px-2 py-0.5 rounded-full bg-black/60 text-[8px] font-bold text-white uppercase tracking-wider">
-                                    {{ media.get_media_type_display }}
-                                </span>
-                            </div>
-                        </div>
-                        {% empty %}
-                        <div class="col-span-full py-12 text-center">
-                            <i data-lucide="camera-off" class="h-10 w-10 text-slate-200 mx-auto mb-3"></i>
-                            <p class="text-sm text-slate-400 italic">Nenhuma mídia registrada.</p>
                         </div>
                         {% endfor %}
                     </div>
+                </div>
+            </div>
+
+            <!-- Itens do Orçamento -->
+            <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                    <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="receipt" class="h-5 w-5 text-slate-500"></i>
+                        Itens e Valores
+                    </h3>
+                    <span class="text-sm font-bold text-slate-900">Total: R$ {{ order.total_value|floatformat:2 }}</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+                            <tr>
+                                <th class="px-6 py-3">Descrição</th>
+                                <th class="px-6 py-3 text-center">Qtd</th>
+                                <th class="px-6 py-3 text-right">Unitário</th>
+                                <th class="px-6 py-3 text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for item in order.items.all %}
+                            <tr class="hover:bg-slate-50/50 transition-colors">
+                                <td class="px-6 py-4 font-medium text-slate-700">{{ item.description }}</td>
+                                <td class="px-6 py-4 text-center">{{ item.quantity|floatformat:0 }}</td>
+                                <td class="px-6 py-4 text-right">R$ {{ item.unit_price|floatformat:2 }}</td>
+                                <td class="px-6 py-4 text-right font-bold text-slate-900">R$ {{ item.total_price|floatformat:2 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="px-6 py-8 text-center text-slate-400 italic">
+                                    Nenhum item adicionado ao orçamento.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
-        <!-- Sidebar / Budget Summary -->
+        <!-- Coluna Direita: Dados de Contato e Local -->
         <div class="space-y-6">
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden sticky top-6">
-                <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                    <h3 class="font-semibold text-slate-900">Resumo Financeiro</h3>
-                    <i data-lucide="calculator" class="h-4 w-4 text-slate-400"></i>
-                </div>
-                <div class="p-6 space-y-4">
-                    <div class="space-y-3">
-                        {% for item in order.items.all %}
-                        <div class="flex justify-between text-sm">
-                            <span class="text-slate-500">{{ item.description }} (x{{ item.quantity|floatformat:0 }})</span>
-                            <span class="font-medium text-slate-900">R$ {{ item.total_price|floatformat:2 }}</span>
+            <!-- Card do Cliente -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <i data-lucide="user" class="h-5 w-5 text-slate-500"></i>
+                    Informações do Cliente
+                </h3>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Nome</p>
+                        <p class="text-sm font-semibold text-slate-900">{{ order.client_property.client.name }}</p>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4">
+                        {% for phone in order.client_property.client.phones.all %}
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Telefone {% if phone.is_primary %}(Principal){% endif %}</p>
+                            <a href="https://wa.me/55{{ phone.phone|cut:'('|cut:')'|cut:'-'|cut:' ' }}" target="_blank" class="text-sm font-semibold text-blue-600 hover:underline flex items-center gap-2">
+                                <i data-lucide="phone" class="h-4 w-4"></i>
+                                {{ phone.phone }}
+                            </a>
                         </div>
-                        {% empty %}
-                        <p class="text-sm text-slate-400 italic text-center py-4">Nenhum item adicionado.</p>
                         {% endfor %}
                     </div>
+                </div>
+            </div>
 
-                    <div class="pt-4 border-t border-slate-100 flex justify-between items-baseline">
-                        <span class="text-sm font-bold text-slate-900 uppercase tracking-widest">Total</span>
-                        <span class="text-2xl font-black text-slate-900">R$ {{ order.total_value|floatformat:2 }}</span>
+            <!-- Card do Imóvel -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <i data-lucide="map-pin" class="h-5 w-5 text-slate-500"></i>
+                    Local do Serviço
+                </h3>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Endereço</p>
+                        <p class="text-sm font-semibold text-slate-900">
+                            {{ order.client_property.address }}, {{ order.client_property.number }}
+                            {% if order.client_property.complement %}<br><span class="text-slate-500 text-xs">{{ order.client_property.complement }}</span>{% endif %}
+                        </p>
+                        <p class="text-xs text-slate-500 mt-1">{{ order.client_property.neighborhood }} - {{ order.client_property.city }}/{{ order.client_property.state }}</p>
                     </div>
-
-                    {% if order.status != 'FINISHED' and order.status != 'CANCELLED' %}
-                    <a href="{% url 'service_order_budget' order.id %}" class="w-full inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-all shadow-md hover:shadow-lg mt-4">
-                        <i data-lucide="edit-3" class="h-4 w-4"></i>
-                        Editar Orçamento / Itens
+                    
+                    {% if order.client_property.latitude %}
+                    <a href="https://www.google.com/maps/search/?api=1&query={{ order.client_property.latitude }},{{ order.client_property.longitude }}" target="_blank" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-slate-50 border border-slate-200 py-3 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all">
+                        <i data-lucide="navigation" class="h-4 w-4"></i>
+                        Abrir no GPS
                     </a>
-                    {% endif %}
-
-                    {% if order.status == 'WAITING_APPROVAL' %}
-                    <button class="w-full inline-flex items-center justify-center gap-2 bg-slate-900 text-white font-bold py-3 px-4 rounded-xl hover:bg-slate-800 transition-all shadow-md hover:shadow-lg mt-2">
-                        <i data-lucide="send" class="h-4 w-4"></i>
-                        Enviar via WhatsApp
-                    </button>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- Timestamps -->
-            <div class="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                <div class="flex justify-between text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                    <span>Criada em:</span>
-                    <span class="text-slate-600">{{ order.created_at|date:"d/m/Y H:i" }}</span>
-                </div>
-                <div class="flex justify-between text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                    <span>Última atualização:</span>
-                    <span class="text-slate-600">{{ order.updated_at|date:"d/m/Y H:i" }}</span>
-                </div>
+            <!-- Notas Gerais -->
+            <div class="bg-amber-50 rounded-2xl border border-amber-100 p-6 shadow-sm">
+                <h3 class="font-bold text-amber-900 mb-3 flex items-center gap-2 text-sm uppercase tracking-wider">
+                    <i data-lucide="alert-circle" class="h-4 w-4"></i>
+                    Descrição do Problema
+                </h3>
+                <p class="text-sm text-amber-800 leading-relaxed italic">
+                    "{{ order.description }}"
+                </p>
             </div>
         </div>
     </div>

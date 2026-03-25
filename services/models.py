@@ -198,19 +198,13 @@ class ServiceOrder(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client_property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='service_orders', verbose_name="Imóvel")
     status = models.CharField(max_length=30, choices=Status.choices, default=Status.WAITING_BUDGET, verbose_name="Status")
-    # ...
     
     description = models.TextField(verbose_name="Descrição do Problema/Solicitação", blank=True)
-    technical_notes = models.TextField(verbose_name="Notas Técnicas/Vistoria", blank=True)
+    technical_notes = models.TextField(verbose_name="Notas Técnicas Gerais", blank=True)
     
-    # Datas
+    # Datas de Auditoria
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
-    # Agendamentos Distintos
-    budget_scheduled_at = models.DateTimeField(null=True, blank=True, verbose_name="Visita de Orçamento Agendada para")
-    execution_scheduled_at = models.DateTimeField(null=True, blank=True, verbose_name="Execução de Serviço Agendada para")
-    
     finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
 
     def __str__(self):
@@ -223,6 +217,39 @@ class ServiceOrder(models.Model):
     class Meta:
         verbose_name = "Ordem de Serviço"
         verbose_name_plural = "Ordens de Serviço"
+
+class ServiceOrderTask(models.Model):
+    class TaskType(models.TextChoices):
+        BUDGET = 'BUDGET', 'Vistoria/Orçamento'
+        EXECUTION = 'EXECUTION', 'Execução/Instalação'
+        WARRANTY = 'WARRANTY', 'Garantia'
+
+    class TaskStatus(models.TextChoices):
+        SCHEDULED = 'SCHEDULED', 'Agendado'
+        IN_PROGRESS = 'IN_PROGRESS', 'Em Andamento'
+        COMPLETED = 'COMPLETED', 'Concluído'
+        CANCELLED = 'CANCELLED', 'Cancelado'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='tasks', verbose_name="Ordem de Serviço")
+    task_type = models.CharField(max_length=20, choices=TaskType.choices, default=TaskType.EXECUTION, verbose_name="Tipo de Etapa")
+    status = models.CharField(max_length=20, choices=TaskStatus.choices, default=TaskStatus.SCHEDULED, verbose_name="Status")
+    
+    # Datas e Horários
+    scheduled_at = models.DateTimeField(verbose_name="Agendado para")
+    started_at = models.DateTimeField(null=True, blank=True, verbose_name="Iniciado em")
+    finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
+    
+    notes = models.TextField(verbose_name="Observações Técnicas desta Etapa", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.get_task_type_display()} - OS {self.service_order.id.hex[:8]}"
+
+    class Meta:
+        verbose_name = "Etapa de Serviço"
+        verbose_name_plural = "Etapas de Serviço"
+        ordering = ['scheduled_at']
 
 # --- AGENDAMENTO & BLOQUEIOS ---
 
@@ -242,25 +269,15 @@ class ProfessionalScheduleBlock(models.Model):
         ordering = ['-start_at']
 
 class ServiceOrderTeam(models.Model):
-    class Category(models.TextChoices):
-        INSPECTION = 'INSPECTION', 'Vistoria/Orçamento'
-        EXECUTION = 'EXECUTION', 'Execução/Instalação'
-        WARRANTY = 'WARRANTY', 'Garantia'
-
-    service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='team_members')
+    # Agora ligamos a equipe à TAREFA específica, não mais à OS inteira
+    task = models.ForeignKey(ServiceOrderTask, on_delete=models.CASCADE, related_name='team_members', verbose_name="Etapa/Tarefa", null=True, blank=True)
     professional = models.ForeignKey(Professional, on_delete=models.CASCADE, related_name='service_alocations')
     role = models.ForeignKey(ProfessionalRole, on_delete=models.SET_NULL, null=True, verbose_name="Função no Serviço")
-    category = models.CharField(
-        max_length=20, 
-        choices=Category.choices, 
-        default=Category.EXECUTION,
-        verbose_name="Categoria de Atuação"
-    )
 
     class Meta:
         verbose_name = "Membro da Equipe"
         verbose_name_plural = "Equipe do Serviço"
-        unique_together = ('service_order', 'professional', 'category')
+        unique_together = ('task', 'professional')
 
 class ServiceItem(models.Model):
     service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='items')
@@ -276,14 +293,9 @@ class ServiceItem(models.Model):
         verbose_name = "Item de Serviço"
 
 class ServiceMedia(models.Model):
-    class MediaType(models.TextChoices):
-        INSPECTION = 'INSPECTION', 'Vistoria (Antes)'
-        EXECUTION = 'EXECUTION', 'Execução (Durante)'
-        FINAL = 'FINISHED', 'Finalizado (Depois)'
-
-    service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='medias')
+    # Mídia agora pertence a uma etapa específica da OS
+    task = models.ForeignKey(ServiceOrderTask, on_delete=models.CASCADE, related_name='medias', verbose_name="Etapa/Tarefa", null=True, blank=True)
     file = models.FileField(upload_to='services/%Y/%m/%d/', verbose_name="Arquivo (Foto/Vídeo)")
-    media_type = models.CharField(max_length=20, choices=MediaType.choices, default=MediaType.INSPECTION)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def is_video(self):

@@ -4,12 +4,18 @@ from django.views.generic import ListView, CreateView, UpdateView
 from django.urls import reverse_lazy
 from django.db.models import Q
 from datetime import timedelta, datetime
-from .models import Client, Property, ServiceOrder, ServiceMedia, ServiceItem, Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock
+import django.utils.timezone
+from .models import (
+    Client, Property, ServiceOrder, ServiceMedia, ServiceItem, 
+    Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
+    ServiceOrderTask
+)
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, 
     PropertyForm, ServiceInspectionForm, ServiceItemFormSet,
     ServiceOrderForm, ProfessionalForm, AvailabilityFormSet,
-    ServiceOrderTeamFormSet, ServiceOrderSchedulingForm
+    ServiceOrderTeamFormSet, ServiceOrderSchedulingForm,
+    TaskScheduleForm, TaskCancelForm
 )
 
 class ProfessionalListView(ListView):
@@ -181,40 +187,68 @@ def property_create(request, client_id):
 # --- SERVICE ORDER VIEWS ---
 
 def service_order_list(request):
+    query = request.GET.get('q')
     orders = ServiceOrder.objects.all().order_by('-created_at')
-    return render(request, 'services/orders/order_list.html', {'orders': orders})
+    
+    if query:
+        orders = orders.filter(
+            Q(client_property__client__name__icontains=query) |
+            Q(client_property__address__icontains=query) |
+            Q(client_property__number__icontains=query) |
+            Q(id__icontains=query)
+        )
+        
+    return render(request, 'services/orders/order_list.html', {'orders': orders, 'query': query})
 
 def service_order_scheduling(request):
     if request.method == 'POST':
         form = ServiceOrderSchedulingForm(request.POST)
-        formset = ServiceOrderTeamFormSet(request.POST, prefix='team_members')
+        formset = ServiceOrderTeamFormSet(request.POST)
+        
         if form.is_valid() and formset.is_valid():
             service_order = form.save(commit=False)
+            task_type = form.cleaned_data.get('task_type')
+            scheduled_at = form.cleaned_data.get('scheduled_at')
             
-            # Map scheduling type to status
-            sched_type = form.cleaned_data.get('scheduling_type')
-            if sched_type == 'INSPECTION':
+            # Validar disponibilidade da equipe antes de salvar
+            team_data = [f for f in formset.cleaned_data if f and not f.get('DELETE')]
+            for team_form in team_data:
+                professional = team_form.get('professional')
+                if professional:
+                    from .utils import check_professional_availability
+                    available, msg = check_professional_availability(professional, scheduled_at)
+                    if not available:
+                        messages.error(request, f"Conflito de agenda: {msg}")
+                        return render(request, 'services/orders/order_scheduling_form.html', {
+                            'form': form,
+                            'formset': formset,
+                            'title': 'Novo Agendamento'
+                        })
+            
+            if task_type == ServiceOrderTask.TaskType.BUDGET:
                 service_order.status = ServiceOrder.Status.BUDGET_SCHEDULED
-            elif sched_type == 'EXECUTION':
-                service_order.status = ServiceOrder.Status.WAITING_EXECUTION
-            elif sched_type == 'WARRANTY':
+            else:
                 service_order.status = ServiceOrder.Status.WAITING_EXECUTION
             
             service_order.save()
-            formset.instance = service_order
             
-            # Manually set category based on scheduling type for the initial team
-            instances = formset.save(commit=False)
-            for instance in instances:
-                instance.category = sched_type
-                instance.save()
-            formset.save_m2m()
+            # Criar a TAREFA inicial
+            task = ServiceOrderTask.objects.create(
+                service_order=service_order,
+                task_type=task_type,
+                scheduled_at=scheduled_at,
+                status=ServiceOrderTask.TaskStatus.SCHEDULED
+            )
+
+            # Equipe
+            formset.instance = task
+            formset.save()
             
             messages.success(request, 'Ordem de Serviço agendada com sucesso!')
             return redirect('service_order_detail', order_id=service_order.id)
     else:
         form = ServiceOrderSchedulingForm()
-        formset = ServiceOrderTeamFormSet(prefix='team_members')
+        formset = ServiceOrderTeamFormSet()
     
     return render(request, 'services/orders/order_scheduling_form.html', {
         'form': form,
@@ -225,23 +259,25 @@ def service_order_scheduling(request):
 def service_order_create(request, property_id):
     property_obj = get_object_or_404(Property, id=property_id)
     if request.method == 'POST':
-        form = ServiceInspectionForm(request.POST, request.FILES)
+        form = ServiceInspectionForm(request.POST, request.FILES) 
         if form.is_valid():
-            service_order = form.save(commit=False)
-            service_order.client_property = property_obj
-            service_order.status = ServiceOrder.Status.WAITING_BUDGET
-            service_order.save()
+            service_order = ServiceOrder.objects.create(
+                client_property=property_obj,
+                status=ServiceOrder.Status.WAITING_BUDGET
+            )
+            task = form.save(commit=False)
+            task.service_order = service_order
+            task.task_type = ServiceOrderTask.TaskType.BUDGET
+            task.status = ServiceOrderTask.TaskStatus.COMPLETED
+            task.scheduled_at = django.utils.timezone.now()
+            task.finished_at = django.utils.timezone.now()
+            task.save()
             
-            # Handle Multiple Files
             files = request.FILES.getlist('files')
             for f in files:
-                ServiceMedia.objects.create(
-                    service_order=service_order,
-                    file=f,
-                    media_type=ServiceMedia.MediaType.INSPECTION
-                )
+                ServiceMedia.objects.create(task=task, file=f)
             
-            messages.success(request, 'Ordem de Serviço criada com sucesso!')
+            messages.success(request, 'Vistoria registrada com sucesso!')
             return redirect('service_order_list')
     else:
         form = ServiceInspectionForm()
@@ -254,19 +290,21 @@ def service_order_create(request, property_id):
 
 def service_order_budget(request, order_id):
     order = get_object_or_404(ServiceOrder, id=order_id)
+    budget_task = order.tasks.filter(task_type=ServiceOrderTask.TaskType.BUDGET).first()
+
     if request.method == 'POST':
         form = ServiceOrderForm(request.POST, instance=order)
         formset = ServiceItemFormSet(request.POST, instance=order)
+
         if form.is_valid() and formset.is_valid():
             form.save()
             formset.save()
             
-            # Auto-update status only if it's still in initial stages and items were added
             if order.status in [ServiceOrder.Status.WAITING_BUDGET, ServiceOrder.Status.BUDGET_SCHEDULED] and order.items.exists():
                 order.status = ServiceOrder.Status.WAITING_APPROVAL
                 order.save()
                 
-            messages.success(request, 'Orçamento e status atualizados com sucesso!')
+            messages.success(request, 'Orçamento atualizado!')
             return redirect('service_order_list')
     else:
         form = ServiceOrderForm(instance=order)
@@ -276,53 +314,14 @@ def service_order_budget(request, order_id):
         'order': order,
         'form': form,
         'formset': formset,
+        'budget_task': budget_task,
         'title': 'Elaborar Orçamento'
     })
 
 def service_order_detail(request, order_id):
     order = get_object_or_404(ServiceOrder, id=order_id)
-    return render(request, 'services/orders/order_detail.html', {'order': order})
-
-def service_order_team(request, order_id):
-    order = get_object_or_404(ServiceOrder, id=order_id)
-    
-    # Helper to create formsets with category filtering
-    def get_team_formset(category, prefix, data=None):
-        return ServiceOrderTeamFormSet(
-            data,
-            instance=order,
-            prefix=prefix,
-            queryset=ServiceOrderTeam.objects.filter(service_order=order, category=category),
-            initial=[{'category': category}] # Set initial for the first extra form
-        )
-
-    if request.method == 'POST':
-        f_inspection = get_team_formset(ServiceOrderTeam.Category.INSPECTION, 'inspection', request.POST)
-        f_execution = get_team_formset(ServiceOrderTeam.Category.EXECUTION, 'execution', request.POST)
-        f_warranty = get_team_formset(ServiceOrderTeam.Category.WARRANTY, 'warranty', request.POST)
-        
-        if f_inspection.is_valid() and f_execution.is_valid() and f_warranty.is_valid():
-            # Standard formset saving - category is now in the form hidden fields
-            f_inspection.save()
-            f_execution.save()
-            f_warranty.save()
-
-            messages.success(request, 'Equipes atualizadas com sucesso!')
-            return redirect('service_order_detail', order_id=order.id)
-        else:
-            messages.error(request, 'Erro ao salvar equipes. Verifique os dados informados.')
-    else:
-        f_inspection = get_team_formset(ServiceOrderTeam.Category.INSPECTION, 'inspection')
-        f_execution = get_team_formset(ServiceOrderTeam.Category.EXECUTION, 'execution')
-        f_warranty = get_team_formset(ServiceOrderTeam.Category.WARRANTY, 'warranty')
-    
-    return render(request, 'services/orders/order_team_form.html', {
-        'order': order,
-        'f_inspection': f_inspection,
-        'f_execution': f_execution,
-        'f_warranty': f_warranty,
-        'title': 'Designar Equipe'
-    })
+    tasks = order.tasks.all().prefetch_related('team_members__professional', 'medias')
+    return render(request, 'services/orders/order_detail.html', {'order': order, 'tasks': tasks})
 
 def service_order_edit(request, order_id):
     order = get_object_or_404(ServiceOrder, id=order_id)
@@ -330,7 +329,7 @@ def service_order_edit(request, order_id):
         form = ServiceOrderForm(request.POST, instance=order)
         if form.is_valid():
             form.save()
-            messages.success(request, 'Ordem de Serviço atualizada com sucesso!')
+            messages.success(request, 'OS atualizada!')
             return redirect('service_order_detail', order_id=order.id)
     else:
         form = ServiceOrderForm(instance=order)
@@ -341,36 +340,207 @@ def service_order_edit(request, order_id):
         'title': f'Editar OS #{order.id.hex[:8]}'
     })
 
-def service_order_execution(request, order_id):
-    order = get_object_or_404(ServiceOrder, id=order_id)
+def task_execution(request, task_id):
+    """
+    View principal para execução de uma Task específica.
+    Permite iniciar, adicionar mídias e finalizar a etapa.
+    """
+    task = get_object_or_404(ServiceOrderTask, id=task_id)
+    order = task.service_order
     
+    if task.status in [ServiceOrderTask.TaskStatus.COMPLETED, ServiceOrderTask.TaskStatus.CANCELLED]:
+        messages.warning(request, "Esta etapa já foi concluída ou cancelada.")
+        return redirect('service_order_detail', order_id=order.id)
+
     if request.method == 'POST':
-        # Ao postar nesta view, estamos enviando evidências finais
+        if 'start_task' in request.POST:
+            task.status = ServiceOrderTask.TaskStatus.IN_PROGRESS
+            task.started_at = django.utils.timezone.now()
+            task.save()
+            messages.success(request, f'{task.get_task_type_display()} iniciado(a)!')
+        elif 'finish_task' in request.POST:
+            task.status = ServiceOrderTask.TaskStatus.COMPLETED
+            task.finished_at = django.utils.timezone.now()
+            task.notes = request.POST.get('notes', '')
+            task.save()
+            
+            # Atualizar status da OS apenas se todas as tasks foram concluídas
+            pending_tasks = order.tasks.exclude(
+                status__in=[ServiceOrderTask.TaskStatus.COMPLETED, ServiceOrderTask.TaskStatus.CANCELLED]
+            )
+            if not pending_tasks.exists():
+                order.status = ServiceOrder.Status.FINISHED
+                order.finished_at = django.utils.timezone.now()
+                order.save()
+                messages.success(request, 'Etapa finalizada! Todas as etapas da OS foram concluídas.')
+            else:
+                messages.success(request, 'Etapa finalizada com sucesso!')
+            
+            return redirect('service_order_detail', order_id=order.id)
+            
+        # Upload de mídias (fotos/vídeos)
         files = request.FILES.getlist('files')
+        for f in files:
+            ServiceMedia.objects.create(task=task, file=f)
         if files:
-            for f in files:
-                ServiceMedia.objects.create(
-                    service_order=order,
-                    file=f,
-                    media_type=ServiceMedia.MediaType.FINAL
-                )
-            messages.success(request, 'Evidências de execução salvas!')
-        
-        # Se clicar em um botão específico de finalizar
-        if 'finish_service' in request.POST:
-            final_notes = request.POST.get('final_notes')
-            if final_notes:
-                order.technical_notes = final_notes
-            order.status = ServiceOrder.Status.FINISHED
-            import django.utils.timezone
-            order.finished_at = django.utils.timezone.now()
-            order.save()
-            messages.success(request, 'Serviço finalizado com sucesso!')
-            return redirect('service_order_list')
+            messages.success(request, f'{len(files)} arquivo(s) adicionado(s) com sucesso!')
 
     return render(request, 'services/orders/order_execution.html', {
         'order': order,
-        'title': 'Execução de Serviço'
+        'task': task,
+        'title': f'Execução - {task.get_task_type_display()}'
+    })
+
+def service_order_execution(request, order_id):
+    """
+    View legacy para compatibilidade. Redireciona para a primeira task pendente.
+    """
+    order = get_object_or_404(ServiceOrder, id=order_id)
+    task = order.tasks.exclude(
+        status__in=[ServiceOrderTask.TaskStatus.COMPLETED, ServiceOrderTask.TaskStatus.CANCELLED]
+    ).order_by('scheduled_at').first()
+    
+    if not task:
+        messages.warning(request, "Não há etapas pendentes para esta OS.")
+        return redirect('service_order_detail', order_id=order.id)
+    
+    return redirect('task_execution', task_id=task.id)
+
+# --- TASK MANAGEMENT VIEWS ---
+
+def task_add(request, order_id):
+    """
+    View para adicionar uma nova Task (etapa) a uma OS existente.
+    """
+    order = get_object_or_404(ServiceOrder, id=order_id)
+    
+    if request.method == 'POST':
+        form = TaskScheduleForm(request.POST)
+        formset = ServiceOrderTeamFormSet(request.POST)
+        
+        if form.is_valid() and formset.is_valid():
+            task = form.save(commit=False)
+            task.service_order = order
+            task.status = ServiceOrderTask.TaskStatus.SCHEDULED
+            
+            # Validar disponibilidade da equipe
+            scheduled_at = form.cleaned_data.get('scheduled_at')
+            team_data = [f for f in formset.cleaned_data if f and not f.get('DELETE')]
+            
+            for team_form in team_data:
+                professional = team_form.get('professional')
+                if professional:
+                    available, msg = check_professional_availability(professional, scheduled_at)
+                    if not available:
+                        messages.error(request, f"Conflito de agenda: {msg}")
+                        return render(request, 'services/tasks/task_form.html', {
+                            'form': form,
+                            'formset': formset,
+                            'order': order,
+                            'title': 'Adicionar Nova Etapa'
+                        })
+            
+            task.save()
+            
+            # Salvar equipe
+            formset.instance = task
+            formset.save()
+            
+            messages.success(request, f'{task.get_task_type_display()} agendado(a) com sucesso!')
+            return redirect('service_order_detail', order_id=order.id)
+    else:
+        form = TaskScheduleForm()
+        formset = ServiceOrderTeamFormSet()
+    
+    return render(request, 'services/tasks/task_form.html', {
+        'form': form,
+        'formset': formset,
+        'order': order,
+        'title': 'Adicionar Nova Etapa'
+    })
+
+def task_edit(request, task_id):
+    """
+    View para editar uma Task existente (data, hora, equipe).
+    """
+    task = get_object_or_404(ServiceOrderTask, id=task_id)
+    order = task.service_order
+    
+    if task.status == ServiceOrderTask.TaskStatus.COMPLETED:
+        messages.warning(request, "Não é possível editar uma etapa já concluída.")
+        return redirect('service_order_detail', order_id=order.id)
+    
+    if request.method == 'POST':
+        form = TaskScheduleForm(request.POST, instance=task)
+        formset = ServiceOrderTeamFormSet(request.POST, instance=task)
+        
+        if form.is_valid() and formset.is_valid():
+            scheduled_at = form.cleaned_data.get('scheduled_at')
+            team_data = [f for f in formset.cleaned_data if f and not f.get('DELETE')]
+            
+            # Validar disponibilidade da equipe (excluindo a task atual)
+            for team_form in team_data:
+                professional = team_form.get('professional')
+                if professional:
+                    available, msg = check_professional_availability(
+                        professional, scheduled_at, exclude_task_id=task.id
+                    )
+                    if not available:
+                        messages.error(request, f"Conflito de agenda: {msg}")
+                        return render(request, 'services/tasks/task_form.html', {
+                            'form': form,
+                            'formset': formset,
+                            'order': order,
+                            'task': task,
+                            'title': 'Editar Etapa'
+                        })
+            
+            form.save()
+            formset.save()
+            
+            messages.success(request, 'Etapa atualizada com sucesso!')
+            return redirect('service_order_detail', order_id=order.id)
+    else:
+        form = TaskScheduleForm(instance=task)
+        formset = ServiceOrderTeamFormSet(instance=task)
+    
+    return render(request, 'services/tasks/task_form.html', {
+        'form': form,
+        'formset': formset,
+        'order': order,
+        'task': task,
+        'title': 'Editar Etapa'
+    })
+
+def task_cancel(request, task_id):
+    """
+    View para cancelar uma Task com justificativa.
+    """
+    task = get_object_or_404(ServiceOrderTask, id=task_id)
+    order = task.service_order
+    
+    if task.status == ServiceOrderTask.TaskStatus.COMPLETED:
+        messages.warning(request, "Não é possível cancelar uma etapa já concluída.")
+        return redirect('service_order_detail', order_id=order.id)
+    
+    if request.method == 'POST':
+        form = TaskCancelForm(request.POST)
+        if form.is_valid():
+            cancel_reason = form.cleaned_data.get('cancel_reason')
+            task.status = ServiceOrderTask.TaskStatus.CANCELLED
+            task.notes = f"[CANCELADO] {cancel_reason}\n\n{task.notes}"
+            task.save()
+            
+            messages.success(request, 'Etapa cancelada com sucesso.')
+            return redirect('service_order_detail', order_id=order.id)
+    else:
+        form = TaskCancelForm()
+    
+    return render(request, 'services/tasks/task_cancel.html', {
+        'form': form,
+        'task': task,
+        'order': order,
+        'title': 'Cancelar Etapa'
     })
 
 from django.http import JsonResponse
@@ -378,151 +548,65 @@ from .utils import check_professional_availability
 from dateutil.parser import parse
 
 def api_calendar_events(request):
-    start_str = request.GET.get('start')
-    end_str = request.GET.get('end')
-    prof_id = request.GET.get('professional_id')
-
     events = []
     buffer = timedelta(hours=1, minutes=30)
-
+    prof_id = request.GET.get('professional_id')
+    
+    tasks = ServiceOrderTask.objects.select_related('service_order__client_property__client')
     if prof_id:
-        # Visão específica do profissional: Mostra apenas os serviços onde ele está alocado
-        assignments = ServiceOrderTeam.objects.filter(professional_id=prof_id).select_related(
-            'service_order', 
-            'service_order__client_property__client',
-            'service_order__client_property'
-        ).prefetch_related('service_order__team_members__professional')
-        
-        for assign in assignments:
-            order = assign.service_order
-            team = [m.professional.name for m in order.team_members.all()]
-            
-            # Como não há mais agendamento individual, usa os da OS
-            dates = [
-                (order.budget_scheduled_at, 'budget', 'ORÇ'),
-                (order.execution_scheduled_at, 'execution', 'EXEC')
-            ]
-            
-            for dt, kind, prefix in dates:
-                if dt:
-                    color = '#3b82f6' if kind == 'budget' else '#10b981'
-                    border = '#2563eb' if kind == 'budget' else '#059669'
-                    
-                    events.append({
-                        'id': f"assign-{assign.id}-{kind}",
-                        'title': f"{prefix}: {order.client_property.client.name}",
-                        'start': dt.isoformat(),
-                        'end': (dt + buffer).isoformat(),
-                        'backgroundColor': color,
-                        'borderColor': border,
-                        'url': reverse_lazy('service_order_detail', kwargs={'order_id': order.id}),
-                        'extendedProps': {
-                            'client': order.client_property.client.name,
-                            'address': f"{order.client_property.address}, {order.client_property.number}",
-                            'neighborhood': order.client_property.neighborhood,
-                            'status': order.get_status_display(),
-                            'type': kind,
-                            'team': team,
-                            'description': order.description[:100] + '...' if len(order.description) > 100 else order.description
-                        }
-                    })
-    else:
-        # Visão Geral: Mostra todos os agendamentos das OS
-        orders = ServiceOrder.objects.filter(
-            Q(budget_scheduled_at__isnull=False) | Q(execution_scheduled_at__isnull=False)
-        ).select_related('client_property__client', 'client_property').prefetch_related('team_members__professional')
-        
-        for order in orders:
-            team = [m.professional.name for m in order.team_members.all()]
-            
-            if order.budget_scheduled_at:
-                events.append({
-                    'id': f"budget-{order.id}",
-                    'title': f"ORÇ: {order.client_property.client.name}",
-                    'start': order.budget_scheduled_at.isoformat(),
-                    'end': (order.budget_scheduled_at + buffer).isoformat(),
-                    'backgroundColor': '#3b82f6', # Blue 500
-                    'borderColor': '#2563eb',
-                    'url': reverse_lazy('service_order_detail', kwargs={'order_id': order.id}),
-                    'extendedProps': {
-                        'client': order.client_property.client.name,
-                        'address': f"{order.client_property.address}, {order.client_property.number}",
-                        'neighborhood': order.client_property.neighborhood,
-                        'status': order.get_status_display(),
-                        'type': 'budget',
-                        'team': team,
-                        'description': order.description[:100] + '...' if len(order.description) > 100 else order.description
-                    }
-                })
-            
-            if order.execution_scheduled_at:
-                events.append({
-                    'id': f"exec-{order.id}",
-                    'title': f"EXEC: {order.client_property.client.name}",
-                    'start': order.execution_scheduled_at.isoformat(),
-                    'end': (order.execution_scheduled_at + buffer).isoformat(),
-                    'backgroundColor': '#10b981', # Emerald 500
-                    'borderColor': '#059669',
-                    'url': reverse_lazy('service_order_detail', kwargs={'order_id': order.id}),
-                    'extendedProps': {
-                        'client': order.client_property.client.name,
-                        'address': f"{order.client_property.address}, {order.client_property.number}",
-                        'neighborhood': order.client_property.neighborhood,
-                        'status': order.get_status_display(),
-                        'type': 'execution',
-                        'team': team,
-                        'description': order.description[:100] + '...' if len(order.description) > 100 else order.description
-                    }
-                })
+        tasks = tasks.filter(team_members__professional_id=prof_id)
 
-    # Adicionar Bloqueios de Agenda
+    for task in tasks:
+        colors = {
+            'BUDGET': ('#3b82f6', '#2563eb', 'ORÇ'),
+            'EXECUTION': ('#10b981', '#059669', 'EXEC'),
+            'WARRANTY': ('#f59e0b', '#d97706', 'GAR'),
+        }
+        bg, border, prefix = colors.get(task.task_type, ('#64748b', '#475569', 'TSK'))
+        events.append({
+            'id': f"task-{task.id}",
+            'title': f"{prefix}: {task.service_order.client_property.client.name}",
+            'start': task.scheduled_at.isoformat(),
+            'end': (task.scheduled_at + buffer).isoformat(),
+            'backgroundColor': bg,
+            'borderColor': border,
+            'url': reverse_lazy('service_order_detail', kwargs={'order_id': task.service_order.id}),
+        })
+
     blocks = ProfessionalScheduleBlock.objects.all()
     if prof_id:
         blocks = blocks.filter(professional_id=prof_id)
-
     for block in blocks:
         events.append({
             'id': f"block-{block.id}",
-            'title': f"BLOQUEIO: {block.professional.name} - {block.reason}",
+            'title': f"BLOQUEIO: {block.professional.name}",
             'start': block.start_at.isoformat(),
             'end': block.end_at.isoformat(),
-            'backgroundColor': '#64748b', # Slate 500
-            'borderColor': '#475569',
+            'backgroundColor': '#64748b',
             'allDay': block.is_all_day,
-            'extendedProps': {
-                'type': 'block',
-                'professional': block.professional.name,
-                'reason': block.reason
-            }
         })
-
     return JsonResponse(events, safe=False)
 
 def service_order_calendar(request):
-    professionals = Professional.objects.filter(is_active=True)
-    roles = ProfessionalRole.objects.all()
-    status_choices = ServiceOrder.Status.choices
     return render(request, 'services/orders/calendar.html', {
-        'professionals': professionals,
-        'professional_roles': roles,
-        'status_choices': status_choices,
-        'title': 'Agenda Geral'
+        'professionals': Professional.objects.filter(is_active=True),
+        'professional_roles': ProfessionalRole.objects.all(),
+        'status_choices': ServiceOrder.Status.choices,
+        'title': 'Agenda'
     })
 
 def api_check_availability(request):
     prof_id = request.GET.get('professional_id')
     timestamp_str = request.GET.get('timestamp')
-    
     if not prof_id or not timestamp_str:
-        return JsonResponse({'available': True, 'message': 'Parâmetros incompletos.'})
-        
+        return JsonResponse({'available': True})
     try:
         professional = get_object_or_404(Professional, id=prof_id)
         timestamp = parse(timestamp_str)
         available, message = check_professional_availability(professional, timestamp)
         return JsonResponse({'available': available, 'message': message})
-    except Exception as e:
-        return JsonResponse({'available': False, 'message': str(e)})
+    except:
+        return JsonResponse({'available': False})
 
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
@@ -530,95 +614,35 @@ import json
 
 @csrf_exempt
 @require_POST
-def api_quick_create_client(request):
-    try:
-        data = json.loads(request.body)
-        client = Client.objects.create(name=data.get('name'), cpf=data.get('cpf'))
-        return JsonResponse({'id': str(client.id), 'name': client.name})
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
-
-@csrf_exempt
-@require_POST
-def api_quick_create_property(request):
-    try:
-        data = json.loads(request.body)
-        client = get_object_or_404(Client, id=data.get('client_id'))
-        prop = Property.objects.create(
-            client=client,
-            classification=data.get('classification', Property.PropertyType.CASA),
-            address=data.get('address'),
-            number=data.get('number'),
-            neighborhood=data.get('neighborhood'),
-            city=data.get('city'),
-            state=data.get('state'),
-            cep=data.get('cep')
-        )
-        return JsonResponse({'id': str(prop.id), 'address': f"{prop.address}, {prop.number}"})
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
-
-@csrf_exempt
-@require_POST
 def api_quick_create_order(request):
     try:
         data = json.loads(request.body)
         prop = get_object_or_404(Property, id=data.get('property_id'))
-        sched_type = data.get('type', 'INSPECTION')
+        sched_type = data.get('type', 'BUDGET')
         scheduled_at = parse(data.get('scheduled_at'))
-        team_data = data.get('team', [])
-
-        # Map type to Status
-        status = ServiceOrder.Status.WAITING_BUDGET
-        if sched_type == 'INSPECTION':
-            status = ServiceOrder.Status.BUDGET_SCHEDULED
-        elif sched_type == 'EXECUTION':
-            status = ServiceOrder.Status.WAITING_EXECUTION
-        elif sched_type == 'WARRANTY':
-            status = ServiceOrder.Status.WAITING_EXECUTION
-
-        # Create Order
-        order = ServiceOrder.objects.create(
-            client_property=prop,
-            status=status,
-            description=data.get('description', '')
-        )
         
-        # Set main OS schedule based on type
-        if sched_type == 'INSPECTION':
-            order.budget_scheduled_at = scheduled_at
-        else:
-            order.execution_scheduled_at = scheduled_at
-        order.save()
+        status = ServiceOrder.Status.BUDGET_SCHEDULED if sched_type == 'BUDGET' else ServiceOrder.Status.WAITING_EXECUTION
+        order = ServiceOrder.objects.create(client_property=prop, status=status, description=data.get('description', ''))
+        
+        task = ServiceOrderTask.objects.create(
+            service_order=order, task_type=sched_type, 
+            scheduled_at=scheduled_at, status=ServiceOrderTask.TaskStatus.SCHEDULED
+        )
 
-        # Add Team Members
-        for member in team_data:
+        for member in data.get('team', []):
             prof = get_object_or_404(Professional, id=member.get('professional_id'))
             role_id = member.get('role_id')
-            role = None
-            if role_id:
-                role = get_object_or_404(ProfessionalRole, id=role_id)
-            else:
-                role = prof.roles.first()
-            
-            ServiceOrderTeam.objects.create(
-                service_order=order,
-                professional=prof,
-                role=role,
-                category=sched_type # Also sync team category
-            )
+            role = get_object_or_404(ProfessionalRole, id=role_id) if role_id else prof.roles.first()
+            ServiceOrderTeam.objects.create(task=task, professional=prof, role=role)
 
         return JsonResponse({'id': str(order.id), 'success': True})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
 def api_get_properties(request):
-    client_id = request.GET.get('client_id')
-    properties = Property.objects.filter(client_id=client_id)
-    data = [{'id': str(p.id), 'address': f"{p.address}, {p.number}"} for p in properties]
-    return JsonResponse(data, safe=False)
+    properties = Property.objects.filter(client_id=request.GET.get('client_id'))
+    return JsonResponse([{'id': str(p.id), 'address': f"{p.address}, {p.number}"} for p in properties], safe=False)
 
 def api_get_clients(request):
     clients = Client.objects.all().order_by('name')
-    data = [{'id': str(c.id), 'name': c.name} for c in clients]
-    return JsonResponse(data, safe=False)
+    return JsonResponse([{'id': str(c.id), 'name': c.name} for c in clients], safe=False)

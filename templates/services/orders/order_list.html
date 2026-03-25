@@ -5,22 +5,53 @@
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Ordens de Serviço</h2>
             <p class="text-sm text-slate-500">Acompanhe o ciclo de vida dos serviços.</p>
         </div>
-        <a href="{% url 'service_order_scheduling' %}" class="hidden md:inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
-            <i data-lucide="calendar-plus" class="h-4 w-4"></i>
-            Novo Agendamento
-        </a>
+        <div class="flex flex-col sm:flex-row gap-3">
+            <form method="GET" class="relative group">
+                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-slate-600 transition-colors"></i>
+                <input 
+                    type="text" 
+                    name="q" 
+                    value="{{ query|default:'' }}"
+                    placeholder="Buscar OS, cliente, endereço..." 
+                    class="w-full sm:w-64 pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all"
+                >
+                {% if query %}
+                <a href="{% url 'service_order_list' %}" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="h-4 w-4"></i>
+                </a>
+                {% endif %}
+            </form>
+            <a href="{% url 'service_order_scheduling' %}" class="hidden md:inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+                <i data-lucide="calendar-plus" class="h-4 w-4"></i>
+                Novo Agendamento
+            </a>
+        </div>
         <!-- Floating Action Button for Mobile -->
         <a href="{% url 'service_order_scheduling' %}" class="md:hidden fixed right-6 bottom-24 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl active:scale-90 transition-transform">
             <i data-lucide="calendar-plus" class="h-6 w-6"></i>
         </a>
     </div>
 
+    {% if not orders %}
+    <div class="flex flex-col items-center justify-center py-12 bg-white border border-dashed border-slate-300 rounded-2xl">
+        <div class="p-4 bg-slate-50 rounded-full mb-4">
+            <i data-lucide="search-x" class="h-8 w-8 text-slate-400"></i>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-900">Nenhuma ordem encontrada</h3>
+        <p class="text-slate-500 text-sm mt-1">Tente ajustar seus termos de busca ou filtros.</p>
+        {% if query %}
+        <a href="{% url 'service_order_list' %}" class="mt-4 text-sm font-medium text-slate-900 hover:underline">Limpar busca</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Desktop Table -->
+    {% if orders %}
     <div class="hidden md:block rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
@@ -62,7 +93,9 @@
                             <div class="flex justify-end gap-2">
                                 <a href="{% url 'service_order_detail' order.id %}" class="p-2 text-slate-400 hover:text-slate-900"><i data-lucide="eye" class="h-4 w-4"></i></a>
                                 {% if order.status == 'WAITING_EXECUTION' %}
-                                    <a href="{% url 'service_order_execution' order.id %}" class="p-2 text-slate-400 hover:text-green-600"><i data-lucide="play-circle" class="h-4 w-4"></i></a>
+                                    <a href="{% url 'service_order_execution' order.id %}" class="p-2 text-slate-400 hover:text-green-600" title="{% if order.is_warranty %}Execução de Garantia{% else %}Execução de Serviço{% endif %}">
+                                        <i data-lucide="play-circle" class="h-4 w-4"></i>
+                                    </a>
                                 {% endif %}
                                 {% if order.status == 'WAITING_BUDGET' or order.status == 'BUDGET_SCHEDULED' or order.status == 'WAITING_APPROVAL' %}
                                     <a href="{% url 'service_order_budget' order.id %}" class="p-2 text-slate-400 hover:text-amber-600"><i data-lucide="calculator" class="h-4 w-4"></i></a>
@@ -106,5 +139,6 @@
         </div>
         {% endfor %}
     </div>
+    {% endif %}
 </div>
 {% endblock %}

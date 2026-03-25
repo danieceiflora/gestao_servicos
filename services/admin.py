@@ -3,7 +3,8 @@ from django.contrib.auth.admin import UserAdmin
 from .models import (
     User, Client, ClientPhone, ClientEmail, Property, 
     ProfessionalRole, Professional, ProfessionalAvailability,
-    ServiceOrder, ServiceItem, ServiceMedia, ServiceOrderTeam
+    ServiceOrder, ServiceItem, ServiceMedia, ServiceOrderTeam,
+    ServiceOrderTask
 )
 
 @admin.register(User)
@@ -81,11 +82,23 @@ class ServiceOrderTeamInline(admin.TabularInline):
     extra = 1
     autocomplete_fields = ['professional']
 
+class ServiceOrderTaskInline(admin.TabularInline):
+    model = ServiceOrderTask
+    extra = 1
+    show_change_link = True
+    fields = ['task_type', 'status', 'scheduled_at']
+
+@admin.register(ServiceOrderTask)
+class ServiceOrderTaskAdmin(admin.ModelAdmin):
+    list_display = ['task_type', 'service_order', 'status', 'scheduled_at']
+    list_filter = ['task_type', 'status']
+    inlines = [ServiceOrderTeamInline, ServiceMediaInline]
+
 @admin.register(ServiceOrder)
 class ServiceOrderAdmin(admin.ModelAdmin):
     list_display = ['id_short', 'client_name', 'status', 'total_value_display', 'created_at']
     list_filter = ['status', 'created_at']
-    inlines = [ServiceOrderTeamInline, ServiceItemInline, ServiceMediaInline]
+    inlines = [ServiceOrderTaskInline, ServiceItemInline]
 
     def id_short(self, obj):
         return f"#{obj.id.hex[:8]}"

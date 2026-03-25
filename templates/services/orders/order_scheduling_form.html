@@ -27,7 +27,7 @@
         </a>
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ title }}</h2>
-            <p class="text-sm text-slate-500">Agende uma nova ordem de serviço para um cliente.</p>
+            <p class="text-sm text-slate-500">Agende uma nova etapa de serviço para um cliente.</p>
         </div>
     </div>
 
@@ -75,18 +75,29 @@
                 <p id="property-loading" class="text-xs text-slate-400 hidden italic">Carregando imóveis...</p>
             </div>
 
-            <!-- Scheduling Purpose -->
+            <!-- Task Type -->
             <div class="space-y-3">
                 <label class="text-sm font-bold text-slate-700 uppercase tracking-widest">
-                    {{ form.scheduling_type.label }}
+                    {{ form.task_type.label }}
                 </label>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {% for radio in form.scheduling_type %}
+                    {% for radio in form.task_type %}
                     <label class="relative flex flex-col p-4 border-2 rounded-2xl cursor-pointer transition-all hover:bg-slate-50 [&:has(input:checked)]:border-blue-600 [&:has(input:checked)]:bg-blue-50/50">
                         {{ radio.tag }}
                         <span class="text-sm font-bold text-slate-900">{{ radio.choice_label }}</span>
                     </label>
                     {% endfor %}
+                </div>
+            </div>
+
+            <!-- Schedule Date -->
+            <div class="space-y-2">
+                <label for="{{ form.scheduled_at.id_for_label }}" class="text-sm font-medium text-slate-700 flex items-center gap-2">
+                    <i data-lucide="calendar" class="h-4 w-4 text-blue-500"></i>
+                    {{ form.scheduled_at.label }}
+                </label>
+                <div class="relative group">
+                    {{ form.scheduled_at }}
                 </div>
             </div>
 
@@ -106,7 +117,7 @@
                 <div class="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <i data-lucide="users" class="h-4 w-4 text-slate-600"></i>
-                        <h3 class="font-semibold text-slate-900 text-sm">Equipe Designada</h3>
+                        <h3 class="font-semibold text-slate-900 text-sm">Equipe Designada para esta Etapa</h3>
                     </div>
                     <button type="button" id="add-member-btn" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
                         + Adicionar Profissional
@@ -119,10 +130,6 @@
                         {% for f in formset %}
                         <div class="team-row grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 items-end relative">
                             {% for hidden in f.hidden_fields %} {{ hidden }} {% endfor %}
-                            
-                            {# Categoria oculta para sincronizar com o tipo de agendamento #}
-                            <input type="hidden" name="{{ f.prefix }}-category" id="id_{{ f.prefix }}-category" class="category-sync-input" value="INSPECTION">
-                            
                             <div>
                                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Colaborador</label>
                                 {{ f.professional }}
@@ -137,47 +144,18 @@
                 </div>
             </div>
 
-            <!-- Schedules -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-                <div id="div-budget-date" class="space-y-2">
-                    <label for="{{ form.budget_scheduled_at.id_for_label }}" class="text-sm font-medium text-slate-700 flex items-center gap-2">
-                        <i data-lucide="calendar-search" class="h-4 w-4 text-blue-500"></i>
-                        Data/Hora da Vistoria
-                    </label>
-                    <div class="relative group">
-                        {{ form.budget_scheduled_at }}
-                        <button type="button" class="open-calendar-btn absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors" data-target="{{ form.budget_scheduled_at.auto_id }}">
-                            <i data-lucide="calendar" class="h-4 w-4"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <div id="div-execution-date" class="space-y-2">
-                    <label for="{{ form.execution_scheduled_at.id_for_label }}" class="text-sm font-medium text-slate-700 flex items-center gap-2">
-                        <i data-lucide="calendar-check" class="h-4 w-4 text-green-500"></i>
-                        Data/Hora da Execução
-                    </label>
-                    <div class="relative group">
-                        {{ form.execution_scheduled_at }}
-                        <button type="button" class="open-calendar-btn absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-green-600 transition-colors" data-target="{{ form.execution_scheduled_at.auto_id }}">
-                            <i data-lucide="calendar" class="h-4 w-4"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
             <!-- Submit Button -->
             <div class="pt-6">
                 <button type="submit" class="w-full bg-slate-900 text-white font-semibold py-3 px-4 rounded-xl hover:bg-slate-800 focus:ring-4 focus:ring-slate-200 transition-all flex items-center justify-center gap-2">
                     <i data-lucide="check-circle" class="h-5 w-5"></i>
-                    Salvar Agendamento
+                    Confirmar Agendamento
                 </button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Modal Container for Adding Client/Property -->
+<!-- Modal Container -->
 <div id="form-modal" class="hidden fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
     <div class="bg-white w-full max-w-2xl h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
@@ -259,7 +237,6 @@
             } else if (type === 'property') {
                 const clientId = clientSelect.value;
                 if (!clientId) return alert("Selecione um cliente primeiro.");
-                // Redirect directly for property as requested
                 window.location.href = `/clients/${clientId}/property/new/`;
             }
         };
@@ -271,206 +248,32 @@
             document.body.style.overflow = '';
         };
 
-        // Listen for creation messages from popups
-        window.addEventListener('message', function(event) {
-            if (event.data.type === 'objectCreated') {
-                if (event.data.model === 'client') {
-                    // Update client list
-                    tsClient.addOption({value: event.data.id, text: event.data.name});
-                    tsClient.setValue(event.data.id);
-                } else if (event.data.model === 'property') {
-                    // Update property list
-                    const option = document.createElement('option');
-                    option.value = event.data.id;
-                    option.textContent = event.data.name;
-                    propertySelect.appendChild(option);
-                    propertySelect.value = event.data.id;
-                }
-                closeModal();
-            }
-        });
-
-        // Trigger property update if client is already selected (on form error return)
-        if (clientSelect.value) {
-            updateProperties(clientSelect.value);
-        }
-
-        // --- Scheduling Type & Category Sync Logic ---
-        const schedulingRadios = document.querySelectorAll('input[name="scheduling_type"]');
-        const budgetDateDiv = document.getElementById('div-budget-date');
-        const executionDateDiv = document.getElementById('div-execution-date');
-
-        function syncCategoriesAndDates() {
-            const selectedType = document.querySelector('input[name="scheduling_type"]:checked').value;
-            
-            // Sync all hidden category inputs in the team formset
-            document.querySelectorAll('.category-sync-input').forEach(input => {
-                input.value = selectedType;
-            });
-
-            // Toggle date fields visibility based on purpose
-            if (selectedType === 'INSPECTION') {
-                budgetDateDiv.classList.remove('hidden');
-                executionDateDiv.classList.add('hidden');
-            } else {
-                budgetDateDiv.classList.add('hidden');
-                executionDateDiv.classList.remove('hidden');
-            }
-        }
-
-        schedulingRadios.forEach(radio => {
-            radio.addEventListener('change', syncCategoriesAndDates);
-        });
-
-        // Initialize on load
-        syncCategoriesAndDates();
-
-        // --- Team Management Logic ---
+        // Team Management
         const addMemberBtn = document.getElementById('add-member-btn');
         const formsetContainer = document.getElementById('formset-container');
         const totalForms = document.getElementById('id_team_members-TOTAL_FORMS');
 
-        addMemberBtn.addEventListener('click', function() {
-            const formNum = parseInt(totalForms.value);
-            const rows = formsetContainer.querySelectorAll('.team-row');
-            const firstRow = rows[0];
-            const newRow = firstRow.cloneNode(true);
-            
-            // Update indices
-            newRow.querySelectorAll('input, select').forEach(input => {
-                if (input.name) {
-                    const regex = /team_members-(\d+)-/;
-                    input.name = input.name.replace(regex, `team_members-${formNum}-`);
-                    input.id = input.id.replace(regex, `team_members-${formNum}-`);
-                    
-                    if (input.type !== 'hidden') input.value = '';
-                    if (input.type === 'checkbox') input.checked = false;
-                }
+        if (addMemberBtn) {
+            addMemberBtn.addEventListener('click', function() {
+                const formNum = parseInt(totalForms.value);
+                const rows = formsetContainer.querySelectorAll('.team-row');
+                const firstRow = rows[0];
+                const newRow = firstRow.cloneNode(true);
+                
+                newRow.querySelectorAll('input, select').forEach(input => {
+                    if (input.name) {
+                        const regex = /team_members-(\d+)-/;
+                        input.name = input.name.replace(regex, `team_members-${formNum}-`);
+                        input.id = input.id.replace(regex, `team_members-${formNum}-`);
+                        if (input.type !== 'hidden') input.value = '';
+                    }
+                });
+
+                totalForms.value = formNum + 1;
+                formsetContainer.appendChild(newRow);
+                lucide.createIcons();
             });
-
-            // Update labels
-            newRow.querySelectorAll('label').forEach(label => {
-                if (label.getAttribute('for')) {
-                    const regex = /team_members-(\d+)-/;
-                    label.setAttribute('for', label.getAttribute('for').replace(regex, `team_members-${formNum}-`));
-                }
-            });
-
-            // Ensure the newly added row also has the correct category value
-            const selectedType = document.querySelector('input[name="scheduling_type"]:checked').value;
-            const newCatInput = newRow.querySelector('.category-sync-input');
-            if (newCatInput) newCatInput.value = selectedType;
-
-            // Update calendar button data-target
-            newRow.querySelectorAll('.open-calendar-btn').forEach(btn => {
-                const regex = /team_members-(\d+)-/;
-                btn.dataset.target = btn.dataset.target.replace(regex, `team_members-${formNum}-`);
-            });
-
-            // Remove any existing warnings in cloned row
-            const warning = newRow.querySelector('.availability-warning');
-            if (warning) warning.remove();
-
-            totalForms.value = formNum + 1;
-            formsetContainer.appendChild(newRow);
-            lucide.createIcons();
-            
-            bindRowAvailabilityCheck(newRow);
-        });
-
-        function bindRowAvailabilityCheck(row) {
-            const select = row.querySelector('select[name$="-professional"]');
-            const dateInput = row.querySelector('input[name$="-scheduled_at"]');
-            
-            // Generic fields from the main form to use as default if individual is empty
-            const budgetScheduledAt = document.getElementById('id_budget_scheduled_at');
-            const executionScheduledAt = document.getElementById('id_execution_scheduled_at');
-
-            function check() {
-                const profId = select.value;
-                // Individual date has precedence, then budget, then execution
-                const timestamp = dateInput.value || budgetScheduledAt.value || executionScheduledAt.value;
-
-                if (!profId || !timestamp) return;
-
-                fetch(`/api/check-availability/?professional_id=${profId}&timestamp=${timestamp}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        const oldWarning = row.querySelector('.availability-warning');
-                        if (oldWarning) oldWarning.remove();
-
-                        if (!data.available) {
-                            const warning = document.createElement('div');
-                            warning.className = 'availability-warning col-span-full mt-2 p-3 rounded-lg bg-red-50 border border-red-100 flex items-center gap-2 text-xs text-red-600 font-medium';
-                            warning.innerHTML = `<i data-lucide="alert-circle" class="h-4 w-4"></i> <span>${data.message}</span>`;
-                            row.appendChild(warning);
-                            lucide.createIcons();
-                        }
-                    });
-            }
-
-            select.addEventListener('change', check);
-            dateInput.addEventListener('change', check);
-            budgetScheduledAt.addEventListener('change', check);
-            executionScheduledAt.addEventListener('change', check);
         }
-
-        // Bind initial rows
-        document.querySelectorAll('.team-row').forEach(bindRowAvailabilityCheck);
-
-        // --- Visual Calendar Picker Logic ---
-        let activeTargetInputId = null;
-
-        window.openCalendarSelector = function(targetId, professionalId = null) {
-            activeTargetInputId = targetId;
-            const modal = document.getElementById('form-modal');
-            const iframe = document.getElementById('modal-iframe');
-            const title = document.getElementById('modal-title');
-            
-            title.innerText = "Selecionar Horário na Agenda";
-            let url = "{% url 'service_order_calendar' %}?mode=select";
-            if (professionalId) {
-                url += `&professional_id=${professionalId}`;
-            }
-            
-            iframe.src = url;
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            document.body.style.overflow = 'hidden';
-        };
-
-        // Update click listeners for calendar buttons
-        document.addEventListener('click', function(e) {
-            const btn = e.target.closest('.open-calendar-btn');
-            if (btn) {
-                e.preventDefault();
-                const targetId = btn.getAttribute('data-target') || btn.getAttribute('data-target-id');
-                // Check if it's a team row to get the professional ID
-                const row = btn.closest('.team-row');
-                let profId = null;
-                if (row) {
-                    profId = row.querySelector('select[name$="-professional"]').value;
-                }
-                openCalendarSelector(targetId, profId);
-            }
-        });
-
-        // Listen for date selection from calendar iframe
-        window.addEventListener('message', function(event) {
-            if (event.data.type === 'dateSelected' && activeTargetInputId) {
-                const input = document.getElementById(activeTargetInputId);
-                if (input) {
-                    // Format ISO date (YYYY-MM-DDTHH:MM) for datetime-local
-                    const date = new Date(event.data.date);
-                    const formattedDate = date.toISOString().slice(0, 16);
-                    input.value = formattedDate;
-                    // Trigger change to run availability check
-                    input.dispatchEvent(new Event('change'));
-                }
-                closeModal();
-                activeTargetInputId = null;
-            }
-        });
     });
 </script>
 {% endblock %}

@@ -60,6 +60,118 @@
             </div>
         </div>
 
+        <!-- SECTION: TEAM MEMBERS -->
+        <div class="space-y-6 pt-2">
+            <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="users" class="h-5 w-5 text-slate-600"></i>
+                Equipes Designadas
+            </h3>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- SEÇÃO A: EQUIPE DE VISTORIA -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="clipboard-check" class="h-4 w-4 text-amber-600"></i>
+                            <h4 class="font-semibold text-slate-900 text-xs">Vistoria</h4>
+                        </div>
+                        <button type="button" onclick="addMember('inspection')" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
+                            + Add
+                        </button>
+                    </div>
+                    <div class="p-4">
+                        {{ f_inspection.management_form }}
+                        <div id="inspection-container" class="space-y-3">
+                            {% for form in f_inspection %}
+                            <div class="team-row p-3 rounded-xl bg-slate-50 border border-slate-100 relative">
+                                {% for hidden in form.hidden_fields %} {{ hidden }} {% endfor %}
+                                <div class="space-y-2">
+                                    {{ form.professional }}
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1">{{ form.role }}</div>
+                                        {% if f_inspection.can_delete %}
+                                            <div class="flex items-center text-red-500">
+                                                {{ form.DELETE }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SEÇÃO B: EQUIPE DE EXECUÇÃO -->
+                <div class="bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden border-t-4 border-t-blue-500">
+                    <div class="p-4 border-b border-slate-100 bg-blue-50/50 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="hammer" class="h-4 w-4 text-blue-600"></i>
+                            <h4 class="font-semibold text-slate-900 text-xs">Execução</h4>
+                        </div>
+                        <button type="button" onclick="addMember('execution')" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
+                            + Add
+                        </button>
+                    </div>
+                    <div class="p-4">
+                        {{ f_execution.management_form }}
+                        <div id="execution-container" class="space-y-3">
+                            {% for form in f_execution %}
+                            <div class="team-row p-3 rounded-xl bg-blue-50/30 border border-blue-100 relative">
+                                {% for hidden in form.hidden_fields %} {{ hidden }} {% endfor %}
+                                <div class="space-y-2">
+                                    {{ form.professional }}
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1">{{ form.role }}</div>
+                                        {% if f_execution.can_delete %}
+                                            <div class="flex items-center text-red-500">
+                                                {{ form.DELETE }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SEÇÃO C: EQUIPE DE GARANTIA -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="shield-check" class="h-4 w-4 text-emerald-600"></i>
+                            <h4 class="font-semibold text-slate-900 text-xs">Garantia</h4>
+                        </div>
+                        <button type="button" onclick="addMember('warranty')" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
+                            + Add
+                        </button>
+                    </div>
+                    <div class="p-4">
+                        {{ f_warranty.management_form }}
+                        <div id="warranty-container" class="space-y-3">
+                            {% for form in f_warranty %}
+                            <div class="team-row p-3 rounded-xl bg-slate-50 border border-slate-100 relative">
+                                {% for hidden in form.hidden_fields %} {{ hidden }} {% endfor %}
+                                <div class="space-y-2">
+                                    {{ form.professional }}
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1">{{ form.role }}</div>
+                                        {% if f_warranty.can_delete %}
+                                            <div class="flex items-center text-red-500">
+                                                {{ form.DELETE }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {{ formset.management_form }}
 
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -240,5 +352,42 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial calculation
     updateTotal();
 });
+
+function addMember(prefix) {
+    const container = document.getElementById(`${prefix}-container`);
+    const totalForms = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+    const formNum = parseInt(totalForms.value);
+    
+    const rows = container.querySelectorAll('.team-row');
+    const firstRow = rows[0];
+    const newRow = firstRow.cloneNode(true);
+    
+    // Update indices
+    newRow.querySelectorAll('input, select').forEach(input => {
+        if (input.name) {
+            const regex = new RegExp(`${prefix}-(\\d+)-`);
+            input.name = input.name.replace(regex, `${prefix}-${formNum}-`);
+            input.id = input.id.replace(regex, `${prefix}-${formNum}-`);
+            
+            if (input.type !== 'hidden') {
+                input.value = '';
+            } else if (input.name.includes('-id')) {
+                input.value = '';
+            }
+        }
+    });
+
+    // Update labels
+    newRow.querySelectorAll('label').forEach(label => {
+        if (label.getAttribute('for')) {
+            const regex = new RegExp(`${prefix}-(\\d+)-`);
+            label.setAttribute('for', label.getAttribute('for').replace(regex, `${prefix}-${formNum}-`));
+        }
+    });
+
+    totalForms.value = formNum + 1;
+    container.appendChild(newRow);
+    lucide.createIcons();
+}
 </script>
 {% endblock %}

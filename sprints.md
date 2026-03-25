@@ -89,8 +89,16 @@ Acompanhamento detalhado das tarefas para execução do projeto.
 
 ---
 
-## ⏳ Sprint 7: Integração WhatsApp & Aprovação (POSTERGADA)
-*Foco: Comunicação oficial via API e automação.*
+## 🚀 Sprint 8: Consolidação da Arquitetura de Tasks (PLANEJADA)
+*Foco: Transição definitiva da gestão baseada em OS para gestão baseada em Etapas (Tasks).*
 
-- [ ] **7.1 Configuração Meta Cloud API:** Templates de mensagens automáticas.
-- [ ] **7.2 Link de Aprovação:** Página externa para cliente aprovar/rejeitar orçamento via link.
+- [ ] **8.1 Refatoração de Views Core:**
+  - [ ] Migrar execução de OS (`order_id`) para execução por Etapa (`task_id`).
+  - [ ] Implementar `task_add` para agendar novas fases em OS existentes.
+  - [ ] Criar views de edição (`task_edit`) e cancelamento (`task_cancel`) de etapas.
+- [ ] **8.2 Integridade e Validação:**
+  - [ ] Adicionar validação de disponibilidade (server-side) no salvamento de cada etapa.
+  - [ ] Garantir que mídias e notas sejam estritamente vinculadas à `Task` correta.
+- [ ] **8.3 Evolução UI/UX (Timeline):**
+  - [ ] Reformular `order_detail.html` para exibir o histórico cronológico de todas as etapas.
+  - [ ] Melhorar a visualização de equipes e fotos por etapa concluída.
