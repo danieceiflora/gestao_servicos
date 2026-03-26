@@ -247,31 +247,27 @@ def service_order_scheduling(request):
                         value=float(value) if value else None,
                         status=ServiceOrderTask.TaskStatus.SCHEDULED
                     )
+                    
+                    # Processar equipe específica desta etapa
+                    professionals = request.POST.getlist(f'task_{task_index}_professional[]')
+                    roles = request.POST.getlist(f'task_{task_index}_role[]')
+                    
+                    for prof_id, role_id in zip(professionals, roles):
+                        if prof_id and role_id:  # Ignorar campos vazios
+                            try:
+                                professional = Professional.objects.get(id=prof_id)
+                                role = ProfessionalRole.objects.get(id=role_id)
+                                ServiceOrderTeam.objects.create(
+                                    task=task,
+                                    professional=professional,
+                                    role=role
+                                )
+                            except (Professional.DoesNotExist, ProfessionalRole.DoesNotExist):
+                                pass
+                    
                     tasks_created.append(task)
                 
                 task_index += 1
-            
-            # Processar equipe para cada tarefa
-            # Os profissionais vêm como arrays: professional[] e role[]
-            professionals = request.POST.getlist('professional[]')
-            roles = request.POST.getlist('role[]')
-            
-            # Atribuir equipe à primeira tarefa (por simplicidade inicial)
-            # TODO: melhorar para associar equipe específica a cada tarefa
-            if tasks_created and professionals and roles:
-                first_task = tasks_created[0]
-                for prof_id, role_id in zip(professionals, roles):
-                    if prof_id and role_id:  # Ignorar campos vazios
-                        try:
-                            professional = Professional.objects.get(id=prof_id)
-                            role = ProfessionalRole.objects.get(id=role_id)
-                            ServiceOrderTeam.objects.create(
-                                task=first_task,
-                                professional=professional,
-                                role=role
-                            )
-                        except (Professional.DoesNotExist, ProfessionalRole.DoesNotExist):
-                            pass
             
             messages.success(request, f'Ordem de Serviço criada com sucesso! {len(tasks_created)} etapa(s) adicionada(s).')
             return redirect('service_order_detail', order_id=service_order.id)

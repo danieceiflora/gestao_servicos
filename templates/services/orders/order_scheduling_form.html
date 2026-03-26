@@ -447,7 +447,7 @@
                             <div class="team-member-row grid grid-cols-2 gap-3 p-3 rounded-lg bg-white border border-slate-200 relative">
                                 <div>
                                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Profissional</label>
-                                    <select name="professional[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                                    <select name="task_${number-1}_professional[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
                                         <option value="">Selecione...</option>
                                         {% for prof in professionals %}
                                         <option value="{{ prof.id }}">{{ prof.name }}</option>
@@ -456,7 +456,7 @@
                                 </div>
                                 <div>
                                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Função</label>
-                                    <select name="role[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                                    <select name="task_${number-1}_role[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
                                         <option value="">Selecione...</option>
                                         {% for role in roles %}
                                         <option value="{{ role.id }}">{{ role.name }}</option>
@@ -495,12 +495,14 @@
         // Add team member to specific task
         function addTeamMemberToTask(taskCard) {
             const container = taskCard.querySelector('.team-members-container');
+            const taskNumber = Array.from(tasksContainer.querySelectorAll('.task-card')).indexOf(taskCard);
+            
             const memberRow = document.createElement('div');
             memberRow.className = 'team-member-row grid grid-cols-2 gap-3 p-3 rounded-lg bg-white border border-slate-200 relative';
             memberRow.innerHTML = `
                 <div>
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Profissional</label>
-                    <select name="professional[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                    <select name="task_${taskNumber}_professional[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
                         <option value="">Selecione...</option>
                         {% for prof in professionals %}
                         <option value="{{ prof.id }}">{{ prof.name }}</option>
@@ -509,7 +511,7 @@
                 </div>
                 <div>
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Função</label>
-                    <select name="role[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                    <select name="task_${taskNumber}_role[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
                         <option value="">Selecione...</option>
                         {% for role in roles %}
                         <option value="{{ role.id }}">{{ role.name }}</option>
