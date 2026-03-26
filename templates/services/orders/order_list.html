@@ -85,6 +85,11 @@
                         </td>
                         <td class="px-6 py-4">
                             {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
+                            {% if order.is_recurrent %}
+                                <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                                    Recorrente
+                                </span>
+                            {% endif %}
                         </td>
                         <td class="px-6 py-4 font-medium text-slate-900">
                             R$ {{ order.total_value|floatformat:2 }}
@@ -115,7 +120,14 @@
         <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
             <div class="flex items-center justify-between">
                 <span class="text-[10px] font-mono font-bold text-slate-400 tracking-widest">#{{ order.id.hex|slice:":8" }}</span>
-                {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
+                <div class="flex items-center gap-2">
+                    {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
+                    {% if order.is_recurrent %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                            Recorrente
+                        </span>
+                    {% endif %}
+                </div>
             </div>
             
             <div class="space-y-1">

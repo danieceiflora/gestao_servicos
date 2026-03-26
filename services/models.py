@@ -198,21 +198,36 @@ class ServiceOrder(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client_property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='service_orders', verbose_name="Imóvel")
     status = models.CharField(max_length=30, choices=Status.choices, default=Status.WAITING_BUDGET, verbose_name="Status")
+    is_recurrent = models.BooleanField(default=False, verbose_name="É Recorrente?")
     
     description = models.TextField(verbose_name="Descrição do Problema/Solicitação", blank=True)
     technical_notes = models.TextField(verbose_name="Notas Técnicas Gerais", blank=True)
+    
+    # Origem da OS
+    origin_date = models.DateField(null=True, blank=True, verbose_name="Data de Origem")
+    originator = models.ForeignKey(
+        Professional, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='originated_orders',
+        verbose_name="Originador (Vendedor)"
+    )
     
     # Datas de Auditoria
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
+    warranty_until = models.DateField(null=True, blank=True, verbose_name="Garantia Válida até")
 
     def __str__(self):
         return f"OS {self.id.hex[:8]} - {self.client_property.client.name}"
 
     @property
     def total_value(self):
-        return sum(item.total_price for item in self.items.all())
+        items_total = sum(item.total_price for item in self.items.all())
+        tasks_total = sum(task.value for task in self.tasks.all() if task.value)
+        return items_total + tasks_total
 
     class Meta:
         verbose_name = "Ordem de Serviço"
@@ -239,6 +254,16 @@ class ServiceOrderTask(models.Model):
     scheduled_at = models.DateTimeField(verbose_name="Agendado para")
     started_at = models.DateTimeField(null=True, blank=True, verbose_name="Iniciado em")
     finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
+    
+    # Valor da Tarefa
+    value = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        null=True, 
+        blank=True, 
+        verbose_name="Valor do Serviço",
+        help_text="Valor interno deste serviço/etapa"
+    )
     
     notes = models.TextField(verbose_name="Observações Técnicas desta Etapa", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

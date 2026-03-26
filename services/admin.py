@@ -96,8 +96,8 @@ class ServiceOrderTaskAdmin(admin.ModelAdmin):
 
 @admin.register(ServiceOrder)
 class ServiceOrderAdmin(admin.ModelAdmin):
-    list_display = ['id_short', 'client_name', 'status', 'total_value_display', 'created_at']
-    list_filter = ['status', 'created_at']
+    list_display = ['id_short', 'client_name', 'status', 'is_recurrent', 'total_value_display', 'created_at']
+    list_filter = ['status', 'is_recurrent', 'created_at']
     inlines = [ServiceOrderTaskInline, ServiceItemInline]
 
     def id_short(self, obj):

@@ -153,10 +153,28 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
             'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white search-select'
         })
     )
+    
+    originator = forms.ModelChoiceField(
+        queryset=Professional.objects.none(),
+        label="Vendedor/Originador",
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
+        })
+    )
+    
+    origin_date = forms.DateField(
+        label="Data de Origem",
+        required=False,
+        widget=forms.DateInput(attrs={
+            'type': 'date',
+            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+        })
+    )
 
     class Meta:
         model = ServiceOrder
-        fields = ['client', 'client_property', 'description']
+        fields = ['client', 'client_property', 'description', 'origin_date', 'originator']
         widgets = {
             'client_property': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
@@ -171,6 +189,17 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['client_property'].queryset = Property.objects.none()
+        
+        # Filtrar apenas profissionais com função "Vendedor"
+        try:
+            vendedor_role = ProfessionalRole.objects.filter(name__icontains='vendedor').first()
+            if vendedor_role:
+                self.fields['originator'].queryset = vendedor_role.professionals.filter(is_active=True)
+            else:
+                # Se não existir função "Vendedor", mostrar todos profissionais ativos
+                self.fields['originator'].queryset = Professional.objects.filter(is_active=True)
+        except:
+            self.fields['originator'].queryset = Professional.objects.filter(is_active=True)
 
         if 'client' in self.data:
             try:
@@ -227,13 +256,16 @@ class ServiceOrderForm(forms.ModelForm):
 
     class Meta:
         model = ServiceOrder
-        fields = ['client', 'client_property', 'status', 'description', 'technical_notes']
+        fields = ['client', 'client_property', 'status', 'is_recurrent', 'description', 'technical_notes']
         widgets = {
             'client_property': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
             }),
             'status': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
+            }),
+            'is_recurrent': forms.CheckboxInput(attrs={
+                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
             }),
             'description': forms.Textarea(attrs={
                 'rows': 3, 
@@ -392,7 +424,7 @@ class TaskScheduleForm(forms.ModelForm):
     """
     class Meta:
         model = ServiceOrderTask
-        fields = ['task_type', 'scheduled_at', 'notes']
+        fields = ['task_type', 'scheduled_at', 'value', 'notes']
         widgets = {
             'task_type': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
@@ -400,6 +432,11 @@ class TaskScheduleForm(forms.ModelForm):
             'scheduled_at': forms.DateTimeInput(attrs={
                 'type': 'datetime-local',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+            'value': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
+                'step': '0.01',
+                'placeholder': '0.00'
             }),
             'notes': forms.Textarea(attrs={
                 'rows': 3,
@@ -410,6 +447,7 @@ class TaskScheduleForm(forms.ModelForm):
         labels = {
             'task_type': 'Tipo de Etapa',
             'scheduled_at': 'Data e Hora',
+            'value': 'Valor do Serviço (R$)',
             'notes': 'Observações'
         }
 

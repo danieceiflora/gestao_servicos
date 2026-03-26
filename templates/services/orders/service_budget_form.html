@@ -20,7 +20,7 @@
         
         <!-- Order Details & Status -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div class="space-y-2">
                     <label class="text-sm font-semibold text-slate-900 flex items-center gap-2">
                         <i data-lucide="tag" class="h-4 w-4 text-blue-600"></i>
@@ -51,6 +51,12 @@
                             <i data-lucide="calendar-days" class="h-5 w-5"></i>
                         </button>
                     </div>
+                </div>
+                <div class="space-y-2 flex items-center pt-6">
+                    {{ form.is_recurrent }}
+                    <label for="{{ form.is_recurrent.id_for_label }}" class="text-sm font-medium text-slate-700 ml-2">
+                        {{ form.is_recurrent.label }}
+                    </label>
                 </div>
             </div>
             

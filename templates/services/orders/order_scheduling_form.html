@@ -19,7 +19,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto space-y-8">
+<div class="max-w-5xl mx-auto space-y-6 pb-20">
     <!-- Header -->
     <div class="flex items-center gap-4">
         <a href="{% url 'service_order_list' %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
@@ -27,132 +27,250 @@
         </a>
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ title }}</h2>
-            <p class="text-sm text-slate-500">Agende uma nova etapa de serviço para um cliente.</p>
+            <p class="text-sm text-slate-500">Configure o cliente, descrição e etapa inicial do serviço</p>
         </div>
     </div>
 
-    <!-- Form Card -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <form method="post" class="p-6 space-y-6" id="scheduling-form">
-            {% csrf_token %}
+    <form method="post" class="space-y-6" id="scheduling-form">
+        {% csrf_token %}
 
-            {% if form.non_field_errors %}
-            <div class="p-4 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
-                {{ form.non_field_errors }}
-            </div>
-            {% endif %}
+        {% if form.non_field_errors %}
+        <div class="p-4 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
+            {{ form.non_field_errors }}
+        </div>
+        {% endif %}
 
-            <!-- Client Selection -->
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <label for="{{ form.client.id_for_label }}" class="text-sm font-medium text-slate-700">
-                        {{ form.client.label }}
-                    </label>
-                    <button type="button" onclick="openModal('client')" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                        <i data-lucide="plus" class="h-3 w-3"></i> Novo Cliente
-                    </button>
-                </div>
-                {{ form.client }}
-                {% if form.client.errors %}
-                <p class="text-xs text-red-600">{{ form.client.errors.0 }}</p>
-                {% endif %}
-            </div>
-
-            <!-- Property Selection -->
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <label for="{{ form.client_property.id_for_label }}" class="text-sm font-medium text-slate-700">
-                        {{ form.client_property.label }}
-                    </label>
-                    <button type="button" id="btn-add-property" onclick="openModal('property')" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 opacity-50 cursor-not-allowed" disabled>
-                        <i data-lucide="plus" class="h-3 w-3"></i> Novo Imóvel
-                    </button>
-                </div>
-                {{ form.client_property }}
-                {% if form.client_property.errors %}
-                <p class="text-xs text-red-600">{{ form.client_property.errors.0 }}</p>
-                {% endif %}
-                <p id="property-loading" class="text-xs text-slate-400 hidden italic">Carregando imóveis...</p>
-            </div>
-
-            <!-- Task Type -->
-            <div class="space-y-3">
-                <label class="text-sm font-bold text-slate-700 uppercase tracking-widest">
-                    {{ form.task_type.label }}
-                </label>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {% for radio in form.task_type %}
-                    <label class="relative flex flex-col p-4 border-2 rounded-2xl cursor-pointer transition-all hover:bg-slate-50 [&:has(input:checked)]:border-blue-600 [&:has(input:checked)]:bg-blue-50/50">
-                        {{ radio.tag }}
-                        <span class="text-sm font-bold text-slate-900">{{ radio.choice_label }}</span>
-                    </label>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <!-- Schedule Date -->
-            <div class="space-y-2">
-                <label for="{{ form.scheduled_at.id_for_label }}" class="text-sm font-medium text-slate-700 flex items-center gap-2">
-                    <i data-lucide="calendar" class="h-4 w-4 text-blue-500"></i>
-                    {{ form.scheduled_at.label }}
-                </label>
-                <div class="relative group">
-                    {{ form.scheduled_at }}
-                </div>
-            </div>
-
-            <!-- Description -->
-            <div class="space-y-2">
-                <label for="{{ form.description.id_for_label }}" class="text-sm font-medium text-slate-700">
-                    {{ form.description.label }}
-                </label>
-                {{ form.description }}
-                {% if form.description.errors %}
-                <p class="text-xs text-red-600">{{ form.description.errors.0 }}</p>
-                {% endif %}
-            </div>
-
-            <!-- SECTION: TEAM MEMBERS -->
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-6">
-                <div class="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="users" class="h-4 w-4 text-slate-600"></i>
-                        <h3 class="font-semibold text-slate-900 text-sm">Equipe Designada para esta Etapa</h3>
+        <!-- ============ SEÇÃO 1: INFORMAÇÕES DO CLIENTE ============ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-slate-50">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-600 rounded-lg">
+                        <i data-lucide="user" class="h-5 w-5 text-white"></i>
                     </div>
-                    <button type="button" id="add-member-btn" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
-                        + Adicionar Profissional
-                    </button>
+                    <div>
+                        <h3 class="font-bold text-slate-900">Seção 1: Informações do Cliente</h3>
+                        <p class="text-xs text-slate-500">Selecione o cliente e o imóvel para o serviço</p>
+                    </div>
                 </div>
-                
-                <div class="p-6">
-                    {{ formset.management_form }}
-                    <div id="formset-container" class="space-y-4">
-                        {% for f in formset %}
-                        <div class="team-row grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 items-end relative">
-                            {% for hidden in f.hidden_fields %} {{ hidden }} {% endfor %}
-                            <div>
-                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Colaborador</label>
-                                {{ f.professional }}
-                            </div>
-                            <div>
-                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Função</label>
-                                {{ f.role }}
+            </div>
+            
+            <div class="p-6 space-y-5">
+                <!-- Client Selection -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label for="{{ form.client.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                            Cliente
+                        </label>
+                        <button type="button" onclick="openModal('client')" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                            <i data-lucide="plus" class="h-3 w-3"></i> Novo Cliente
+                        </button>
+                    </div>
+                    {{ form.client }}
+                    {% if form.client.errors %}
+                    <p class="text-xs text-red-600">{{ form.client.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Property Selection -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label for="{{ form.client_property.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                            Imóvel
+                        </label>
+                        <button type="button" id="btn-add-property" onclick="openModal('property')" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 opacity-50 cursor-not-allowed" disabled>
+                            <i data-lucide="plus" class="h-3 w-3"></i> Novo Imóvel
+                        </button>
+                    </div>
+                    {{ form.client_property }}
+                    {% if form.client_property.errors %}
+                    <p class="text-xs text-red-600">{{ form.client_property.errors.0 }}</p>
+                    {% endif %}
+                    <p id="property-loading" class="text-xs text-slate-400 hidden italic">Carregando imóveis...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SEÇÃO 2: INFORMAÇÕES DA OS ============ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-slate-50">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-amber-600 rounded-lg">
+                        <i data-lucide="clipboard-list" class="h-5 w-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900">Seção 2: Informações da Ordem de Serviço</h3>
+                        <p class="text-xs text-slate-500">Descreva o problema e origem da solicitação</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 space-y-5">
+                <!-- Description -->
+                <div class="space-y-2">
+                    <label for="{{ form.description.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                        Descrição do Problema/Solicitação
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                    <p class="text-xs text-red-600">{{ form.description.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Origem -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label for="{{ form.origin_date.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                            Data de Origem
+                        </label>
+                        {{ form.origin_date }}
+                        {% if form.origin_date.errors %}
+                        <p class="text-xs text-red-600">{{ form.origin_date.errors.0 }}</p>
+                        {% endif %}
+                        <p class="text-xs text-slate-500 italic">Quando a solicitação surgiu</p>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <label for="{{ form.originator.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                            Vendedor/Originador
+                        </label>
+                        {{ form.originator }}
+                        {% if form.originator.errors %}
+                        <p class="text-xs text-red-600">{{ form.originator.errors.0 }}</p>
+                        {% endif %}
+                        <p class="text-xs text-slate-500 italic">Colaborador responsável</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SEÇÃO 3: ETAPAS DO SERVIÇO ============ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-green-50 to-slate-50">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-green-600 rounded-lg">
+                            <i data-lucide="calendar-check" class="h-5 w-5 text-white"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-900">Seção 3: Etapas do Serviço</h3>
+                            <p class="text-xs text-slate-500">Adicione uma ou mais etapas para esta ordem de serviço</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg">
+                        <i data-lucide="info" class="h-3 w-3 text-blue-600"></i>
+                        <span class="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Múltiplas Etapas</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div id="tasks-container" class="space-y-4">
+                    <!-- Task 1 (Initial) -->
+                    <div class="task-card border-2 border-green-200 rounded-2xl p-5 bg-gradient-to-br from-green-50/50 to-white relative">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm">
+                                    1
+                                </div>
+                                <h4 class="font-bold text-slate-900">Etapa 1</h4>
                             </div>
                         </div>
-                        {% endfor %}
+
+                        <div class="space-y-4">
+                            <!-- Tipo de Etapa -->
+                            <div>
+                                <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Tipo de Etapa *</label>
+                                <select name="task_0_type" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                                    <option value="">Selecione...</option>
+                                    {% for value, label in form.task_type.field.choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Datas e Valor -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
+                                    {{ form.scheduled_at }}
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Início</label>
+                                    <input type="datetime-local" name="task_0_start_date" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Término</label>
+                                    <input type="datetime-local" name="task_0_end_date" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                                </div>
+                            </div>
+
+                            <!-- Valor -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor do Serviço (R$)</label>
+                                    <input type="number" step="0.01" name="task_0_value" placeholder="0,00" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                                </div>
+                            </div>
+
+                            <!-- Equipe -->
+                            <div class="border-t border-slate-200 pt-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Equipe Alocada</label>
+                                    <button type="button" class="add-team-member-btn text-xs font-bold text-green-600 hover:text-green-700 flex items-center gap-1">
+                                        <i data-lucide="user-plus" class="h-3 w-3"></i> Adicionar
+                                    </button>
+                                </div>
+
+                                {{ formset.management_form }}
+                                <div class="team-members-container space-y-2">
+                                    {% for f in formset %}
+                                    <div class="team-member-row grid grid-cols-2 gap-3 p-3 rounded-lg bg-white border border-slate-200 relative">
+                                        {% for hidden in f.hidden_fields %} {{ hidden }} {% endfor %}
+                                        <div>
+                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Profissional</label>
+                                            <select name="task_0_professional[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                                                <option value="">Selecione...</option>
+                                                {% for prof in professionals %}
+                                                <option value="{{ prof.id }}">{{ prof.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Função</label>
+                                            <select name="task_0_role[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                                                <option value="">Selecione...</option>
+                                                {% for role in roles %}
+                                                <option value="{{ role.id }}">{{ role.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Submit Button -->
-            <div class="pt-6">
-                <button type="submit" class="w-full bg-slate-900 text-white font-semibold py-3 px-4 rounded-xl hover:bg-slate-800 focus:ring-4 focus:ring-slate-200 transition-all flex items-center justify-center gap-2">
-                    <i data-lucide="check-circle" class="h-5 w-5"></i>
-                    Confirmar Agendamento
+                <!-- Botão Adicionar Nova Etapa -->
+                <button type="button" id="add-task-btn" class="w-full py-4 border-2 border-dashed border-green-300 rounded-2xl text-green-600 font-bold hover:bg-green-50 hover:border-green-400 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="plus-circle" class="h-5 w-5"></i>
+                    Adicionar Nova Etapa
                 </button>
             </div>
-        </form>
-    </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex gap-3">
+            <a href="{% url 'service_order_list' %}" class="flex-1 py-4 rounded-xl border-2 border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                Cancelar
+            </a>
+            <button type="submit" class="flex-1 py-4 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-lg flex items-center justify-center gap-2">
+                <i data-lucide="check-circle" class="h-5 w-5"></i>
+                Criar Ordem de Serviço
+            </button>
+        </div>
+    </form>
 </div>
 
 <!-- Modal Container -->
@@ -248,31 +366,200 @@
             document.body.style.overflow = '';
         };
 
-        // Team Management
-        const addMemberBtn = document.getElementById('add-member-btn');
-        const formsetContainer = document.getElementById('formset-container');
-        const totalForms = document.getElementById('id_team_members-TOTAL_FORMS');
+        // ============ MULTIPLE TASKS MANAGEMENT ============
+        let taskCount = 1;
+        const tasksContainer = document.getElementById('tasks-container');
+        const addTaskBtn = document.getElementById('add-task-btn');
 
-        if (addMemberBtn) {
-            addMemberBtn.addEventListener('click', function() {
-                const formNum = parseInt(totalForms.value);
-                const rows = formsetContainer.querySelectorAll('.team-row');
-                const firstRow = rows[0];
-                const newRow = firstRow.cloneNode(true);
-                
-                newRow.querySelectorAll('input, select').forEach(input => {
-                    if (input.name) {
-                        const regex = /team_members-(\d+)-/;
-                        input.name = input.name.replace(regex, `team_members-${formNum}-`);
-                        input.id = input.id.replace(regex, `team_members-${formNum}-`);
-                        if (input.type !== 'hidden') input.value = '';
-                    }
-                });
-
-                totalForms.value = formNum + 1;
-                formsetContainer.appendChild(newRow);
+        // Add new task
+        if (addTaskBtn) {
+            addTaskBtn.addEventListener('click', function() {
+                taskCount++;
+                const newTaskCard = createTaskCard(taskCount);
+                tasksContainer.appendChild(newTaskCard);
                 lucide.createIcons();
+                initializeTaskEventListeners(newTaskCard);
             });
+        }
+
+        function createTaskCard(number) {
+            const card = document.createElement('div');
+            card.className = 'task-card border-2 border-slate-200 rounded-2xl p-5 bg-white relative';
+            card.innerHTML = `
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm task-number">
+                            ${number}
+                        </div>
+                        <h4 class="font-bold text-slate-900 task-title">Etapa ${number}</h4>
+                    </div>
+                    <button type="button" class="remove-task-btn p-2 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-all">
+                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Tipo de Etapa -->
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Tipo de Etapa *</label>
+                        <select name="task_${number-1}_type" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                            <option value="">Selecione...</option>
+                            <option value="BUDGET">Vistoria/Orçamento</option>
+                            <option value="EXECUTION">Execução/Instalação</option>
+                            <option value="WARRANTY">Garantia</option>
+                        </select>
+                    </div>
+
+                    <!-- Datas e Valor -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
+                            <input type="datetime-local" name="task_${number-1}_scheduled" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Início</label>
+                            <input type="datetime-local" name="task_${number-1}_start_date" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Término</label>
+                            <input type="datetime-local" name="task_${number-1}_end_date" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                        </div>
+                    </div>
+
+                    <!-- Valor -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor do Serviço (R$)</label>
+                            <input type="number" step="0.01" name="task_${number-1}_value" placeholder="0,00" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                        </div>
+                    </div>
+
+                    <!-- Equipe -->
+                    <div class="border-t border-slate-200 pt-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Equipe Alocada</label>
+                            <button type="button" class="add-team-member-btn text-xs font-bold text-green-600 hover:text-green-700 flex items-center gap-1">
+                                <i data-lucide="user-plus" class="h-3 w-3"></i> Adicionar
+                            </button>
+                        </div>
+                        <div class="team-members-container space-y-2">
+                            <!-- Campo padrão vazio -->
+                            <div class="team-member-row grid grid-cols-2 gap-3 p-3 rounded-lg bg-white border border-slate-200 relative">
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Profissional</label>
+                                    <select name="professional[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                                        <option value="">Selecione...</option>
+                                        {% for prof in professionals %}
+                                        <option value="{{ prof.id }}">{{ prof.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Função</label>
+                                    <select name="role[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                                        <option value="">Selecione...</option>
+                                        {% for role in roles %}
+                                        <option value="{{ role.id }}">{{ role.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            return card;
+        }
+
+        // Initialize event listeners for task cards
+        function initializeTaskEventListeners(taskCard) {
+            // Remove task button
+            const removeBtn = taskCard.querySelector('.remove-task-btn');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', function() {
+                    taskCard.remove();
+                    updateTaskNumbers();
+                });
+            }
+
+            // Add team member button
+            const addTeamBtn = taskCard.querySelector('.add-team-member-btn');
+            if (addTeamBtn) {
+                addTeamBtn.addEventListener('click', function() {
+                    addTeamMemberToTask(taskCard);
+                });
+            }
+        }
+
+        // Add team member to specific task
+        function addTeamMemberToTask(taskCard) {
+            const container = taskCard.querySelector('.team-members-container');
+            const memberRow = document.createElement('div');
+            memberRow.className = 'team-member-row grid grid-cols-2 gap-3 p-3 rounded-lg bg-white border border-slate-200 relative';
+            memberRow.innerHTML = `
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Profissional</label>
+                    <select name="professional[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                        <option value="">Selecione...</option>
+                        {% for prof in professionals %}
+                        <option value="{{ prof.id }}">{{ prof.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Função</label>
+                    <select name="role[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                        <option value="">Selecione...</option>
+                        {% for role in roles %}
+                        <option value="{{ role.id }}">{{ role.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="button" class="absolute -top-2 -right-2 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all remove-team-member-btn">
+                    <i data-lucide="x" class="h-3 w-3"></i>
+                </button>
+            `;
+
+            const removeBtn = memberRow.querySelector('.remove-team-member-btn');
+            removeBtn.addEventListener('click', function() {
+                memberRow.remove();
+            });
+
+            container.appendChild(memberRow);
+            lucide.createIcons();
+        }
+
+        // Update task numbers after removal
+        function updateTaskNumbers() {
+            const taskCards = tasksContainer.querySelectorAll('.task-card');
+            taskCards.forEach((card, index) => {
+                const number = index + 1;
+                const badge = card.querySelector('.task-number');
+                const title = card.querySelector('.task-title');
+                if (badge) badge.textContent = number;
+                if (title) title.textContent = `Etapa ${number}`;
+            });
+            taskCount = taskCards.length;
+        }
+
+        // Initialize first task event listeners
+        const firstTask = document.querySelector('.task-card');
+        if (firstTask) {
+            initializeTaskEventListeners(firstTask);
+        }
+
+        // Initialize team member buttons for existing formset
+        document.querySelectorAll('.add-team-member-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const taskCard = btn.closest('.task-card');
+                addTeamMemberToTask(taskCard);
+            });
+        });
+
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
         }
     });
 </script>

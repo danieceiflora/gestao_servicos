@@ -203,56 +203,89 @@ def service_order_list(request):
 def service_order_scheduling(request):
     if request.method == 'POST':
         form = ServiceOrderSchedulingForm(request.POST)
-        formset = ServiceOrderTeamFormSet(request.POST)
         
-        if form.is_valid() and formset.is_valid():
+        if form.is_valid():
+            # Criar a Ordem de Serviço
             service_order = form.save(commit=False)
-            task_type = form.cleaned_data.get('task_type')
-            scheduled_at = form.cleaned_data.get('scheduled_at')
             
-            # Validar disponibilidade da equipe antes de salvar
-            team_data = [f for f in formset.cleaned_data if f and not f.get('DELETE')]
-            for team_form in team_data:
-                professional = team_form.get('professional')
-                if professional:
-                    from .utils import check_professional_availability
-                    available, msg = check_professional_availability(professional, scheduled_at)
-                    if not available:
-                        messages.error(request, f"Conflito de agenda: {msg}")
-                        return render(request, 'services/orders/order_scheduling_form.html', {
-                            'form': form,
-                            'formset': formset,
-                            'title': 'Novo Agendamento'
-                        })
-            
-            if task_type == ServiceOrderTask.TaskType.BUDGET:
+            # Determinar status inicial baseado nas etapas
+            first_task_type = request.POST.get('task_0_type')
+            if first_task_type == ServiceOrderTask.TaskType.BUDGET:
                 service_order.status = ServiceOrder.Status.BUDGET_SCHEDULED
             else:
                 service_order.status = ServiceOrder.Status.WAITING_EXECUTION
             
             service_order.save()
             
-            # Criar a TAREFA inicial
-            task = ServiceOrderTask.objects.create(
-                service_order=service_order,
-                task_type=task_type,
-                scheduled_at=scheduled_at,
-                status=ServiceOrderTask.TaskStatus.SCHEDULED
-            )
-
-            # Equipe
-            formset.instance = task
-            formset.save()
+            # Processar todas as etapas (tasks)
+            task_index = 0
+            tasks_created = []
             
-            messages.success(request, 'Ordem de Serviço agendada com sucesso!')
+            while f'task_{task_index}_type' in request.POST:
+                task_type = request.POST.get(f'task_{task_index}_type')
+                scheduled_at = request.POST.get(f'task_{task_index}_scheduled')
+                start_date = request.POST.get(f'task_{task_index}_start_date')
+                end_date = request.POST.get(f'task_{task_index}_end_date')
+                value = request.POST.get(f'task_{task_index}_value')
+                
+                if task_type and scheduled_at:
+                    # Converter datas para timezone-aware
+                    from django.utils import timezone
+                    from datetime import datetime
+                    
+                    scheduled_datetime = timezone.make_aware(datetime.fromisoformat(scheduled_at))
+                    start_datetime = timezone.make_aware(datetime.fromisoformat(start_date)) if start_date else None
+                    end_datetime = timezone.make_aware(datetime.fromisoformat(end_date)) if end_date else None
+                    
+                    # Criar a tarefa
+                    task = ServiceOrderTask.objects.create(
+                        service_order=service_order,
+                        task_type=task_type,
+                        scheduled_at=scheduled_datetime,
+                        started_at=start_datetime,
+                        finished_at=end_datetime,
+                        value=float(value) if value else None,
+                        status=ServiceOrderTask.TaskStatus.SCHEDULED
+                    )
+                    tasks_created.append(task)
+                
+                task_index += 1
+            
+            # Processar equipe para cada tarefa
+            # Os profissionais vêm como arrays: professional[] e role[]
+            professionals = request.POST.getlist('professional[]')
+            roles = request.POST.getlist('role[]')
+            
+            # Atribuir equipe à primeira tarefa (por simplicidade inicial)
+            # TODO: melhorar para associar equipe específica a cada tarefa
+            if tasks_created and professionals and roles:
+                first_task = tasks_created[0]
+                for prof_id, role_id in zip(professionals, roles):
+                    if prof_id and role_id:  # Ignorar campos vazios
+                        try:
+                            professional = Professional.objects.get(id=prof_id)
+                            role = ProfessionalRole.objects.get(id=role_id)
+                            ServiceOrderTeam.objects.create(
+                                task=first_task,
+                                professional=professional,
+                                role=role
+                            )
+                        except (Professional.DoesNotExist, ProfessionalRole.DoesNotExist):
+                            pass
+            
+            messages.success(request, f'Ordem de Serviço criada com sucesso! {len(tasks_created)} etapa(s) adicionada(s).')
             return redirect('service_order_detail', order_id=service_order.id)
+        else:
+            messages.error(request, 'Por favor, corrija os erros no formulário.')
     else:
         form = ServiceOrderSchedulingForm()
         formset = ServiceOrderTeamFormSet()
     
     return render(request, 'services/orders/order_scheduling_form.html', {
         'form': form,
-        'formset': formset,
+        'formset': ServiceOrderTeamFormSet() if request.method == 'GET' else None,
+        'professionals': Professional.objects.filter(is_active=True),
+        'roles': ProfessionalRole.objects.all(),
         'title': 'Novo Agendamento'
     })
 
@@ -369,10 +402,13 @@ def task_execution(request, task_id):
                 status__in=[ServiceOrderTask.TaskStatus.COMPLETED, ServiceOrderTask.TaskStatus.CANCELLED]
             )
             if not pending_tasks.exists():
+                from datetime import timedelta
                 order.status = ServiceOrder.Status.FINISHED
                 order.finished_at = django.utils.timezone.now()
+                # Calcular garantia de 1 ano (365 dias) a partir da data de finalização
+                order.warranty_until = order.finished_at.date() + timedelta(days=365)
                 order.save()
-                messages.success(request, 'Etapa finalizada! Todas as etapas da OS foram concluídas.')
+                messages.success(request, f'Etapa finalizada! Todas as etapas da OS foram concluídas. Garantia válida até {order.warranty_until.strftime("%d/%m/%Y")}.')
             else:
                 messages.success(request, 'Etapa finalizada com sucesso!')
             

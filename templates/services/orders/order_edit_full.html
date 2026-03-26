@@ -60,6 +60,14 @@
                 </div>
             </div>
 
+            <!-- Is Recurrent -->
+            <div class="flex items-center gap-2">
+                {{ form.is_recurrent }}
+                <label for="{{ form.is_recurrent.id_for_label }}" class="text-sm font-medium text-slate-700">
+                    {{ form.is_recurrent.label }}
+                </label>
+            </div>
+
             <!-- Property Selection -->
             <div class="space-y-2">
                 <label for="{{ form.client_property.id_for_label }}" class="text-sm font-medium text-slate-700">

@@ -17,6 +17,11 @@
                         #{{ order.id.hex|slice:":8" }}
                     </span>
                     {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
+                    {% if order.is_recurrent %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                            Recorrente
+                        </span>
+                    {% endif %}
                 </div>
                 <h2 class="text-2xl font-bold text-slate-900 leading-tight">
                     {{ order.client_property.client.name }}
@@ -183,13 +188,31 @@
                                 <td class="px-6 py-4 text-right">R$ {{ item.unit_price|floatformat:2 }}</td>
                                 <td class="px-6 py-4 text-right font-bold text-slate-900">R$ {{ item.total_price|floatformat:2 }}</td>
                             </tr>
-                            {% empty %}
+                            {% endfor %}
+                            
+                            {% for task in tasks %}
+                                {% if task.value %}
+                                <tr class="hover:bg-blue-50/50 transition-colors bg-blue-50/30">
+                                    <td class="px-6 py-4 font-medium text-slate-700">
+                                        <span class="flex items-center gap-2">
+                                            <i data-lucide="wrench" class="h-3 w-3 text-blue-600"></i>
+                                            {{ task.get_task_type_display }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-center">1</td>
+                                    <td class="px-6 py-4 text-right">R$ {{ task.value|floatformat:2 }}</td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-900">R$ {{ task.value|floatformat:2 }}</td>
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if not order.items.all and not tasks %}
                             <tr>
                                 <td colspan="4" class="px-6 py-8 text-center text-slate-400 italic">
                                     Nenhum item adicionado ao orçamento.
                                 </td>
                             </tr>
-                            {% endfor %}
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -257,6 +280,40 @@
                 <p class="text-sm text-amber-800 leading-relaxed italic">
                     "{{ order.description }}"
                 </p>
+            </div>
+
+            <!-- Informações de Origem e Garantia -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <i data-lucide="info" class="h-5 w-5 text-slate-500"></i>
+                    Origem e Garantia
+                </h3>
+                <div class="space-y-4">
+                    {% if order.origin_date %}
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Data de Origem</p>
+                        <p class="text-sm font-semibold text-slate-900">{{ order.origin_date|date:"d/m/Y" }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if order.originator %}
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vendedor/Originador</p>
+                        <p class="text-sm font-semibold text-slate-900">{{ order.originator.name }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if order.warranty_until %}
+                    <div class="p-3 bg-green-50 rounded-lg border border-green-200">
+                        <p class="text-[10px] font-bold text-green-700 uppercase tracking-widest mb-1">Garantia Válida até</p>
+                        <p class="text-sm font-bold text-green-700">{{ order.warranty_until|date:"d/m/Y" }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if not order.origin_date and not order.originator and not order.warranty_until %}
+                    <p class="text-xs text-slate-400 italic text-center py-2">Nenhuma informação de origem ou garantia registrada.</p>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
