@@ -203,6 +203,16 @@ class ServiceOrder(models.Model):
     description = models.TextField(verbose_name="Descrição do Problema/Solicitação", blank=True)
     technical_notes = models.TextField(verbose_name="Notas Técnicas Gerais", blank=True)
     
+    # Valor Estimado Total
+    estimated_value = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Valor Estimado Total (R$)",
+        help_text="Valor total estimado para toda a OS"
+    )
+    
     # Origem da OS
     origin_date = models.DateField(null=True, blank=True, verbose_name="Data de Origem")
     originator = models.ForeignKey(
@@ -306,6 +316,18 @@ class ServiceOrderTeam(models.Model):
 
 class ServiceItem(models.Model):
     service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='items')
+    
+    # Vínculo opcional à etapa
+    task = models.ForeignKey(
+        ServiceOrderTask,
+        on_delete=models.CASCADE,
+        related_name='items',
+        null=True,
+        blank=True,
+        verbose_name="Etapa Específica",
+        help_text="Deixe vazio para itens do orçamento geral. Preencha se o item foi adicionado durante uma etapa."
+    )
+    
     description = models.CharField(max_length=255, verbose_name="Serviço/Material")
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Unitário")
@@ -313,6 +335,10 @@ class ServiceItem(models.Model):
     @property
     def total_price(self):
         return self.quantity * self.unit_price
+    
+    def __str__(self):
+        task_info = f" (Etapa: {self.task.get_task_type_display()})" if self.task else " (Orçamento Geral)"
+        return f"{self.description} - Qtd: {self.quantity}{task_info}"
 
     class Meta:
         verbose_name = "Item de Serviço"

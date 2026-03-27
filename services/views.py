@@ -353,19 +353,34 @@ def service_order_detail(request, order_id):
     return render(request, 'services/orders/order_detail.html', {'order': order, 'tasks': tasks})
 
 def service_order_edit(request, order_id):
+    """View completa para editar toda a OS (info, itens, etapas)"""
     order = get_object_or_404(ServiceOrder, id=order_id)
-    if request.method == 'POST':
-        form = ServiceOrderForm(request.POST, instance=order)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'OS atualizada!')
-            return redirect('service_order_detail', order_id=order.id)
-    else:
-        form = ServiceOrderForm(instance=order)
+    tasks = order.tasks.all().order_by('scheduled_at')
+    items = order.items.all()
+    items_total = sum(item.total_price for item in items)
     
-    return render(request, 'services/orders/order_edit_full.html', {
+    if request.method == 'POST':
+        form = ServiceOrderSchedulingForm(request.POST, instance=order)
+        
+        if form.is_valid():
+            # Atualiza a OS
+            service_order = form.save()
+            
+            messages.success(request, 'Ordem de Serviço atualizada com sucesso!')
+            return redirect('service_order_detail', order_id=service_order.id)
+        else:
+            messages.error(request, 'Por favor, corrija os erros no formulário.')
+    else:
+        form = ServiceOrderSchedulingForm(instance=order)
+    
+    return render(request, 'services/orders/order_edit.html', {
         'form': form,
         'order': order,
+        'tasks': tasks,
+        'items': items,
+        'items_total': items_total,
+        'professionals': Professional.objects.filter(is_active=True),
+        'roles': ProfessionalRole.objects.all(),
         'title': f'Editar OS #{order.id.hex[:8]}'
     })
 
@@ -447,8 +462,8 @@ def task_add(request, order_id):
     order = get_object_or_404(ServiceOrder, id=order_id)
     
     if request.method == 'POST':
-        form = TaskScheduleForm(request.POST)
-        formset = ServiceOrderTeamFormSet(request.POST)
+        form = TaskScheduleForm(request.POST, request.FILES)
+        formset = ServiceOrderTeamFormSet(request.POST, request.FILES)
         
         if form.is_valid() and formset.is_valid():
             task = form.save(commit=False)
@@ -478,6 +493,11 @@ def task_add(request, order_id):
             formset.instance = task
             formset.save()
             
+            # Processar arquivos de mídia (fotos/vídeos)
+            files = request.FILES.getlist('files')
+            for file in files:
+                ServiceMedia.objects.create(task=task, file=file)
+            
             messages.success(request, f'{task.get_task_type_display()} agendado(a) com sucesso!')
             return redirect('service_order_detail', order_id=order.id)
     else:
@@ -497,14 +517,15 @@ def task_edit(request, task_id):
     """
     task = get_object_or_404(ServiceOrderTask, id=task_id)
     order = task.service_order
+    existing_medias = task.medias.all()
     
     if task.status == ServiceOrderTask.TaskStatus.COMPLETED:
         messages.warning(request, "Não é possível editar uma etapa já concluída.")
         return redirect('service_order_detail', order_id=order.id)
     
     if request.method == 'POST':
-        form = TaskScheduleForm(request.POST, instance=task)
-        formset = ServiceOrderTeamFormSet(request.POST, instance=task)
+        form = TaskScheduleForm(request.POST, request.FILES, instance=task)
+        formset = ServiceOrderTeamFormSet(request.POST, request.FILES, instance=task)
         
         if form.is_valid() and formset.is_valid():
             scheduled_at = form.cleaned_data.get('scheduled_at')
@@ -524,11 +545,17 @@ def task_edit(request, task_id):
                             'formset': formset,
                             'order': order,
                             'task': task,
+                            'existing_medias': existing_medias,
                             'title': 'Editar Etapa'
                         })
             
             form.save()
             formset.save()
+            
+            # Processar novos arquivos de mídia
+            files = request.FILES.getlist('files')
+            for file in files:
+                ServiceMedia.objects.create(task=task, file=file)
             
             messages.success(request, 'Etapa atualizada com sucesso!')
             return redirect('service_order_detail', order_id=order.id)
@@ -541,6 +568,7 @@ def task_edit(request, task_id):
         'formset': formset,
         'order': order,
         'task': task,
+        'existing_medias': existing_medias,
         'title': 'Editar Etapa'
     })
 
@@ -678,3 +706,67 @@ def api_get_properties(request):
 def api_get_clients(request):
     clients = Client.objects.all().order_by('name')
     return JsonResponse([{'id': str(c.id), 'name': c.name} for c in clients], safe=False)
+
+
+# ============ GERENCIAMENTO DE ITENS DA OS ============
+
+def order_item_add(request, order_id):
+    """View para adicionar item ao orçamento geral ou a uma etapa específica"""
+    order = get_object_or_404(ServiceOrder, id=order_id)
+    tasks = order.tasks.all()
+    
+    if request.method == 'POST':
+        task_id = request.POST.get('task')
+        task = get_object_or_404(ServiceOrderTask, id=task_id) if task_id else None
+        
+        ServiceItem.objects.create(
+            service_order=order,
+            task=task,
+            description=request.POST.get('description'),
+            quantity=float(request.POST.get('quantity', 1)),
+            unit_price=float(request.POST.get('unit_price', 0))
+        )
+        
+        messages.success(request, 'Item adicionado com sucesso!')
+        return redirect('service_order_detail', order_id=order.id)
+    
+    return render(request, 'services/orders/order_item_form.html', {
+        'order': order,
+        'tasks': tasks,
+        'title': 'Adicionar Item ao Orçamento'
+    })
+
+def order_item_delete(request, item_id):
+    """View para remover item"""
+    item = get_object_or_404(ServiceItem, id=item_id)
+    order_id = item.service_order.id
+    
+    if request.method == 'POST':
+        item.delete()
+        messages.success(request, 'Item removido com sucesso!')
+        return redirect('service_order_detail', order_id=order_id)
+    
+    return render(request, 'services/orders/order_item_delete.html', {
+        'item': item,
+        'order': item.service_order
+    })
+
+
+def task_media_delete(request, media_id):
+    """View para remover mídia de uma etapa"""
+    media = get_object_or_404(ServiceMedia, id=media_id)
+    task = media.task
+    order_id = task.service_order.id
+    
+    if request.method == 'POST':
+        # Deletar arquivo físico
+        if media.file:
+            media.file.delete()
+        media.delete()
+        messages.success(request, 'Mídia removida com sucesso!')
+        return redirect('task_edit', task_id=task.id)
+    
+    return render(request, 'services/tasks/media_delete.html', {
+        'media': media,
+        'task': task
+    })

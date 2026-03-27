@@ -30,9 +30,9 @@
         </div>
 
         <div class="flex flex-wrap gap-2">
-            <a href="{% url 'service_order_budget' order.id %}" class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
-                <i data-lucide="calculator" class="h-4 w-4"></i>
-                Orçamento
+            <a href="{% url 'service_order_edit' order.id %}" class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
+                <i data-lucide="edit" class="h-4 w-4"></i>
+                Editar OS
             </a>
             <a href="{% url 'service_order_execution' order.id %}" class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition-all shadow-sm">
                 <i data-lucide="play" class="h-4 w-4 fill-current"></i>
@@ -168,25 +168,48 @@
                         <i data-lucide="receipt" class="h-5 w-5 text-slate-500"></i>
                         Itens e Valores
                     </h3>
-                    <span class="text-sm font-bold text-slate-900">Total: R$ {{ order.total_value|floatformat:2 }}</span>
+                    <div class="flex items-center gap-3">
+                        <a href="{% url 'order_item_add' order.id %}" class="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                            <i data-lucide="plus" class="h-3 w-3"></i> Adicionar Item
+                        </a>
+                        <span class="text-sm font-bold text-slate-900">Total: R$ {{ order.total_value|floatformat:2 }}</span>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left">
                         <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
                             <tr>
                                 <th class="px-6 py-3">Descrição</th>
+                                <th class="px-6 py-3 text-center">Origem</th>
                                 <th class="px-6 py-3 text-center">Qtd</th>
                                 <th class="px-6 py-3 text-right">Unitário</th>
                                 <th class="px-6 py-3 text-right">Total</th>
+                                <th class="px-6 py-3 text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             {% for item in order.items.all %}
                             <tr class="hover:bg-slate-50/50 transition-colors">
                                 <td class="px-6 py-4 font-medium text-slate-700">{{ item.description }}</td>
+                                <td class="px-6 py-4 text-center">
+                                    {% if item.task %}
+                                        <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] font-bold">
+                                            {{ item.task.get_task_type_display }}
+                                        </span>
+                                    {% else %}
+                                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">
+                                            Orçamento
+                                        </span>
+                                    {% endif %}
+                                </td>
                                 <td class="px-6 py-4 text-center">{{ item.quantity|floatformat:0 }}</td>
                                 <td class="px-6 py-4 text-right">R$ {{ item.unit_price|floatformat:2 }}</td>
                                 <td class="px-6 py-4 text-right font-bold text-slate-900">R$ {{ item.total_price|floatformat:2 }}</td>
+                                <td class="px-6 py-4 text-center">
+                                    <a href="{% url 'order_item_delete' item.id %}" class="text-red-600 hover:text-red-700">
+                                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                    </a>
+                                </td>
                             </tr>
                             {% endfor %}
                             
@@ -196,19 +219,25 @@
                                     <td class="px-6 py-4 font-medium text-slate-700">
                                         <span class="flex items-center gap-2">
                                             <i data-lucide="wrench" class="h-3 w-3 text-blue-600"></i>
-                                            {{ task.get_task_type_display }}
+                                            {{ task.get_task_type_display }} (Serviço)
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-[10px] font-bold">
+                                            Etapa
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-center">1</td>
                                     <td class="px-6 py-4 text-right">R$ {{ task.value|floatformat:2 }}</td>
                                     <td class="px-6 py-4 text-right font-bold text-slate-900">R$ {{ task.value|floatformat:2 }}</td>
+                                    <td class="px-6 py-4 text-center">-</td>
                                 </tr>
                                 {% endif %}
                             {% endfor %}
                             
                             {% if not order.items.all and not tasks %}
                             <tr>
-                                <td colspan="4" class="px-6 py-8 text-center text-slate-400 italic">
+                                <td colspan="6" class="px-6 py-8 text-center text-slate-400 italic">
                                     Nenhum item adicionado ao orçamento.
                                 </td>
                             </tr>

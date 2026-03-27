@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6 pb-24">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'service_order_detail' order.id %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            <i data-lucide="arrow-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h2 class="text-2xl font-bold text-slate-900">{{ title }}</h2>
+            <p class="text-sm text-slate-500">OS #{{ order.id.hex|slice:":8" }} - {{ order.client_property.client.name }}</p>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <form method="post" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+        {% csrf_token %}
+
+        <!-- Vínculo -->
+        <div class="space-y-2">
+            <label class="text-sm font-bold text-slate-700">Item Pertence a:</label>
+            <div class="space-y-3">
+                <label class="flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer hover:bg-slate-50 transition-all [&:has(input:checked)]:border-green-600 [&:has(input:checked)]:bg-green-50">
+                    <input type="radio" name="task" value="" checked class="w-4 h-4">
+                    <div>
+                        <span class="font-bold text-slate-900">Orçamento Geral</span>
+                        <p class="text-xs text-slate-500">Item faz parte do orçamento aprovado</p>
+                    </div>
+                </label>
+
+                {% for task in tasks %}
+                <label class="flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer hover:bg-slate-50 transition-all [&:has(input:checked)]:border-blue-600 [&:has(input:checked)]:bg-blue-50">
+                    <input type="radio" name="task" value="{{ task.id }}" class="w-4 h-4">
+                    <div>
+                        <span class="font-bold text-slate-900">{{ task.get_task_type_display }}</span>
+                        <p class="text-xs text-slate-500">Agendado para {{ task.scheduled_at|date:"d/m/Y H:i" }}</p>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="border-t border-slate-100 pt-6 space-y-5">
+            <!-- Descrição -->
+            <div class="space-y-2">
+                <label class="text-sm font-bold text-slate-700">Descrição *</label>
+                <input type="text" name="description" required placeholder="Ex: Telha cerâmica 50x30" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+            </div>
+
+            <!-- Quantidade e Preço -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Quantidade *</label>
+                    <input type="number" name="quantity" step="0.01" value="1" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Preço Unitário (R$) *</label>
+                    <input type="number" name="unit_price" step="0.01" placeholder="0,00" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                </div>
+            </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex gap-3 pt-4">
+            <a href="{% url 'service_order_detail' order.id %}" class="flex-1 py-3 rounded-xl border border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                Cancelar
+            </a>
+            <button type="submit" class="flex-1 py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all">
+                Adicionar Item
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -30,6 +30,11 @@ urlpatterns = [
     path('tasks/<uuid:task_id>/edit/', views.task_edit, name='task_edit'),
     path('tasks/<uuid:task_id>/cancel/', views.task_cancel, name='task_cancel'),
     path('orders/<uuid:order_id>/tasks/add/', views.task_add, name='task_add'),
+    path('tasks/media/<int:media_id>/delete/', views.task_media_delete, name='task_media_delete'),
+    
+    # Itens da OS
+    path('orders/<uuid:order_id>/items/add/', views.order_item_add, name='order_item_add'),
+    path('items/<int:item_id>/delete/', views.order_item_delete, name='order_item_delete'),
     
     # API
     path('api/check-availability/', views.api_check_availability, name='api_check_availability'),

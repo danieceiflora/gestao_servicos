@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Remover Item{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto space-y-6 pb-24">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'service_order_detail' order.id %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            <i data-lucide="arrow-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h2 class="text-2xl font-bold text-slate-900">Remover Item</h2>
+        </div>
+    </div>
+
+    <!-- Confirmation -->
+    <div class="bg-white rounded-2xl border border-red-200 shadow-sm overflow-hidden">
+        <div class="p-6 space-y-4">
+            <div class="flex items-center gap-3 text-red-600">
+                <i data-lucide="alert-triangle" class="h-8 w-8"></i>
+                <div>
+                    <h3 class="font-bold text-lg">Confirmar Remoção</h3>
+                    <p class="text-sm text-slate-600">Esta ação não pode ser desfeita.</p>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <p class="text-sm text-slate-600 mb-2">Item a ser removido:</p>
+                <p class="font-bold text-slate-900">{{ item.description }}</p>
+                <p class="text-sm text-slate-600 mt-1">
+                    {{ item.quantity|floatformat:0 }} × R$ {{ item.unit_price|floatformat:2 }} = 
+                    <span class="font-bold">R$ {{ item.total_price|floatformat:2 }}</span>
+                </p>
+                {% if item.task %}
+                <p class="text-xs text-blue-600 mt-2">Vinculado à etapa: {{ item.task.get_task_type_display }}</p>
+                {% else %}
+                <p class="text-xs text-green-600 mt-2">Orçamento Geral</p>
+                {% endif %}
+            </div>
+
+            <form method="post" class="flex gap-3 pt-4">
+                {% csrf_token %}
+                <a href="{% url 'service_order_detail' order.id %}" class="flex-1 py-3 rounded-xl border border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                    Cancelar
+                </a>
+                <button type="submit" class="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-all">
+                    Confirmar Remoção
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

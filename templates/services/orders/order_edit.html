@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Tom Select CSS -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6 pb-24">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'service_order_detail' order.id %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            <i data-lucide="chevron-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ title }}</h2>
+            <p class="text-sm text-slate-500">Modifique as informações da ordem de serviço</p>
+        </div>
+    </div>
+
+    <form method="post" id="order-form" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- ============ SEÇÃO 1: INFORMAÇÕES DO CLIENTE ============ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-slate-50">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-600 rounded-lg">
+                        <i data-lucide="user" class="h-5 w-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900">Seção 1: Informações do Cliente</h3>
+                        <p class="text-xs text-slate-500">Cliente e imóvel relacionados ao serviço</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 space-y-5">
+                <!-- Cliente -->
+                <div class="space-y-2">
+                    <label for="{{ form.client.id_for_label }}" class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                        <i data-lucide="user-check" class="h-4 w-4 text-blue-600"></i>
+                        Cliente
+                    </label>
+                    <p class="text-sm font-bold text-slate-900">{{ order.client_property.client.name }}</p>
+                    <p class="text-xs text-slate-500 italic">Cliente não pode ser alterado após criação</p>
+                </div>
+
+                <!-- Imóvel -->
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                        <i data-lucide="home" class="h-4 w-4 text-blue-600"></i>
+                        Imóvel
+                    </label>
+                    <p class="text-sm font-bold text-slate-900">{{ order.client_property.address }}, {{ order.client_property.number }}</p>
+                    <p class="text-xs text-slate-500 italic">Imóvel não pode ser alterado após criação</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SEÇÃO 2: INFORMAÇÕES DA ORDEM DE SERVIÇO ============ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-slate-50">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-amber-600 rounded-lg">
+                        <i data-lucide="clipboard-list" class="h-5 w-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900">Seção 2: Informações da Ordem de Serviço</h3>
+                        <p class="text-xs text-slate-500">Descrição, valor estimado e origem da solicitação</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 space-y-5">
+                <!-- Description -->
+                <div class="space-y-2">
+                    <label for="{{ form.description.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                        Descrição do Problema/Solicitação
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                    <p class="text-xs text-red-600">{{ form.description.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Valor Estimado -->
+                <div class="space-y-2">
+                    <label for="{{ form.estimated_value.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                        Valor Estimado Total (R$)
+                    </label>
+                    {{ form.estimated_value }}
+                    {% if form.estimated_value.errors %}
+                    <p class="text-xs text-red-600">{{ form.estimated_value.errors.0 }}</p>
+                    {% endif %}
+                    <p class="text-xs text-slate-500 italic">Valor total estimado para toda a ordem de serviço</p>
+                </div>
+
+                <!-- Origem -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label for="{{ form.origin_date.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                            Data de Origem
+                        </label>
+                        {{ form.origin_date }}
+                        {% if form.origin_date.errors %}
+                        <p class="text-xs text-red-600">{{ form.origin_date.errors.0 }}</p>
+                        {% endif %}
+                        <p class="text-xs text-slate-500 italic">Quando a solicitação surgiu</p>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <label for="{{ form.originator.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                            Vendedor/Originador
+                        </label>
+                        {{ form.originator }}
+                        {% if form.originator.errors %}
+                        <p class="text-xs text-red-600">{{ form.originator.errors.0 }}</p>
+                        {% endif %}
+                        <p class="text-xs text-slate-500 italic">Colaborador responsável</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SEÇÃO 3: ETAPAS EXISTENTES ============ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-green-50 to-slate-50">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-green-600 rounded-lg">
+                            <i data-lucide="calendar-check" class="h-5 w-5 text-white"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-900">Seção 3: Etapas do Serviço</h3>
+                            <p class="text-xs text-slate-500">Gerencie as etapas desta OS</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                {% if tasks %}
+                <div class="space-y-3">
+                    {% for task in tasks %}
+                    <div class="p-4 border-2 border-slate-200 rounded-xl bg-slate-50">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-bold text-slate-900">{{ task.get_task_type_display }}</span>
+                            <span class="text-xs px-2 py-1 rounded-full {% if task.status == 'COMPLETED' %}bg-green-100 text-green-700{% elif task.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-700{% else %}bg-slate-100 text-slate-700{% endif %}">
+                                {{ task.get_status_display }}
+                            </span>
+                        </div>
+                        <p class="text-sm text-slate-600">Agendado: {{ task.scheduled_at|date:"d/m/Y H:i" }}</p>
+                        {% if task.value %}
+                        <p class="text-sm text-slate-600">Valor: R$ {{ task.value|floatformat:2 }}</p>
+                        {% endif %}
+                        <div class="flex gap-2 mt-3">
+                            <a href="{% url 'task_edit' task.id %}" class="text-xs text-blue-600 hover:text-blue-700 font-bold">Editar</a>
+                            {% if task.status == 'SCHEDULED' %}
+                            <a href="{% url 'task_cancel' task.id %}" class="text-xs text-red-600 hover:text-red-700 font-bold">Cancelar</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-slate-500 italic text-center py-4">Nenhuma etapa cadastrada ainda.</p>
+                {% endif %}
+
+                <a href="{% url 'task_add' order.id %}" class="w-full py-3 border-2 border-dashed border-green-300 rounded-xl text-green-600 font-bold hover:bg-green-50 hover:border-green-400 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="plus-circle" class="h-5 w-5"></i>
+                    Adicionar Nova Etapa
+                </a>
+            </div>
+        </div>
+
+        <!-- ============ SEÇÃO 4: ITENS DO ORÇAMENTO ============ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-purple-50 to-slate-50">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-purple-600 rounded-lg">
+                            <i data-lucide="package" class="h-5 w-5 text-white"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-900">Seção 4: Itens do Orçamento</h3>
+                            <p class="text-xs text-slate-500">Materiais e serviços desta OS</p>
+                        </div>
+                    </div>
+                    <span class="text-sm font-bold text-slate-900">Total Itens: R$ {{ items_total|default:"0.00"|floatformat:2 }}</span>
+                </div>
+            </div>
+            
+            <div class="p-6">
+                {% if items %}
+                <div class="space-y-3 mb-4">
+                    {% for item in items %}
+                    <div class="flex items-center justify-between p-3 border border-slate-200 rounded-lg">
+                        <div>
+                            <p class="font-bold text-slate-900">{{ item.description }}</p>
+                            <p class="text-sm text-slate-600">{{ item.quantity|floatformat:0 }} × R$ {{ item.unit_price|floatformat:2 }} = R$ {{ item.total_price|floatformat:2 }}</p>
+                            {% if item.task %}
+                            <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">{{ item.task.get_task_type_display }}</span>
+                            {% else %}
+                            <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Orçamento</span>
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'order_item_delete' item.id %}" class="text-red-600 hover:text-red-700">
+                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-slate-500 italic text-center py-4 mb-4">Nenhum item adicionado ainda.</p>
+                {% endif %}
+
+                <a href="{% url 'order_item_add' order.id %}" class="w-full py-3 border-2 border-dashed border-purple-300 rounded-xl text-purple-600 font-bold hover:bg-purple-50 hover:border-purple-400 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="plus-circle" class="h-5 w-5"></i>
+                    Adicionar Item
+                </a>
+            </div>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div class="flex gap-3 sticky bottom-6 z-10">
+            <a href="{% url 'service_order_detail' order.id %}" class="flex-1 py-4 rounded-xl border-2 border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all bg-white shadow-lg">
+                Cancelar
+            </a>
+            <button type="submit" class="flex-1 py-4 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-lg">
+                Salvar Alterações
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+</script>
+{% endblock %}
