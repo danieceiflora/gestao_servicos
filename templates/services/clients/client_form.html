@@ -19,16 +19,94 @@
                 <i data-lucide="user" class="h-5 w-5 text-blue-600"></i>
                 <h3 class="text-sm font-semibold uppercase text-slate-400 tracking-wider">Identificação do Cliente</h3>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="space-y-2 md:col-span-2">
-                    <label class="text-sm font-medium text-slate-700">Nome Completo</label>
-                    {{ form.name }}
-                    {% if form.name.errors %}<p class="text-xs text-red-500">{{ form.name.errors }}</p>{% endif %}
+            
+            <!-- Tipo de Cliente -->
+            <div class="space-y-3">
+                <label class="text-sm font-medium text-slate-700">Tipo de Cliente *</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <label class="relative flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all hover:bg-slate-50 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="client_type" value="PF" {% if not form.client_type.value or form.client_type.value == 'PF' %}checked{% endif %} class="w-4 h-4 text-blue-600">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="user" class="h-5 w-5 text-blue-600"></i>
+                                <span class="font-bold text-slate-900">Pessoa Física</span>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1">Cliente individual / CPF</p>
+                        </div>
+                    </label>
+                    
+                    <label class="relative flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all hover:bg-slate-50 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="client_type" value="PJ" {% if form.client_type.value == 'PJ' %}checked{% endif %} class="w-4 h-4 text-blue-600">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="building-2" class="h-5 w-5 text-blue-600"></i>
+                                <span class="font-bold text-slate-900">Pessoa Jurídica</span>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1">Empresa / CNPJ</p>
+                        </div>
+                    </label>
                 </div>
+                {% if form.client_type.errors %}<p class="text-xs text-red-500">{{ form.client_type.errors }}</p>{% endif %}
+            </div>
+            
+            <!-- Campos Comuns -->
+            <div class="space-y-2">
+                <label class="text-sm font-medium text-slate-700" id="name-label">
+                    <span class="pf-only">Nome Completo *</span>
+                    <span class="pj-only hidden">Razão Social *</span>
+                </label>
+                {{ form.name }}
+                {% if form.name.errors %}<p class="text-xs text-red-500">{{ form.name.errors }}</p>{% endif %}
+            </div>
+            
+            <!-- Campos Pessoa Física -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pf-only">
                 <div class="space-y-2">
-                    <label class="text-sm font-medium text-slate-700">CPF (Opcional)</label>
+                    <label class="text-sm font-medium text-slate-700">CPF *</label>
                     {{ form.cpf }}
                     {% if form.cpf.errors %}<p class="text-xs text-red-500">{{ form.cpf.errors }}</p>{% endif %}
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">RG</label>
+                    {{ form.rg }}
+                    {% if form.rg.errors %}<p class="text-xs text-red-500">{{ form.rg.errors }}</p>{% endif %}
+                </div>
+            </div>
+            
+            <!-- Campos Pessoa Jurídica -->
+            <div class="space-y-6 pj-only hidden">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Nome Fantasia</label>
+                    {{ form.trade_name }}
+                    {% if form.trade_name.errors %}<p class="text-xs text-red-500">{{ form.trade_name.errors }}</p>{% endif %}
+                    <p class="text-xs text-slate-500">Nome comercial da empresa</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-700">CNPJ *</label>
+                        {{ form.cnpj }}
+                        {% if form.cnpj.errors %}<p class="text-xs text-red-500">{{ form.cnpj.errors }}</p>{% endif %}
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Inscrição Estadual</label>
+                        {{ form.state_registration }}
+                        {% if form.state_registration.errors %}<p class="text-xs text-red-500">{{ form.state_registration.errors }}</p>{% endif %}
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Inscrição Municipal</label>
+                        {{ form.municipal_registration }}
+                        {% if form.municipal_registration.errors %}<p class="text-xs text-red-500">{{ form.municipal_registration.errors }}</p>{% endif %}
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Responsável/Contato *</label>
+                        {{ form.contact_person }}
+                        {% if form.contact_person.errors %}<p class="text-xs text-red-500">{{ form.contact_person.errors }}</p>{% endif %}
+                        <p class="text-xs text-slate-500">Pessoa responsável pela empresa</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -203,7 +281,7 @@
             </div>
         </section>
 
-        <div class="flex flex-col md:flex-row items-center justify-end gap-4 pt-6 border-t border-slate-200 pb-12 md:pb-6">
+        <div class="flex flex-col md:flex-row items-center justify-end gap-4 pt-6 border-t border-slate-200 pb-32 md:pb-6">
             <a href="{% url 'client_list' %}" class="w-full md:w-auto text-center px-6 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50">Cancelar</a>
             <button type="submit" class="w-full md:w-auto px-10 py-2.5 rounded-lg bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 shadow-lg shadow-slate-200">Finalizar Cadastro</button>
         </div>
@@ -258,6 +336,15 @@
                     .replace(/(\d{3})(\d{1,2})$/, "$1-$2")
                     .substring(0, 14);
     }
+    
+    function maskCNPJ(value) {
+        return value.replace(/\D/g, "")
+                    .replace(/(\d{2})(\d)/, "$1.$2")
+                    .replace(/(\d{3})(\d)/, "$1.$2")
+                    .replace(/(\d{3})(\d)/, "$1/$2")
+                    .replace(/(\d{4})(\d{1,2})$/, "$1-$2")
+                    .substring(0, 18);
+    }
 
     function maskPhone(value) {
         value = value.replace(/\D/g, "");
@@ -283,6 +370,10 @@
             input.addEventListener('input', (e) => e.target.value = maskCPF(e.target.value));
             input.addEventListener('blur', (e) => validateCPF(e.target));
             if (input.value) input.value = maskCPF(input.value);
+        });
+        container.querySelectorAll('input[name*="cnpj"]').forEach(input => {
+            input.addEventListener('input', (e) => e.target.value = maskCNPJ(e.target.value));
+            if (input.value) input.value = maskCNPJ(input.value);
         });
         container.querySelectorAll('input[name*="phone"]').forEach(input => {
             input.addEventListener('input', (e) => e.target.value = maskPhone(e.target.value));
@@ -337,6 +428,30 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         applyMasks();
+        
+        // ============ TOGGLE PF/PJ ============
+        const clientTypeRadios = document.querySelectorAll('input[name="client_type"]');
+        
+        function toggleClientType() {
+            const selectedType = document.querySelector('input[name="client_type"]:checked').value;
+            const pfFields = document.querySelectorAll('.pf-only');
+            const pjFields = document.querySelectorAll('.pj-only');
+            
+            if (selectedType === 'PF') {
+                pfFields.forEach(el => el.classList.remove('hidden'));
+                pjFields.forEach(el => el.classList.add('hidden'));
+            } else {
+                pfFields.forEach(el => el.classList.add('hidden'));
+                pjFields.forEach(el => el.classList.remove('hidden'));
+            }
+        }
+        
+        clientTypeRadios.forEach(radio => {
+            radio.addEventListener('change', toggleClientType);
+        });
+        
+        // Inicializar na carga
+        toggleClientType();
     });
 
     function removeForm(btn, prefix) {
@@ -408,6 +523,30 @@
         input.addEventListener('blur', function() { buscarCep(this); });
     });
 
+    function openGpsNavigator({ lat, lng, address }) {
+        const cleanLat = (lat || '').toString().replace(',', '.').trim();
+        const cleanLng = (lng || '').toString().replace(',', '.').trim();
+        const destination = cleanLat && cleanLng ? `${cleanLat},${cleanLng}` : (address || '').trim();
+
+        if (!destination) {
+            alert('Preencha o endereço ou capture o GPS antes de abrir o mapa.');
+            return;
+        }
+
+        const params = new URLSearchParams({
+            destination,
+            travelmode: 'driving'
+        });
+        const mapUrl = `https://www.google.com/maps/dir/?api=1&${params.toString()}`;
+        const isMobile = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+
+        if (isMobile) {
+            window.location.href = mapUrl;
+        } else {
+            window.open(mapUrl, '_blank', 'noopener');
+        }
+    }
+
     function getLocation(btn) {
         const container = btn.closest('.properties-form');
         const status = container.querySelector('.location-status');
@@ -432,11 +571,21 @@
 
     function openInMaps(btn) {
         const container = btn.closest('.properties-form');
-        const lat = container.querySelector('[name*="-latitude"]').value.replace(',', '.');
-        const lon = container.querySelector('[name*="-longitude"]').value.replace(',', '.');
-        if (lat && lon) {
-            window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`, '_blank');
-        }
+        const latField = container.querySelector('[name*="-latitude"]');
+        const lngField = container.querySelector('[name*="-longitude"]');
+        const lat = latField ? latField.value : '';
+        const lng = lngField ? lngField.value : '';
+
+        const addressFields = ['address', 'number', 'complement', 'neighborhood', 'city', 'state', 'cep'];
+        const addressParts = addressFields
+            .map(field => {
+                const input = container.querySelector(`[name*="-${field}"]`);
+                return input && input.value ? input.value.trim() : '';
+            })
+            .filter(Boolean);
+        const address = addressParts.join(', ');
+
+        openGpsNavigator({ lat, lng, address });
     }
 
     window.addEventListener('load', () => {

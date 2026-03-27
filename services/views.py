@@ -201,8 +201,10 @@ def service_order_list(request):
     return render(request, 'services/orders/order_list.html', {'orders': orders, 'query': query})
 
 def service_order_scheduling(request):
+    team_formset = ServiceOrderTeamFormSet()
+    
     if request.method == 'POST':
-        form = ServiceOrderSchedulingForm(request.POST)
+        form = ServiceOrderSchedulingForm(request.POST, request.FILES)
         
         if form.is_valid():
             # Criar a Ordem de Serviço
@@ -223,20 +225,23 @@ def service_order_scheduling(request):
             
             while f'task_{task_index}_type' in request.POST:
                 task_type = request.POST.get(f'task_{task_index}_type')
-                scheduled_at = request.POST.get(f'task_{task_index}_scheduled')
+                scheduled_input = request.POST.get(f'task_{task_index}_scheduled')
                 start_date = request.POST.get(f'task_{task_index}_start_date')
                 end_date = request.POST.get(f'task_{task_index}_end_date')
                 value = request.POST.get(f'task_{task_index}_value')
                 
-                if task_type and scheduled_at:
-                    # Converter datas para timezone-aware
-                    from django.utils import timezone
-                    from datetime import datetime
-                    
-                    scheduled_datetime = timezone.make_aware(datetime.fromisoformat(scheduled_at))
-                    start_datetime = timezone.make_aware(datetime.fromisoformat(start_date)) if start_date else None
-                    end_datetime = timezone.make_aware(datetime.fromisoformat(end_date)) if end_date else None
-                    
+                scheduled_datetime = None
+                if scheduled_input:
+                    scheduled_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(scheduled_input))
+                elif task_index == 0:
+                    scheduled_datetime = form.cleaned_data.get('scheduled_at')
+                    if scheduled_datetime and django.utils.timezone.is_naive(scheduled_datetime):
+                        scheduled_datetime = django.utils.timezone.make_aware(scheduled_datetime)
+                
+                start_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(start_date)) if start_date else None
+                end_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(end_date)) if end_date else None
+                
+                if task_type and scheduled_datetime:
                     # Criar a tarefa
                     task = ServiceOrderTask.objects.create(
                         service_order=service_order,
@@ -265,6 +270,11 @@ def service_order_scheduling(request):
                             except (Professional.DoesNotExist, ProfessionalRole.DoesNotExist):
                                 pass
                     
+                    # Anexar mídias à etapa
+                    media_files = request.FILES.getlist(f'task_{task_index}_media')
+                    for media in media_files:
+                        ServiceMedia.objects.create(task=task, file=media)
+                    
                     tasks_created.append(task)
                 
                 task_index += 1
@@ -275,11 +285,10 @@ def service_order_scheduling(request):
             messages.error(request, 'Por favor, corrija os erros no formulário.')
     else:
         form = ServiceOrderSchedulingForm()
-        formset = ServiceOrderTeamFormSet()
     
     return render(request, 'services/orders/order_scheduling_form.html', {
         'form': form,
-        'formset': ServiceOrderTeamFormSet() if request.method == 'GET' else None,
+        'formset': team_formset,
         'professionals': Professional.objects.filter(is_active=True),
         'roles': ProfessionalRole.objects.all(),
         'title': 'Novo Agendamento'

@@ -30,17 +30,86 @@ class MultipleFileField(forms.FileField):
 class ClientForm(forms.ModelForm):
     class Meta:
         model = Client
-        fields = ['name', 'cpf']
+        fields = [
+            'client_type',
+            'name',
+            # PF
+            'cpf',
+            'rg',
+            # PJ
+            'trade_name',
+            'cnpj',
+            'state_registration',
+            'municipal_registration',
+            'contact_person',
+        ]
         widgets = {
+            'client_type': forms.RadioSelect(attrs={
+                'class': 'client-type-radio'
+            }),
             'name': forms.TextInput(attrs={
-                'placeholder': 'Nome completo do cliente',
+                'placeholder': 'Nome completo ou Razão Social',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
+            # PF
             'cpf': forms.TextInput(attrs={
-                'placeholder': '000.000.000-00', 
-                'class': 'cpf-mask w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+                'placeholder': '000.000.000-00',
+                'class': 'cpf-mask w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pf-field',
+                'data-mask': '000.000.000-00'
+            }),
+            'rg': forms.TextInput(attrs={
+                'placeholder': 'RG',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pf-field'
+            }),
+            # PJ
+            'trade_name': forms.TextInput(attrs={
+                'placeholder': 'Nome Fantasia',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pj-field'
+            }),
+            'cnpj': forms.TextInput(attrs={
+                'placeholder': '00.000.000/0000-00',
+                'class': 'cnpj-mask w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pj-field',
+                'data-mask': '00.000.000/0000-00'
+            }),
+            'state_registration': forms.TextInput(attrs={
+                'placeholder': 'Inscrição Estadual',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pj-field'
+            }),
+            'municipal_registration': forms.TextInput(attrs={
+                'placeholder': 'Inscrição Municipal',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pj-field'
+            }),
+            'contact_person': forms.TextInput(attrs={
+                'placeholder': 'Nome do responsável/contato',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pj-field'
             }),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        client_type = cleaned_data.get('client_type')
+        
+        if client_type == 'PF':
+            # Pessoa Física: CPF obrigatório
+            if not cleaned_data.get('cpf'):
+                self.add_error('cpf', 'CPF é obrigatório para Pessoa Física')
+            else:
+                cpf = cleaned_data.get('cpf')
+                cpf = ''.join(filter(str.isdigit, cpf))
+                if len(cpf) != 11:
+                    self.add_error('cpf', 'CPF deve conter 11 dígitos')
+        
+        elif client_type == 'PJ':
+            # Pessoa Jurídica: CNPJ obrigatório
+            if not cleaned_data.get('cnpj'):
+                self.add_error('cnpj', 'CNPJ é obrigatório para Pessoa Jurídica')
+            else:
+                cnpj = cleaned_data.get('cnpj')
+                cnpj = ''.join(filter(str.isdigit, cnpj))
+                if len(cnpj) != 14:
+                    self.add_error('cnpj', 'CNPJ deve conter 14 dígitos')
+        
+        return cleaned_data
 
     def clean_cpf(self):
         cpf = self.cleaned_data.get('cpf')
@@ -134,6 +203,7 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
         choices=ServiceOrderTask.TaskType.choices,
         initial=ServiceOrderTask.TaskType.BUDGET,
         label="Finalidade do Agendamento",
+        required=False,
         widget=forms.RadioSelect(attrs={'class': 'flex gap-4 p-2 bg-slate-50 rounded-xl border border-slate-100'})
     )
 

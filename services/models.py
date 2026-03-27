@@ -27,14 +27,132 @@ class User(AbstractUser):
 # --- CLIENTES & CONTATOS ---
 
 class Client(models.Model):
+    CLIENT_TYPE_CHOICES = [
+        ('PF', 'Pessoa Física'),
+        ('PJ', 'Pessoa Jurídica'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=255, verbose_name="Nome Completo")
-    cpf = models.CharField(max_length=14, unique=True, null=True, blank=True, verbose_name="CPF")
+    
+    # Tipo de cliente
+    client_type = models.CharField(
+        max_length=2,
+        choices=CLIENT_TYPE_CHOICES,
+        default='PF',
+        verbose_name="Tipo de Cliente"
+    )
+    
+    # ============ CAMPOS COMUNS ============
+    # Nome completo (PF) ou Razão Social (PJ)
+    name = models.CharField(
+        max_length=255,
+        verbose_name="Nome Completo / Razão Social"
+    )
+    
+    # ============ PESSOA FÍSICA ============
+    cpf = models.CharField(
+        max_length=14,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name="CPF"
+    )
+    rg = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        verbose_name="RG"
+    )
+    
+    # ============ PESSOA JURÍDICA ============
+    trade_name = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name="Nome Fantasia"
+    )
+    cnpj = models.CharField(
+        max_length=18,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name="CNPJ"
+    )
+    state_registration = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        verbose_name="Inscrição Estadual"
+    )
+    municipal_registration = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        verbose_name="Inscrição Municipal"
+    )
+    contact_person = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name="Responsável/Contato"
+    )
+    
+    # ============ CAMPOS DE AUDITORIA ============
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    # ============ PROPRIEDADES ============
+    @property
+    def document(self):
+        """Retorna CPF ou CNPJ dependendo do tipo"""
+        return self.cpf if self.client_type == 'PF' else self.cnpj
+    
+    @property
+    def display_name(self):
+        """Nome para exibição (considera nome fantasia)"""
+        if self.client_type == 'PJ' and self.trade_name:
+            return self.trade_name
+        return self.name
+    
+    # ============ VALIDAÇÃO ============
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        import re
+        
+        if self.client_type == 'PF':
+            # Pessoa Física: CPF obrigatório
+            if not self.cpf:
+                raise ValidationError({'cpf': 'CPF é obrigatório para Pessoa Física'})
+            
+            # Valida formato CPF
+            cpf_limpo = re.sub(r'\D', '', self.cpf)
+            if len(cpf_limpo) != 11:
+                raise ValidationError({'cpf': 'CPF deve ter 11 dígitos'})
+            
+            # Limpa campos de PJ
+            self.trade_name = None
+            self.cnpj = None
+            self.state_registration = None
+            self.municipal_registration = None
+            self.contact_person = None
+            
+        elif self.client_type == 'PJ':
+            # Pessoa Jurídica: CNPJ obrigatório
+            if not self.cnpj:
+                raise ValidationError({'cnpj': 'CNPJ é obrigatório para Pessoa Jurídica'})
+            
+            # Valida formato CNPJ
+            cnpj_limpo = re.sub(r'\D', '', self.cnpj)
+            if len(cnpj_limpo) != 14:
+                raise ValidationError({'cnpj': 'CNPJ deve ter 14 dígitos'})
+            
+            # Limpa campos de PF
+            self.cpf = None
+            self.rg = None
 
     def __str__(self):
-        return self.name
+        doc = self.document or "Sem documento"
+        return f"{self.display_name} ({doc})"
 
     class Meta:
         verbose_name = "Cliente"
@@ -102,6 +220,28 @@ class Property(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def full_address(self):
+        components = [
+            self.address,
+            self.number,
+            self.complement,
+            self.neighborhood,
+        ]
+
+        city_state = []
+        if self.city:
+            city_state.append(self.city)
+        if self.state:
+            city_state.append(self.state)
+        if city_state:
+            components.append(' - '.join(city_state))
+
+        components.append('Brasil')
+
+        cleaned = [str(part).strip() for part in components if part]
+        return ', '.join(cleaned)
 
     def __str__(self):
         return f"{self.classification} - {self.address}, {self.number}"
