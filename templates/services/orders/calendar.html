@@ -206,6 +206,7 @@
                 Agendar Serviço
             </button>
             {% endif %}
+            {% if not is_collaborator %}
             <div class="relative min-w-[200px]">
                 <select id="professional-filter" class="w-full pl-10 pr-4 py-3 md:py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none">
                     <option value="">Todos os Colaboradores</option>
@@ -215,6 +216,12 @@
                 </select>
                 <i data-lucide="users" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"></i>
             </div>
+            {% else %}
+            <div class="px-4 py-3 md:py-2 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-sm font-bold flex items-center gap-2">
+                <i data-lucide="user-check" class="h-4 w-4"></i>
+                Minha Agenda
+            </div>
+            {% endif %}
         </div>
     </div>
 
@@ -465,7 +472,9 @@
 
 <script>
     let allClients = [];
-    let selectedDateTime = null; // Variável para armazenar data/hora selecionada
+    let selectedDateTime = null;
+    const canSchedule = {{ perms.services.add_serviceorder|yesno:"true,false" }};
+    const isCollaborator = {{ is_collaborator|yesno:"true,false" }};
 
     document.addEventListener('DOMContentLoaded', function() {
         const calendarEl = document.getElementById('calendar');
@@ -475,7 +484,12 @@
         const isSelectMode = urlParams.get('mode') === 'select';
         const initialProfId = urlParams.get('professional_id');
 
-        if (initialProfId) profFilter.value = initialProfId;
+        {% if is_collaborator and current_professional %}
+        // Colaborador: pré-selecionar seu próprio perfil
+        if (profFilter) profFilter.value = "{{ current_professional.id }}";
+        {% else %}
+        if (initialProfId && profFilter) profFilter.value = initialProfId;
+        {% endif %}
 
         const calendar = new FullCalendar.Calendar(calendarEl, {
             locale: 'pt-br',
@@ -487,15 +501,12 @@
                     'dayGridMonth,timeGridDay' : 
                     'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
             },
-            // Configuração do título principal - formato numérico para mobile
             titleFormat: window.innerWidth < 768 ? 
                 { month: '2-digit', year: 'numeric' } : 
                 { month: 'long', year: 'numeric' },
-            // Formato do cabeçalho da coluna do dia - número + abreviação
             dayHeaderFormat: window.innerWidth < 768 ? 
                 { day: 'numeric', weekday: 'short' } : 
                 { weekday: 'short', day: 'numeric' },
-            // Formato específico para visualização de dia
             views: {
                 timeGridDay: {
                     titleFormat: window.innerWidth < 768 ? 
@@ -514,17 +525,16 @@
             aspectRatio: window.innerWidth < 768 ? 0.8 : 1.35,
             nowIndicator: true,
             editable: false,
-            selectable: true,
+            selectable: canSchedule, // Desabilita seleção se não tiver permissão
             selectMirror: true,
             dayMaxEvents: 3,
             eventDisplay: 'block',
             allDaySlot: false,
-            // Mostrar todos os horários (24 horas)
             slotMinTime: '00:00:00',
             slotMaxTime: '24:00:00',
             slotDuration: '01:00:00',
-            slotLabelInterval: '02:00:00', // Labels a cada 2 horas para economizar espaço
-            scrollTime: '08:00:00', // Scroll inicial para 8h da manhã
+            slotLabelInterval: '02:00:00',
+            scrollTime: '08:00:00',
             loading: function(isLoading) {
                 const loadingEl = document.getElementById('calendar-loading');
                 const calendarEl = document.getElementById('calendar');
@@ -539,20 +549,28 @@
             },
             events: {
                 url: '{% url "api_calendar_events" %}',
-                extraParams: function() { return { professional_id: profFilter.value }; }
+                extraParams: function() { 
+                    {% if is_collaborator and current_professional %}
+                    const params = { professional_id: "{{ current_professional.id }}" };
+                    console.log('🔒 Colaborador - Filtrando por profissional:', params);
+                    return params;
+                    {% else %}
+                    const params = profFilter ? { professional_id: profFilter.value } : {};
+                    console.log('👔 Admin/Manager - Filtros:', params);
+                    return params;
+                    {% endif %}
+                }
             },
             select: function(info) {
                 if (isSelectMode) {
                     window.parent.postMessage({ type: 'dateSelected', date: info.startStr }, '*');
-                } else {
-                    // Abrir modal com página de agendamento
+                } else if (canSchedule) {
                     openSchedulingModal(info.startStr);
                 }
                 calendar.unselect();
             },
             dateClick: function(info) {
-                if (!isSelectMode) {
-                    // Para mobile, também permitir dateClick além de select
+                if (!isSelectMode && canSchedule) {
                     openSchedulingModal(info.dateStr);
                 }
             },
@@ -615,7 +633,14 @@
         });
 
         calendar.render();
-        profFilter.addEventListener('change', () => calendar.refetchEvents());
+        
+        {% if not is_collaborator %}
+        // Apenas admin/manager podem filtrar por profissional
+        if (profFilter) {
+            profFilter.addEventListener('change', () => calendar.refetchEvents());
+        }
+        {% endif %}
+        
         window.calendarInstance = calendar;
         
         populateInitialClients();

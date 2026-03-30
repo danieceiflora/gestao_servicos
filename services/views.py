@@ -709,6 +709,7 @@ from django.http import JsonResponse
 from dateutil.parser import parse
 
 @login_required
+@login_required
 def api_calendar_events(request):
     events = []
     buffer = timedelta(hours=1, minutes=30)
@@ -717,16 +718,18 @@ def api_calendar_events(request):
     # Se for colaborador, ele só vê os próprios eventos, independente do filtro
     if not (user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]):
         try:
-            prof_id = user.professional_profile.id
+            prof_id = str(user.professional_profile.id)  # Garante string para comparação
         except Professional.DoesNotExist:
             return JsonResponse([], safe=False)
     else:
         prof_id = request.GET.get('professional_id')
+        if prof_id:
+            prof_id = str(prof_id)  # Padroniza como string
     
     tasks = ServiceOrderTask.objects.select_related('service_order__client_property__client')
     if prof_id:
-        tasks = tasks.filter(team_members__professional_id=prof_id)
-
+        tasks = tasks.filter(team_members__professional_id=prof_id).distinct()
+    
     for task in tasks:
         colors = {
             'BUDGET': ('#3b82f6', '#2563eb', 'ORÇ'),
@@ -760,12 +763,25 @@ def api_calendar_events(request):
 
 @login_required
 def service_order_calendar(request):
-    return render(request, 'services/orders/calendar.html', {
+    user = request.user
+    context = {
         'professionals': Professional.objects.filter(is_active=True),
         'professional_roles': ProfessionalRole.objects.all(),
         'status_choices': ServiceOrder.Status.choices,
         'title': 'Agenda'
-    })
+    }
+    
+    # Se for colaborador, passa apenas seu próprio perfil
+    if not (user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]):
+        try:
+            context['current_professional'] = user.professional_profile
+            context['is_collaborator'] = True
+        except Professional.DoesNotExist:
+            context['is_collaborator'] = True
+    else:
+        context['is_collaborator'] = False
+    
+    return render(request, 'services/orders/calendar.html', context)
 
 @login_required
 def api_check_availability(request):
