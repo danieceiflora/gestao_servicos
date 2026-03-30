@@ -110,8 +110,8 @@
                                         <i data-lucide="play-circle" class="h-4 w-4"></i>
                                     </a>
                                 {% endif %}
-                                {% if order.status == 'WAITING_BUDGET' or order.status == 'BUDGET_SCHEDULED' or order.status == 'WAITING_APPROVAL' %}
-                                    <a href="{% url 'service_order_budget' order.id %}" class="p-2 text-slate-400 hover:text-blue-600" title="Editar Orçamento"><i data-lucide="edit" class="h-4 w-4"></i></a>
+                                {% if order.status != 'FINISHED' and order.status != 'CANCELLED' %}
+                                    <a href="{% url 'service_order_edit' order.id %}" class="p-2 text-slate-400 hover:text-blue-600" title="Editar OS"><i data-lucide="edit" class="h-4 w-4"></i></a>
                                 {% endif %}
                             </div>
                         </td>

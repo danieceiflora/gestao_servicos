@@ -195,11 +195,11 @@
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-            <h2 class="text-xl md:text-2xl font-bold tracking-tight text-slate-900">Agenda Geral</h2>
-            <p class="text-xs md:text-sm text-slate-500">Visualize e gerencie todos os agendamentos da empresa.</p>
+            <h2 id="calendar-page-title" class="text-xl md:text-2xl font-bold tracking-tight text-slate-900">Agenda Geral</h2>
+            <p id="calendar-page-desc" class="text-xs md:text-sm text-slate-500">Visualize e gerencie todos os agendamentos da empresa.</p>
         </div>
         
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div id="calendar-page-actions" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {% if perms.services.add_serviceorder %}
             <button onclick="openSchedulingModal()" class="px-4 py-3 md:py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md flex items-center justify-center gap-2">
                 <i data-lucide="plus" class="h-4 w-4"></i>
@@ -483,6 +483,21 @@
         const urlParams = new URLSearchParams(window.location.search);
         const isSelectMode = urlParams.get('mode') === 'select';
         const initialProfId = urlParams.get('professional_id');
+        
+        if (isSelectMode) {
+            document.getElementById('calendar-page-title').textContent = "Selecionar Horário";
+            document.getElementById('calendar-page-desc').textContent = "Toque em um horário livre para escolher.";
+            
+            // Substitui os botões padrão pelo botão de Fechar na barra superior
+            const actionsContainer = document.getElementById('calendar-page-actions');
+            actionsContainer.innerHTML = `
+                <button type="button" onclick="window.parent.postMessage({ type: 'closeCalendar' }, '*')" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors shrink-0" title="Fechar Calendário">
+                    <i data-lucide="x" class="h-6 w-6"></i>
+                </button>
+            `;
+            
+            if (window.lucide) lucide.createIcons();
+        }
 
         {% if is_collaborator and current_professional %}
         // Colaborador: pré-selecionar seu próprio perfil

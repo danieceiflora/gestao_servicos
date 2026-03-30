@@ -171,14 +171,18 @@
         // Listen for date selection from iframe
         window.addEventListener('message', function(event) {
             if (event.data.type === 'dateSelected' && calendarTargetInput) {
-                // FullCalendar returns ISO string, we need to format for datetime-local (YYYY-MM-DDTHH:MM)
+                // FullCalendar retorna a string com timezone, precisamos formatar para datetime-local no fuso original
                 const date = new Date(event.data.date);
-                const formattedDate = date.toISOString().slice(0, 16);
-                calendarTargetInput.value = formattedDate;
+                const tzOffset = date.getTimezoneOffset() * 60000; // offset in milliseconds
+                const localISOTime = (new Date(date - tzOffset)).toISOString().slice(0, 16);
+                calendarTargetInput.value = localISOTime;
                 
                 // Trigger change event for any validation
                 calendarTargetInput.dispatchEvent(new Event('change'));
                 
+                closeCalendarModal();
+            }
+            if (event.data.type === 'closeCalendar') {
                 closeCalendarModal();
             }
         });
