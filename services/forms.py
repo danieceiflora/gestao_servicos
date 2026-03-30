@@ -265,6 +265,13 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['client_property'].queryset = Property.objects.none()
         
+        # Se está editando (instance.pk existe), tornar origin_date e originator readonly
+        if self.instance.pk:
+            self.fields['origin_date'].widget.attrs['readonly'] = True
+            self.fields['origin_date'].widget.attrs['class'] += ' bg-slate-100 cursor-not-allowed'
+            self.fields['originator'].disabled = True
+            self.fields['originator'].widget.attrs['class'] += ' bg-slate-100 cursor-not-allowed'
+        
         # Filtrar apenas profissionais com função "Vendedor"
         try:
             vendedor_role = ProfessionalRole.objects.filter(name__icontains='vendedor').first()
@@ -506,7 +513,8 @@ class TaskScheduleForm(forms.ModelForm):
             }),
             'scheduled_at': forms.DateTimeInput(attrs={
                 'type': 'datetime-local',
-                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+                'class': 'calendar-input w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
+                'id': 'id_scheduled_at'
             }),
             'value': forms.NumberInput(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',

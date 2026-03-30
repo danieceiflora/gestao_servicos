@@ -37,7 +37,12 @@
             <!-- Data e Hora -->
             <div>
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora do Agendamento</label>
-                {{ form.scheduled_at }}
+                <div class="relative">
+                    {{ form.scheduled_at }}
+                    <button type="button" onclick="openCalendarModal('id_scheduled_at')" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Abrir calendário">
+                        <i data-lucide="calendar" class="h-5 w-5"></i>
+                    </button>
+                </div>
                 {% if form.scheduled_at.errors %}
                     <p class="text-xs text-red-600 mt-1">{{ form.scheduled_at.errors.0 }}</p>
                 {% endif %}

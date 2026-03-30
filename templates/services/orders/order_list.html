@@ -64,7 +64,9 @@
                         <th class="px-6 py-3">OS ID</th>
                         <th class="px-6 py-3">Cliente / Imóvel</th>
                         <th class="px-6 py-3">Status</th>
+                        {% if not user.role == 'COLLABORATOR' %}
                         <th class="px-6 py-3">Valor Total</th>
+                        {% endif %}
                         <th class="px-6 py-3 text-right">Ações</th>
                     </tr>
                 </thead>
@@ -95,9 +97,11 @@
                                 </span>
                             {% endif %}
                         </td>
+                        {% if not user.role == 'COLLABORATOR' %}
                         <td class="px-6 py-4 font-medium text-slate-900">
                             R$ {{ order.total_value|floatformat:2 }}
                         </td>
+                        {% endif %}
                         <td class="px-6 py-4 text-right">
                             <div class="flex justify-end gap-2">
                                 <a href="{% url 'service_order_detail' order.id %}" class="p-2 text-slate-400 hover:text-slate-900"><i data-lucide="eye" class="h-4 w-4"></i></a>
@@ -107,7 +111,7 @@
                                     </a>
                                 {% endif %}
                                 {% if order.status == 'WAITING_BUDGET' or order.status == 'BUDGET_SCHEDULED' or order.status == 'WAITING_APPROVAL' %}
-                                    <a href="{% url 'service_order_budget' order.id %}" class="p-2 text-slate-400 hover:text-amber-600"><i data-lucide="calculator" class="h-4 w-4"></i></a>
+                                    <a href="{% url 'service_order_budget' order.id %}" class="p-2 text-slate-400 hover:text-blue-600" title="Editar Orçamento"><i data-lucide="edit" class="h-4 w-4"></i></a>
                                 {% endif %}
                             </div>
                         </td>

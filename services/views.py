@@ -737,9 +737,14 @@ def api_calendar_events(request):
             'WARRANTY': ('#f59e0b', '#d97706', 'GAR'),
         }
         bg, border, prefix = colors.get(task.task_type, ('#64748b', '#475569', 'TSK'))
+        
+        team_names = ', '.join([tm.professional.name + '-' + (tm.role.name if tm.role else 'Geral') for tm in task.team_members.all()])
+        neighborhood = task.service_order.client_property.neighborhood
+        title = f"{prefix}: {task.service_order.client_property.client.name} | {team_names} | {neighborhood}"
+        
         events.append({
             'id': f"task-{task.id}",
-            'title': f"{prefix}: {task.service_order.client_property.client.name}",
+            'title': title,
             'start': task.scheduled_at.isoformat(),
             'end': (task.scheduled_at + buffer).isoformat(),
             'backgroundColor': bg,
