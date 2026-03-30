@@ -179,7 +179,7 @@ class PropertyForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk:
+        if self.instance and not self.instance._state.adding:
             if self.instance.latitude is None:
                 self.initial['latitude'] = ''
             if self.instance.longitude is None:
@@ -265,8 +265,8 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['client_property'].queryset = Property.objects.none()
         
-        # Se está editando (instance.pk existe), tornar origin_date e originator readonly
-        if self.instance.pk:
+        # Se está editando (já existe no banco), tornar origin_date e originator readonly
+        if self.instance and not self.instance._state.adding:
             self.fields['origin_date'].widget.attrs['readonly'] = True
             self.fields['origin_date'].widget.attrs['class'] += ' bg-slate-100 cursor-not-allowed'
             self.fields['originator'].disabled = True
@@ -289,7 +289,7 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
                 self.fields['client_property'].queryset = Property.objects.filter(client_id=client_id).order_by('address')
             except (ValueError, TypeError):
                 pass
-        elif self.instance.pk:
+        elif self.instance and not self.instance._state.adding:
             try:
                 if self.instance.client_property:
                     self.fields['client'].initial = self.instance.client_property.client
@@ -371,7 +371,7 @@ class ServiceOrderForm(forms.ModelForm):
                 self.fields['client_property'].queryset = Property.objects.filter(client_id=client_id).order_by('address')
             except (ValueError, TypeError):
                 pass
-        elif self.instance.pk:
+        elif self.instance and not self.instance._state.adding:
             try:
                 if self.instance.client_property:
                     self.fields['client'].initial = self.instance.client_property.client

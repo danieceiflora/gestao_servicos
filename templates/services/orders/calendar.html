@@ -487,16 +487,6 @@
         if (isSelectMode) {
             document.getElementById('calendar-page-title').textContent = "Selecionar Horário";
             document.getElementById('calendar-page-desc').textContent = "Toque em um horário livre para escolher.";
-            
-            // Substitui os botões padrão pelo botão de Fechar na barra superior
-            const actionsContainer = document.getElementById('calendar-page-actions');
-            actionsContainer.innerHTML = `
-                <button type="button" onclick="window.parent.postMessage({ type: 'closeCalendar' }, '*')" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors shrink-0" title="Fechar Calendário">
-                    <i data-lucide="x" class="h-6 w-6"></i>
-                </button>
-            `;
-            
-            if (window.lucide) lucide.createIcons();
         }
 
         {% if is_collaborator and current_professional %}
@@ -727,6 +717,10 @@
         if (event.data.type === 'schedulingComplete') {
             closeSchedulingModal();
             window.calendarInstance.refetchEvents();
+        }
+        
+        if (event.data.type === 'closeModal') {
+            closeSchedulingModal();
         }
         
         if (event.data.type === 'updateModalTitle') {

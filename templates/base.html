@@ -182,10 +182,23 @@
                 
                 closeCalendarModal();
             }
-            if (event.data.type === 'closeCalendar') {
+            if (event.data.type === 'closeCalendar' || event.data.type === 'closeModal') {
                 closeCalendarModal();
             }
         });
+
+        // Global iframe close button for ANY modal to prevent getting stuck
+        if (window.self !== window.top) {
+            document.addEventListener('DOMContentLoaded', function() {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.onclick = () => window.parent.postMessage({ type: 'closeModal' }, '*');
+                btn.className = 'fixed top-3 right-3 z-[9999] p-2 bg-slate-900 text-white rounded-lg shadow-2xl hover:bg-slate-800 transition-colors border-2 border-white flex items-center justify-center';
+                btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+                btn.title = "Fechar Tela";
+                document.body.appendChild(btn);
+            });
+        }
 
         // Delegate listener for calendar buttons and inputs
         document.addEventListener('click', function(e) {

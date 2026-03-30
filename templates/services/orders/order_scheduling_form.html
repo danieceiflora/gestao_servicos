@@ -201,10 +201,10 @@
                             </div>
 
                             <!-- Datas e Valor -->
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4"> 
                                 <div>
                                     <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
-                                    <input type="datetime-local" name="scheduled_at" id="id_scheduled_at" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                    <input type="datetime-local" name="scheduled_at" id="id_scheduled_at" required class="calendar-input w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
                                 </div>
                                 <div>
                                     <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Início</label>
@@ -440,7 +440,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
-                            <input type="datetime-local" name="task_${number-1}_scheduled" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                            <input type="datetime-local" id="task_${number-1}_scheduled" name="task_${number-1}_scheduled" required class="calendar-input w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Início</label>
