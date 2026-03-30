@@ -57,6 +57,136 @@
     #calendar-container {
         min-height: 700px;
     }
+    
+    /* Mobile Calendar Improvements */
+    @media (max-width: 768px) {
+        .fc {
+            font-size: 13px;
+        }
+        
+        .fc .fc-toolbar {
+            display: grid !important;
+            grid-template-areas: 
+                "nav title nav"
+                "views views views";
+            grid-template-columns: 1fr auto 1fr;
+            gap: 0.5rem;
+            margin-bottom: 1rem !important;
+            align-items: center;
+        }
+        
+        .fc .fc-toolbar-chunk:nth-child(1) { 
+            grid-area: nav; 
+            display: flex;
+            justify-content: flex-start;
+            gap: 4px;
+        }
+        
+        .fc .fc-toolbar-chunk:nth-child(2) { 
+            grid-area: title; 
+            text-align: center;
+        }
+        
+        .fc .fc-toolbar-chunk:nth-child(3) { 
+            grid-area: views;
+            display: flex;
+            justify-content: center;
+            margin-top: 4px;
+        }
+        
+        .fc .fc-toolbar-title {
+            font-size: 0.95rem !important;
+            font-weight: 800;
+            white-space: nowrap;
+            color: #0f172a;
+        }
+        
+        .fc .fc-button-group {
+            display: flex;
+            gap: 2px;
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .fc .fc-button {
+            padding: 0.4rem 0.5rem !important;
+            font-size: 0.7rem !important;
+            min-height: 36px !important;
+            min-width: unset !important;
+            flex: 1;
+        }
+
+        /* Botões de navegação específicos */
+        .fc .fc-prev-button,
+        .fc .fc-next-button {
+            background-color: transparent !important;
+            border: none !important;
+            color: #0f172a !important;
+            padding: 0.25rem !important;
+            min-width: 32px !important;
+            flex: none;
+        }
+
+        .fc .fc-today-button {
+            font-size: 0.65rem !important;
+            padding: 0.25rem 0.5rem !important;
+            min-width: 50px !important;
+            flex: none;
+            border-radius: 6px !important;
+        }
+        
+        /* Grid do calendário */
+        .fc-daygrid-day-number {
+            font-size: 0.7rem;
+            padding: 2px !important;
+        }
+        
+        .fc-daygrid-event {
+            font-size: 0.65rem !important;
+            padding: 1px 2px !important;
+        }
+        
+        /* TimeGrid ajustes (Semana e Dia) */
+        .fc-timegrid-axis {
+            width: 35px !important;
+        }
+        
+        .fc-timegrid-slot-label {
+            font-size: 0.65rem !important;
+        }
+        
+        .fc-timegrid-event {
+            font-size: 0.65rem !important;
+            padding: 1px !important;
+        }
+        
+        /* Cabeçalho dos dias - CRÍTICO PARA SEMANA */
+        .fc-col-header-cell {
+            padding: 4px 1px !important;
+        }
+        
+        .fc-col-header-cell-cushion {
+            font-size: 0.65rem !important;
+            text-transform: capitalize;
+            padding: 0 !important;
+        }
+
+        /* Ajustes específicos para visualização de SEMANA no mobile */
+        .fc-timeGridWeek-view .fc-col-header-cell-cushion {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.1;
+        }
+
+        .fc-timeGridWeek-view .fc-event-main {
+            padding: 1px !important;
+        }
+
+        .fc-timeGridWeek-view .fc-timegrid-col-events {
+            margin: 0 !important;
+        }
+
+    }
 </style>
 {% endblock %}
 
@@ -65,23 +195,25 @@
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-            <h2 class="text-2xl font-bold tracking-tight text-slate-900">Agenda Geral</h2>
-            <p class="text-sm text-slate-500">Visualize e gerencie todos os agendamentos da empresa.</p>
+            <h2 class="text-xl md:text-2xl font-bold tracking-tight text-slate-900">Agenda Geral</h2>
+            <p class="text-xs md:text-sm text-slate-500">Visualize e gerencie todos os agendamentos da empresa.</p>
         </div>
         
-        <div class="flex items-center gap-3">
-            <button onclick="openQuickCreateModal()" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md flex items-center gap-2">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {% if perms.services.add_serviceorder %}
+            <button onclick="openSchedulingModal()" class="px-4 py-3 md:py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md flex items-center justify-center gap-2">
                 <i data-lucide="plus" class="h-4 w-4"></i>
                 Agendar Serviço
             </button>
+            {% endif %}
             <div class="relative min-w-[200px]">
-                <select id="professional-filter" class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none">
+                <select id="professional-filter" class="w-full pl-10 pr-4 py-3 md:py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none">
                     <option value="">Todos os Colaboradores</option>
                     {% for prof in professionals %}
                     <option value="{{ prof.id }}">{{ prof.name }}</option>
                     {% endfor %}
                 </select>
-                <i data-lucide="users" class="absolute left-3 top-2.5 h-4 w-4 text-slate-400"></i>
+                <i data-lucide="users" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"></i>
             </div>
         </div>
     </div>
@@ -89,7 +221,12 @@
     <!-- Calendar Card -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-hidden">
         <div id="calendar-container">
-            <div id="calendar"></div>
+            <!-- Loading Animation -->
+            <div id="calendar-loading" class="flex flex-col items-center justify-center py-16 space-y-4">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div>
+                <p class="text-slate-500 font-medium">Carregando agenda...</p>
+            </div>
+            <div id="calendar" class="hidden"></div>
         </div>
     </div>
 
@@ -302,17 +439,20 @@
     </div>
 </div>
 
-<!-- MODAL PARA FORMULÁRIOS COMPLETOS (IFRAME) -->
-<div id="full-form-modal" class="hidden fixed inset-0 z-[130] bg-slate-900/80 backdrop-blur-sm items-center justify-center p-4">
-    <div class="bg-white w-full max-w-4xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-        <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-            <h3 id="full-form-title" class="font-bold text-slate-900">Cadastro</h3>
-            <button onclick="closeFullFormModal()" class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+<!-- MODAL PARA AGENDAMENTO COMPLETO -->
+<div id="scheduling-modal" class="hidden fixed inset-0 z-[140] bg-slate-900/80 backdrop-blur-sm items-center justify-center p-2 md:p-4">
+    <div class="bg-white w-full max-w-6xl h-[98vh] md:h-[95vh] rounded-xl md:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+        <div class="p-3 md:p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <h3 id="scheduling-modal-title" class="font-bold text-slate-900 flex items-center gap-2 text-sm md:text-base">
+                <i data-lucide="calendar-plus" class="h-4 w-4 md:h-5 md:w-5 text-blue-600"></i>
+                Novo Agendamento
+            </h3>
+            <button onclick="closeSchedulingModal()" class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
                 <i data-lucide="x" class="h-5 w-5 text-slate-500"></i>
             </button>
         </div>
         <div class="flex-1 bg-white">
-            <iframe id="full-form-iframe" src="" class="w-full h-full border-none"></iframe>
+            <iframe id="scheduling-iframe" src="" class="w-full h-full border-none"></iframe>
         </div>
     </div>
 </div>
@@ -325,6 +465,7 @@
 
 <script>
     let allClients = [];
+    let selectedDateTime = null; // Variável para armazenar data/hora selecionada
 
     document.addEventListener('DOMContentLoaded', function() {
         const calendarEl = document.getElementById('calendar');
@@ -338,18 +479,64 @@
 
         const calendar = new FullCalendar.Calendar(calendarEl, {
             locale: 'pt-br',
-            initialView: isSelectMode ? 'timeGridWeek' : 'dayGridMonth',
+            initialView: isSelectMode ? 'timeGridWeek' : 'timeGridDay',
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                right: window.innerWidth < 768 ? 
+                    'dayGridMonth,timeGridDay' : 
+                    'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+            },
+            // Configuração do título principal - formato numérico para mobile
+            titleFormat: window.innerWidth < 768 ? 
+                { month: '2-digit', year: 'numeric' } : 
+                { month: 'long', year: 'numeric' },
+            // Formato do cabeçalho da coluna do dia - número + abreviação
+            dayHeaderFormat: window.innerWidth < 768 ? 
+                { day: 'numeric', weekday: 'short' } : 
+                { weekday: 'short', day: 'numeric' },
+            // Formato específico para visualização de dia
+            views: {
+                timeGridDay: {
+                    titleFormat: window.innerWidth < 768 ? 
+                        { day: 'numeric', weekday: 'long' } : 
+                        { day: 'numeric', weekday: 'long', month: 'long', year: 'numeric' }
+                },
+                dayGridMonth: {
+                    titleFormat: window.innerWidth < 768 ? 
+                        { month: '2-digit', year: 'numeric' } : 
+                        { month: 'long', year: 'numeric' }
+                }
             },
             themeSystem: 'standard',
             height: 'auto',
+            contentHeight: 'auto',
+            aspectRatio: window.innerWidth < 768 ? 0.8 : 1.35,
             nowIndicator: true,
             editable: false,
             selectable: true,
             selectMirror: true,
+            dayMaxEvents: 3,
+            eventDisplay: 'block',
+            allDaySlot: false,
+            // Mostrar todos os horários (24 horas)
+            slotMinTime: '00:00:00',
+            slotMaxTime: '24:00:00',
+            slotDuration: '01:00:00',
+            slotLabelInterval: '02:00:00', // Labels a cada 2 horas para economizar espaço
+            scrollTime: '08:00:00', // Scroll inicial para 8h da manhã
+            loading: function(isLoading) {
+                const loadingEl = document.getElementById('calendar-loading');
+                const calendarEl = document.getElementById('calendar');
+                
+                if (isLoading) {
+                    loadingEl.classList.remove('hidden');
+                    calendarEl.classList.add('hidden');
+                } else {
+                    loadingEl.classList.add('hidden');
+                    calendarEl.classList.remove('hidden');
+                }
+            },
             events: {
                 url: '{% url "api_calendar_events" %}',
                 extraParams: function() { return { professional_id: profFilter.value }; }
@@ -358,9 +545,16 @@
                 if (isSelectMode) {
                     window.parent.postMessage({ type: 'dateSelected', date: info.startStr }, '*');
                 } else {
-                    openQuickCreateModal(info.startStr);
+                    // Abrir modal com página de agendamento
+                    openSchedulingModal(info.startStr);
                 }
                 calendar.unselect();
+            },
+            dateClick: function(info) {
+                if (!isSelectMode) {
+                    // Para mobile, também permitir dateClick além de select
+                    openSchedulingModal(info.dateStr);
+                }
             },
             eventClick: function(info) {
                 if (isSelectMode) return;
@@ -375,6 +569,48 @@
                 }
 
                 openEventDetailModal(info.event);
+            },
+            windowResize: function() {
+                // Ajustar aspectRatio baseado no tamanho da tela
+                if (window.innerWidth < 768) {
+                    calendar.setOption('aspectRatio', 0.8);
+                    calendar.setOption('slotLabelInterval', '02:00:00');
+                    calendar.setOption('titleFormat', { month: '2-digit', year: 'numeric' });
+                    calendar.setOption('dayHeaderFormat', { day: 'numeric', weekday: 'short' });
+                    calendar.setOption('headerToolbar', {
+                        left: 'prev,next today',
+                        center: 'title',
+                        right: 'dayGridMonth,timeGridDay'
+                    });
+                    // Atualizar formatos específicos das views para mobile
+                    calendar.setOption('views', {
+                        timeGridDay: {
+                            titleFormat: { day: 'numeric', weekday: 'long' }
+                        },
+                        dayGridMonth: {
+                            titleFormat: { month: '2-digit', year: 'numeric' }
+                        }
+                    });
+                } else {
+                    calendar.setOption('aspectRatio', 1.35);
+                    calendar.setOption('slotLabelInterval', '01:00:00');
+                    calendar.setOption('titleFormat', { month: 'long', year: 'numeric' });
+                    calendar.setOption('dayHeaderFormat', { weekday: 'short', day: 'numeric' });
+                    calendar.setOption('headerToolbar', {
+                        left: 'prev,next today',
+                        center: 'title',
+                        right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                    });
+                    // Atualizar formatos específicos das views para desktop
+                    calendar.setOption('views', {
+                        timeGridDay: {
+                            titleFormat: { day: 'numeric', weekday: 'long', month: 'long', year: 'numeric' }
+                        },
+                        dayGridMonth: {
+                            titleFormat: { month: 'long', year: 'numeric' }
+                        }
+                    });
+                }
             }
         });
 
@@ -389,15 +625,82 @@
 
     const qcModal = document.getElementById('quick-create-modal');
     const edModal = document.getElementById('event-detail-modal');
-    const fullFormModal = document.getElementById('full-form-modal');
-    const fullFormTitle = document.getElementById('full-form-title');
-    const fullFormIframe = document.getElementById('full-form-iframe');
+    const schedulingModal = document.getElementById('scheduling-modal');
+    const schedulingTitle = document.getElementById('scheduling-modal-title');
+    const schedulingIframe = document.getElementById('scheduling-iframe');
 
     const clientSearchInput = document.getElementById('qc-client-search');
     const clientResults = document.getElementById('client-results');
     const clientSelect = document.getElementById('qc-client');
     const propSelect = document.getElementById('qc-property');
     const addPropBtn = document.getElementById('btn-add-property');
+    
+    // Função para abrir modal de agendamento
+    function openSchedulingModal(dateStr = null) {
+        if (dateStr) {
+            selectedDateTime = dateStr;
+        }
+        
+        let url = "{% url 'service_order_scheduling' %}?popup=1";
+        if (selectedDateTime) {
+            url += `&scheduled_at=${encodeURIComponent(selectedDateTime)}`;
+        }
+        
+        // Definir título inicial
+        let titleText = 'Novo Agendamento';
+        if (selectedDateTime) {
+            const date = new Date(selectedDateTime);
+            titleText = `Novo Agendamento - ${date.toLocaleString('pt-BR', {
+                weekday: 'short',
+                day: '2-digit',
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            })}`;
+        }
+        
+        schedulingTitle.innerHTML = `
+            <i data-lucide="calendar-plus" class="h-5 w-5 text-blue-600"></i>
+            ${titleText}
+        `;
+        
+        schedulingIframe.src = url;
+        schedulingModal.classList.remove('hidden');
+        schedulingModal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+        
+        // Re-render lucide icons
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function closeSchedulingModal() {
+        schedulingModal.classList.add('hidden');
+        schedulingModal.classList.remove('flex');
+        schedulingIframe.src = "";
+        document.body.style.overflow = '';
+        selectedDateTime = null;
+    }
+    
+    // Escutar mensagens do iframe de agendamento
+    window.addEventListener('message', function(event) {
+        if (event.data.type === 'schedulingComplete') {
+            closeSchedulingModal();
+            window.calendarInstance.refetchEvents();
+        }
+        
+        if (event.data.type === 'updateModalTitle') {
+            const titleElement = document.getElementById('scheduling-modal-title');
+            if (titleElement) {
+                titleElement.innerHTML = `
+                    <i data-lucide="calendar-plus" class="h-5 w-5 text-blue-600"></i>
+                    ${event.data.title}
+                `;
+                // Re-render lucide icons
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+    });
     
     function openEventDetailModal(event) {
         const props = event.extendedProps;
@@ -477,25 +780,15 @@
     }
 
     function openFullClientForm() {
-        fullFormTitle.textContent = "Novo Cliente";
-        fullFormIframe.src = "{% url 'client_create' %}?popup=1";
-        fullFormModal.classList.remove('hidden');
-        fullFormModal.classList.add('flex');
+        // Redirecionar para a página de cadastro de cliente
+        window.open("{% url 'client_create' %}", '_blank');
     }
 
     function openFullPropertyForm() {
         const clientId = clientSelect.value;
         if (!clientId) return;
-        fullFormTitle.textContent = "Novo Imóvel";
-        fullFormIframe.src = `/clients/${clientId}/property/new/?popup=1`;
-        fullFormModal.classList.remove('hidden');
-        fullFormModal.classList.add('flex');
-    }
-
-    function closeFullFormModal() {
-        fullFormModal.classList.add('hidden');
-        fullFormModal.classList.remove('flex');
-        fullFormIframe.src = "";
+        // Redirecionar para a página de cadastro de imóvel
+        window.open(`/clients/${clientId}/property/new/`, '_blank');
     }
 
     function addQCProfessionalRow() {
@@ -574,20 +867,6 @@
         
         if (data.length === 1) propSelect.value = data[0].id;
     }
-
-    window.addEventListener('message', function(event) {
-        if (event.data.type === 'objectCreated') {
-            if (event.data.model === 'client') {
-                populateInitialClients().then(() => {
-                    selectClient(event.data.id, event.data.name);
-                    closeFullFormModal();
-                });
-            } else if (event.data.model === 'property') {
-                loadProperties(clientSelect.value, event.data.id);
-                closeFullFormModal();
-            }
-        }
-    });
 
     document.getElementById('quick-order-form').addEventListener('submit', async function(e) {
         e.preventDefault();

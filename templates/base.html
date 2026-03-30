@@ -49,49 +49,94 @@
                 </div>
                 <span class="text-lg font-bold tracking-tight">Gestão de Serviços</span>
             </div>
+            {% if user.is_authenticated %}
             <nav class="flex items-center gap-6">
                 <a href="{% url 'home' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'home' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Dashboard</a>
-                <a href="{% url 'client_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'client_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Clientes</a>
+                
+                {% if perms.services.view_client %}
+                <a href="{% url 'client_list' %}" class="text-sm font-medium {% if 'client' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Clientes</a>
+                {% endif %}
+                
+                {% if perms.services.view_professional %}
                 <a href="{% url 'professional_list' %}" class="text-sm font-medium {% if 'professional' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Equipe</a>
+                {% endif %}
+                
                 <a href="{% url 'service_order_calendar' %}" class="text-sm font-medium {% if 'calendar' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Agenda</a>
                 <a href="{% url 'service_order_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Ordens</a>
-                <div class="h-8 w-8 rounded-full bg-slate-200 border border-slate-300"></div>
+                
+                <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
+                    <div class="text-right hidden lg:block">
+                        <p class="text-xs font-bold text-slate-900 leading-none">{{ user.get_full_name|default:user.username }}</p>
+                        <p class="text-[10px] text-slate-500 uppercase tracking-tighter">{{ user.get_role_display }}</p>
+                    </div>
+                    <form action="{% url 'logout' %}" method="post" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="p-2 text-slate-400 hover:text-red-600 transition-colors" title="Sair">
+                            <i data-lucide="log-out" class="h-5 w-5"></i>
+                        </button>
+                    </form>
+                </div>
             </nav>
+            {% endif %}
         </div>
     </header>
 
     <!-- Mobile Header -->
     <header class="flex md:hidden sticky top-0 z-40 w-full border-b border-slate-200 bg-white px-4 py-3 items-center justify-between">
         <span class="text-base font-bold tracking-tight">Gestão de Serviços</span>
-        <i data-lucide="bell" class="h-5 w-5 text-slate-500"></i>
+        {% if user.is_authenticated %}
+        <div class="flex items-center gap-3">
+            <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{{ user.get_role_display }}</span>
+            <form action="{% url 'logout' %}" method="post" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="p-1 text-slate-400">
+                    <i data-lucide="log-out" class="h-4 w-4"></i>
+                </button>
+            </form>
+        </div>
+        {% endif %}
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 container mx-auto px-4 py-6 mb-24 md:mb-0">
+    <main class="flex-1 container mx-auto px-4 py-6 pb-28 md:pb-6">
         {% block content %}{% endblock %}
     </main>
 
     <!-- Mobile Bottom Navigation (IHC: Thumb Zone) -->
+    {% if user.is_authenticated %}
     <nav class="md:hidden fixed bottom-0 left-0 z-50 w-full bg-white border-t border-slate-200 safe-area-bottom">
-        <div class="grid h-16 grid-cols-4 items-center justify-around">
+        <div class="grid h-16 {% if perms.services.view_professional and perms.services.view_client %}grid-cols-5{% else %}grid-cols-4{% endif %} items-center justify-around">
             <a href="{% url 'home' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'home' %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="layout-dashboard" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Início</span>
             </a>
+            
+            {% if perms.services.view_client %}
+            <a href="{% url 'client_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'client' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
+                <i data-lucide="book-user" class="h-5 w-5"></i>
+                <span class="text-[10px] font-medium">Clientes</span>
+            </a>
+            {% endif %}
+            
+            {% if perms.services.view_professional %}
             <a href="{% url 'professional_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'professional' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="users" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Equipe</span>
             </a>
+            {% endif %}
+
             <a href="{% url 'service_order_calendar' %}" class="flex flex-col items-center justify-center gap-1 {% if 'calendar' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="calendar" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Agenda</span>
             </a>
+            
             <a href="{% url 'service_order_list' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="clipboard-list" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Ordens</span>
             </a>
         </div>
     </nav>
+    {% endif %}
 
     <script>
         lucide.createIcons();

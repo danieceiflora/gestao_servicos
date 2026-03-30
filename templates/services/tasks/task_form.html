@@ -3,7 +3,7 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto space-y-6 pb-24">
+<div class="max-w-3xl mx-auto space-y-6 md:pb-0">
     <!-- Header -->
     <div class="flex items-center gap-4">
         <a href="{% url 'service_order_detail' order.id %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">

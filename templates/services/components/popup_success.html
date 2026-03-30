@@ -2,8 +2,11 @@
 <html>
 <body>
     <script>
-        // Envia os dados do novo objeto para a janela pai (Agenda)
+        // Envia os dados para a janela pai
         window.parent.postMessage({
+            {% if type %}
+            type: '{{ type }}',
+            {% else %}
             type: 'objectCreated',
             model: '{{ model }}',
             id: '{{ object.id }}',
@@ -12,11 +15,12 @@
             {% else %}
             name: '{{ object.address }}, {{ object.number }}'
             {% endif %}
+            {% endif %}
         }, '*');
     </script>
     <div style="font-family: sans-serif; text-align: center; padding: 40px;">
         <h2 style="color: #10b981;">Sucesso!</h2>
-        <p>Registro salvo. Esta janela fechará automaticamente...</p>
+        <p>{% if message %}{{ message }}{% else %}Registro salvo. Esta janela fechará automaticamente...{% endif %}</p>
     </div>
 </body>
 </html>

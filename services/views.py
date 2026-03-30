@@ -1,33 +1,52 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.views.generic import ListView, CreateView, UpdateView
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.contrib.auth.decorators import login_required, permission_required
 from django.urls import reverse_lazy
 from django.db.models import Q
 from datetime import timedelta, datetime
 import django.utils.timezone
 from .models import (
-    Client, Property, ServiceOrder, ServiceMedia, ServiceItem, 
+    User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem, 
     Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
     ServiceOrderTask
 )
 from .forms import (
-    ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, 
-    PropertyForm, ServiceInspectionForm, ServiceItemFormSet,
-    ServiceOrderForm, ProfessionalForm, AvailabilityFormSet,
-    ServiceOrderTeamFormSet, ServiceOrderSchedulingForm,
-    TaskScheduleForm, TaskCancelForm
+    ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
+    ServiceOrderSchedulingForm, ServiceOrderForm, ServiceInspectionForm,
+    ServiceItemFormSet, ProfessionalForm, AvailabilityFormSet,
+    ServiceOrderTeamFormSet, TaskScheduleForm, TaskCancelForm
 )
+from .utils import check_professional_availability
 
-class ProfessionalListView(ListView):
+# --- AUXILIARES DE FILTRAGEM ---
+
+def get_orders_queryset(request):
+    """Retorna o queryset de OS filtrado pelo papel do usuário"""
+    user = request.user
+    if user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]:
+        return ServiceOrder.objects.all()
+    
+    # Colaboradores vêem apenas OS onde estão na equipe de alguma task
+    try:
+        professional = user.professional_profile
+        return ServiceOrder.objects.filter(tasks__team_members__professional=professional).distinct()
+    except Professional.DoesNotExist:
+        return ServiceOrder.objects.none()
+
+class ProfessionalListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
     model = Professional
     template_name = 'services/professionals/professional_list.html'
     context_object_name = 'professionals'
+    permission_required = 'services.view_professional'
 
-class ProfessionalCreateView(CreateView):
+class ProfessionalCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
     model = Professional
     form_class = ProfessionalForm
     template_name = 'services/professionals/professional_form.html'
     success_url = reverse_lazy('professional_list')
+    permission_required = 'services.add_professional'
 
     def get_context_data(self, **kwargs):
         data = super().get_context_data(**kwargs)
@@ -48,11 +67,12 @@ class ProfessionalCreateView(CreateView):
         else:
             return self.render_to_response(self.get_context_data(form=form))
 
-class ProfessionalUpdateView(UpdateView):
+class ProfessionalUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
     model = Professional
     form_class = ProfessionalForm
     template_name = 'services/professionals/professional_form.html'
     success_url = reverse_lazy('professional_list')
+    permission_required = 'services.change_professional'
 
     def get_context_data(self, **kwargs):
         data = super().get_context_data(**kwargs)
@@ -73,12 +93,14 @@ class ProfessionalUpdateView(UpdateView):
         else:
             return self.render_to_response(self.get_context_data(form=form))
 
+@login_required
 def home(request):
-    active_orders = ServiceOrder.objects.exclude(status__in=[ServiceOrder.Status.FINISHED, ServiceOrder.Status.CANCELLED]).count()
-    pending_approval = ServiceOrder.objects.filter(status=ServiceOrder.Status.WAITING_APPROVAL).count()
-    waiting_execution = ServiceOrder.objects.filter(status=ServiceOrder.Status.WAITING_EXECUTION).count()
+    orders_qs = get_orders_queryset(request)
+    active_orders = orders_qs.exclude(status__in=[ServiceOrder.Status.FINISHED, ServiceOrder.Status.CANCELLED]).count()
+    pending_approval = orders_qs.filter(status=ServiceOrder.Status.WAITING_APPROVAL).count()
+    waiting_execution = orders_qs.filter(status=ServiceOrder.Status.WAITING_EXECUTION).count()
     
-    recent_orders = ServiceOrder.objects.all().order_by('-updated_at')[:5]
+    recent_orders = orders_qs.all().order_by('-updated_at')[:5]
     
     return render(request, 'services/home.html', {
         'active_orders': active_orders,
@@ -87,10 +109,31 @@ def home(request):
         'recent_orders': recent_orders
     })
 
+@login_required
+@permission_required('services.view_client', raise_exception=True)
 def client_list(request):
     clients = Client.objects.all().order_by('-created_at')
-    return render(request, 'services/clients/client_list.html', {'clients': clients})
+    
+    # Filtro de busca
+    search = request.GET.get('search')
+    if search:
+        clients = clients.filter(
+            Q(name__icontains=search) |
+            Q(cpf__icontains=search) |
+            Q(cnpj__icontains=search) |
+            Q(phones__phone__icontains=search) |
+            Q(properties__address__icontains=search) |
+            Q(properties__neighborhood__icontains=search) |
+            Q(properties__city__icontains=search)
+        ).distinct()
+    
+    return render(request, 'services/clients/client_list.html', {
+        'clients': clients,
+        'search': search
+    })
 
+@login_required
+@permission_required('services.add_client', raise_exception=True)
 def client_create(request):
     if request.method == 'POST':
         form = ClientForm(request.POST)
@@ -129,6 +172,8 @@ def client_create(request):
         'title': 'Novo Cadastro'
     })
 
+@login_required
+@permission_required('services.change_client', raise_exception=True)
 def client_edit(request, client_id):
     client = get_object_or_404(Client, id=client_id)
     if request.method == 'POST':
@@ -158,6 +203,8 @@ def client_edit(request, client_id):
         'title': f'Editar: {client.name}'
     })
 
+@login_required
+@permission_required('services.add_property', raise_exception=True)
 def property_create(request, client_id):
     client = get_object_or_404(Client, id=client_id)
     if request.method == 'POST':
@@ -186,9 +233,10 @@ def property_create(request, client_id):
 
 # --- SERVICE ORDER VIEWS ---
 
+@login_required
 def service_order_list(request):
     query = request.GET.get('q')
-    orders = ServiceOrder.objects.all().order_by('-created_at')
+    orders = get_orders_queryset(request).order_by('-created_at')
     
     if query:
         orders = orders.filter(
@@ -196,12 +244,29 @@ def service_order_list(request):
             Q(client_property__address__icontains=query) |
             Q(client_property__number__icontains=query) |
             Q(id__icontains=query)
-        )
+        ).distinct()
         
     return render(request, 'services/orders/order_list.html', {'orders': orders, 'query': query})
 
+@login_required
+@permission_required('services.add_serviceorder', raise_exception=True)
 def service_order_scheduling(request):
     team_formset = ServiceOrderTeamFormSet()
+    
+    # Capturar data/hora da URL se fornecida
+    scheduled_at_param = request.GET.get('scheduled_at')
+    initial_scheduled_at = None
+    if scheduled_at_param:
+        try:
+            # Parse da data/hora do formato ISO
+            initial_scheduled_at = datetime.fromisoformat(scheduled_at_param.replace('Z', '+00:00'))
+            if django.utils.timezone.is_naive(initial_scheduled_at):
+                initial_scheduled_at = django.utils.timezone.make_aware(initial_scheduled_at)
+        except (ValueError, TypeError):
+            initial_scheduled_at = None
+    
+    # Data de origem sempre será hoje
+    initial_origin_date = django.utils.timezone.now().date()
     
     if request.method == 'POST':
         form = ServiceOrderSchedulingForm(request.POST, request.FILES)
@@ -280,18 +345,31 @@ def service_order_scheduling(request):
                 task_index += 1
             
             messages.success(request, f'Ordem de Serviço criada com sucesso! {len(tasks_created)} etapa(s) adicionada(s).')
+            
+            # Se for um popup (modal), retornar mensagem de sucesso
+            if request.GET.get('popup'):
+                return render(request, 'services/components/popup_success.html', {
+                    'message': 'Agendamento criado com sucesso!',
+                    'type': 'schedulingComplete'
+                })
+            
             return redirect('service_order_detail', order_id=service_order.id)
         else:
             messages.error(request, 'Por favor, corrija os erros no formulário.')
     else:
         form = ServiceOrderSchedulingForm()
+        # Se não tiver data de origem da URL, usar hoje por padrão
+        if not initial_origin_date:
+            initial_origin_date = django.utils.timezone.now().date()
     
     return render(request, 'services/orders/order_scheduling_form.html', {
         'form': form,
         'formset': team_formset,
         'professionals': Professional.objects.filter(is_active=True),
         'roles': ProfessionalRole.objects.all(),
-        'title': 'Novo Agendamento'
+        'title': 'Novo Agendamento',
+        'initial_scheduled_at': initial_scheduled_at.isoformat() if initial_scheduled_at else None,
+        'initial_origin_date': initial_origin_date.isoformat() if initial_origin_date else None
     })
 
 def service_order_create(request, property_id):
@@ -356,11 +434,15 @@ def service_order_budget(request, order_id):
         'title': 'Elaborar Orçamento'
     })
 
+@login_required
+@permission_required('services.view_serviceorder', raise_exception=True)
 def service_order_detail(request, order_id):
-    order = get_object_or_404(ServiceOrder, id=order_id)
+    order = get_object_or_404(get_orders_queryset(request), id=order_id)
     tasks = order.tasks.all().prefetch_related('team_members__professional', 'medias')
     return render(request, 'services/orders/order_detail.html', {'order': order, 'tasks': tasks})
 
+@login_required
+@permission_required('services.change_serviceorder', raise_exception=True)
 def service_order_edit(request, order_id):
     """View completa para editar toda a OS (info, itens, etapas)"""
     order = get_object_or_404(ServiceOrder, id=order_id)
@@ -393,12 +475,15 @@ def service_order_edit(request, order_id):
         'title': f'Editar OS #{order.id.hex[:8]}'
     })
 
+@login_required
 def task_execution(request, task_id):
     """
     View principal para execução de uma Task específica.
     Permite iniciar, adicionar mídias e finalizar a etapa.
     """
-    task = get_object_or_404(ServiceOrderTask, id=task_id)
+    # Verifica se a task pertence a uma OS que o usuário pode ver
+    orders_qs = get_orders_queryset(request)
+    task = get_object_or_404(ServiceOrderTask, id=task_id, service_order__in=orders_qs)
     order = task.service_order
     
     if task.status in [ServiceOrderTask.TaskStatus.COMPLETED, ServiceOrderTask.TaskStatus.CANCELLED]:
@@ -447,11 +532,13 @@ def task_execution(request, task_id):
         'title': f'Execução - {task.get_task_type_display()}'
     })
 
+@login_required
 def service_order_execution(request, order_id):
     """
     View legacy para compatibilidade. Redireciona para a primeira task pendente.
     """
-    order = get_object_or_404(ServiceOrder, id=order_id)
+    orders_qs = get_orders_queryset(request)
+    order = get_object_or_404(orders_qs, id=order_id)
     task = order.tasks.exclude(
         status__in=[ServiceOrderTask.TaskStatus.COMPLETED, ServiceOrderTask.TaskStatus.CANCELLED]
     ).order_by('scheduled_at').first()
@@ -464,11 +551,13 @@ def service_order_execution(request, order_id):
 
 # --- TASK MANAGEMENT VIEWS ---
 
+@login_required
+@permission_required('services.add_serviceordertask', raise_exception=True)
 def task_add(request, order_id):
     """
     View para adicionar uma nova Task (etapa) a uma OS existente.
     """
-    order = get_object_or_404(ServiceOrder, id=order_id)
+    order = get_object_or_404(ServiceOrder.objects.all(), id=order_id)
     
     if request.method == 'POST':
         form = TaskScheduleForm(request.POST, request.FILES)
@@ -520,6 +609,8 @@ def task_add(request, order_id):
         'title': 'Adicionar Nova Etapa'
     })
 
+@login_required
+@permission_required('services.change_serviceordertask', raise_exception=True)
 def task_edit(request, task_id):
     """
     View para editar uma Task existente (data, hora, equipe).
@@ -581,6 +672,8 @@ def task_edit(request, task_id):
         'title': 'Editar Etapa'
     })
 
+@login_required
+@permission_required('services.change_serviceordertask', raise_exception=True)
 def task_cancel(request, task_id):
     """
     View para cancelar uma Task com justificativa.
@@ -613,13 +706,22 @@ def task_cancel(request, task_id):
     })
 
 from django.http import JsonResponse
-from .utils import check_professional_availability
 from dateutil.parser import parse
 
+@login_required
 def api_calendar_events(request):
     events = []
     buffer = timedelta(hours=1, minutes=30)
-    prof_id = request.GET.get('professional_id')
+    user = request.user
+    
+    # Se for colaborador, ele só vê os próprios eventos, independente do filtro
+    if not (user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]):
+        try:
+            prof_id = user.professional_profile.id
+        except Professional.DoesNotExist:
+            return JsonResponse([], safe=False)
+    else:
+        prof_id = request.GET.get('professional_id')
     
     tasks = ServiceOrderTask.objects.select_related('service_order__client_property__client')
     if prof_id:
@@ -656,6 +758,7 @@ def api_calendar_events(request):
         })
     return JsonResponse(events, safe=False)
 
+@login_required
 def service_order_calendar(request):
     return render(request, 'services/orders/calendar.html', {
         'professionals': Professional.objects.filter(is_active=True),
@@ -664,6 +767,7 @@ def service_order_calendar(request):
         'title': 'Agenda'
     })
 
+@login_required
 def api_check_availability(request):
     prof_id = request.GET.get('professional_id')
     timestamp_str = request.GET.get('timestamp')
@@ -681,6 +785,8 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 import json
 
+@login_required
+@permission_required('services.add_serviceorder', raise_exception=True)
 @csrf_exempt
 @require_POST
 def api_quick_create_order(request):
@@ -708,10 +814,12 @@ def api_quick_create_order(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
+@login_required
 def api_get_properties(request):
     properties = Property.objects.filter(client_id=request.GET.get('client_id'))
     return JsonResponse([{'id': str(p.id), 'address': f"{p.address}, {p.number}"} for p in properties], safe=False)
 
+@login_required
 def api_get_clients(request):
     clients = Client.objects.all().order_by('name')
     return JsonResponse([{'id': str(c.id), 'name': c.name} for c in clients], safe=False)
@@ -719,6 +827,8 @@ def api_get_clients(request):
 
 # ============ GERENCIAMENTO DE ITENS DA OS ============
 
+@login_required
+@permission_required('services.add_serviceitem', raise_exception=True)
 def order_item_add(request, order_id):
     """View para adicionar item ao orçamento geral ou a uma etapa específica"""
     order = get_object_or_404(ServiceOrder, id=order_id)
@@ -745,6 +855,8 @@ def order_item_add(request, order_id):
         'title': 'Adicionar Item ao Orçamento'
     })
 
+@login_required
+@permission_required('services.delete_serviceitem', raise_exception=True)
 def order_item_delete(request, item_id):
     """View para remover item"""
     item = get_object_or_404(ServiceItem, id=item_id)
@@ -760,7 +872,8 @@ def order_item_delete(request, item_id):
         'order': item.service_order
     })
 
-
+@login_required
+@permission_required('services.delete_servicemedia', raise_exception=True)
 def task_media_delete(request, media_id):
     """View para remover mídia de uma etapa"""
     media = get_object_or_404(ServiceMedia, id=media_id)

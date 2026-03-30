@@ -4,7 +4,7 @@
 {% block title %}OS #{{ order.id.hex|slice:":8" }} - Detalhes{% endblock %}
 
 {% block content %}
-<div class="space-y-6 pb-20">
+<div class="space-y-6 md:pb-0">
     <!-- Header Contextual -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
@@ -30,10 +30,12 @@
         </div>
 
         <div class="flex flex-wrap gap-2">
+            {% if perms.services.change_serviceorder %}
             <a href="{% url 'service_order_edit' order.id %}" class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
                 <i data-lucide="edit" class="h-4 w-4"></i>
                 Editar OS
             </a>
+            {% endif %}
             <a href="{% url 'service_order_execution' order.id %}" class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition-all shadow-sm">
                 <i data-lucide="play" class="h-4 w-4 fill-current"></i>
                 Painel de Execução
@@ -51,7 +53,7 @@
                         <i data-lucide="list-checks" class="h-5 w-5 text-slate-500"></i>
                         Linha do Tempo do Serviço
                     </h3>
-                    {% if order.status != 'FINISHED' and order.status != 'CANCELLED' %}
+                    {% if perms.services.add_serviceordertask and order.status != 'FINISHED' and order.status != 'CANCELLED' %}
                     <a href="{% url 'task_add' order.id %}" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-all">
                         <i data-lucide="plus-circle" class="h-4 w-4"></i>
                         Nova Etapa

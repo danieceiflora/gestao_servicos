@@ -10,10 +10,12 @@
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Profissionais</h2>
             <p class="text-sm text-slate-500">Gerencie sua equipe operacional e prestadores.</p>
         </div>
+        {% if perms.services.add_professional %}
         <a href="{% url 'professional_create' %}" class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
             <i data-lucide="user-plus" class="h-4 w-4"></i>
             Novo Profissional
         </a>
+        {% endif %}
     </div>
 
     <!-- View Desktop -->
@@ -65,9 +67,11 @@
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 text-right">
+                            {% if perms.services.change_professional %}
                             <a href="{% url 'professional_edit' professional.id %}" class="p-2 text-slate-400 hover:text-blue-600 transition-colors">
                                 <i data-lucide="edit-2" class="h-4 w-4"></i>
                             </a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}
@@ -93,9 +97,11 @@
                         {% endfor %}
                     </div>
                 </div>
+                {% if perms.services.change_professional %}
                 <a href="{% url 'professional_edit' professional.id %}" class="p-2 bg-slate-50 rounded-lg text-slate-400">
                     <i data-lucide="edit-2" class="h-4 w-4"></i>
                 </a>
+                {% endif %}
             </div>
             <div class="grid grid-cols-2 gap-2 pt-3 border-t border-slate-50">
                 <div class="text-[10px] text-slate-500 flex items-center gap-1.5">
