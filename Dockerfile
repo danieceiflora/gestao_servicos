@@ -35,7 +35,7 @@ COPY --from=node-build /app/static/dist/output.css ./static/dist/output.css
 RUN python manage.py collectstatic --noinput
 
 # Expõe a porta para o Gunicorn
-EXPOSE 8000
+EXPOSE 8001
 
 # Comando para iniciar o Gunicorn
-CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8001", "--workers", "3"]

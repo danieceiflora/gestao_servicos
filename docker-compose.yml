@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   web:
     build: .
@@ -15,9 +13,9 @@ services:
       - DEBUG=False
       # Necessário caso deseje colocar o domínio do seu servidor posteriormente
       - ALLOWED_HOSTS=*
-    # Container será executado na porta interna 8000
+    # Container será executado na porta interna 8001
     expose:
-      - "8000"
+      - "8001"
 
   nginx:
     image: nginx:alpine
