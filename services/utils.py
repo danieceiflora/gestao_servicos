@@ -1,6 +1,6 @@
 from datetime import timedelta
 from django.db.models import Q
-from .models import ServiceOrder, ServiceOrderTeam, ProfessionalAvailability, ProfessionalScheduleBlock, ServiceOrderTask
+from .models import ServiceOrder, ServiceOrderTeam, WorkScheduleDay, ProfessionalScheduleBlock, ServiceOrderTask
 
 def check_professional_availability(professional, timestamp, exclude_task_id=None):
     """
@@ -14,17 +14,19 @@ def check_professional_availability(professional, timestamp, exclude_task_id=Non
     if not timestamp:
         return True, ""
 
-    # 1. Verificar Grade de Horário Base (ProfessionalAvailability)
+    # 1. Verificar Grade de Horário Base (WorkSchedule/WorkScheduleDay)
     day_of_week = timestamp.weekday()
     time_only = timestamp.time()
-    
-    availability = ProfessionalAvailability.objects.filter(
-        professional=professional,
+
+    if not professional.work_schedule:
+        return False, f"O profissional {professional.name} não possui uma escala de horários definida."
+
+    availability = professional.work_schedule.days.filter(
         day_of_week=day_of_week,
         start_time__lte=time_only,
         end_time__gte=time_only
     ).exists()
-    
+
     if not availability:
         return False, f"O profissional {professional.name} não trabalha neste horário/dia."
 

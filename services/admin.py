@@ -1,8 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import (
-    User, Client, ClientPhone, ClientEmail, Property, 
-    ProfessionalRole, Professional, ProfessionalAvailability,
+    User, Client, ClientPhone, ClientEmail, Property,
+    ProfessionalRole, Professional, WorkSchedule, WorkScheduleDay,
     ServiceOrder, ServiceItem, ServiceMedia, ServiceOrderTeam,
     ServiceOrderTask
 )
@@ -42,17 +42,22 @@ class ProfessionalRoleAdmin(admin.ModelAdmin):
         return f"{obj.commission_rate}%"
     commission_rate_display.short_description = "Comissão"
 
-class ProfessionalAvailabilityInline(admin.TabularInline):
-    model = ProfessionalAvailability
+class WorkScheduleDayInline(admin.TabularInline):
+    model = WorkScheduleDay
     extra = 7
+
+@admin.register(WorkSchedule)
+class WorkScheduleAdmin(admin.ModelAdmin):
+    list_display = ['name']
+    search_fields = ['name']
+    inlines = [WorkScheduleDayInline]
 
 @admin.register(Professional)
 class ProfessionalAdmin(admin.ModelAdmin):
-    list_display = ['name', 'cpf', 'phone', 'base_salary_display', 'is_active']
-    list_filter = ['is_active', 'roles']
+    list_display = ['name', 'cpf', 'phone', 'base_salary_display', 'work_schedule', 'is_active']
+    list_filter = ['is_active', 'roles', 'work_schedule']
     search_fields = ['name', 'cpf', 'city']
     filter_horizontal = ['roles']
-    inlines = [ProfessionalAvailabilityInline]
     fieldsets = (
         ('Dados Básicos', {
             'fields': ('user', 'name', 'cpf', 'phone', 'email', 'is_active')
@@ -60,8 +65,8 @@ class ProfessionalAdmin(admin.ModelAdmin):
         ('Endereço', {
             'fields': (('cep', 'state'), 'address', ('number', 'complement'), 'neighborhood', 'city')
         }),
-        ('Financeiro', {
-            'fields': ('base_salary', 'roles')
+        ('Financeiro e Escala', {
+            'fields': ('base_salary', 'roles', 'work_schedule')
         }),
     )
 

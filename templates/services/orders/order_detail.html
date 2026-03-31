@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load l10n %}
 
 {% block title %}OS #{{ order.id.hex|slice:":8" }} - Detalhes{% endblock %}
 
@@ -295,12 +296,14 @@
                         <p class="text-xs text-slate-500 mt-1">{{ order.client_property.neighborhood }} - {{ order.client_property.city }}/{{ order.client_property.state }}</p>
                     </div>
                     
-                    {% if order.client_property.latitude %}
-                    <a href="https://www.google.com/maps/search/?api=1&query={{ order.client_property.latitude }},{{ order.client_property.longitude }}" target="_blank" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-slate-50 border border-slate-200 py-3 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all">
+                    <button type="button" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-slate-50 border border-slate-200 py-3 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+                            data-gps-trigger="true"
+                            data-gps-lat="{{ order.client_property.latitude|default_if_none:''|unlocalize }}"
+                            data-gps-lng="{{ order.client_property.longitude|default_if_none:''|unlocalize }}"
+                            data-gps-address="{{ order.client_property.full_address }}">
                         <i data-lucide="navigation" class="h-4 w-4"></i>
                         Abrir no GPS
-                    </a>
-                    {% endif %}
+                    </button>
                 </div>
             </div>
 
@@ -352,147 +355,9 @@
     </div>
 </div>
 
-<!-- GPS Selector Modal -->
-<div id="gps-modal" class="fixed inset-0 z-[100] hidden">
-    <!-- Overlay -->
-    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" id="gps-modal-overlay"></div>
-    
-    <!-- Sheet -->
-    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 shadow-2xl transform transition-transform translate-y-full" id="gps-modal-sheet">
-        <div class="flex items-center justify-between mb-6">
-            <h3 class="text-lg font-bold text-slate-900">Navegar com...</h3>
-            <button type="button" class="p-2 text-slate-400 hover:text-slate-600" id="gps-modal-close">
-                <i data-lucide="x" class="h-6 w-6"></i>
-            </button>
-        </div>
-        
-        <div class="grid gap-3">
-            <!-- Google Maps -->
-            <button type="button" id="btn-google-maps" class="flex items-center gap-4 w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-blue-50 hover:border-blue-100 transition-all group">
-                <div class="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/a/aa/Google_Maps_icon_%282020%29.svg" class="h-7 w-7" alt="Google Maps">
-                </div>
-                <div class="text-left">
-                    <p class="font-bold text-slate-900">Google Maps</p>
-                    <p class="text-xs text-slate-500">Navegação padrão e rotas</p>
-                </div>
-                <i data-lucide="chevron-right" class="h-5 w-5 text-slate-300 ml-auto group-hover:text-blue-400"></i>
-            </button>
-
-            <!-- Waze -->
-            <button type="button" id="btn-waze" class="flex items-center gap-4 w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-sky-50 hover:border-sky-100 transition-all group">
-                <div class="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/6/66/Waze_icon.svg" class="h-7 w-7" alt="Waze">
-                </div>
-                <div class="text-left">
-                    <p class="font-bold text-slate-900">Waze</p>
-                    <p class="text-xs text-slate-500">Trânsito em tempo real</p>
-                </div>
-                <i data-lucide="chevron-right" class="h-5 w-5 text-slate-300 ml-auto group-hover:text-sky-400"></i>
-            </button>
-
-            <!-- Apple Maps -->
-            <button type="button" id="btn-apple-maps" class="hidden flex items-center gap-4 w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-all group">
-                <div class="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/d/df/Apple_Maps_logo.svg" class="h-7 w-7" alt="Apple Maps">
-                </div>
-                <div class="text-left">
-                    <p class="font-bold text-slate-900">Apple Maps</p>
-                    <p class="text-xs text-slate-500">Nativo do iOS</p>
-                </div>
-                <i data-lucide="chevron-right" class="h-5 w-5 text-slate-300 ml-auto group-hover:text-slate-400"></i>
-            </button>
-        </div>
-        
-        <div class="mt-6 pt-4 border-t border-slate-100">
-            <p class="text-[10px] text-center text-slate-400 uppercase tracking-widest font-bold" id="gps-dest-label">Destino: Selecionando...</p>
-        </div>
-    </div>
-</div>
+{% include 'services/components/gps_modal.html' %}
 
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const triggers = document.querySelectorAll('[data-gps-trigger="true"]');
-        const modal = document.getElementById('gps-modal');
-        const overlay = document.getElementById('gps-modal-overlay');
-        const sheet = document.getElementById('gps-modal-sheet');
-        const closeBtn = document.getElementById('gps-modal-close');
-        const destLabel = document.getElementById('gps-dest-label');
-        
-        const btnGoogle = document.getElementById('btn-google-maps');
-        const btnWaze = document.getElementById('btn-waze');
-        const btnApple = document.getElementById('btn-apple-maps');
-
-        let currentData = null;
-
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        if (isIOS) btnApple.classList.remove('hidden');
-
-        function openModal(data) {
-            currentData = data;
-            destLabel.textContent = `Destino: ${data.address || 'Coordenadas'}`;
-            modal.classList.remove('hidden');
-            setTimeout(() => { sheet.classList.remove('translate-y-full'); }, 10);
-        }
-
-        function closeModal() {
-            sheet.classList.add('translate-y-full');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-                currentData = null;
-            }, 300);
-        }
-
-        function getCleanCoords() {
-            const lat = (currentData.lat || '').toString().replace(',', '.').trim();
-            const lng = (currentData.lng || '').toString().replace(',', '.').trim();
-            const hasCoords = lat && lng && lat !== '0' && lng !== '0';
-            return { lat, lng, hasCoords };
-        }
-
-        if(btnGoogle) {
-            btnGoogle.addEventListener('click', function() {
-                const { lat, lng, hasCoords } = getCleanCoords();
-                const dest = hasCoords ? `${lat},${lng}` : currentData.address;
-                window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest)}`, '_blank');
-                closeModal();
-            });
-        }
-
-        if(btnWaze) {
-            btnWaze.addEventListener('click', function() {
-                const { lat, lng, hasCoords } = getCleanCoords();
-                let url = hasCoords ? `https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes` : `https://www.waze.com/ul?q=${encodeURIComponent(currentData.address)}&navigate=yes`;
-                window.open(url, '_blank');
-                closeModal();
-            });
-        }
-
-        if(btnApple) {
-            btnApple.addEventListener('click', function() {
-                const { lat, lng, hasCoords } = getCleanCoords();
-                const dest = hasCoords ? `${lat},${lng}` : currentData.address;
-                window.open(`https://maps.apple.com/?daddr=${encodeURIComponent(dest)}`, '_blank');
-                closeModal();
-            });
-        }
-
-        triggers.forEach(button => {
-            button.addEventListener('click', () => {
-                openModal({
-                    lat: button.dataset.gpsLat,
-                    lng: button.dataset.gpsLng,
-                    address: button.dataset.gpsAddress
-                });
-            });
-        });
-
-        [overlay, closeBtn].forEach(el => {
-            if(el) el.addEventListener('click', closeModal);
-        });
-    });
-</script>
 {% endblock %}

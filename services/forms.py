@@ -1,9 +1,9 @@
 from django import forms
 from django.forms import inlineformset_factory
 from .models import (
-    Client, ClientPhone, ClientEmail, Property, ServiceOrder, 
-    ServiceMedia, ServiceItem, ServiceOrderTeam, Professional, 
-    ProfessionalRole, ProfessionalAvailability, ProfessionalScheduleBlock,
+    Client, ClientPhone, ClientEmail, Property, ServiceOrder,
+    ServiceMedia, ServiceItem, ServiceOrderTeam, Professional,
+    ProfessionalRole, ProfessionalScheduleBlock,
     ServiceOrderTask
 )
 
@@ -227,7 +227,7 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
     originator = forms.ModelChoiceField(
         queryset=Professional.objects.none(),
         label="Vendedor/Originador",
-        required=False,
+        required=True,
         widget=forms.Select(attrs={
             'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
         })
@@ -236,10 +236,13 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
     origin_date = forms.DateField(
         label="Data de Origem",
         required=False,
-        widget=forms.DateInput(attrs={
-            'type': 'date',
-            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
-        })
+        widget=forms.DateInput(
+            format='%Y-%m-%d',
+            attrs={
+                'type': 'date',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }
+        )
     )
 
     class Meta:
@@ -270,16 +273,23 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
             self.fields['origin_date'].widget.attrs['readonly'] = True
             self.fields['origin_date'].widget.attrs['class'] += ' bg-slate-100 cursor-not-allowed'
             self.fields['originator'].disabled = True
+            self.fields['originator'].required = False
             self.fields['originator'].widget.attrs['class'] += ' bg-slate-100 cursor-not-allowed'
         
         # Filtrar apenas profissionais com função "Vendedor"
         try:
             vendedor_role = ProfessionalRole.objects.filter(name__icontains='vendedor').first()
             if vendedor_role:
-                self.fields['originator'].queryset = vendedor_role.professionals.filter(is_active=True)
+                qs = vendedor_role.professionals.filter(is_active=True)
             else:
                 # Se não existir função "Vendedor", mostrar todos profissionais ativos
-                self.fields['originator'].queryset = Professional.objects.filter(is_active=True)
+                qs = Professional.objects.filter(is_active=True)
+                
+            # Na edição, garantir que o originator atual seja exibido caso ele esteja inativo ou mude de função
+            if self.instance and not self.instance._state.adding and self.instance.originator:
+                qs = qs | Professional.objects.filter(pk=self.instance.originator.pk)
+                
+            self.fields['originator'].queryset = qs.distinct()
         except:
             self.fields['originator'].queryset = Professional.objects.filter(is_active=True)
 
@@ -436,10 +446,10 @@ class ProfessionalForm(forms.ModelForm):
     class Meta:
         model = Professional
         fields = [
-            'name', 'cpf', 'phone', 'email', 'roles', 
-            'cep', 'address', 'number', 'complement', 
+            'name', 'cpf', 'phone', 'email', 'roles',
+            'cep', 'address', 'number', 'complement',
             'neighborhood', 'city', 'state', 'base_salary',
-            'is_active', 'user'
+            'work_schedule', 'is_active', 'user'
         ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
@@ -454,6 +464,7 @@ class ProfessionalForm(forms.ModelForm):
             'city': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'state': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'base_salary': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'work_schedule': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'user': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
         }
@@ -474,18 +485,6 @@ class ProfessionalForm(forms.ModelForm):
                 raise forms.ValidationError("Telefone deve conter 10 ou 11 dígitos (incluindo DDD).")
         return phone
 
-AvailabilityFormSet = inlineformset_factory(
-    Professional, ProfessionalAvailability,
-    fields=['day_of_week', 'start_time', 'end_time'],
-    extra=1,
-    can_delete=True,
-    max_num=14,
-    widgets={
-        'day_of_week': forms.Select(attrs={'class': 'w-full px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500'}),
-        'start_time': forms.TimeInput(attrs={'type': 'time', 'class': 'w-full px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500'}),
-        'end_time': forms.TimeInput(attrs={'type': 'time', 'class': 'w-full px-2 py-1 border rounded focus:ring-1 focus:ring-blue-500'}),
-    }
-)
 
 class ProfessionalScheduleBlockForm(forms.ModelForm):
     class Meta:

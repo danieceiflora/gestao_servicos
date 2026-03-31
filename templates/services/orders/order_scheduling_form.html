@@ -267,7 +267,7 @@
                             <!-- Upload de mídias -->
                             <div class="border-t border-slate-200 pt-4">
                                 <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Anexar Fotos/Vídeos</label>
-                                <input type="file" name="task_0_media" multiple accept="image/*,video/*" class="task-media-input block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 border-2 border-dashed border-slate-300 rounded-lg px-3 py-3 focus:border-green-500 focus:ring-2 focus:ring-green-500">
+                                {% include 'services/components/media_dropzone.html' with dropzone_name="task_0_media" dropzone_id="task_0_media_id" additional_classes="task-media-input" is_subform=True %}
                                 <p class="text-xs text-slate-500 italic mt-2">Adicione evidências da etapa. Toque em qualquer arquivo para removê-lo antes de salvar.</p>
                                 <div class="task-media-preview grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 hidden"></div>
                             </div>
@@ -394,21 +394,17 @@
         let taskCount = 1;
         const tasksContainer = document.getElementById('tasks-container');
         const addTaskBtn = document.getElementById('add-task-btn');
-        const mediaState = new Map();
 
-        // Add new task
-        if (addTaskBtn) {
-            addTaskBtn.addEventListener('click', function() {
-                taskCount++;
-                const newTaskCard = createTaskCard(taskCount);
-                tasksContainer.appendChild(newTaskCard);
-                lucide.createIcons();
-                initializeTaskEventListeners(newTaskCard);
-                initMediaUploaders(newTaskCard);
-            });
-        }
-
-        function createTaskCard(number) {
+          // Add new task
+          if (addTaskBtn) {
+              addTaskBtn.addEventListener('click', function() {
+                  taskCount++;
+                  const newTaskCard = createTaskCard(taskCount);
+                  tasksContainer.appendChild(newTaskCard);
+                  lucide.createIcons();
+                  initializeTaskEventListeners(newTaskCard);
+              });
+          }        function createTaskCard(number) {
             const card = document.createElement('div');
             card.className = 'task-card border-2 border-slate-200 rounded-2xl p-5 bg-white relative';
             card.innerHTML = `
@@ -496,7 +492,7 @@
                     <!-- Upload de mídias -->
                     <div class="border-t border-slate-200 pt-4">
                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Anexar Fotos/Vídeos</label>
-                        <input type="file" name="task_${number-1}_media" multiple accept="image/*,video/*" class="task-media-input block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 border border-dashed border-slate-300 rounded-lg px-3 py-2">
+                        {% include 'services/components/media_dropzone.html' with dropzone_name="task_${number-1}_media" dropzone_id="task_${number-1}_media_id" additional_classes="task-media-input" is_subform=True %}
                         <p class="text-xs text-slate-400 italic mt-1">Envie evidências desta etapa e toque no arquivo para removê-lo.</p>
                         <div class="task-media-preview grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 hidden"></div>
                     </div>
@@ -567,107 +563,6 @@
             lucide.createIcons();
         }
 
-        // Upload de mídias por etapa
-        function initMediaUploaders(scope = document) {
-            scope.querySelectorAll('.task-media-input').forEach(input => {
-                setupMediaInputListener(input);
-            });
-        }
-
-        function setupMediaInputListener(input) {
-            if (!input || input.dataset.mediaInitialized === 'true') return;
-            input.dataset.mediaInitialized = 'true';
-            const taskCard = input.closest('.task-card');
-            const previewWrapper = taskCard ? taskCard.querySelector('.task-media-preview') : null;
-            const stateKey = input.name;
-            if (!mediaState.has(stateKey)) {
-                mediaState.set(stateKey, []);
-            }
-
-            input.addEventListener('change', function(event) {
-                const files = Array.from(event.target.files || []);
-                if (!files.length) return;
-                const currentFiles = mediaState.get(stateKey) || [];
-                mediaState.set(stateKey, currentFiles.concat(files));
-                event.target.value = '';
-                renderMediaPreview(stateKey, input, previewWrapper);
-                syncInputFiles(stateKey, input);
-            });
-        }
-
-        function renderMediaPreview(stateKey, input, previewWrapper) {
-            if (!previewWrapper) return;
-            const files = mediaState.get(stateKey) || [];
-            previewWrapper.innerHTML = '';
-
-            if (!files.length) {
-                previewWrapper.classList.add('hidden');
-                return;
-            }
-
-            previewWrapper.classList.remove('hidden');
-
-            files.forEach((file, index) => {
-                const previewItem = document.createElement('div');
-                previewItem.className = 'relative group cursor-pointer';
-                let node;
-
-                if (file.type.startsWith('image/')) {
-                    node = document.createElement('img');
-                    node.className = 'w-full h-24 md:h-32 object-cover rounded-lg border-2 border-green-500';
-                } else {
-                    node = document.createElement('video');
-                    node.className = 'w-full h-24 md:h-32 object-cover rounded-lg border-2 border-green-500';
-                    node.muted = true;
-                    node.loop = true;
-                    node.controls = true;
-                    node.preload = 'metadata';
-                }
-
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    node.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-
-                previewItem.appendChild(node);
-
-                const overlay = document.createElement('div');
-                overlay.className = 'absolute inset-0 rounded-lg bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold transition-opacity';
-                overlay.textContent = 'Toque para remover';
-                previewItem.appendChild(overlay);
-
-                previewItem.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    removeMediaFile(stateKey, index, input, previewWrapper);
-                });
-
-                previewWrapper.appendChild(previewItem);
-            });
-        }
-
-        function removeMediaFile(stateKey, index, input, previewWrapper) {
-            const files = mediaState.get(stateKey) || [];
-            const updated = files.filter((_, idx) => idx !== index);
-            mediaState.set(stateKey, updated);
-            renderMediaPreview(stateKey, input, previewWrapper);
-            syncInputFiles(stateKey, input);
-        }
-
-        function syncInputFiles(stateKey, input) {
-            if (typeof DataTransfer === 'undefined') return;
-            const files = mediaState.get(stateKey) || [];
-            const dataTransfer = new DataTransfer();
-            files.forEach(file => dataTransfer.items.add(file));
-            input.files = dataTransfer.files;
-        }
-
-        function cleanupMediaState(taskCard) {
-            taskCard.querySelectorAll('.task-media-input').forEach(input => {
-                mediaState.delete(input.name);
-            });
-        }
-
         // Update task numbers after removal
         function updateTaskNumbers() {
             const taskCards = tasksContainer.querySelectorAll('.task-card');
@@ -694,16 +589,6 @@
                 addTeamMemberToTask(taskCard);
             });
         });
-
-        initMediaUploaders(document);
-
-        if (schedulingForm) {
-            schedulingForm.addEventListener('submit', function() {
-                document.querySelectorAll('.task-media-input').forEach(input => {
-                    syncInputFiles(input.name, input);
-                });
-            });
-        }
 
         // Initialize Lucide icons
         if (typeof lucide !== 'undefined') {

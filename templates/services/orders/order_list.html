@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load l10n %}
 
 {% block title %}Ordens de Serviço - Gestão de Serviços{% endblock %}
 
@@ -82,11 +83,14 @@
                                     <div class="font-medium text-slate-900">{{ order.client_property.client.name }}</div>
                                     <div class="text-xs text-slate-500">{{ order.client_property.address }}, {{ order.client_property.number }}</div>
                                 </div>
-                                {% if order.client_property.latitude and order.client_property.longitude %}
-                                <a href="https://www.google.com/maps/dir/?api=1&destination={{ order.client_property.latitude|stringformat:".16f" }},{{ order.client_property.longitude|stringformat:".16f" }}&travelmode=driving" target="_blank" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Abrir no GPS">
+                                <button type="button" 
+                                        class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Abrir no GPS"
+                                        data-gps-trigger="true"
+                                        data-gps-lat="{{ order.client_property.latitude|default_if_none:''|unlocalize }}"
+                                        data-gps-lng="{{ order.client_property.longitude|default_if_none:''|unlocalize }}"
+                                        data-gps-address="{{ order.client_property.full_address }}">
                                     <i data-lucide="navigation" class="h-4 w-4"></i>
-                                </a>
-                                {% endif %}
+                                </button>
                             </div>
                         </td>
                         <td class="px-6 py-4">
@@ -161,4 +165,6 @@
     </div>
     {% endif %}
 </div>
+
+{% include 'services/components/gps_modal.html' %}
 {% endblock %}

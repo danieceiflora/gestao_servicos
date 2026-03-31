@@ -163,20 +163,15 @@
             </div>
             {% endif %}
 
-            <!-- Upload de Novos Arquivos -->
-            <div>
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
-                    {% if task %}Adicionar Novas Evidências{% else %}Evidências{% endif %}
-                </label>
-                <input type="file" name="files" id="file-input" multiple accept="image/*,video/*" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
-                <p class="text-xs text-slate-500 mt-1">Aceita imagens e vídeos. Selecione múltiplos arquivos se necessário.</p>
-            </div>
-
-            <!-- Preview dos Arquivos Selecionados -->
-            <div id="file-preview" class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3" style="display: none;"></div>
-        </div>
-
-        <!-- Botões de Ação -->
+              <!-- Upload de Novos Arquivos -->
+              <div>
+                  <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                      {% if task %}Adicionar Novas Evidências{% else %}Evidências{% endif %}
+                  </label>
+                  {% include 'services/components/media_dropzone.html' with dropzone_id="file-input" is_subform=True %}
+                  <p class="text-xs text-slate-500 mt-1">Aceita imagens e vídeos. Selecione múltiplos arquivos se necessário.</p>
+              </div>
+          </div>        <!-- Botões de Ação -->
         <div class="flex gap-3 pb-24 md:pb-0">
             <a href="{% url 'service_order_detail' order.id %}" class="flex-1 py-4 rounded-xl border border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all">
                 Cancelar
@@ -211,111 +206,16 @@
         }
     });
 
-    // Remover membro da equipe
-    function removeTeamMember(button) {
-        const formItem = button.closest('.team-form-item');
-        const deleteCheckbox = formItem.querySelector('[name$="DELETE"]');
-        if (deleteCheckbox) {
-            deleteCheckbox.checked = true;
-            formItem.style.display = 'none';
-        } else {
-            formItem.remove();
-        }
-    }
-
-    // ============ PREVIEW DE ARQUIVOS ============
-    let selectedFiles = [];
-    const fileInput = document.getElementById('file-input');
-    const filePreview = document.getElementById('file-preview');
-
-    fileInput.addEventListener('change', function(e) {
-        const files = Array.from(e.target.files);
-        
-        // Adicionar novos arquivos à lista
-        selectedFiles = [...selectedFiles, ...files];
-        
-        // Renderizar preview
-        renderFilePreview();
-        
-        // Limpar input para permitir selecionar o mesmo arquivo novamente
-        e.target.value = '';
-    });
-
-    function renderFilePreview() {
-        filePreview.innerHTML = '';
-        
-        if (selectedFiles.length === 0) {
-            filePreview.style.display = 'none';
-            return;
-        }
-        
-        filePreview.style.display = 'grid';
-        
-        selectedFiles.forEach((file, index) => {
-            const previewItem = document.createElement('div');
-            previewItem.className = 'relative group';
-            
-            // Criar preview baseado no tipo
-            if (file.type.startsWith('image/')) {
-                const img = document.createElement('img');
-                img.className = 'w-full h-32 object-cover rounded-lg border-2 border-green-500';
-                
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-                
-                previewItem.appendChild(img);
-            } else if (file.type.startsWith('video/')) {
-                const video = document.createElement('video');
-                video.className = 'w-full h-32 object-cover rounded-lg border-2 border-green-500';
-                video.controls = false;
-                
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    video.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-                
-                previewItem.appendChild(video);
-            }
-            
-            // Botão de remover
-            const removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.className = 'absolute top-1 right-1 p-1 bg-red-500 rounded-full text-white opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity';
-            removeBtn.innerHTML = '<i data-lucide="x" class="h-3 w-3"></i>';
-            removeBtn.onclick = () => removeFile(index);
-            
-            previewItem.appendChild(removeBtn);
-            filePreview.appendChild(previewItem);
-        });
-        
-        // Reinicializar ícones
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-    }
-
-    function removeFile(index) {
-        selectedFiles.splice(index, 1);
-        renderFilePreview();
-        updateFileInput();
-    }
-
-    function updateFileInput() {
-        // Criar novo DataTransfer para atualizar o input
-        const dataTransfer = new DataTransfer();
-        selectedFiles.forEach(file => {
-            dataTransfer.items.add(file);
-        });
-        fileInput.files = dataTransfer.files;
-    }
-
-    // Atualizar input antes de submeter o form
-    document.querySelector('form').addEventListener('submit', function(e) {
-        updateFileInput();
-    });
-</script>
-{% endblock %}
+      // Remover membro da equipe
+      function removeTeamMember(button) {
+          const formItem = button.closest('.team-form-item');
+          const deleteCheckbox = formItem.querySelector('[name$="DELETE"]');
+          if (deleteCheckbox) {
+              deleteCheckbox.checked = true;
+              formItem.style.display = 'none';
+          } else {
+              formItem.remove();
+          }
+      }
+  </script>
+  {% endblock %}

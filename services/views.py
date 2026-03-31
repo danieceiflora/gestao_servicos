@@ -15,7 +15,7 @@ from .models import (
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
     ServiceOrderSchedulingForm, ServiceOrderForm, ServiceInspectionForm,
-    ServiceItemFormSet, ProfessionalForm, AvailabilityFormSet,
+    ServiceItemFormSet, ProfessionalForm, ProfessionalScheduleBlockForm,
     ServiceOrderTeamFormSet, TaskScheduleForm, TaskCancelForm
 )
 from .utils import check_professional_availability
@@ -48,24 +48,6 @@ class ProfessionalCreateView(LoginRequiredMixin, PermissionRequiredMixin, Create
     success_url = reverse_lazy('professional_list')
     permission_required = 'services.add_professional'
 
-    def get_context_data(self, **kwargs):
-        data = super().get_context_data(**kwargs)
-        if self.request.POST:
-            data['availabilities'] = AvailabilityFormSet(self.request.POST)
-        else:
-            data['availabilities'] = AvailabilityFormSet()
-        return data
-
-    def form_valid(self, form):
-        context = self.get_context_data()
-        availabilities = context['availabilities']
-        if availabilities.is_valid():
-            self.object = form.save()
-            availabilities.instance = self.object
-            availabilities.save()
-            return super().form_valid(form)
-        else:
-            return self.render_to_response(self.get_context_data(form=form))
 
 class ProfessionalUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
     model = Professional
@@ -74,24 +56,19 @@ class ProfessionalUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Update
     success_url = reverse_lazy('professional_list')
     permission_required = 'services.change_professional'
 
-    def get_context_data(self, **kwargs):
-        data = super().get_context_data(**kwargs)
-        if self.request.POST:
-            data['availabilities'] = AvailabilityFormSet(self.request.POST, instance=self.object)
-        else:
-            data['availabilities'] = AvailabilityFormSet(instance=self.object)
-        return data
 
-    def form_valid(self, form):
-        context = self.get_context_data()
-        availabilities = context['availabilities']
-        if availabilities.is_valid():
-            self.object = form.save()
-            availabilities.instance = self.object
-            availabilities.save()
-            return super().form_valid(form)
-        else:
-            return self.render_to_response(self.get_context_data(form=form))
+class ProfessionalScheduleBlockListView(LoginRequiredMixin, ListView):
+    model = ProfessionalScheduleBlock
+    template_name = 'services/professionals/schedule_block_list.html'
+    context_object_name = 'blocks'
+    permission_required = 'services.view_scheduleblock'
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        professional_id = self.kwargs.get('professional_id')
+        if professional_id:
+            queryset = queryset.filter(professional_id=professional_id)
+        return queryset
 
 @login_required
 def home(request):
@@ -357,7 +334,13 @@ def service_order_scheduling(request):
         else:
             messages.error(request, 'Por favor, corrija os erros no formulário.')
     else:
-        form = ServiceOrderSchedulingForm()
+        # Pre-selecionar o originador como o profissional logado, se existir
+        initial_data = {}
+        if hasattr(request.user, 'professional_profile'):
+            initial_data['originator'] = request.user.professional_profile
+            
+        form = ServiceOrderSchedulingForm(initial=initial_data)
+        
         # Se não tiver data de origem da URL, usar hoje por padrão
         if not initial_origin_date:
             initial_origin_date = django.utils.timezone.now().date()

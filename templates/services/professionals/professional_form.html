@@ -50,6 +50,11 @@
                     {{ form.user }}
                     <p class="text-[10px] text-slate-400 mt-1 italic">Vincule a um usuário para permitir acesso ao PWA.</p>
                 </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Horário / Escala Padrão</label>
+                    {{ form.work_schedule }}
+                    <p class="text-[10px] text-slate-400 mt-1 italic">Regra de horários p/ agendamento (Cadastre no Admin).</p>
+                </div>
             </div>
         </div>
 
@@ -100,49 +105,6 @@
             <div class="p-6">
                 <p class="text-xs text-slate-500 mb-4 italic">Selecione todas as funções que este profissional pode desempenhar.</p>
                 {{ form.roles }}
-            </div>
-        </div>
-
-        <!-- Seção: Disponibilidade -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>
-                    <h3 class="font-semibold text-slate-900 text-sm">Grade de Disponibilidade</h3>
-                </div>
-                <button type="button" id="add-availability" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
-                    + Adicionar Horário
-                </button>
-            </div>
-            <div class="p-6">
-                {{ availabilities.management_form }}
-                <div id="availability-formset" class="space-y-4">
-                    {% for av_form in availabilities %}
-                    <div class="availability-row grid grid-cols-1 md:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 items-end">
-                        {% for hidden in av_form.hidden_fields %} {{ hidden }} {% endfor %}
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Dia da Semana</label>
-                            {{ av_form.day_of_week }}
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Horário Início</label>
-                            {{ av_form.start_time }}
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Horário Fim</label>
-                            {{ av_form.end_time }}
-                        </div>
-                        <div class="flex items-center gap-2 pb-1.5">
-                            {% if availabilities.can_delete %}
-                                <div class="flex items-center gap-2 text-xs text-red-500">
-                                    {{ av_form.DELETE }}
-                                    <span class="text-[10px] font-bold uppercase">Excluir</span>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
             </div>
         </div>
 
@@ -225,36 +187,5 @@
     document.querySelector('[name="phone"]').addEventListener('input', (e) => e.target.value = maskPhone(e.target.value));
     document.querySelector('[name="cep"]').addEventListener('input', (e) => e.target.value = maskCEP(e.target.value));
     document.querySelector('[name="cep"]').addEventListener('blur', function() { buscarCep(this.value); });
-
-    // Gerenciamento Dinâmico de Formset
- (Simplificado)
-    document.getElementById('add-availability').addEventListener('click', function() {
-        const container = document.getElementById('availability-formset');
-        const totalForms = document.getElementById('id_availabilities-TOTAL_FORMS');
-        const formNum = parseInt(totalForms.value);
-        
-        const firstRow = container.querySelector('.availability-row');
-        const newRow = firstRow.cloneNode(true);
-        
-        // Limpar valores e atualizar IDs/Names
-        newRow.querySelectorAll('input, select').forEach(input => {
-            const name = input.name.replace('-0-', `-${formNum}-`);
-            const id = input.id.replace('-0-', `-${formNum}-`);
-            input.name = name;
-            input.id = id;
-            if (input.type !== 'hidden') input.value = '';
-            if (input.type === 'checkbox') input.checked = false;
-        });
-
-        // Corrigir labels
-        newRow.querySelectorAll('label').forEach(label => {
-            if (label.getAttribute('for')) {
-                label.setAttribute('for', label.getAttribute('for').replace('-0-', `-${formNum}-`));
-            }
-        });
-
-        totalForms.value = formNum + 1;
-        container.appendChild(newRow);
-    });
 </script>
 {% endblock %}
