@@ -25,13 +25,39 @@
                 Informações da Etapa
             </h3>
 
-            <!-- Tipo de Etapa -->
-            <div>
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Tipo de Etapa</label>
-                {{ form.task_type }}
-                {% if form.task_type.errors %}
-                    <p class="text-xs text-red-600 mt-1">{{ form.task_type.errors.0 }}</p>
-                {% endif %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Tipo de Etapa -->
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Tipo de Etapa</label>
+                    {{ form.task_type }}
+                    {% if form.task_type.errors %}
+                        <p class="text-xs text-red-600 mt-1">{{ form.task_type.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Status -->
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Status</label>
+                    {{ form.status }}
+                    {% if form.status.errors %}
+                        <p class="text-xs text-red-600 mt-1">{{ form.status.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Aprovação e Pagamento -->
+            <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="flex items-center gap-3">
+                    {{ form.is_approved }}
+                    <div>
+                        <label for="{{ form.is_approved.id_for_label }}" class="text-sm font-bold text-blue-900">Aprovado pelo Cliente</label>
+                        <p class="text-[10px] text-blue-700">Necessário para iniciar execução</p>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-2">Método de Pagamento</label>
+                    {{ form.payment_method }}
+                </div>
             </div>
 
             <!-- Data e Hora -->
@@ -57,6 +83,36 @@
                 {% endif %}
                 <p class="text-xs text-slate-500 mt-1 italic">Valor interno desta etapa/serviço. Será somado ao total da OS.</p>
             </div>
+
+            <!-- Seção de Execução (Início/Fim) -->
+            {% if task %}
+            <div class="pt-4 border-t border-slate-100 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Controle de Execução</h4>
+                    <button type="button" id="btn-execution-control" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-all shadow-sm">
+                        <i id="execution-icon" data-lucide="play" class="h-4 w-4"></i>
+                        <span id="execution-text">Iniciar Execução</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora de Início</label>
+                        {{ form.started_at }}
+                        {% if form.started_at.errors %}
+                            <p class="text-xs text-red-600 mt-1">{{ form.started_at.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora de Término</label>
+                        {{ form.finished_at }}
+                        {% if form.finished_at.errors %}
+                            <p class="text-xs text-red-600 mt-1">{{ form.finished_at.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Observações -->
             <div>
@@ -217,5 +273,115 @@
               formItem.remove();
           }
       }
+
+    // Lógica de Controle de Execução (Início/Fim)
+    document.addEventListener('DOMContentLoaded', function() {
+        const btnExecution = document.getElementById('btn-execution-control');
+        const inputStarted = document.getElementById('id_started_at');
+        const inputFinished = document.getElementById('id_finished_at');
+        const executionIcon = document.getElementById('execution-icon');
+        const executionText = document.getElementById('execution-text');
+
+        if (!btnExecution) return;
+
+        function formatDateTimeLocal(date) {
+            const pad = (n) => n.toString().padStart(2, '0');
+            return date.getFullYear() + '-' +
+                   pad(date.getMonth() + 1) + '-' +
+                   pad(date.getDate()) + 'T' +
+                   pad(date.getHours()) + ':' +
+                   pad(date.getMinutes());
+        }
+
+        function updateButtonState() {
+            if (!inputStarted.value) {
+                // Estado: Iniciar
+                btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-all shadow-sm';
+                executionText.innerText = 'Iniciar Execução';
+                executionIcon.setAttribute('data-lucide', 'play');
+            } else if (!inputFinished.value) {
+                // Estado: Finalizar
+                btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white font-bold text-xs hover:bg-green-700 transition-all shadow-sm';
+                executionText.innerText = 'Finalizar';
+                executionIcon.setAttribute('data-lucide', 'check-circle');
+            } else {
+                // Estado: Concluído
+                btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-400 font-bold text-xs cursor-not-allowed';
+                executionText.innerText = 'Execução Concluída';
+                executionIcon.setAttribute('data-lucide', 'check-square');
+                btnExecution.disabled = true;
+            }
+            
+            // Re-renderiza o ícone do Lucide
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        btnExecution.addEventListener('click', function() {
+            const now = new Date();
+            const formattedNow = formatDateTimeLocal(now);
+
+            if (!inputStarted.value) {
+                inputStarted.value = formattedNow;
+                // Alterar status automaticamente para IN_PROGRESS se houver um campo status no form
+                const statusSelect = document.querySelector('select[name="status"]');
+                if (statusSelect) statusSelect.value = 'IN_PROGRESS';
+            } else if (!inputFinished.value) {
+                inputFinished.value = formattedNow;
+                // Alterar status automaticamente para COMPLETED se houver um campo status no form
+                const statusSelect = document.querySelector('select[name="status"]');
+                if (statusSelect) statusSelect.value = 'COMPLETED';
+            }
+
+            updateButtonState();
+        });
+
+        // Inicializar estado do botão
+        updateButtonState();
+    });
   </script>
+
+{% if show_force_schedule_modal %}
+<div id="force-schedule-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+        <div class="p-6 space-y-4">
+            <div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-triangle" class="h-6 w-6 text-amber-600"></i>
+            </div>
+            <h3 class="text-xl font-bold text-center text-slate-900">Atenção ao Agendamento</h3>
+            <p class="text-slate-600 text-center text-sm">{{ force_message }}</p>
+        </div>
+        <div class="bg-slate-50 px-6 py-4 flex gap-3">
+            <button type="button" onclick="document.getElementById('force-schedule-modal').remove()" class="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
+                Revisar Horário
+            </button>
+            <button type="button" onclick="confirmForceSchedule()" class="flex-1 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-sm">
+                Confirmar Mesmo Assim
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function confirmForceSchedule() {
+        // Encontrar o formulário correto em vez do primeiro que pode ser o form de logout no menu
+        const form = document.querySelector('.max-w-3xl form') || document.querySelector('form:not([action*="logout"])');
+        
+        // Se ainda não achamos, tente via ID se existir
+        if (!form) {
+            console.error("Formulário de agendamento não encontrado.");
+            return;
+        }
+
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'ignore_working_hours';
+        input.value = 'true';
+        form.appendChild(input);
+        form.submit();
+    }
+</script>
+{% endif %}
+
   {% endblock %}

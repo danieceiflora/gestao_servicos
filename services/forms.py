@@ -1,10 +1,11 @@
 from django import forms
+import django.utils.timezone
 from django.forms import inlineformset_factory
 from .models import (
     Client, ClientPhone, ClientEmail, Property, ServiceOrder,
     ServiceMedia, ServiceItem, ServiceOrderTeam, Professional,
     ProfessionalRole, ProfessionalScheduleBlock,
-    ServiceOrderTask
+    ServiceOrderTask, ServicePayment
 )
 
 # --- UTILS FOR MULTIPLE UPLOAD ---
@@ -227,7 +228,7 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
     originator = forms.ModelChoiceField(
         queryset=Professional.objects.none(),
         label="Vendedor/Originador",
-        required=True,
+        required=False,
         widget=forms.Select(attrs={
             'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
         })
@@ -267,9 +268,16 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['client_property'].queryset = Property.objects.none()
+        self.fields['origin_date'].required = False
+        self.fields['originator'].required = False
         
-        # Se está editando (já existe no banco), tornar origin_date e originator readonly
+        # Se está editando (já existe no banco)
         if self.instance and not self.instance._state.adding:
+            # Campos que não devem ser alterados ou não fazem sentido na edição global
+            self.fields['client'].required = False
+            self.fields['client_property'].required = False
+            self.fields['scheduled_at'].required = False
+            
             self.fields['origin_date'].widget.attrs['readonly'] = True
             self.fields['origin_date'].widget.attrs['class'] += ' bg-slate-100 cursor-not-allowed'
             self.fields['originator'].disabled = True
@@ -321,7 +329,7 @@ class ServiceOrderTaskForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk and self.instance.scheduled_at:
-            self.initial['scheduled_at'] = self.instance.scheduled_at.strftime('%Y-%m-%dT%H:%M')
+            self.initial['scheduled_at'] = django.utils.timezone.localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')
 
 # Equipe ligada à TASK
 ServiceOrderTeamFormSet = inlineformset_factory(
@@ -505,15 +513,34 @@ class TaskScheduleForm(forms.ModelForm):
     """
     class Meta:
         model = ServiceOrderTask
-        fields = ['task_type', 'scheduled_at', 'value', 'notes']
+        fields = ['task_type', 'status', 'is_approved', 'payment_method', 'scheduled_at', 'started_at', 'finished_at', 'value', 'notes']
         widgets = {
             'task_type': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+            'status': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+            'is_approved': forms.CheckboxInput(attrs={
+                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded'
+            }),
+            'payment_method': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
             'scheduled_at': forms.DateTimeInput(attrs={
                 'type': 'datetime-local',
                 'class': 'calendar-input w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
                 'id': 'id_scheduled_at'
+            }),
+            'started_at': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
+                'id': 'id_started_at'
+            }),
+            'finished_at': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
+                'id': 'id_finished_at'
             }),
             'value': forms.NumberInput(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
@@ -528,15 +555,50 @@ class TaskScheduleForm(forms.ModelForm):
         }
         labels = {
             'task_type': 'Tipo de Etapa',
+            'status': 'Status',
+            'is_approved': 'Aprovado pelo Cliente',
+            'payment_method': 'Método de Pagamento Preferencial',
             'scheduled_at': 'Data e Hora',
+            'started_at': 'Iniciado em',
+            'finished_at': 'Finalizado em',
             'value': 'Valor do Serviço (R$)',
             'notes': 'Observações'
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance.pk and self.instance.scheduled_at:
-            self.initial['scheduled_at'] = self.instance.scheduled_at.strftime('%Y-%m-%dT%H:%M')
+        self.fields['is_approved'].required = False
+        self.fields['payment_method'].required = False
+        if self.instance.pk:
+            if self.instance.scheduled_at:
+                self.initial['scheduled_at'] = django.utils.timezone.localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')
+            if self.instance.started_at:
+                self.initial['started_at'] = django.utils.timezone.localtime(self.instance.started_at).strftime('%Y-%m-%dT%H:%M')
+            if self.instance.finished_at:
+                self.initial['finished_at'] = django.utils.timezone.localtime(self.instance.finished_at).strftime('%Y-%m-%dT%H:%M')
+
+class ServicePaymentForm(forms.ModelForm):
+    class Meta:
+        model = ServicePayment
+        fields = ['amount', 'payment_method', 'paid_at', 'notes']
+        widgets = {
+            'amount': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg', 'step': '0.01'}),
+            'payment_method': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg'}),
+            'paid_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg'}),
+            'notes': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg', 'placeholder': 'Ex: Transferência confirmada'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['paid_at'].initial = django.utils.timezone.now().strftime('%Y-%m-%dT%H:%M')
+
+class ServiceOrderDiscountForm(forms.ModelForm):
+    class Meta:
+        model = ServiceOrder
+        fields = ['discount']
+        widgets = {
+            'discount': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg', 'step': '0.01'}),
+        }
 
 class TaskCancelForm(forms.Form):
     """

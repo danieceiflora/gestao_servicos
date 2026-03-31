@@ -10,13 +10,14 @@ import django.utils.timezone
 from .models import (
     User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem, 
     Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
-    ServiceOrderTask
+    ServiceOrderTask, ServicePayment
 )
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
     ServiceOrderSchedulingForm, ServiceOrderForm, ServiceInspectionForm,
     ServiceItemFormSet, ProfessionalForm, ProfessionalScheduleBlockForm,
-    ServiceOrderTeamFormSet, TaskScheduleForm, TaskCancelForm
+    ServiceOrderTeamFormSet, TaskScheduleForm, TaskCancelForm,
+    ServicePaymentForm, ServiceOrderDiscountForm
 )
 from .utils import check_professional_availability
 
@@ -247,11 +248,107 @@ def service_order_scheduling(request):
     
     if request.method == 'POST':
         form = ServiceOrderSchedulingForm(request.POST, request.FILES)
-        
+
+        # Coletar tarefas submetidas para manter o estado no form em caso de erro
+        submitted_tasks = []
+        _idx = 0
+        while f'task_{_idx}_type' in request.POST:
+            sched_val = request.POST.get('scheduled_at', '') if _idx == 0 else request.POST.get(f'task_{_idx}_scheduled', '')
+            task_data = {
+                'index': _idx,
+                'type': request.POST.get(f'task_{_idx}_type', ''),
+                'scheduled': sched_val,
+                'start_date': request.POST.get(f'task_{_idx}_start_date', ''),
+                'end_date': request.POST.get(f'task_{_idx}_end_date', ''),
+                'value': request.POST.get(f'task_{_idx}_value', ''),
+                'team': []
+            }
+            professionals = request.POST.getlist(f'task_{_idx}_professional[]')
+            roles = request.POST.getlist(f'task_{_idx}_role[]')
+            for prof_id, role_id in zip(professionals, roles):
+                if prof_id or role_id:
+                    task_data['team'].append({
+                        'professional_id': str(prof_id),
+                        'role_id': str(role_id)
+                    })
+            submitted_tasks.append(task_data)
+            _idx += 1
+
         if form.is_valid():
+            ignore_working_hours = request.POST.get('ignore_working_hours') == 'true'
+            has_conflict = False
+            conflict_message = ""
+            is_out_of_hours = False
+
+            # PRE-VALIDATE EVERYTHING FIRST BEFORE CREATING DB RECORDS
+            task_index = 0
+            while f'task_{task_index}_type' in request.POST:
+                task_type = request.POST.get(f'task_{task_index}_type')
+                scheduled_input = request.POST.get(f'task_{task_index}_scheduled')
+                
+                scheduled_datetime = None
+                if scheduled_input:
+                    try:
+                        scheduled_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(scheduled_input))
+                    except (ValueError, TypeError):
+                        pass
+                elif task_index == 0:
+                    scheduled_datetime = form.cleaned_data.get('scheduled_at')
+                    if scheduled_datetime and django.utils.timezone.is_naive(scheduled_datetime):
+                        scheduled_datetime = django.utils.timezone.make_aware(scheduled_datetime)
+
+                if task_type and scheduled_datetime:
+                    professionals = request.POST.getlist(f'task_{task_index}_professional[]')
+                    for prof_id in professionals:
+                        if prof_id:
+                            try:
+                                professional = Professional.objects.get(id=prof_id)
+                                available, msg, c_type = check_professional_availability(
+                                    professional, scheduled_datetime, ignore_working_hours=ignore_working_hours
+                                )
+                                if not available:
+                                    has_conflict = True
+                                    conflict_message = msg
+                                    if c_type == "OUT_OF_HOURS":
+                                        is_out_of_hours = True
+                                    break
+                            except Professional.DoesNotExist:
+                                pass
+                if has_conflict:
+                    break
+                task_index += 1
+
+            if has_conflict:
+                if is_out_of_hours:
+                    messages.warning(request, f"Aviso de Agenda: {conflict_message} (Confirme para forçar o agendamento).")
+                    return render(request, 'services/orders/order_scheduling_form.html', {
+                        'form': form,
+                        'team_formset': team_formset,
+                        'professionals': Professional.objects.filter(is_active=True),
+                        'roles': ProfessionalRole.objects.all(),
+                        'title': 'Nova OS / Agendamento',
+                        'show_force_schedule_modal': True,
+                        'force_message': conflict_message,
+                        'initial_scheduled_at': initial_scheduled_at.isoformat() if initial_scheduled_at else None,
+                        'initial_origin_date': initial_origin_date.isoformat() if initial_origin_date else None,
+                        'submitted_tasks': submitted_tasks,
+                    })
+                else:
+                    messages.error(request, f"Conflito de agenda: {conflict_message}")
+                    return render(request, 'services/orders/order_scheduling_form.html', {
+                        'form': form,
+                        'team_formset': team_formset,
+                        'professionals': Professional.objects.filter(is_active=True),
+                        'roles': ProfessionalRole.objects.all(),
+                        'title': 'Nova OS / Agendamento',
+                        'initial_scheduled_at': initial_scheduled_at.isoformat() if initial_scheduled_at else None,
+                        'initial_origin_date': initial_origin_date.isoformat() if initial_origin_date else None,
+                        'submitted_tasks': submitted_tasks,
+                    })
+
             # Criar a Ordem de Serviço
             service_order = form.save(commit=False)
-            
+
             # Determinar status inicial baseado nas etapas
             first_task_type = request.POST.get('task_0_type')
             if first_task_type == ServiceOrderTask.TaskType.BUDGET:
@@ -332,7 +429,17 @@ def service_order_scheduling(request):
             
             return redirect('service_order_detail', order_id=service_order.id)
         else:
-            messages.error(request, 'Por favor, corrija os erros no formulário.')
+            messages.error(request, "Por favor, corrija os erros no formulário.")
+            return render(request, 'services/orders/order_scheduling_form.html', {
+                'form': form,
+                'team_formset': team_formset,
+                'professionals': Professional.objects.filter(is_active=True),
+                'roles': ProfessionalRole.objects.all(),
+                'title': 'Nova OS / Agendamento',
+                'initial_scheduled_at': initial_scheduled_at.isoformat() if initial_scheduled_at else None,
+                'initial_origin_date': initial_origin_date.isoformat() if initial_origin_date else None,
+                'submitted_tasks': submitted_tasks,
+            })
     else:
         # Pre-selecionar o originador como o profissional logado, se existir
         initial_data = {}
@@ -461,59 +568,9 @@ def service_order_edit(request, order_id):
 @login_required
 def task_execution(request, task_id):
     """
-    View principal para execução de uma Task específica.
-    Permite iniciar, adicionar mídias e finalizar a etapa.
+    View legacy para compatibilidade. Redireciona para task_edit.
     """
-    # Verifica se a task pertence a uma OS que o usuário pode ver
-    orders_qs = get_orders_queryset(request)
-    task = get_object_or_404(ServiceOrderTask, id=task_id, service_order__in=orders_qs)
-    order = task.service_order
-    
-    if task.status in [ServiceOrderTask.TaskStatus.COMPLETED, ServiceOrderTask.TaskStatus.CANCELLED]:
-        messages.warning(request, "Esta etapa já foi concluída ou cancelada.")
-        return redirect('service_order_detail', order_id=order.id)
-
-    if request.method == 'POST':
-        if 'start_task' in request.POST:
-            task.status = ServiceOrderTask.TaskStatus.IN_PROGRESS
-            task.started_at = django.utils.timezone.now()
-            task.save()
-            messages.success(request, f'{task.get_task_type_display()} iniciado(a)!')
-        elif 'finish_task' in request.POST:
-            task.status = ServiceOrderTask.TaskStatus.COMPLETED
-            task.finished_at = django.utils.timezone.now()
-            task.notes = request.POST.get('notes', '')
-            task.save()
-            
-            # Atualizar status da OS apenas se todas as tasks foram concluídas
-            pending_tasks = order.tasks.exclude(
-                status__in=[ServiceOrderTask.TaskStatus.COMPLETED, ServiceOrderTask.TaskStatus.CANCELLED]
-            )
-            if not pending_tasks.exists():
-                from datetime import timedelta
-                order.status = ServiceOrder.Status.FINISHED
-                order.finished_at = django.utils.timezone.now()
-                # Calcular garantia de 1 ano (365 dias) a partir da data de finalização
-                order.warranty_until = order.finished_at.date() + timedelta(days=365)
-                order.save()
-                messages.success(request, f'Etapa finalizada! Todas as etapas da OS foram concluídas. Garantia válida até {order.warranty_until.strftime("%d/%m/%Y")}.')
-            else:
-                messages.success(request, 'Etapa finalizada com sucesso!')
-            
-            return redirect('service_order_detail', order_id=order.id)
-            
-        # Upload de mídias (fotos/vídeos)
-        files = request.FILES.getlist('files')
-        for f in files:
-            ServiceMedia.objects.create(task=task, file=f)
-        if files:
-            messages.success(request, f'{len(files)} arquivo(s) adicionado(s) com sucesso!')
-
-    return render(request, 'services/orders/order_execution.html', {
-        'order': order,
-        'task': task,
-        'title': f'Execução - {task.get_task_type_display()}'
-    })
+    return redirect('task_edit', task_id=task_id)
 
 @login_required
 def service_order_execution(request, order_id):
@@ -530,7 +587,7 @@ def service_order_execution(request, order_id):
         messages.warning(request, "Não há etapas pendentes para esta OS.")
         return redirect('service_order_detail', order_id=order.id)
     
-    return redirect('task_execution', task_id=task.id)
+    return redirect('task_edit', task_id=task.id)
 
 # --- TASK MANAGEMENT VIEWS ---
 
@@ -550,24 +607,39 @@ def task_add(request, order_id):
             task = form.save(commit=False)
             task.service_order = order
             task.status = ServiceOrderTask.TaskStatus.SCHEDULED
-            
+
             # Validar disponibilidade da equipe
             scheduled_at = form.cleaned_data.get('scheduled_at')
             team_data = [f for f in formset.cleaned_data if f and not f.get('DELETE')]
-            
+            ignore_working_hours = request.POST.get('ignore_working_hours') == 'true'
+
             for team_form in team_data:
                 professional = team_form.get('professional')
                 if professional:
-                    available, msg = check_professional_availability(professional, scheduled_at)
+                    available, msg, conflict_type = check_professional_availability(
+                        professional, scheduled_at, ignore_working_hours=ignore_working_hours
+                    )
                     if not available:
-                        messages.error(request, f"Conflito de agenda: {msg}")
-                        return render(request, 'services/tasks/task_form.html', {
-                            'form': form,
-                            'formset': formset,
-                            'order': order,
-                            'title': 'Adicionar Nova Etapa'
-                        })
-            
+                        # Se for apenas fora do horário de trabalho e não estiver ignorando, avise
+                        if conflict_type == "OUT_OF_HOURS":
+                            messages.warning(request, f"Aviso de Agenda: {msg} (Confirme para forçar o agendamento).")
+                            return render(request, 'services/tasks/task_form.html', {
+                                'form': form,
+                                'formset': formset,
+                                'order': order,
+                                'title': 'Adicionar Nova Etapa',
+                                'show_force_schedule_modal': True,
+                                'force_message': msg
+                            })
+                        else:
+                            messages.error(request, f"Conflito de agenda: {msg}")
+                            return render(request, 'services/tasks/task_form.html', {
+                                'form': form,
+                                'formset': formset,
+                                'order': order,
+                                'title': 'Adicionar Nova Etapa'
+                            })
+
             task.save()
             
             # Salvar equipe
@@ -593,45 +665,72 @@ def task_add(request, order_id):
     })
 
 @login_required
-@permission_required('services.change_serviceordertask', raise_exception=True)
 def task_edit(request, task_id):
     """
     View para editar uma Task existente (data, hora, equipe).
+    Também serve como view de execução.
     """
-    task = get_object_or_404(ServiceOrderTask, id=task_id)
+    # Verifica se a task pertence a uma OS que o usuário pode ver
+    orders_qs = get_orders_queryset(request)
+    task = get_object_or_404(ServiceOrderTask, id=task_id, service_order__in=orders_qs)
     order = task.service_order
     existing_medias = task.medias.all()
     
-    if task.status == ServiceOrderTask.TaskStatus.COMPLETED:
+    # Se for colaborador, verificar se ele faz parte da equipe desta task
+    user = request.user
+    is_manager = user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
+    
+    if not is_manager:
+        is_assigned = task.team_members.filter(professional__user=user).exists()
+        if not is_assigned:
+            messages.error(request, "Você não tem permissão para editar esta etapa.")
+            return redirect('service_order_detail', order_id=order.id)
+
+    if task.status == ServiceOrderTask.TaskStatus.COMPLETED and not is_manager:
         messages.warning(request, "Não é possível editar uma etapa já concluída.")
         return redirect('service_order_detail', order_id=order.id)
     
     if request.method == 'POST':
         form = TaskScheduleForm(request.POST, request.FILES, instance=task)
         formset = ServiceOrderTeamFormSet(request.POST, request.FILES, instance=task)
-        
+
         if form.is_valid() and formset.is_valid():
+            # ... (rest of logic stays same)
             scheduled_at = form.cleaned_data.get('scheduled_at')
             team_data = [f for f in formset.cleaned_data if f and not f.get('DELETE')]
-            
+            ignore_working_hours = request.POST.get('ignore_working_hours') == 'true'
+
             # Validar disponibilidade da equipe (excluindo a task atual)
             for team_form in team_data:
                 professional = team_form.get('professional')
                 if professional:
-                    available, msg = check_professional_availability(
-                        professional, scheduled_at, exclude_task_id=task.id
+                    available, msg, conflict_type = check_professional_availability(
+                        professional, scheduled_at, exclude_task_id=task.id, ignore_working_hours=ignore_working_hours
                     )
                     if not available:
-                        messages.error(request, f"Conflito de agenda: {msg}")
-                        return render(request, 'services/tasks/task_form.html', {
-                            'form': form,
-                            'formset': formset,
-                            'order': order,
-                            'task': task,
-                            'existing_medias': existing_medias,
-                            'title': 'Editar Etapa'
-                        })
-            
+                        if conflict_type == "OUT_OF_HOURS":
+                            messages.warning(request, f"Aviso de Agenda: {msg} (Confirme para forçar o agendamento).")
+                            return render(request, 'services/tasks/task_form.html', {
+                                'form': form,
+                                'formset': formset,
+                                'order': order,
+                                'task': task,
+                                'existing_medias': existing_medias,
+                                'title': 'Editar Etapa',
+                                'show_force_schedule_modal': True,
+                                'force_message': msg
+                            })
+                        else:
+                            messages.error(request, f"Conflito de agenda: {msg}")
+                            return render(request, 'services/tasks/task_form.html', {
+                                'form': form,
+                                'formset': formset,
+                                'order': order,
+                                'task': task,
+                                'existing_medias': existing_medias,
+                                'title': 'Editar Etapa'
+                            })
+
             form.save()
             formset.save()
             
@@ -691,7 +790,6 @@ def task_cancel(request, task_id):
 from django.http import JsonResponse
 from dateutil.parser import parse
 
-@login_required
 @login_required
 def api_calendar_events(request):
     events = []
@@ -780,8 +878,8 @@ def api_check_availability(request):
     try:
         professional = get_object_or_404(Professional, id=prof_id)
         timestamp = parse(timestamp_str)
-        available, message = check_professional_availability(professional, timestamp)
-        return JsonResponse({'available': available, 'message': message})
+        available, message, conflict_type = check_professional_availability(professional, timestamp)
+        return JsonResponse({'available': available, 'message': message, 'conflict_type': conflict_type})
     except:
         return JsonResponse({'available': False})
 
@@ -799,7 +897,24 @@ def api_quick_create_order(request):
         prop = get_object_or_404(Property, id=data.get('property_id'))
         sched_type = data.get('type', 'BUDGET')
         scheduled_at = parse(data.get('scheduled_at'))
-        
+
+        ignore_working_hours = data.get('ignore_working_hours', False)
+
+        # Pré-validar disponibilidade da equipe antes de criar os registros
+        for member in data.get('team', []):
+            prof_id = member.get('professional_id')
+            if prof_id:
+                prof = get_object_or_404(Professional, id=prof_id)
+                available, msg, c_type = check_professional_availability(
+                    prof, scheduled_at, ignore_working_hours=ignore_working_hours
+                )
+                if not available:
+                    return JsonResponse({
+                        'error': msg, 
+                        'conflict_type': c_type,
+                        'needs_confirmation': c_type == "OUT_OF_HOURS"
+                    }, status=400)
+
         status = ServiceOrder.Status.BUDGET_SCHEDULED if sched_type == 'BUDGET' else ServiceOrder.Status.WAITING_EXECUTION
         order = ServiceOrder.objects.create(client_property=prop, status=status, description=data.get('description', ''))
         
@@ -874,6 +989,53 @@ def order_item_delete(request, item_id):
     return render(request, 'services/orders/order_item_delete.html', {
         'item': item,
         'order': item.service_order
+    })
+
+# ============ PAGAMENTOS E DESCONTOS ============
+
+@login_required
+@permission_required('services.add_servicepayment', raise_exception=True)
+def order_payment_add(request, order_id):
+    from .forms import ServicePaymentForm
+    order = get_object_or_404(ServiceOrder, id=order_id)
+    
+    if request.method == 'POST':
+        form = ServicePaymentForm(request.POST)
+        if form.is_valid():
+            payment = form.save(commit=False)
+            payment.order = order
+            payment.save()
+            messages.success(request, f'Pagamento de R$ {payment.amount} registrado com sucesso!')
+            return redirect('service_order_detail', order_id=order.id)
+    else:
+        form = ServicePaymentForm(initial={'amount': order.balance_due})
+    
+    return render(request, 'services/orders/order_payment_form.html', {
+        'order': order,
+        'form': form,
+        'title': 'Registrar Pagamento'
+    })
+
+@login_required
+@permission_required('services.change_serviceorder', raise_exception=True)
+def order_discount_update(request, order_id):
+    from .forms import ServiceOrderDiscountForm
+    order = get_object_or_404(ServiceOrder, id=order_id)
+    
+    if request.method == 'POST':
+        form = ServiceOrderDiscountForm(request.POST, instance=order)
+        if form.is_valid():
+            form.save()
+            order.update_status()
+            messages.success(request, 'Desconto atualizado com sucesso!')
+            return redirect('service_order_detail', order_id=order.id)
+    else:
+        form = ServiceOrderDiscountForm(instance=order)
+    
+    return render(request, 'services/orders/order_discount_form.html', {
+        'order': order,
+        'form': form,
+        'title': 'Aplicar Desconto'
     })
 
 @login_required

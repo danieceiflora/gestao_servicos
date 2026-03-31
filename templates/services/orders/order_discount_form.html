@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto space-y-6 md:pb-0">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'service_order_detail' order.id %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            <i data-lucide="arrow-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h2 class="text-2xl font-bold text-slate-900">{{ title }}</h2>
+            <p class="text-sm text-slate-500">OS #{{ order.id.hex|slice:":8" }}</p>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-6 bg-amber-50 border-b border-amber-100 flex items-center gap-3">
+            <div class="p-2 bg-amber-100 rounded-full">
+                <i data-lucide="percent" class="h-5 w-5 text-amber-600"></i>
+            </div>
+            <div>
+                <h3 class="font-bold text-amber-900">Valor Total: R$ {{ order.total_value|floatformat:2 }}</h3>
+                <p class="text-xs text-amber-700">Saldo Devedor Atual: R$ {{ order.balance_due|floatformat:2 }}</p>
+            </div>
+        </div>
+
+        <form method="post" class="p-6 space-y-6">
+            {% csrf_token %}
+            
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Valor do Desconto (R$)</label>
+                {{ form.discount }}
+                {% if form.discount.errors %}
+                    <p class="text-xs text-red-600 mt-1">{{ form.discount.errors.0 }}</p>
+                {% endif %}
+                <p class="text-xs text-slate-500 mt-2 italic">
+                    Ao aplicar um desconto, o saldo devedor da OS será reduzido. Se o desconto cobrir a diferença pendente, a OS será marcada como finalizada.
+                </p>
+            </div>
+
+            <div class="flex gap-3">
+                <a href="{% url 'service_order_detail' order.id %}" class="flex-1 py-3 rounded-xl border border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                    Voltar
+                </a>
+                <button type="submit" class="flex-1 py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-lg flex items-center justify-center gap-2">
+                    <i data-lucide="save" class="h-4 w-4"></i>
+                    Aplicar Desconto
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

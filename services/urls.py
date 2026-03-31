@@ -32,9 +32,11 @@ urlpatterns = [
     path('orders/<uuid:order_id>/tasks/add/', views.task_add, name='task_add'),
     path('tasks/media/<int:media_id>/delete/', views.task_media_delete, name='task_media_delete'),
     
-    # Itens da OS
+    # Itens da OS e Pagamentos
     path('orders/<uuid:order_id>/items/add/', views.order_item_add, name='order_item_add'),
     path('items/<int:item_id>/delete/', views.order_item_delete, name='order_item_delete'),
+    path('orders/<uuid:order_id>/payments/add/', views.order_payment_add, name='order_payment_add'),
+    path('orders/<uuid:order_id>/discount/', views.order_discount_update, name='order_discount_update'),
     
     # API
     path('api/check-availability/', views.api_check_availability, name='api_check_availability'),

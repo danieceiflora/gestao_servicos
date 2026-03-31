@@ -353,31 +353,27 @@ class ProfessionalScheduleBlock(models.Model):
 class ServiceOrder(models.Model):
     class Status(models.TextChoices):
         WAITING_VISIT = 'WAITING_VISIT', 'Aguardando visita inicial'
-        WAITING_BUDGET = 'WAITING_BUDGET', 'Aguardando envio de orçamento'
         BUDGET_SCHEDULED = 'BUDGET_SCHEDULED', 'Orçamento Agendado'
-        WAITING_APPROVAL = 'WAITING_APPROVAL', 'Aguardando Aprovação do Cliente'
-        APPROVED_WAITING_SCHEDULE = 'APPROVED_WAITING_SCHEDULE', 'Aprovado - Aguardando Agendamento de execução'
+        WAITING_APPROVAL = 'WAITING_APPROVAL', 'Orçamento Realizado - Aguardando Aprovação'
+        APPROVED_WAITING_SCHEDULE = 'APPROVED_WAITING_SCHEDULE', 'Aprovado - Aguardando Agendamento'
         WAITING_EXECUTION = 'WAITING_EXECUTION', 'Aguardando Execução'
+        WAITING_PAYMENT = 'WAITING_PAYMENT', 'Aguardando Pagamento'
+        PARTIAL_PAYMENT = 'PARTIAL_PAYMENT', 'Pagamento Parcial'
         FINISHED = 'FINISHED', 'Finalizado'
         CANCELLED = 'CANCELLED', 'Cancelado'
+        WARRANTY = 'WARRANTY', 'Em Garantia'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client_property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='service_orders', verbose_name="Imóvel")
-    status = models.CharField(max_length=30, choices=Status.choices, default=Status.WAITING_BUDGET, verbose_name="Status")
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.WAITING_VISIT, verbose_name="Status")
     is_recurrent = models.BooleanField(default=False, verbose_name="É Recorrente?")
     
     description = models.TextField(verbose_name="Descrição do Problema/Solicitação", blank=True)
     technical_notes = models.TextField(verbose_name="Notas Técnicas Gerais", blank=True)
     
-    # Valor Estimado Total
-    estimated_value = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        verbose_name="Valor Estimado Total (R$)",
-        help_text="Valor total estimado para toda a OS"
-    )
+    # Valores e Pagamento
+    estimated_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Valor Estimado Total (R$)")
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto (R$)")
     
     # Origem da OS
     origin_date = models.DateField(null=True, blank=True, verbose_name="Data de Origem")
@@ -403,7 +399,69 @@ class ServiceOrder(models.Model):
     def total_value(self):
         items_total = sum(item.total_price for item in self.items.all())
         tasks_total = sum(task.value for task in self.tasks.all() if task.value)
-        return items_total + tasks_total
+        return (items_total + tasks_total)
+
+    @property
+    def total_paid(self):
+        return sum(payment.amount for payment in self.payments.all())
+
+    @property
+    def balance_due(self):
+        return self.total_value - self.total_paid - self.discount
+
+    def update_status(self):
+        """Lógica centralizada de atualização de status da OS"""
+        from datetime import timedelta
+        import django.utils.timezone
+
+        tasks = self.tasks.all()
+        
+        # 1. Prioridade: Garantia
+        if tasks.filter(task_type=ServiceOrderTask.TaskType.WARRANTY).exists():
+            if tasks.filter(task_type=ServiceOrderTask.TaskType.WARRANTY, status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
+                self.status = self.Status.FINISHED
+            else:
+                self.status = self.Status.WARRANTY
+            self.save()
+            return
+
+        # 2. Verificar Pagamentos
+        if self.total_paid + self.discount >= self.total_value and self.total_value > 0:
+            self.status = self.Status.FINISHED
+            if not self.finished_at:
+                self.finished_at = django.utils.timezone.now()
+            self.save()
+            return
+        elif self.total_paid > 0:
+            self.status = self.Status.PARTIAL_PAYMENT
+            self.save()
+            return
+
+        # 3. Lógica baseada em Tasks
+        budget_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.BUDGET)
+        exec_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.EXECUTION)
+
+        # Se todas as execuções acabaram, aguarda pagamento
+        if exec_tasks.exists() and not exec_tasks.exclude(status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
+            self.status = self.Status.WAITING_PAYMENT
+        
+        # Se tem execução agendada ou em andamento
+        elif exec_tasks.filter(status__in=[ServiceOrderTask.TaskStatus.SCHEDULED, ServiceOrderTask.TaskStatus.IN_PROGRESS]).exists():
+            self.status = self.Status.WAITING_EXECUTION
+
+        # Se tem execução aprovada mas não agendada
+        elif exec_tasks.filter(is_approved=True).exists():
+            self.status = self.Status.APPROVED_WAITING_SCHEDULE
+
+        # Se orçamento foi concluído mas não aprovado
+        elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
+            self.status = self.Status.WAITING_APPROVAL
+
+        # Se tem orçamento agendado
+        elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.SCHEDULED).exists():
+            self.status = self.Status.BUDGET_SCHEDULED
+        
+        self.save()
 
     class Meta:
         verbose_name = "Ordem de Serviço"
@@ -421,25 +479,31 @@ class ServiceOrderTask(models.Model):
         COMPLETED = 'COMPLETED', 'Concluído'
         CANCELLED = 'CANCELLED', 'Cancelado'
 
+    PAYMENT_METHODS = [
+        ('PIX', 'PIX'),
+        ('CREDIT_CARD', 'Cartão de Crédito'),
+        ('DEBIT_CARD', 'Cartão de Débito'),
+        ('CASH', 'Dinheiro'),
+        ('TRANSFER', 'Transferência Bancária'),
+        ('BOLETO', 'Boleto'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='tasks', verbose_name="Ordem de Serviço")
     task_type = models.CharField(max_length=20, choices=TaskType.choices, default=TaskType.EXECUTION, verbose_name="Tipo de Etapa")
     status = models.CharField(max_length=20, choices=TaskStatus.choices, default=TaskStatus.SCHEDULED, verbose_name="Status")
     
+    # Aprovação e Pagamento (específico da Task)
+    is_approved = models.BooleanField(default=False, verbose_name="Aprovado pelo Cliente?")
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, null=True, blank=True, verbose_name="Método de Pagamento Preferencial")
+
     # Datas e Horários
     scheduled_at = models.DateTimeField(verbose_name="Agendado para")
     started_at = models.DateTimeField(null=True, blank=True, verbose_name="Iniciado em")
     finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
     
     # Valor da Tarefa
-    value = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
-        null=True, 
-        blank=True, 
-        verbose_name="Valor do Serviço",
-        help_text="Valor interno deste serviço/etapa"
-    )
+    value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Valor do Serviço")
     
     notes = models.TextField(verbose_name="Observações Técnicas desta Etapa", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -447,10 +511,32 @@ class ServiceOrderTask(models.Model):
     def __str__(self):
         return f"{self.get_task_type_display()} - OS {self.service_order.id.hex[:8]}"
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Ao salvar qualquer task, atualiza o status da OS pai
+        self.service_order.update_status()
+
     class Meta:
         verbose_name = "Etapa de Serviço"
         verbose_name_plural = "Etapas de Serviço"
         ordering = ['scheduled_at']
+
+class ServicePayment(models.Model):
+    order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='payments', verbose_name="Ordem de Serviço")
+    amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Pago")
+    payment_method = models.CharField(max_length=20, choices=ServiceOrderTask.PAYMENT_METHODS, verbose_name="Método de Pagamento")
+    paid_at = models.DateTimeField(verbose_name="Data do Pagamento")
+    notes = models.CharField(max_length=255, blank=True, verbose_name="Observações")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.order.update_status()
+
+    class Meta:
+        verbose_name = "Pagamento"
+        verbose_name_plural = "Pagamentos"
+        ordering = ['-paid_at']
 
 # --- AGENDAMENTO & BLOQUEIOS ---
 

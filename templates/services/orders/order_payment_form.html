@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto space-y-6 md:pb-0">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'service_order_detail' order.id %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            <i data-lucide="arrow-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h2 class="text-2xl font-bold text-slate-900">{{ title }}</h2>
+            <p class="text-sm text-slate-500">OS #{{ order.id.hex|slice:":8" }}</p>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-6 bg-slate-50 border-b border-slate-200">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-bold text-slate-400 uppercase">Saldo Devedor</span>
+                <span class="text-xl font-black text-slate-900">R$ {{ order.balance_due|floatformat:2 }}</span>
+            </div>
+            <p class="text-xs text-slate-500">Valor Total: R$ {{ order.total_value|floatformat:2 }}</p>
+        </div>
+
+        <form method="post" class="p-6 space-y-4">
+            {% csrf_token %}
+            
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Valor a Pagar</label>
+                {{ form.amount }}
+                {% if form.amount.errors %}
+                    <p class="text-xs text-red-600 mt-1">{{ form.amount.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Método de Pagamento</label>
+                {{ form.payment_method }}
+                {% if form.payment_method.errors %}
+                    <p class="text-xs text-red-600 mt-1">{{ form.payment_method.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data/Hora do Pagamento</label>
+                {{ form.paid_at }}
+                {% if form.paid_at.errors %}
+                    <p class="text-xs text-red-600 mt-1">{{ form.paid_at.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Observações</label>
+                {{ form.notes }}
+            </div>
+
+            <div class="pt-4 flex gap-3">
+                <a href="{% url 'service_order_detail' order.id %}" class="flex-1 py-3 rounded-xl border border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                    Cancelar
+                </a>
+                <button type="submit" class="flex-1 py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 transition-all shadow-lg flex items-center justify-center gap-2">
+                    <i data-lucide="check" class="h-4 w-4"></i>
+                    Confirmar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

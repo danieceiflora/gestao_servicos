@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    restart: always
+    volumes:
+      # O banco sqlite3 na máquina host será persistido com o do container
+      - ./db_v2.sqlite3:/app/db_v2.sqlite3
+      # Volume para dados inseridos (uploads, laudos)
+      - ./media:/app/media
+      # Arquivos estáticos coletados no Dockerfile compartilharão o volume pro NGINX
+      - static_volume:/app/staticfiles
+    environment:
+      - DEBUG=False
+      # Necessário caso deseje colocar o domínio do seu servidor posteriormente
+      - ALLOWED_HOSTS=*
+    # Container será executado na porta interna 8000
+    expose:
+      - "8000"
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      # Expor no servidor a porta solicitada 8001 -> para porta interna do Nginx 80
+      - "8001:80"
+    volumes:
+      # Configurações do NGINX
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      # Acesso aos arquivos estáticos para que o NGINX entregue sem onerar o Gunicorn
+      - static_volume:/app/staticfiles
+      # Acesso aos arquivos de media para download do painel
+      - ./media:/app/media
+    depends_on:
+      - web
+
+volumes:
+  static_volume:

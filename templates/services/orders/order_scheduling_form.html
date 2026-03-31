@@ -34,9 +34,24 @@
     <form method="post" enctype="multipart/form-data" class="space-y-6" id="scheduling-form">
         {% csrf_token %}
 
-        {% if form.non_field_errors %}
-        <div class="p-4 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
-            {{ form.non_field_errors }}
+        {% if form.errors %}
+        <div class="p-4 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200 space-y-2">
+            <div class="font-bold flex items-center gap-2">
+                <i data-lucide="alert-circle" class="h-4 w-4"></i>
+                Foram encontrados erros nos campos:
+            </div>
+            <ul class="list-disc pl-5">
+                {% if form.non_field_errors %}
+                    {% for error in form.non_field_errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                {% endif %}
+                {% for field in form %}
+                    {% for error in field.errors %}
+                        <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+            </ul>
         </div>
         {% endif %}
 
@@ -177,14 +192,144 @@
             
             <div class="p-6 space-y-4">
                 <div id="tasks-container" class="space-y-4">
+                    {% if submitted_tasks %}
+                        {% for task in submitted_tasks %}
+                        <div class="task-card border-2 {% if forloop.first %}border-green-200 bg-gradient-to-br from-green-50/50 to-white{% else %}border-slate-200 bg-white{% endif %} rounded-2xl p-5 relative">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm task-number">
+                                        {{ forloop.counter }}
+                                    </div>
+                                    <h4 class="font-bold text-slate-900 task-title">Etapa {{ forloop.counter }}</h4>
+                                </div>
+                                {% if not forloop.first %}
+                                <button type="button" class="remove-task-btn p-2 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-all">
+                                    <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+
+                            <div class="space-y-4">
+                                <!-- Tipo de Etapa -->
+                                <div>
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Tipo de Etapa *</label>
+                                    <select name="task_{{ task.index }}_type" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                        <option value="">Selecione...</option>
+                                        {% for value, label in form.task_type.field.choices %}
+                                        <option value="{{ value }}" {% if task.type == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <!-- Datas e Valor -->
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
+                                        <input type="datetime-local" {% if task.index == 0 %}name="scheduled_at" id="id_scheduled_at"{% else %}name="task_{{ task.index }}_scheduled"{% endif %} value="{{ task.scheduled }}" required class="calendar-input w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Início</label>
+                                        <input type="datetime-local" name="task_{{ task.index }}_start_date" value="{{ task.start_date }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Término</label>
+                                        <input type="datetime-local" name="task_{{ task.index }}_end_date" value="{{ task.end_date }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                    </div>
+                                </div>
+
+                                <!-- Valor -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor do Serviço (R$)</label>
+                                        <input type="number" step="0.01" name="task_{{ task.index }}_value" value="{{ task.value }}" placeholder="0,00" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <!-- Campo vazio para manter o grid equilibrado -->
+                                    </div>
+                                </div>
+
+                                <!-- Equipe -->
+                                <div class="border-t border-slate-200 pt-4">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Equipe Alocada</label>
+                                        <button type="button" class="add-team-member-btn text-xs font-bold text-green-600 hover:text-green-700 flex items-center gap-1">
+                                            <i data-lucide="user-plus" class="h-3 w-3"></i> Adicionar
+                                        </button>
+                                    </div>
+
+                                    <div class="team-members-container space-y-3">
+                                        {% if task.team %}
+                                            {% for member in task.team %}
+                                            <div class="team-member-row grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-lg bg-slate-50 border border-slate-200 relative">
+                                                {% if forloop.counter0 > 0 or not forloop.first %}
+                                                <button type="button" class="remove-member-btn absolute -top-2 -right-2 w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center hover:bg-red-200">
+                                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                                </button>
+                                                {% endif %}
+                                                <div>
+                                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Profissional</label>
+                                                    <select name="task_{{ task.index }}_professional[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                                        <option value="">Selecione...</option>
+                                                        {% for prof in professionals %}
+                                                        <option value="{{ prof.id }}" {% if member.professional_id == prof.id|stringformat:"s" %}selected{% endif %}>{{ prof.name }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Função</label>
+                                                    <select name="task_{{ task.index }}_role[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                                        <option value="">Selecione...</option>
+                                                        {% for role in roles %}
+                                                        <option value="{{ role.id }}" {% if member.role_id == role.id|stringformat:"s" %}selected{% endif %}>{{ role.name }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        {% else %}
+                                            <div class="team-member-row grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-lg bg-slate-50 border border-slate-200 relative">
+                                                <div>
+                                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Profissional</label>
+                                                    <select name="task_{{ task.index }}_professional[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                                        <option value="">Selecione...</option>
+                                                        {% for prof in professionals %}
+                                                        <option value="{{ prof.id }}">{{ prof.name }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Função</label>
+                                                    <select name="task_{{ task.index }}_role[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                                        <option value="">Selecione...</option>
+                                                        {% for role in roles %}
+                                                        <option value="{{ role.id }}">{{ role.name }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Upload de mídias -->
+                                <div class="border-t border-slate-200 pt-4">
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Anexar Fotos/Vídeos</label>
+                                    {% include 'services/components/media_dropzone.html' with dropzone_name="task_"|add:task.index|add:"_media" dropzone_id="task_"|add:task.index|add:"_media_id" additional_classes="task-media-input" is_subform=True %}
+                                    <p class="text-xs text-slate-500 italic mt-2">Adicione evidências da etapa. Toque em qualquer arquivo para removê-lo antes de salvar.</p>
+                                    <div class="task-media-preview grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 hidden"></div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
                     <!-- Task 1 (Initial) -->
                     <div class="task-card border-2 border-green-200 rounded-2xl p-5 bg-gradient-to-br from-green-50/50 to-white relative">
                         <div class="flex items-center justify-between mb-4">
                             <div class="flex items-center gap-2">
-                                <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm">
+                                <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm task-number">
                                     1
                                 </div>
-                                <h4 class="font-bold text-slate-900">Etapa 1</h4>
+                                <h4 class="font-bold text-slate-900 task-title">Etapa 1</h4>
                             </div>
                         </div>
 
@@ -236,11 +381,8 @@
                                     </button>
                                 </div>
 
-                                {{ formset.management_form }}
                                 <div class="team-members-container space-y-3">
-                                    {% for f in formset %}
                                     <div class="team-member-row grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-lg bg-slate-50 border border-slate-200 relative">
-                                        {% for hidden in f.hidden_fields %} {{ hidden }} {% endfor %}
                                         <div>
                                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Profissional</label>
                                             <select name="task_0_professional[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
@@ -260,7 +402,6 @@
                                             </select>
                                         </div>
                                     </div>
-                                    {% endfor %}
                                 </div>
                             </div>
 
@@ -273,6 +414,7 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
                 </div>
 
                 <!-- Botão Adicionar Nova Etapa -->
@@ -295,6 +437,40 @@
         </div>
     </form>
 </div>
+
+<!-- Modal de Conflito de Horário (Aviso) -->
+{% if show_force_schedule_modal %}
+<div id="force-schedule-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+        <div class="p-6 space-y-4">
+            <div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-triangle" class="h-6 w-6 text-amber-600"></i>
+            </div>
+            <h3 class="text-xl font-bold text-center text-slate-900">Atenção ao Agendamento</h3>
+            <p class="text-slate-600 text-center text-sm">{{ force_message }}</p>
+        </div>
+        <div class="bg-slate-50 px-6 py-4 flex gap-3">
+            <button type="button" onclick="document.getElementById('force-schedule-modal').remove()" class="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
+                Revisar Horário
+            </button>
+            <button type="button" onclick="confirmForceSchedule()" class="flex-1 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-sm">
+                Confirmar Mesmo Assim
+            </button>
+        </div>
+    </div>
+</div>
+<script>
+    function confirmForceSchedule() {
+        const form = document.getElementById('scheduling-form') || document.querySelector('form');
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'ignore_working_hours';
+        input.value = 'true';
+        form.appendChild(input);
+        form.submit();
+    }
+</script>
+{% endif %}
 
 <!-- Modal Container -->
 <div id="form-modal" class="hidden fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
@@ -390,9 +566,9 @@
             document.body.style.overflow = '';
         };
 
-        // ============ MULTIPLE TASKS MANAGEMENT ============
-        let taskCount = 1;
-        const tasksContainer = document.getElementById('tasks-container');
+          // ============ MULTIPLE TASKS MANAGEMENT ============
+          let taskCount = {{ submitted_tasks|length|default:1 }};
+          const tasksContainer = document.getElementById('tasks-container');
         const addTaskBtn = document.getElementById('add-task-btn');
 
           // Add new task
@@ -404,7 +580,9 @@
                   lucide.createIcons();
                   initializeTaskEventListeners(newTaskCard);
               });
-          }        function createTaskCard(number) {
+          }
+
+          function createTaskCard(number) {
             const card = document.createElement('div');
             card.className = 'task-card border-2 border-slate-200 rounded-2xl p-5 bg-white relative';
             card.innerHTML = `
