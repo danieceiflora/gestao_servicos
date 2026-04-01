@@ -148,7 +148,11 @@
             </div>
 
             <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                {% if not user.role == 'COLLABORATOR' %}
                 <div class="text-sm font-bold text-slate-900">R$ {{ order.total_value|floatformat:2 }}</div>
+                {% else %}
+                <div></div>
+                {% endif %}
                 <div class="flex gap-1">
                     <a href="{% url 'service_order_detail' order.id %}" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-900 text-xs font-semibold">
                         <i data-lucide="eye" class="h-3.5 w-3.5"></i> Ver

@@ -21,12 +21,23 @@ services:
     restart: always
     ports:
       - "8001:80"
+      - "443:443" # Expondo a porta HTTPS padrão
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - static_volume:/app/staticfiles
       - ./media:/app/media
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
     depends_on:
       - web
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    # O comando deixaremos para executar pontualmente depois
 
 volumes:
   static_volume:

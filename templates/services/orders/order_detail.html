@@ -48,7 +48,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Coluna Esquerda: Informações Gerais -->
         <div class="lg:col-span-2 space-y-6">
-            <!-- Timeline de Etapas (O Coração da Nova Estrutura) -->
+            <!-- Timeline de Etapas -->
             <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                 <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                     <h3 class="font-bold text-slate-900 flex items-center gap-2">
@@ -166,18 +166,19 @@
             </div>
 
             <!-- Itens do Orçamento -->
-            {% if user.role != 'COLLABORATOR' %}
             <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                 <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                     <h3 class="font-bold text-slate-900 flex items-center gap-2">
                         <i data-lucide="receipt" class="h-5 w-5 text-slate-500"></i>
-                        Itens e Valores
+                        Itens do Serviço
                     </h3>
                     <div class="flex items-center gap-3">
+                        {% if user.role != 'COLLABORATOR' %}
                         <a href="{% url 'order_item_add' order.id %}" class="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
                             <i data-lucide="plus" class="h-3 w-3"></i> Adicionar Item
                         </a>
                         <span class="text-sm font-bold text-slate-900">Total: R$ {{ order.total_value|floatformat:2 }}</span>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="overflow-x-auto">
@@ -187,9 +188,11 @@
                                 <th class="px-6 py-3">Descrição</th>
                                 <th class="px-6 py-3 text-center">Origem</th>
                                 <th class="px-6 py-3 text-center">Qtd</th>
+                                {% if user.role != 'COLLABORATOR' %}
                                 <th class="px-6 py-3 text-right">Unitário</th>
                                 <th class="px-6 py-3 text-right">Total</th>
                                 <th class="px-6 py-3 text-center">Ações</th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -208,6 +211,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="px-6 py-4 text-center">{{ item.quantity|floatformat:0 }}</td>
+                                {% if user.role != 'COLLABORATOR' %}
                                 <td class="px-6 py-4 text-right">R$ {{ item.unit_price|floatformat:2 }}</td>
                                 <td class="px-6 py-4 text-right font-bold text-slate-900">R$ {{ item.total_price|floatformat:2 }}</td>
                                 <td class="px-6 py-4 text-center">
@@ -215,11 +219,11 @@
                                         <i data-lucide="trash-2" class="h-4 w-4"></i>
                                     </a>
                                 </td>
+                                {% endif %}
                             </tr>
                             {% endfor %}
                             
                             {% for task in tasks %}
-                                {% if task.value %}
                                 <tr class="hover:bg-blue-50/50 transition-colors bg-blue-50/30">
                                     <td class="px-6 py-4 font-medium text-slate-700">
                                         <span class="flex items-center gap-2">
@@ -233,11 +237,12 @@
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-center">1</td>
-                                    <td class="px-6 py-4 text-right">R$ {{ task.value|floatformat:2 }}</td>
-                                    <td class="px-6 py-4 text-right font-bold text-slate-900">R$ {{ task.value|floatformat:2 }}</td>
+                                    {% if user.role != 'COLLABORATOR' %}
+                                    <td class="px-6 py-4 text-right">{% if task.value %}R$ {{ task.value|floatformat:2 }}{% else %}-{% endif %}</td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-900">{% if task.value %}R$ {{ task.value|floatformat:2 }}{% else %}-{% endif %}</td>
                                     <td class="px-6 py-4 text-center">-</td>
+                                    {% endif %}
                                 </tr>
-                                {% endif %}
                             {% endfor %}
                             
                             {% if not order.items.all and not tasks %}
@@ -251,7 +256,6 @@
                     </table>
                 </div>
             </div>
-            {% endif %}
         </div>
 
         <!-- Coluna Direita: Dados de Contato e Local -->
@@ -320,6 +324,7 @@
             </div>
 
             <!-- Seção Financeira -->
+            {% if user.role != 'COLLABORATOR' %}
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                     <h3 class="font-bold text-slate-900 flex items-center gap-2">
@@ -376,6 +381,7 @@
                 </div>
                 {% endif %}
             </div>
+            {% endif %}
 
             <!-- Informações de Origem e Garantia -->
             <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">

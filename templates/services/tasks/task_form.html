@@ -19,23 +19,65 @@
     <form method="post" enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}
         
+        <!-- 1. CONTROLE DE EXECUÇÃO (Prioridade no Topo) -->
+        {% if task %}
+        <div class="bg-white rounded-2xl border-2 border-blue-100 shadow-sm p-6 space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="play-circle" class="h-5 w-5 text-blue-600"></i>
+                    Controle de Execução
+                </h3>
+                <button type="button" id="btn-execution-control" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-all shadow-sm">
+                    <i id="execution-icon" data-lucide="play" class="h-4 w-4"></i>
+                    <span id="execution-text">Iniciar Execução</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora de Início</label>
+                    {{ form.started_at }}
+                    {% if form.started_at.errors %}
+                        <p class="text-xs text-red-600 mt-1">{{ form.started_at.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora de Término</label>
+                    {{ form.finished_at }}
+                    {% if form.finished_at.errors %}
+                        <p class="text-xs text-red-600 mt-1">{{ form.finished_at.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 2. INFORMAÇÕES DA ETAPA -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
             <h3 class="font-bold text-slate-900 flex items-center gap-2 pb-2 border-b border-slate-100">
-                <i data-lucide="calendar-clock" class="h-5 w-5 text-slate-400"></i>
-                Informações da Etapa
+                <i data-lucide="info" class="h-5 w-5 text-slate-400"></i>
+                Detalhes do Agendamento
             </h3>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 {% if user.role != 'COLLABORATOR' %}md:grid-cols-2{% endif %} gap-6">
                 <!-- Tipo de Etapa -->
                 <div>
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Tipo de Etapa</label>
-                    {{ form.task_type }}
+                    {% if user.role == 'COLLABORATOR' and task %}
+                        <div class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700">
+                            {{ task.get_task_type_display }}
+                        </div>
+                        <div class="hidden">{{ form.task_type }}</div>
+                    {% else %}
+                        {{ form.task_type }}
+                    {% endif %}
                     {% if form.task_type.errors %}
                         <p class="text-xs text-red-600 mt-1">{{ form.task_type.errors.0 }}</p>
                     {% endif %}
                 </div>
 
-                <!-- Status -->
+                <!-- Status (Apenas ADM altera livremente) -->
+                {% if user.role != 'COLLABORATOR' %}
                 <div>
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Status</label>
                     {{ form.status }}
@@ -43,9 +85,15 @@
                         <p class="text-xs text-red-600 mt-1">{{ form.status.errors.0 }}</p>
                     {% endif %}
                 </div>
+                {% else %}
+                <div class="hidden">
+                    {{ form.status }}
+                </div>
+                {% endif %}
             </div>
 
-            <!-- Aprovação e Pagamento -->
+            <!-- Aprovação e Pagamento (Apenas para ADM/Gerente) -->
+            {% if user.role != 'COLLABORATOR' %}
             <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="flex items-center gap-3">
                     {{ form.is_approved }}
@@ -59,64 +107,54 @@
                     {{ form.payment_method }}
                 </div>
             </div>
+            {% else %}
+            <div class="hidden">
+                {{ form.is_approved }}
+                {{ form.payment_method }}
+            </div>
+            {% endif %}
 
-            <!-- Data e Hora -->
+            <!-- Data e Hora do Agendamento -->
             <div>
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora do Agendamento</label>
-                <div class="relative">
-                    {{ form.scheduled_at }}
-                    <button type="button" onclick="openCalendarModal('id_scheduled_at')" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Abrir calendário">
-                        <i data-lucide="calendar" class="h-5 w-5"></i>
-                    </button>
-                </div>
+                {% if user.role == 'COLLABORATOR' and task %}
+                    <div class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center gap-2">
+                        <i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>
+                        {{ task.scheduled_at|date:"d/m/Y H:i" }}
+                    </div>
+                    <div class="hidden">{{ form.scheduled_at }}</div>
+                {% else %}
+                    <div class="relative">
+                        {{ form.scheduled_at }}
+                        <button type="button" onclick="openCalendarModal('id_scheduled_at')" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Abrir calendário">
+                            <i data-lucide="calendar" class="h-5 w-5"></i>
+                        </button>
+                    </div>
+                {% endif %}
                 {% if form.scheduled_at.errors %}
                     <p class="text-xs text-red-600 mt-1">{{ form.scheduled_at.errors.0 }}</p>
                 {% endif %}
             </div>
 
-            <!-- Valor do Serviço -->
+            <!-- Valor do Serviço (Escondido do Colaborador) -->
+            {% if user.role != 'COLLABORATOR' %}
             <div>
                 <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Valor do Serviço (R$)</label>
                 {{ form.value }}
                 {% if form.value.errors %}
                     <p class="text-xs text-red-600 mt-1">{{ form.value.errors.0 }}</p>
                 {% endif %}
-                <p class="text-xs text-slate-500 mt-1 italic">Valor interno desta etapa/serviço. Será somado ao total da OS.</p>
+                <p class="text-xs text-slate-500 mt-1 italic">Valor interno desta etapa/serviço.</p>
             </div>
-
-            <!-- Seção de Execução (Início/Fim) -->
-            {% if task %}
-            <div class="pt-4 border-t border-slate-100 space-y-4">
-                <div class="flex items-center justify-between">
-                    <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Controle de Execução</h4>
-                    <button type="button" id="btn-execution-control" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-all shadow-sm">
-                        <i id="execution-icon" data-lucide="play" class="h-4 w-4"></i>
-                        <span id="execution-text">Iniciar Execução</span>
-                    </button>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora de Início</label>
-                        {{ form.started_at }}
-                        {% if form.started_at.errors %}
-                            <p class="text-xs text-red-600 mt-1">{{ form.started_at.errors.0 }}</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora de Término</label>
-                        {{ form.finished_at }}
-                        {% if form.finished_at.errors %}
-                            <p class="text-xs text-red-600 mt-1">{{ form.finished_at.errors.0 }}</p>
-                        {% endif %}
-                    </div>
-                </div>
+            {% else %}
+            <div class="hidden">
+                {{ form.value }}
             </div>
             {% endif %}
 
-            <!-- Observações -->
+            <!-- Observações (Editável por todos) -->
             <div>
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Observações</label>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Notas Técnicas / Observações</label>
                 {{ form.notes }}
                 {% if form.notes.errors %}
                     <p class="text-xs text-red-600 mt-1">{{ form.notes.errors.0 }}</p>
@@ -124,16 +162,13 @@
             </div>
         </div>
 
-        <!-- Equipe -->
+        <!-- 3. EQUIPE -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
             <div class="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h3 class="font-bold text-slate-900 flex items-center gap-2">
                     <i data-lucide="users" class="h-5 w-5 text-slate-400"></i>
                     Equipe Alocada
                 </h3>
-                <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">
-                    Obrigatório
-                </span>
             </div>
 
             {{ formset.management_form }}
@@ -149,22 +184,38 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Profissional</label>
-                            {{ team_form.professional }}
-                            {% if team_form.professional.errors %}
-                                <p class="text-xs text-red-600 mt-1">{{ team_form.professional.errors.0 }}</p>
+                            {% if user.role == 'COLLABORATOR' %}
+                                <div class="text-sm font-semibold text-slate-700 py-1">
+                                    {% if team_form.instance.pk %}
+                                        {{ team_form.instance.professional.name }}
+                                    {% else %}
+                                        ---
+                                    {% endif %}
+                                </div>
+                                <div class="hidden">{{ team_form.professional }}</div>
+                            {% else %}
+                                {{ team_form.professional }}
                             {% endif %}
                         </div>
                         
                         <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Função</label>
-                            {{ team_form.role }}
-                            {% if team_form.role.errors %}
-                                <p class="text-xs text-red-600 mt-1">{{ team_form.role.errors.0 }}</p>
+                            {% if user.role == 'COLLABORATOR' %}
+                                <div class="text-sm font-semibold text-slate-700 py-1">
+                                    {% if team_form.instance.pk %}
+                                        {{ team_form.instance.role.name }}
+                                    {% else %}
+                                        ---
+                                    {% endif %}
+                                </div>
+                                <div class="hidden">{{ team_form.role }}</div>
+                            {% else %}
+                                {{ team_form.role }}
                             {% endif %}
                         </div>
                     </div>
 
-                    {% if not forloop.first %}
+                    {% if user.role != 'COLLABORATOR' and not forloop.first %}
                     <button type="button" class="text-xs text-red-600 hover:text-red-700 font-bold flex items-center gap-1" onclick="removeTeamMember(this)">
                         <i data-lucide="trash-2" class="h-3 w-3"></i>
                         Remover membro
@@ -174,32 +225,25 @@
                 {% endfor %}
             </div>
 
+            {% if user.role != 'COLLABORATOR' %}
             <button type="button" id="add-team-member" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-sm font-bold text-slate-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center gap-2">
                 <i data-lucide="plus-circle" class="h-4 w-4"></i>
                 Adicionar Membro
             </button>
+            {% endif %}
         </div>
 
-        <!-- Mensagens de erro -->
-        {% if messages %}
-        <div class="bg-red-50 border border-red-200 rounded-2xl p-4">
-            {% for message in messages %}
-            <p class="text-sm text-red-700">{{ message }}</p>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <!-- Mídias (Fotos/Vídeos) -->
+        <!-- 4. MÍDIAS (Fotos/Vídeos) -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
             <h3 class="font-bold text-slate-900 flex items-center gap-2 pb-2 border-b border-slate-100">
                 <i data-lucide="image" class="h-5 w-5 text-slate-400"></i>
                 Evidências (Fotos/Vídeos)
             </h3>
 
-            <!-- Mídias Existentes (apenas na edição) -->
+            <!-- Mídias Existentes -->
             {% if existing_medias %}
             <div class="space-y-2">
-                <p class="text-xs font-bold text-slate-600 uppercase">Arquivos existentes:</p>
+                <p class="text-xs font-bold text-slate-600 uppercase">Arquivos registrados:</p>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {% for media in existing_medias %}
                     <div class="relative group">
@@ -210,7 +254,7 @@
                         {% else %}
                             <img src="{{ media.file.url }}" alt="Evidência" class="w-full h-32 object-cover rounded-lg border border-slate-200">
                         {% endif %}
-                        <a href="{% url 'task_media_delete' media.id %}" class="absolute top-1 right-1 p-1 bg-red-500 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                        <a href="{% url 'task_media_delete' media.id %}" class="absolute top-1 right-1 p-1 bg-red-500 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
                             <i data-lucide="trash-2" class="h-3 w-3"></i>
                         </a>
                     </div>
@@ -219,21 +263,23 @@
             </div>
             {% endif %}
 
-              <!-- Upload de Novos Arquivos -->
-              <div>
-                  <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
-                      {% if task %}Adicionar Novas Evidências{% else %}Evidências{% endif %}
-                  </label>
-                  {% include 'services/components/media_dropzone.html' with dropzone_id="file-input" is_subform=True %}
-                  <p class="text-xs text-slate-500 mt-1">Aceita imagens e vídeos. Selecione múltiplos arquivos se necessário.</p>
-              </div>
-          </div>        <!-- Botões de Ação -->
+            <!-- Upload de Novos Arquivos -->
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
+                    Adicionar Evidências
+                </label>
+                {% include 'services/components/media_dropzone.html' with dropzone_id="file-input" is_subform=True %}
+                <p class="text-xs text-slate-500 mt-1 italic">Tire fotos ou grave vídeos do local e da execução.</p>
+            </div>
+        </div>
+
+        <!-- Botões de Ação -->
         <div class="flex gap-3 pb-24 md:pb-0">
             <a href="{% url 'service_order_detail' order.id %}" class="flex-1 py-4 rounded-xl border border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all">
                 Cancelar
             </a>
             <button type="submit" class="flex-1 py-4 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-lg">
-                {% if task %}Atualizar Etapa{% else %}Adicionar Etapa{% endif %}
+                {% if user.role == 'COLLABORATOR' %}Salvar Execução{% else %}{% if task %}Atualizar Etapa{% else %}Adicionar Etapa{% endif %}{% endif %}
             </button>
         </div>
     </form>
@@ -256,31 +302,31 @@
         formset.appendChild(emptyForm);
         totalForms.value = newFormIdx + 1;
         
-        // Reinitialize Lucide icons
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
     });
 
-      // Remover membro da equipe
-      function removeTeamMember(button) {
-          const formItem = button.closest('.team-form-item');
-          const deleteCheckbox = formItem.querySelector('[name$="DELETE"]');
-          if (deleteCheckbox) {
-              deleteCheckbox.checked = true;
-              formItem.style.display = 'none';
-          } else {
-              formItem.remove();
-          }
-      }
+    // Remover membro da equipe
+    function removeTeamMember(button) {
+        const formItem = button.closest('.team-form-item');
+        const deleteCheckbox = formItem.querySelector('[name$="DELETE"]');
+        if (deleteCheckbox) {
+            deleteCheckbox.checked = true;
+            formItem.style.display = 'none';
+        } else {
+            formItem.remove();
+        }
+    }
 
-    // Lógica de Controle de Execução (Início/Fim)
+    // Lógica de Controle de Execução
     document.addEventListener('DOMContentLoaded', function() {
         const btnExecution = document.getElementById('btn-execution-control');
         const inputStarted = document.getElementById('id_started_at');
         const inputFinished = document.getElementById('id_finished_at');
         const executionIcon = document.getElementById('execution-icon');
         const executionText = document.getElementById('execution-text');
+        const inputApproved = document.getElementById('id_is_approved');
 
         if (!btnExecution) return;
 
@@ -294,25 +340,26 @@
         }
 
         function updateButtonState() {
+            // Trava: Só permite iniciar se estiver aprovado
+            const isApproved = inputApproved ? inputApproved.checked : true; // Se o campo não existir (ex: colab), assume que o ADM já aprovou ou trata no backend
+
             if (!inputStarted.value) {
-                // Estado: Iniciar
                 btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-all shadow-sm';
                 executionText.innerText = 'Iniciar Execução';
                 executionIcon.setAttribute('data-lucide', 'play');
+                btnExecution.disabled = false;
             } else if (!inputFinished.value) {
-                // Estado: Finalizar
                 btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white font-bold text-xs hover:bg-green-700 transition-all shadow-sm';
                 executionText.innerText = 'Finalizar';
                 executionIcon.setAttribute('data-lucide', 'check-circle');
+                btnExecution.disabled = false;
             } else {
-                // Estado: Concluído
                 btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-400 font-bold text-xs cursor-not-allowed';
                 executionText.innerText = 'Execução Concluída';
                 executionIcon.setAttribute('data-lucide', 'check-square');
                 btnExecution.disabled = true;
             }
             
-            // Re-renderiza o ícone do Lucide
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
@@ -324,12 +371,10 @@
 
             if (!inputStarted.value) {
                 inputStarted.value = formattedNow;
-                // Alterar status automaticamente para IN_PROGRESS se houver um campo status no form
                 const statusSelect = document.querySelector('select[name="status"]');
                 if (statusSelect) statusSelect.value = 'IN_PROGRESS';
             } else if (!inputFinished.value) {
                 inputFinished.value = formattedNow;
-                // Alterar status automaticamente para COMPLETED se houver um campo status no form
                 const statusSelect = document.querySelector('select[name="status"]');
                 if (statusSelect) statusSelect.value = 'COMPLETED';
             }
@@ -337,12 +382,12 @@
             updateButtonState();
         });
 
-        // Inicializar estado do botão
         updateButtonState();
     });
-  </script>
+</script>
 
 {% if show_force_schedule_modal %}
+<!-- Modal de força permanece igual -->
 <div id="force-schedule-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
         <div class="p-6 space-y-4">
@@ -365,15 +410,8 @@
 
 <script>
     function confirmForceSchedule() {
-        // Encontrar o formulário correto em vez do primeiro que pode ser o form de logout no menu
         const form = document.querySelector('.max-w-3xl form') || document.querySelector('form:not([action*="logout"])');
-        
-        // Se ainda não achamos, tente via ID se existir
-        if (!form) {
-            console.error("Formulário de agendamento não encontrado.");
-            return;
-        }
-
+        if (!form) return;
         const input = document.createElement('input');
         input.type = 'hidden';
         input.name = 'ignore_working_hours';
@@ -384,4 +422,4 @@
 </script>
 {% endif %}
 
-  {% endblock %}
+{% endblock %}
