@@ -24,21 +24,50 @@ const PushManager = (function() {
         }
 
         try {
-            // Registrar Service Worker (o path deve bater com o configurado no PWA_SERVICE_WORKER_PATH)
             swRegistration = await navigator.serviceWorker.register('/static/js/serviceworker.js');
             
-            // Verificar se já temos permissão
             if (Notification.permission === 'default') {
-                // Solicitar permissão apenas se ainda não foi decidido
-                console.log('Solicitando permissão para notificações...');
-                requestPermission(vapidPublicKey);
+                showPermissionBanner(vapidPublicKey);
             } else if (Notification.permission === 'granted') {
-                // Se já tem permissão, garante que a subscription está atualizada no servidor
                 checkAndRefreshSubscription(vapidPublicKey);
             }
         } catch (error) {
             console.error('Erro ao inicializar Push Manager:', error);
         }
+    }
+
+    // Exibe um banner discreto solicitando a ativação
+    function showPermissionBanner(vapidPublicKey) {
+        if (document.getElementById('push-permission-banner')) return;
+
+        const banner = document.createElement('div');
+        banner.id = 'push-permission-banner';
+        banner.className = 'fixed top-4 left-4 right-4 z-[100] bg-slate-900 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4 animate-in slide-in-from-top duration-500';
+        banner.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-500 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-bold">Ativar Alertas?</p>
+                    <p class="text-[10px] text-slate-400 font-medium">Receba avisos de novas OS em tempo real.</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button id="btn-push-not-now" class="px-3 py-1.5 text-[10px] font-bold text-slate-400 hover:text-white transition-colors">Depois</button>
+                <button id="btn-push-enable" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-lg">Ativar</button>
+            </div>
+        `;
+        document.body.appendChild(banner);
+
+        document.getElementById('btn-push-enable').addEventListener('click', () => {
+            banner.remove();
+            requestPermission(vapidPublicKey);
+        });
+
+        document.getElementById('btn-push-not-now').addEventListener('click', () => {
+            banner.remove();
+        });
     }
 
     // Solicita permissão ao usuário
