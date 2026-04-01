@@ -15,18 +15,6 @@ services:
     expose:
       - "8001"
 
-  # Serviço que inicializa e gera o certificado SSL
-  certbot-init:
-    image: certbot/certbot
-    container_name: service_management_certbot_init
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-      - ./init-ssl.sh:/init-ssl.sh
-    entrypoint: /bin/sh
-    command: /init-ssl.sh
-    network_mode: "host"
-
   nginx:
     image: nginx:alpine
     container_name: service_management_nginx
@@ -42,7 +30,6 @@ services:
       - ./certbot/www:/var/www/certbot
     depends_on:
       - web
-      - certbot-init
 
   # Serviço para renovação automática do certificado
   certbot:
@@ -56,4 +43,5 @@ services:
 
 volumes:
   static_volume:
+
 
