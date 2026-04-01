@@ -606,3 +606,32 @@ class ServiceMedia(models.Model):
 
     class Meta:
         verbose_name = "Mídia de Serviço"
+
+
+# --- PUSH NOTIFICATIONS ---
+
+class PushSubscription(models.Model):
+    """
+    Armazena as inscrições de push notification dos usuários
+    """
+    user = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='push_subscriptions',
+        verbose_name="Usuário"
+    )
+    endpoint = models.TextField(verbose_name="Endpoint", unique=True)
+    p256dh = models.TextField(verbose_name="Chave P256DH")
+    auth = models.TextField(verbose_name="Chave Auth")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+
+    class Meta:
+        verbose_name = "Inscrição de Notificação Push"
+        verbose_name_plural = "Inscrições de Notificações Push"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Push Subscription - {self.user.username}"
+

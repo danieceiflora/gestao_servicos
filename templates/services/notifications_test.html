@@ -1,0 +1,327 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Teste de Notificações Push{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-6">
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">🔔 Teste de Notificações Push</h1>
+
+        <!-- Status da permissão -->
+        <div id="permissionStatus" class="mb-6 p-4 rounded-lg">
+            <p class="text-sm font-medium">Verificando permissões...</p>
+        </div>
+
+        <!-- Botões de ação -->
+        <div class="space-y-4 mb-8">
+            <button id="enableNotifications" 
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                ✅ Ativar Notificações
+            </button>
+
+            <button id="testNotification" 
+                    class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition"
+                    disabled>
+                🔔 Enviar Notificação de Teste
+            </button>
+
+            <button id="disableNotifications" 
+                    class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition"
+                    disabled>
+                ❌ Desativar Notificações
+            </button>
+        </div>
+
+        <!-- Informações técnicas -->
+        <div class="bg-gray-50 p-4 rounded-lg">
+            <h3 class="font-bold mb-2">ℹ️ Informações</h3>
+            <div id="techInfo" class="text-sm text-gray-700 space-y-1">
+                <p><strong>Service Worker:</strong> <span id="swStatus">Verificando...</span></p>
+                <p><strong>Push API:</strong> <span id="pushStatus">Verificando...</span></p>
+                <p><strong>Subscription:</strong> <span id="subStatus">Não inscrito</span></p>
+            </div>
+        </div>
+
+        <!-- Área de envio para usuários logados -->
+        <div class="mt-8 border-t pt-6">
+            <h2 class="text-xl font-bold mb-4">📤 Enviar Notificação para Usuários</h2>
+            
+            <form id="sendNotificationForm" class="space-y-4">
+                {% csrf_token %}
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">Título</label>
+                    <input type="text" id="notifTitle" name="title" 
+                           class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                           placeholder="Ex: Nova ordem de serviço">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2">Mensagem</label>
+                    <textarea id="notifBody" name="body" rows="3"
+                              class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                              placeholder="Ex: Você foi designado para uma nova OS"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-2">Enviar para:</label>
+                    <select id="targetUsers" name="target_users" multiple
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 h-32">
+                        <option value="all">Todos os usuários</option>
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.get_full_name|default:user.username }} ({{ user.get_role_display }})</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Use Ctrl/Cmd para selecionar múltiplos usuários</p>
+                </div>
+
+                <button type="submit" 
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition">
+                    📨 Enviar Notificação
+                </button>
+            </form>
+
+            <div id="sendResult" class="mt-4 hidden p-4 rounded-lg"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const VAPID_PUBLIC_KEY = '{{ vapid_public_key }}';
+
+let swRegistration = null;
+let isSubscribed = false;
+
+// Utility: Convert VAPID key
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+// Atualizar UI
+function updateUI() {
+    const enableBtn = document.getElementById('enableNotifications');
+    const testBtn = document.getElementById('testNotification');
+    const disableBtn = document.getElementById('disableNotifications');
+    const subStatus = document.getElementById('subStatus');
+
+    if (isSubscribed) {
+        enableBtn.disabled = true;
+        testBtn.disabled = false;
+        disableBtn.disabled = false;
+        subStatus.textContent = '✅ Inscrito';
+        subStatus.className = 'text-green-600 font-bold';
+    } else {
+        enableBtn.disabled = false;
+        testBtn.disabled = true;
+        disableBtn.disabled = true;
+        subStatus.textContent = '❌ Não inscrito';
+        subStatus.className = 'text-red-600 font-bold';
+    }
+}
+
+// Verificar permissão
+function updatePermissionStatus() {
+    const statusDiv = document.getElementById('permissionStatus');
+    
+    if (!('Notification' in window)) {
+        statusDiv.className = 'mb-6 p-4 rounded-lg bg-red-100 border border-red-300';
+        statusDiv.innerHTML = '<p class="text-sm font-medium text-red-800">❌ Seu navegador não suporta notificações</p>';
+        return;
+    }
+
+    const permission = Notification.permission;
+    
+    if (permission === 'granted') {
+        statusDiv.className = 'mb-6 p-4 rounded-lg bg-green-100 border border-green-300';
+        statusDiv.innerHTML = '<p class="text-sm font-medium text-green-800">✅ Permissão concedida</p>';
+    } else if (permission === 'denied') {
+        statusDiv.className = 'mb-6 p-4 rounded-lg bg-red-100 border border-red-300';
+        statusDiv.innerHTML = '<p class="text-sm font-medium text-red-800">❌ Permissão negada. Habilite nas configurações do navegador.</p>';
+    } else {
+        statusDiv.className = 'mb-6 p-4 rounded-lg bg-yellow-100 border border-yellow-300';
+        statusDiv.innerHTML = '<p class="text-sm font-medium text-yellow-800">⚠️ Clique em "Ativar Notificações" para permitir</p>';
+    }
+}
+
+// Inicializar
+async function initializeApp() {
+    // Verificar Service Worker
+    if ('serviceWorker' in navigator) {
+        document.getElementById('swStatus').textContent = '✅ Suportado';
+        
+        try {
+            swRegistration = await navigator.serviceWorker.register('/static/js/serviceworker.js');
+            console.log('Service Worker registrado:', swRegistration);
+        } catch (error) {
+            console.error('Erro ao registrar Service Worker:', error);
+            document.getElementById('swStatus').textContent = '❌ Erro: ' + error.message;
+        }
+    } else {
+        document.getElementById('swStatus').textContent = '❌ Não suportado';
+    }
+
+    // Verificar Push API
+    if ('PushManager' in window) {
+        document.getElementById('pushStatus').textContent = '✅ Suportado';
+    } else {
+        document.getElementById('pushStatus').textContent = '❌ Não suportado';
+    }
+
+    // Verificar subscription existente
+    if (swRegistration) {
+        const subscription = await swRegistration.pushManager.getSubscription();
+        isSubscribed = subscription !== null;
+    }
+
+    updatePermissionStatus();
+    updateUI();
+}
+
+// Ativar notificações
+document.getElementById('enableNotifications').addEventListener('click', async () => {
+    try {
+        const permission = await Notification.requestPermission();
+        
+        if (permission !== 'granted') {
+            alert('Você precisa permitir notificações!');
+            return;
+        }
+
+        updatePermissionStatus();
+
+        // Inscrever para push
+        const subscription = await swRegistration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+
+        // Enviar subscription para o servidor
+        const response = await fetch('/notifications/subscribe/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify(subscription.toJSON())
+        });
+
+        if (response.ok) {
+            isSubscribed = true;
+            updateUI();
+            alert('✅ Notificações ativadas com sucesso!');
+        } else {
+            throw new Error('Erro ao salvar subscription no servidor');
+        }
+
+    } catch (error) {
+        console.error('Erro ao ativar notificações:', error);
+        alert('❌ Erro: ' + error.message);
+    }
+});
+
+// Testar notificação
+document.getElementById('testNotification').addEventListener('click', async () => {
+    try {
+        const response = await fetch('/notifications/test/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+
+        if (response.ok) {
+            alert('✅ Notificação enviada! Verifique seu navegador.');
+        } else {
+            throw new Error('Erro ao enviar notificação');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('❌ Erro: ' + error.message);
+    }
+});
+
+// Desativar notificações
+document.getElementById('disableNotifications').addEventListener('click', async () => {
+    try {
+        const subscription = await swRegistration.pushManager.getSubscription();
+        
+        if (subscription) {
+            await subscription.unsubscribe();
+            
+            // Avisar o servidor
+            await fetch('/notifications/unsubscribe/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+
+            isSubscribed = false;
+            updateUI();
+            alert('✅ Notificações desativadas!');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('❌ Erro: ' + error.message);
+    }
+});
+
+// Enviar notificação para usuários
+document.getElementById('sendNotificationForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const resultDiv = document.getElementById('sendResult');
+    const formData = new FormData(e.target);
+    const selectedUsers = Array.from(document.getElementById('targetUsers').selectedOptions).map(opt => opt.value);
+    
+    if (selectedUsers.length === 0) {
+        resultDiv.className = 'mt-4 p-4 rounded-lg bg-red-100 border border-red-300';
+        resultDiv.innerHTML = '<p class="text-red-800">❌ Selecione pelo menos um destinatário</p>';
+        resultDiv.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        const response = await fetch('/notifications/send/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                title: formData.get('title'),
+                body: formData.get('body'),
+                target_users: selectedUsers
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            resultDiv.className = 'mt-4 p-4 rounded-lg bg-green-100 border border-green-300';
+            resultDiv.innerHTML = `<p class="text-green-800">✅ ${data.message}</p>`;
+            e.target.reset();
+        } else {
+            throw new Error(data.error || 'Erro ao enviar notificações');
+        }
+    } catch (error) {
+        resultDiv.className = 'mt-4 p-4 rounded-lg bg-red-100 border border-red-300';
+        resultDiv.innerHTML = `<p class="text-red-800">❌ ${error.message}</p>`;
+    }
+    
+    resultDiv.classList.remove('hidden');
+    setTimeout(() => resultDiv.classList.add('hidden'), 5000);
+});
+
+// Iniciar ao carregar
+initializeApp();
+</script>
+{% endblock %}
