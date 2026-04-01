@@ -136,8 +136,18 @@ PWA_APP_SCOPE = '/'
 PWA_APP_ORIENTATION = 'any'
 PWA_APP_START_URL = '/'
 PWA_APP_STATUS_BAR_COLOR = 'default'
-PWA_APP_ICONS = []
-PWA_APP_ICONS_APPLE = []
+PWA_APP_ICONS = [
+    {
+        'src': '/static/dourados-calhas.png',
+        'sizes': '160x160'
+    }
+]
+PWA_APP_ICONS_APPLE = [
+    {
+        'src': '/static/dourados-calhas.png',
+        'sizes': '160x160'
+    }
+]
 PWA_APP_SPLASH_SCREEN = []
 PWA_APP_DIR = 'ltr'
 PWA_APP_LANG = 'pt-BR'

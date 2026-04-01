@@ -31,11 +31,11 @@ COPY . .
 # Copia o CSS gerado através do build do Tailwind (estágio anterior)
 COPY --from=node-build /app/static/dist/output.css ./static/dist/output.css
 
-# Coleta os arquivos estáticos (o db_v2.sqlite3 de produção não precisa estar aqui, usaremos o volume)
-RUN python manage.py collectstatic --noinput
+# Dá permissão de execução para o script de entrada
+RUN chmod +x /app/entrypoint.sh
 
 # Expõe a porta para o Gunicorn
 EXPOSE 8001
 
-# Comando para iniciar o Gunicorn
-CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8001", "--workers", "3"]
+# Usa o script de entrada para rodar migrações, collectstatic e iniciar o server
+ENTRYPOINT ["/app/entrypoint.sh"]
