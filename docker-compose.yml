@@ -23,7 +23,8 @@ services:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
       - ./init-ssl.sh:/init-ssl.sh
-    command: /bin/sh /init-ssl.sh
+    entrypoint: /bin/sh
+    command: /init-ssl.sh
     network_mode: "host"
 
   nginx:
