@@ -18,6 +18,11 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
+    <!-- Push Notifications -->
+    {% if user.is_authenticated %}
+    <script src="{% static 'js/push-notifications.js' %}"></script>
+    {% endif %}
+    
     <!-- PWA -->
     {% progressive_web_app_meta %}
     
@@ -178,6 +183,11 @@
 
     <script>
         lucide.createIcons();
+        
+        // Inicializar Push Notifications se o usuário estiver logado
+        {% if user.is_authenticated and VAPID_PUBLIC_KEY %}
+        PushManager.init('{{ VAPID_PUBLIC_KEY }}');
+        {% endif %}
 
         // --- GLOBAL CALENDAR MODAL LOGIC ---
         let calendarTargetInput = null;

@@ -40,10 +40,10 @@ urlpatterns = [
     path('orders/<uuid:order_id>/discount/', views.order_discount_update, name='order_discount_update'),
     
     # Push Notifications
-    path('notifications/test/', notifications.notifications_test_view, name='notifications_test'),
+    path('notifications/panel/', notifications.notifications_test_view, name='notifications_test'),
     path('notifications/subscribe/', notifications.subscribe_push, name='subscribe_push'),
     path('notifications/unsubscribe/', notifications.unsubscribe_push, name='unsubscribe_push'),
-    path('notifications/test/', notifications.test_notification, name='test_notification'),
+    path('notifications/send-test/', notifications.test_notification, name='test_notification'),
     path('notifications/send/', notifications.send_notification, name='send_notification'),
     
     # API

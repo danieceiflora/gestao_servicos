@@ -230,7 +230,7 @@ document.getElementById('enableNotifications').addEventListener('click', async (
 // Testar notificação
 document.getElementById('testNotification').addEventListener('click', async () => {
     try {
-        const response = await fetch('/notifications/test/', {
+        const response = await fetch('/notifications/send-test/', {
             method: 'POST',
             headers: {
                 'X-CSRFToken': '{{ csrf_token }}'
