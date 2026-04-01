@@ -1,4 +1,4 @@
-version: '3.3'
+version: '3.8'
 
 services:
   web:
@@ -15,29 +15,44 @@ services:
     expose:
       - "8001"
 
+  # Serviço que inicializa e gera o certificado SSL
+  certbot-init:
+    image: certbot/certbot
+    container_name: service_management_certbot_init
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+      - ./init-ssl.sh:/init-ssl.sh
+    command: /bin/sh /init-ssl.sh
+    network_mode: "host"
+
   nginx:
     image: nginx:alpine
     container_name: service_management_nginx
     restart: always
     ports:
-      - "8001:80"
-      - "443:443" # Expondo a porta HTTPS padrão
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - static_volume:/app/staticfiles
       - ./media:/app/media
-      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot
     depends_on:
       - web
+      - certbot-init
 
+  # Serviço para renovação automática do certificado
   certbot:
     image: certbot/certbot
-    container_name: certbot
+    container_name: service_management_certbot
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-    # O comando deixaremos para executar pontualmente depois
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done;'"
+    restart: always
 
 volumes:
   static_volume:
+
