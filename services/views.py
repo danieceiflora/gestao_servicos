@@ -1039,20 +1039,12 @@ def order_discount_update(request, order_id):
     })
 
 @login_required
+@permission_required('services.delete_servicemedia', raise_exception=True)
 def task_media_delete(request, media_id):
     """View para remover mídia de uma etapa"""
     media = get_object_or_404(ServiceMedia, id=media_id)
     task = media.task
-    order = task.service_order
-    
-    # Verificação de permissão: ADM ou Colaborador atribuído à task
-    user = request.user
-    is_manager = user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
-    is_assigned = task.team_members.filter(professional__user=user).exists()
-    
-    if not (is_manager or is_assigned):
-        messages.error(request, "Você não tem permissão para remover mídias desta etapa.")
-        return redirect('service_order_detail', order_id=order.id)
+    order_id = task.service_order.id
     
     if request.method == 'POST':
         # Deletar arquivo físico
