@@ -4,7 +4,7 @@
 # Execute ANTES de subir os containers
 
 DOMAIN="osonline.douradoscalhas.com.br"
-EMAIL="seu-email@exemplo.com"  # ALTERE PARA SEU EMAIL REAL
+EMAIL="deniolimasantos@gmail.com"  # ALTERE PARA SEU EMAIL REAL
 
 echo "=========================================="
 echo "🔐 GERAÇÃO DE CERTIFICADO SSL"
