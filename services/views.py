@@ -215,6 +215,7 @@ def property_create(request, client_id):
 @login_required
 def service_order_list(request):
     query = request.GET.get('q')
+    status_filter = request.GET.get('status')
     orders = get_orders_queryset(request).order_by('-created_at')
     
     if query:
@@ -224,10 +225,16 @@ def service_order_list(request):
             Q(client_property__number__icontains=query) |
             Q(id__icontains=query)
         ).distinct()
-        
-    return render(request, 'services/orders/order_list.html', {'orders': orders, 'query': query})
 
-@login_required
+    if status_filter:
+        orders = orders.filter(status=status_filter)
+
+    return render(request, 'services/orders/order_list.html', {
+        'orders': orders, 
+        'query': query,
+        'status_filter': status_filter,
+        'status_choices': ServiceOrder.Status.choices,
+    })
 @permission_required('services.add_serviceorder', raise_exception=True)
 def service_order_scheduling(request):
     team_formset = ServiceOrderTeamFormSet()

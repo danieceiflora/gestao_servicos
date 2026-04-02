@@ -11,24 +11,38 @@
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Ordens de Serviço</h2>
             <p class="text-sm text-slate-500">Acompanhe o ciclo de vida dos serviços.</p>
         </div>
-        <div class="flex flex-col sm:flex-row gap-3">
-            <form method="GET" class="relative group">
-                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-slate-600 transition-colors"></i>
-                <input 
-                    type="text" 
-                    name="q" 
-                    value="{{ query|default:'' }}"
-                    placeholder="Buscar OS, cliente, endereço..." 
-                    class="w-full sm:w-64 pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all"
-                >
-                {% if query %}
-                <a href="{% url 'service_order_list' %}" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <i data-lucide="x" class="h-4 w-4"></i>
-                </a>
-                {% endif %}
+        <div class="flex flex-col sm:flex-row gap-3 items-center">
+            <form method="GET" class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <div class="relative group">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-slate-600 transition-colors"></i>
+                    <input
+                        type="text"
+                        name="q"
+                        value="{{ query|default:'' }}"
+                        placeholder="Buscar OS, cliente..."
+                        class="h-10 w-full sm:w-64 pl-10 pr-4 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all"
+                    >
+                </div>
+                
+                <div class="flex gap-2">
+                    <select name="status" onchange="this.form.submit()" class="h-10 bg-white border border-slate-200 rounded-lg text-sm px-3 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all text-slate-600 cursor-pointer">
+                        <option value="">Todos os status</option>
+                        {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <button type="submit" class="hidden">Pesquisar</button>
+                    
+                    {% if query or status_filter %}
+                    <a href="{% url 'service_order_list' %}" class="h-10 w-10 shrink-0 inline-flex items-center justify-center text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors" title="Limpar Filtros">
+                        <i data-lucide="x" class="h-4 w-4"></i>
+                    </a>
+                    {% endif %}
+                </div>
             </form>
             {% if perms.services.add_serviceorder %}
-            <a href="{% url 'service_order_scheduling' %}" class="hidden md:inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+            <a href="{% url 'service_order_scheduling' %}" class="h-10 hidden md:inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
                 <i data-lucide="calendar-plus" class="h-4 w-4"></i>
                 Novo Agendamento
             </a>
@@ -63,7 +77,9 @@
                 <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium">
                     <tr>
                         <th class="px-6 py-3">OS ID</th>
+                        <th class="px-6 py-3">Criado em</th>
                         <th class="px-6 py-3">Cliente / Imóvel</th>
+                        <th class="px-6 py-3">Navegação (GPS)</th>
                         <th class="px-6 py-3">Status</th>
                         {% if user.is_manager %}
                         <th class="px-6 py-3">Valor Total</th>
@@ -77,21 +93,26 @@
                         <td class="px-6 py-4 font-mono text-xs text-slate-500">
                             #{{ order.id.hex|slice:":8" }}
                         </td>
+                        <td class="px-6 py-4 text-sm text-slate-600">
+                            {{ order.created_at|date:"d/m/Y" }}<br>
+                            <span class="text-xs text-slate-400">{{ order.created_at|date:"H:i" }}</span>
+                        </td>
                         <td class="px-6 py-4">
-                            <div class="flex items-center justify-between gap-2">
-                                <div>
-                                    <div class="font-medium text-slate-900">{{ order.client_property.client.name }}</div>
-                                    <div class="text-xs text-slate-500">{{ order.client_property.address }}, {{ order.client_property.number }}</div>
-                                </div>
-                                <button type="button" 
-                                        class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Abrir no GPS"
-                                        data-gps-trigger="true"
-                                        data-gps-lat="{{ order.client_property.latitude|default_if_none:''|unlocalize }}"
-                                        data-gps-lng="{{ order.client_property.longitude|default_if_none:''|unlocalize }}"
-                                        data-gps-address="{{ order.client_property.full_address }}">
-                                    <i data-lucide="navigation" class="h-4 w-4"></i>
-                                </button>
+                            <div>
+                                <div class="font-medium text-slate-900">{{ order.client_property.client.name }}</div>
+                                <div class="text-xs text-slate-500">{{ order.client_property.address }}, {{ order.client_property.number }}</div>
                             </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <button type="button"
+                                    class="inline-flex items-center gap-1.5 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer text-sm font-medium" title="Abrir no GPS"
+                                    data-gps-trigger="true"
+                                    data-gps-lat="{{ order.client_property.latitude|default_if_none:''|unlocalize }}"
+                                    data-gps-lng="{{ order.client_property.longitude|default_if_none:''|unlocalize }}"
+                                    data-gps-address="{{ order.client_property.full_address }}">
+                                <i data-lucide="navigation" class="h-4 w-4"></i>
+                                GPS
+                            </button>
                         </td>
                         <td class="px-6 py-4">
                             {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
