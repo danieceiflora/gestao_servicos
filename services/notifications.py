@@ -10,7 +10,52 @@ from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from pywebpush import webpush, WebPushException
 from .models import PushSubscription, User
+import logging
 
+logger = logging.getLogger(__name__)
+
+def send_push_notification(user, title, body, url='/'):
+    """
+    Função genérica para enviar uma notificação push para um usuário específico.
+    """
+    subscriptions = PushSubscription.objects.filter(user=user, is_active=True)
+    if not subscriptions.exists():
+        return False, 0
+    
+    notification_data = {
+        'title': title,
+        'body': body,
+        'icon': '/static/dourados-calhas.png',
+        'url': url,
+    }
+    
+    sent_count = 0
+    for sub in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    'endpoint': sub.endpoint,
+                    'keys': {
+                        'p256dh': sub.p256dh,
+                        'auth': sub.auth
+                    }
+                },
+                data=json.dumps(notification_data),
+                vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                vapid_claims={
+                    'sub': f'mailto:{settings.VAPID_ADMIN_EMAIL}'
+                }
+            )
+            sent_count += 1
+        except WebPushException as e:
+            logger.error(f'Erro ao enviar push para {user.username}: {e}')
+            if e.response and e.response.status_code in [404, 410]:
+                sub.is_active = False
+                sub.save()
+        except Exception as e:
+            logger.error(f'Erro inesperado push para {user.username}: {e}')
+            
+    return True, sent_count
 
 @login_required
 def notifications_test_view(request):

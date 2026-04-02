@@ -7,6 +7,7 @@ from django.urls import reverse_lazy
 from django.db.models import Q
 from datetime import timedelta, datetime
 import django.utils.timezone
+from .notifications import send_push_notification
 from .models import (
     User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem, 
     Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
@@ -406,6 +407,13 @@ def service_order_scheduling(request):
                                     professional=professional,
                                     role=role
                                 )
+                                
+                                # Notificar o profissional
+                                if professional.user:
+                                    title = "Nova O.S. Agendada 🛠️"
+                                    body = f"Você foi escalado para {task.get_task_type_display()} na O.S. #{service_order.id.hex[:8]}\nInício: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M') if task.scheduled_at else 'A definir'}"
+                                    send_push_notification(professional.user, title, body, url=f"/equipe/etapa/{task.id}/")
+
                             except (Professional.DoesNotExist, ProfessionalRole.DoesNotExist):
                                 pass
                     
@@ -645,7 +653,15 @@ def task_add(request, order_id):
             # Salvar equipe
             formset.instance = task
             formset.save()
-            
+
+            # Notificar os profissionais do novo agendamento
+            for team_member in task.team_members.all():
+                professional = team_member.professional
+                if professional and professional.user:
+                    title = "Novo Agendamento 🛠️"
+                    body = f"Você foi alocado em: {task.get_task_type_display()} para a OS #{order.id.hex[:8]}\nAgendamento: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M') if task.scheduled_at else 'A definir'}"
+                    send_push_notification(professional.user, title, body, url=f"/equipe/etapa/{task.id}/")
+
             # Processar arquivos de mídia (fotos/vídeos)
             files = request.FILES.getlist('files')
             for file in files:
@@ -928,6 +944,12 @@ def api_quick_create_order(request):
             role_id = member.get('role_id')
             role = get_object_or_404(ProfessionalRole, id=role_id) if role_id else prof.roles.first()
             ServiceOrderTeam.objects.create(task=task, professional=prof, role=role)
+            
+            # Notificar o profissional
+            if prof.user:
+                title = "Nova O.S. Rápida 🛠️"
+                body = f"Você foi alocado em: {task.get_task_type_display()} (OS #{order.id.hex[:8]})\nAgendamento: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M')}"
+                send_push_notification(prof.user, title, body, url=f"/equipe/etapa/{task.id}/")
 
         return JsonResponse({'id': str(order.id), 'success': True})
     except Exception as e:
