@@ -20,6 +20,10 @@ class User(AbstractUser):
     cpf = models.CharField(max_length=14, unique=True, null=True, blank=True)
     phone = models.CharField(max_length=20, verbose_name="Telefone/WhatsApp")
 
+    @property
+    def is_manager(self):
+        return self.is_superuser or self.role in [self.Roles.ADMIN, self.Roles.MANAGER]
+
     class Meta:
         verbose_name = "Usuário"
         verbose_name_plural = "Usuários"

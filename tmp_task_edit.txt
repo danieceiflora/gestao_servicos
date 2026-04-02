@@ -1,0 +1,113 @@
+
+> def task_edit(request, task_id):
+      """
+      View para editar uma Task existente (data, hora, equipe).
+      Também serve como view de execução.
+      """
+      # Verifica se a task pertence a uma OS que o usuário pode ver
+      orders_qs = get_orders_queryset(request)
+      task = get_object_or_404(ServiceOrderTask, id=task_id, service_order__in=orders_qs)
+      order = task.service_order
+      existing_medias = task.medias.all()
+      
+      # Se for colaborador, verificar se ele faz parte da equipe desta task
+      user = request.user
+      is_manager = user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
+      
+      if not is_manager:
+          is_assigned = task.team_members.filter(professional__user=user).exists()
+          if not is_assigned:
+              messages.error(request, "Você não tem permissão para editar esta etapa.")
+              return redirect('service_order_detail', order_id=order.id)
+  
+      if task.status == ServiceOrderTask.TaskStatus.COMPLETED and not is_manager:
+          messages.warning(request, "Não é possível editar uma etapa já concluída.")
+          return redirect('service_order_detail', order_id=order.id)
+      
+      if request.method == 'POST':
+          form = TaskScheduleForm(request.POST, request.FILES, instance=task)
+          formset = ServiceOrderTeamFormSet(request.POST, request.FILES, instance=task)
+  
+          if form.is_valid() and formset.is_valid():
+              # ... (rest of logic stays same)
+              scheduled_at = form.cleaned_data.get('scheduled_at')
+              team_data = [f for f in formset.cleaned_data if f and not f.get('DELETE')]
+              ignore_working_hours = request.POST.get('ignore_working_hours') == 'true'
+  
+              # Validar disponibilidade da equipe (excluindo a task atual)
+              for team_form in team_data:
+                  professional = team_form.get('professional')
+                  if professional:
+                      available, msg, conflict_type = check_professional_availability(
+                          professional, scheduled_at, exclude_task_id=task.id, ignore_working_hours=ignore_working_hours
+                      )
+                      if not available:
+                          if conflict_type == "OUT_OF_HOURS":
+                              messages.warning(request, f"Aviso de Agenda: {msg} (Confirme para forçar o agendamento).")
+                              return render(request, 'services/tasks/task_form.html', {
+                                  'form': form,
+                                  'formset': formset,
+                                  'order': order,
+                                  'task': task,
+                                  'existing_medias': existing_medias,
+                                  'title': 'Editar Etapa',
+                                  'show_force_schedule_modal': True,
+                                  'force_message': msg
+                              })
+                          else:
+                              messages.error(request, f"Conflito de agenda: {msg}")
+                              return render(request, 'services/tasks/task_form.html', {
+                                  'form': form,
+                                  'formset': formset,
+                                  'order': order,
+                                  'task': task,
+                                  'existing_medias': existing_medias,
+                                  'title': 'Editar Etapa'
+                              })
+  
+              form.save()
+              formset.save()
+              
+              # Processar novos arquivos de mídia
+              files = request.FILES.getlist('files')
+              for file in files:
+                  ServiceMedia.objects.create(task=task, file=file)
+              
+              messages.success(request, 'Etapa atualizada com sucesso!')
+              return redirect('service_order_detail', order_id=order.id)
+      else:
+          form = TaskScheduleForm(instance=task)
+          formset = ServiceOrderTeamFormSet(instance=task)
+      
+      return render(request, 'services/tasks/task_form.html', {
+          'form': form,
+          'formset': formset,
+          'order': order,
+          'task': task,
+          'existing_medias': existing_medias,
+          'title': 'Editar Etapa'
+      })
+  
+  @login_required
+  @permission_required('services.change_serviceordertask', raise_exception=True)
+  def task_cancel(request, task_id):
+      """
+      View para cancelar uma Task com justificativa.
+      """
+      task = get_object_or_404(ServiceOrderTask, id=task_id)
+      order = task.service_order
+      
+      if task.status == ServiceOrderTask.TaskStatus.COMPLETED:
+          messages.warning(request, "Não é possível cancelar uma etapa já concluída.")
+          return redirect('service_order_detail', order_id=order.id)
+      
+      if request.method == 'POST':
+          form = TaskCancelForm(request.POST)
+          if form.is_valid():
+              cancel_reason = form.cleaned_data.get('cancel_reason')
+              task.status = ServiceOrderTask.TaskStatus.CANCELLED
+              task.notes = f"[CANCELADO] {cancel_reason}\n\n{task.notes}"
+              task.save()
+              
+              messages.success(request, 'Etapa cancelada com sucesso.')
+

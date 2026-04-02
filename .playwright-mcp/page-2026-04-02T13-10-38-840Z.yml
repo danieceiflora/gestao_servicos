@@ -1,0 +1,35 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e7]:
+      - img "Dourados Calhas Logo" [ref=e9]
+      - heading "Dourados Calhas" [level=1] [ref=e10]
+      - paragraph [ref=e11]: Gestão de OS
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - heading "Bem-vindo!" [level=2] [ref=e14]
+        - paragraph [ref=e15]: Entre com suas credenciais para continuar
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - generic [ref=e19]: Usuário
+            - generic [ref=e20]:
+              - generic:
+                - img
+              - textbox "Usuário" [ref=e21]:
+                - /placeholder: Digite seu usuário
+          - generic [ref=e22]:
+            - generic [ref=e23]: Senha
+            - generic [ref=e24]:
+              - generic:
+                - img
+              - textbox "Senha" [ref=e25]:
+                - /placeholder: Digite sua senha
+              - button "Mostrar/Ocultar senha" [ref=e26]:
+                - img [ref=e27]
+        - button "Acessar Painel" [ref=e31]:
+          - generic [ref=e32]: Acessar Painel
+          - img [ref=e33]
+      - paragraph [ref=e36]:
+        - img [ref=e37]
+        - generic [ref=e40]: Problemas para acessar? Entre em contato com o suporte
+  - paragraph [ref=e42]: © 2026 Dourados Calhas - Todos os direitos reservados

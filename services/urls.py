@@ -1,10 +1,18 @@
 from django.urls import path
 from . import views
 from . import notifications
+from . import views_equipe
 
 urlpatterns = [
     path('', views.home, name='home'),
     
+    # --- VISÃO EQUIPE / COLABORADORES ---
+    path('equipe/tarefas/', views_equipe.equipe_task_list, name='equipe_task_list'),
+    path('equipe/etapa/<uuid:task_id>/', views_equipe.equipe_task_detail, name='equipe_task_detail'),
+    path('equipe/etapa/<uuid:task_id>/iniciar/', views_equipe.equipe_task_start, name='equipe_task_start'),
+    path('equipe/etapa/<uuid:task_id>/finalizar/', views_equipe.equipe_task_finish, name='equipe_task_finish'),
+    path('equipe/etapa/<uuid:task_id>/midia/', views_equipe.equipe_task_add_media, name='equipe_task_add_media'),
+
     # Clientes
     path('clients/', views.client_list, name='client_list'),
     path('clients/new/', views.client_create, name='client_create'),

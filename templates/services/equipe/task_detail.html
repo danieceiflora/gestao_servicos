@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    
+    <!-- HEADER -->
+    <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight text-slate-900">
+                Etapa: {{ task.get_task_type_display }}
+            </h1>
+            <p class="text-sm text-slate-500 mt-1">
+                OS #{{ order.id.hex|slice:":8" }} &bull; Criada em {{ order.created_at|date:"d/m/Y" }}
+            </p>
+        </div>
+        
+        <!-- STATUS BADGE -->
+        <div>
+            {% if task.status == 'SCHEDULED' %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                    <svg class="mr-1.5 h-2 w-2 text-blue-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
+                    Agendada
+                </span>
+            {% elif task.status == 'IN_PROGRESS' or task.started_at and not task.finished_at %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+                    <svg class="animate-pulse mr-1.5 h-2 w-2 text-amber-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
+                    Em Execução
+                </span>
+            {% elif task.status == 'COMPLETED' or task.finished_at %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-800">
+                    <svg class="mr-1.5 h-2 w-2 text-emerald-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
+                    Concluída
+                </span>
+            {% else %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-800">
+                    {{ task.get_status_display }}
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- GRID INFORMAÇÕES -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- CARD LOCAL E CLIENTE -->
+        <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b bg-slate-50">
+                <h3 class="text-sm font-medium text-slate-800 uppercase tracking-wide">Detalhes do Local</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <span class="text-xs text-slate-500 font-medium">Cliente</span>
+                    <p class="text-sm font-semibold text-slate-900">{{ client.name }}</p>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-500 font-medium">Endereço Completo</span>
+                    <p class="text-sm text-slate-700 leading-relaxed">
+                        {{ property.address }}, {{ property.number }} <br>
+                        {% if property.complement %}{{ property.complement }} - {% endif %} {{ property.neighborhood }}<br>
+                        {{ property.city }} / {{ property.state }} <br>
+                        CEP: {{ property.zip_code }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CARD CONTEXTO DA OS -->
+        <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b bg-slate-50">
+                <h3 class="text-sm font-medium text-slate-800 uppercase tracking-wide">Instruções / Escopo</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <span class="text-xs text-slate-500 font-medium">Descrição da O.S.</span>
+                    <p class="text-sm text-slate-700 mt-1 whitespace-pre-line">{{ order.description|default:"(Sem descrição informada)" }}</p>
+                </div>
+                
+                <div class="pt-3 border-t">
+                    <span class="text-xs text-slate-500 font-medium">Equipe Escalada</span>
+                    <ul class="text-sm text-slate-700 mt-1">
+                        {% for member in task.team_members.all %}
+                            <li class="flex items-center gap-2 py-1">
+                                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                <strong>{{ member.professional.name }}</strong> 
+                                <span class="text-slate-500">({{ member.role.name|default:"Técnico" }})</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ÁREA DE EXECUÇÃO (AÇÕES) -->
+    <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-8">
+        <div class="px-5 py-4 border-b bg-slate-50 flex items-center justify-between">
+            <h3 class="text-sm font-medium text-slate-800 uppercase tracking-wide">Controle de Execução</h3>
+            
+            <button type="button" data-gps-trigger="true" data-gps-lat="{{ property.latitude|default:'' }}" data-gps-lng="{{ property.longitude|default:'' }}" data-gps-address="{{ property.address }}, {{ property.number }} - {{ property.neighborhood }}, {{ property.city }}" class="inline-flex items-center justify-center rounded-md text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 h-8 px-3 pl-2">
+                <i data-lucide="navigation" class="w-3.5 h-3.5 mr-1.5 ml-1"></i>
+                Navegar (GPS)
+            </button>
+        </div>
+        
+        <div class="p-5">
+            <!-- 1. Não inciada -->
+            {% if not task.started_at %}
+                <div class="text-center py-6">
+                    <p class="text-sm text-slate-600 mb-4">Você chegou ao local e está pronto para começar?</p>
+                    <form action="{% url 'equipe_task_start' task.id %}" method="POST">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-slate-900 text-slate-50 hover:bg-slate-900/90 h-10 px-8 py-2">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Iniciar Execução da Etapa
+                        </button>
+                    </form>
+                </div>
+            
+            <!-- 2. Iniciada, ainda não finalizada -->
+            {% elif task.started_at and not task.finished_at %}
+                <form action="{% url 'equipe_task_finish' task.id %}" method="POST" class="space-y-4">
+                    {% csrf_token %}
+                    <div>
+                        <p class="text-sm text-slate-500 mb-2">Serviço iniciado em: <strong>{{ task.started_at|date:"d/m/Y" }} às {{ task.started_at|time:"H:i" }}</strong></p>
+                        <label for="notes" class="block text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-800 mb-1">Notas de Execução (Opcional)</label>
+                        <textarea id="notes" name="notes" rows="4" placeholder="Descreva materiais utilizados, anomalias encontradas ou observações importantes..." class="flex min-h-[80px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"></textarea>
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" onclick="return confirm('Deseja realmente marcar essa etapa como concluída? Não será possível editar depois.')" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 bg-emerald-600 text-white hover:bg-emerald-700 h-10 px-8 py-2">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            Finalizar Etapa
+                        </button>
+                    </div>
+                </form>
+
+            <!-- 3. Finalizada -->
+            {% else %}
+                <div class="border border-emerald-100 bg-emerald-50 rounded-lg p-4 text-center">
+                    <svg class="w-8 h-8 text-emerald-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <h4 class="text-sm font-bold text-emerald-800">Serviço Concluído</h4>
+                    <div class="text-xs text-emerald-700 mt-2 flex flex-col items-center justify-center gap-1 sm:flex-row sm:gap-3">
+                        <span><strong>Iniciado:</strong> {{ task.started_at|date:"d/m/Y" }} às {{ task.started_at|time:"H:i" }}</span>
+                        <span class="hidden sm:inline text-emerald-400">&bull;</span>
+                        <span><strong>Finalizado:</strong> {{ task.finished_at|date:"d/m/Y" }} às {{ task.finished_at|time:"H:i" }}</span>
+                    </div>
+                    
+                    {% if task.notes %}
+                        <div class="mt-4 pt-3 border-t border-emerald-200 text-left">
+                            <strong class="block text-xs uppercase tracking-wider text-emerald-800 mb-1">Cópia do Relatório:</strong>
+                            <p class="text-sm text-emerald-900 whitespace-pre-line">{{ task.notes }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- EVIDÊNCIAS / MÍDIAS -->
+    <div class="bg-white border rounded-xl shadow-sm overflow-hidden mb-8">
+        <div class="px-5 py-4 border-b bg-slate-50 flex justify-between items-center">
+            <h3 class="text-sm font-medium text-slate-800 uppercase tracking-wide">Fotos & Vídeos (Evidências)</h3>
+        </div>
+
+        <div class="p-5">
+            <!-- Grid de mídias existentes -->
+            {% if existing_medias %}
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+                    {% for media in existing_medias %}
+                        <div class="group relative aspect-square rounded-lg overflow-hidden border bg-slate-100 flex items-center justify-center">
+                            {% if ".mp4" in media.file.name|lower or ".mov" in media.file.name|lower %}
+                                <video controls class="w-full h-full object-cover">
+                                    <source src="{{ media.file.url }}" type="video/mp4">
+                                </video>
+                            {% else %}
+                                <a href="{{ media.file.url }}" target="_blank" rel="noopener noreferrer" class="w-full h-full block cursor-pointer">
+                                    <img src="{{ media.file.url }}" alt="Midia da O.S." class="w-full h-full object-cover object-center transition-transform group-hover:scale-105" loading="lazy">
+                                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
+                                        <svg class="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                    </div>
+                                </a>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-300 mb-6">
+                    <p class="text-sm text-slate-500">Nenhuma foto ou vídeo anexado a esta etapa ainda.</p>
+                </div>
+            {% endif %}
+
+            <!-- Upload só se não estiver finalizado -->
+            {% if not task.finished_at %}
+                <form action="{% url 'equipe_task_add_media' task.id %}" method="POST" enctype="multipart/form-data" class="pt-4 border-t border-slate-100">
+                    {% csrf_token %}
+                    <div>
+                        <label class="block text-sm font-medium leading-none text-slate-800 mb-2">Anexar Novas Imagens/Vídeos</label>
+                        {% include "services/components/media_dropzone.html" with is_subform=True %}
+                        <div class="mt-4 flex justify-end">
+                            <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 bg-slate-900 text-slate-50 hover:bg-slate-900/90 h-10 px-6 py-2">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                Enviar Mídias Selecionadas
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+{% include "services/components/gps_modal.html" %}
+
+{% endblock %}

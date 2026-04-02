@@ -1,0 +1,114 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e9]: Gestão de Serviços
+      - navigation [ref=e10]:
+        - link "Dashboard" [ref=e11] [cursor=pointer]:
+          - /url: /
+        - link "Clientes" [ref=e12] [cursor=pointer]:
+          - /url: /clients/
+        - link "Equipe" [ref=e13] [cursor=pointer]:
+          - /url: /professionals/
+        - link "Agenda" [ref=e14] [cursor=pointer]:
+          - /url: /orders/calendar/
+        - link "Ordens" [ref=e15] [cursor=pointer]:
+          - /url: /orders/
+        - generic [ref=e16]:
+          - generic [ref=e17]:
+            - paragraph [ref=e18]: admin
+            - paragraph [ref=e19]: Colaborador
+          - button "Sair" [ref=e21]:
+            - img [ref=e22]
+  - main [ref=e25]:
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - heading "Olá, admin" [level=2] [ref=e28]
+        - paragraph [ref=e29]: Aqui está um resumo das atividades da sua equipe hoje.
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]:
+            - heading "Ordens Ativas" [level=3] [ref=e33]
+            - img [ref=e34]
+          - generic [ref=e37]: "3"
+        - generic [ref=e38]:
+          - generic [ref=e39]:
+            - heading "Aguardando Aprovação" [level=3] [ref=e40]
+            - img [ref=e41]
+          - generic [ref=e44]: "1"
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - heading "Aguardando Execução" [level=3] [ref=e47]
+            - img [ref=e48]
+          - generic [ref=e50]: "0"
+      - generic [ref=e51]:
+        - heading "Ações Rápidas" [level=3] [ref=e52]
+        - generic [ref=e53]:
+          - link "Novo Cliente" [ref=e54] [cursor=pointer]:
+            - /url: /clients/new/
+            - img [ref=e55]
+            - generic [ref=e58]: Novo Cliente
+          - link "Ver Clientes" [ref=e59] [cursor=pointer]:
+            - /url: /clients/
+            - img [ref=e60]
+            - generic [ref=e65]: Ver Clientes
+          - link "Ordens de Serviço" [ref=e66] [cursor=pointer]:
+            - /url: /orders/
+            - img [ref=e67]
+            - generic [ref=e70]: Ordens de Serviço
+          - link "Novo Agendamento" [ref=e71] [cursor=pointer]:
+            - /url: /orders/new/
+            - img [ref=e72]
+            - generic [ref=e74]: Novo Agendamento
+      - generic [ref=e75]:
+        - generic [ref=e76]:
+          - heading "Atividade Recente" [level=3] [ref=e77]
+          - link "Ver tudo" [ref=e78] [cursor=pointer]:
+            - /url: /orders/
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - img [ref=e83]
+              - generic [ref=e86]:
+                - paragraph [ref=e87]: cei curso especial de ingles
+                - paragraph [ref=e88]: Orçamento Realizado - Aguardando Aprovação • 13 minutos atrás
+            - link [ref=e89] [cursor=pointer]:
+              - /url: /orders/809a0183-d91f-471d-b0ce-f46d1e45aaf5/
+              - img [ref=e90]
+          - generic [ref=e92]:
+            - generic [ref=e93]:
+              - img [ref=e95]
+              - generic [ref=e98]:
+                - paragraph [ref=e99]: daniel de sousa
+                - paragraph [ref=e100]: Aguardando Pagamento • 1 dia atrás
+            - link [ref=e101] [cursor=pointer]:
+              - /url: /orders/93dc7d69-1e47-4763-8e8c-30aaf9f87b7e/
+              - img [ref=e102]
+          - generic [ref=e104]:
+            - generic [ref=e105]:
+              - img [ref=e107]
+              - generic [ref=e110]:
+                - paragraph [ref=e111]: cei curso especial de ingles
+                - paragraph [ref=e112]: Aguardando Pagamento • 1 dia, 16 horas atrás
+            - link [ref=e113] [cursor=pointer]:
+              - /url: /orders/bf28cc6a-d611-4c5b-bb09-eee060963dbc/
+              - img [ref=e114]
+          - generic [ref=e116]:
+            - generic [ref=e117]:
+              - img [ref=e119]
+              - generic [ref=e122]:
+                - paragraph [ref=e123]: daniel de sousa
+                - paragraph [ref=e124]: Finalizado • 1 dia, 17 horas atrás
+            - link [ref=e125] [cursor=pointer]:
+              - /url: /orders/bd7e8db6-bdad-414f-86dc-802a37beffa8/
+              - img [ref=e126]
+  - generic [ref=e128]:
+    - generic [ref=e129]:
+      - img [ref=e131]
+      - generic [ref=e134]:
+        - paragraph [ref=e135]: Ativar Alertas?
+        - paragraph [ref=e136]: Receba avisos de novas OS em tempo real.
+    - generic [ref=e137]:
+      - button "Depois" [ref=e138]
+      - button "Ativar" [ref=e139]

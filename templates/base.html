@@ -67,7 +67,11 @@
                 {% endif %}
                 
                 <a href="{% url 'service_order_calendar' %}" class="text-sm font-medium {% if 'calendar' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Agenda</a>
+                {% if not user.is_manager %}
+                <a href="{% url 'equipe_task_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'equipe_task_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Tarefas</a>
+                {% else %}
                 <a href="{% url 'service_order_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Ordens</a>
+                {% endif %}
                 
                 <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
                     <div class="text-right hidden lg:block">
@@ -173,10 +177,17 @@
                 <span class="text-[10px] font-medium">Agenda</span>
             </a>
             
+            {% if not user.is_manager %}
+            <a href="{% url 'equipe_task_list' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'equipe_task_list' %}text-slate-900{% else %}text-slate-500{% endif %}">
+                <i data-lucide="clipboard-list" class="h-5 w-5"></i>
+                <span class="text-[10px] font-medium">Tarefas</span>
+            </a>
+            {% else %}
             <a href="{% url 'service_order_list' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="clipboard-list" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Ordens</span>
             </a>
+            {% endif %}
         </div>
     </nav>
     {% endif %}

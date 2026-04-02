@@ -65,7 +65,7 @@
                         <th class="px-6 py-3">OS ID</th>
                         <th class="px-6 py-3">Cliente / Imóvel</th>
                         <th class="px-6 py-3">Status</th>
-                        {% if not user.role == 'COLLABORATOR' %}
+                        {% if user.is_manager %}
                         <th class="px-6 py-3">Valor Total</th>
                         {% endif %}
                         <th class="px-6 py-3 text-right">Ações</th>
@@ -101,7 +101,7 @@
                                 </span>
                             {% endif %}
                         </td>
-                        {% if not user.role == 'COLLABORATOR' %}
+                        {% if user.is_manager %}
                         <td class="px-6 py-4 font-medium text-slate-900">
                             R$ {{ order.total_value|floatformat:2 }}
                         </td>
@@ -148,7 +148,7 @@
             </div>
 
             <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                {% if not user.role == 'COLLABORATOR' %}
+                {% if user.is_manager %}
                 <div class="text-sm font-bold text-slate-900">R$ {{ order.total_value|floatformat:2 }}</div>
                 {% else %}
                 <div></div>
