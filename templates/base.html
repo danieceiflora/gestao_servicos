@@ -367,20 +367,17 @@
         }
 
         function handleFilesAdd(input) {
-              const scope = input.closest('.dz-container');
-              const masterInput = scope ? (scope.querySelector('.dz-master-input') || input) : input;
-
-              let currentFiles = fileGroups.get(masterInput) || [];
+              let currentFiles = fileGroups.get(input) || [];
               const newFiles = Array.from(input.files);
 
               if (newFiles.length > 0) {
                   currentFiles = currentFiles.concat(newFiles);
-                  fileGroups.set(masterInput, currentFiles);
-                  input.value = ''; // Reset to allow same file selection
-                  syncInput(masterInput, currentFiles);
-                  renderPreviews(masterInput, currentFiles);
+                  fileGroups.set(input, currentFiles);
+                  input.value = ''; // Reset to allow same file selection     
+                  syncInput(input, currentFiles);
+                  renderPreviews(input, currentFiles);
+              }
         }
-
         function removeFile(input, index) {
             let currentFiles = fileGroups.get(input) || [];
             currentFiles.splice(index, 1);
