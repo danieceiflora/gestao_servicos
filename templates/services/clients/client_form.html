@@ -62,7 +62,7 @@
             <!-- Campos Pessoa Física -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pf-only">
                 <div class="space-y-2">
-                    <label class="text-sm font-medium text-slate-700">CPF *</label>
+                    <label class="text-sm font-medium text-slate-700">CPF</label>
                     {{ form.cpf }}
                     {% if form.cpf.errors %}<p class="text-xs text-red-500">{{ form.cpf.errors }}</p>{% endif %}
                 </div>
@@ -84,7 +84,7 @@
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-2">
-                        <label class="text-sm font-medium text-slate-700">CNPJ *</label>
+                        <label class="text-sm font-medium text-slate-700">CNPJ</label>
                         {{ form.cnpj }}
                         {% if form.cnpj.errors %}<p class="text-xs text-red-500">{{ form.cnpj.errors }}</p>{% endif %}
                     </div>

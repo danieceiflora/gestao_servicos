@@ -124,14 +124,11 @@ class Client(models.Model):
         import re
         
         if self.client_type == 'PF':
-            # Pessoa Física: CPF obrigatório
-            if not self.cpf:
-                raise ValidationError({'cpf': 'CPF é obrigatório para Pessoa Física'})
-            
-            # Valida formato CPF
-            cpf_limpo = re.sub(r'\D', '', self.cpf)
-            if len(cpf_limpo) != 11:
-                raise ValidationError({'cpf': 'CPF deve ter 11 dígitos'})
+            if self.cpf:
+                # Valida formato CPF
+                cpf_limpo = re.sub(r'\D', '', self.cpf)
+                if len(cpf_limpo) != 11:
+                    raise ValidationError({'cpf': 'CPF deve ter 11 dígitos'})
             
             # Limpa campos de PJ
             self.trade_name = None
@@ -141,14 +138,11 @@ class Client(models.Model):
             self.contact_person = None
             
         elif self.client_type == 'PJ':
-            # Pessoa Jurídica: CNPJ obrigatório
-            if not self.cnpj:
-                raise ValidationError({'cnpj': 'CNPJ é obrigatório para Pessoa Jurídica'})
-            
-            # Valida formato CNPJ
-            cnpj_limpo = re.sub(r'\D', '', self.cnpj)
-            if len(cnpj_limpo) != 14:
-                raise ValidationError({'cnpj': 'CNPJ deve ter 14 dígitos'})
+            if self.cnpj:
+                # Valida formato CNPJ
+                cnpj_limpo = re.sub(r'\D', '', self.cnpj)
+                if len(cnpj_limpo) != 14:
+                    raise ValidationError({'cnpj': 'CNPJ deve ter 14 dígitos'})
             
             # Limpa campos de PF
             self.cpf = None

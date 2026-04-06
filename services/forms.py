@@ -91,20 +91,14 @@ class ClientForm(forms.ModelForm):
         client_type = cleaned_data.get('client_type')
         
         if client_type == 'PF':
-            # Pessoa Física: CPF obrigatório
-            if not cleaned_data.get('cpf'):
-                self.add_error('cpf', 'CPF é obrigatório para Pessoa Física')
-            else:
+            if cleaned_data.get('cpf'):
                 cpf = cleaned_data.get('cpf')
                 cpf = ''.join(filter(str.isdigit, cpf))
                 if len(cpf) != 11:
                     self.add_error('cpf', 'CPF deve conter 11 dígitos')
         
         elif client_type == 'PJ':
-            # Pessoa Jurídica: CNPJ obrigatório
-            if not cleaned_data.get('cnpj'):
-                self.add_error('cnpj', 'CNPJ é obrigatório para Pessoa Jurídica')
-            else:
+            if cleaned_data.get('cnpj'):
                 cnpj = cleaned_data.get('cnpj')
                 cnpj = ''.join(filter(str.isdigit, cnpj))
                 if len(cnpj) != 14:

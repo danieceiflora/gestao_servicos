@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.views.generic import ListView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
-from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib.auth.decorators import login_required, permission_required, user_passes_test
 from django.urls import reverse_lazy
 from django.db.models import Q
 from datetime import timedelta, datetime
@@ -213,6 +213,7 @@ def property_create(request, client_id):
 # --- SERVICE ORDER VIEWS ---
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser or u.role in [User.Roles.ADMIN, User.Roles.MANAGER])
 def service_order_list(request):
     query = request.GET.get('q')
     status_filter = request.GET.get('status')
