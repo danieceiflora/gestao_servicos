@@ -4,14 +4,31 @@
 {% endif %}
 
 <div class="dz-container w-full">
-    <label class="flex flex-col items-center justify-center w-full min-h-[140px] border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition-all cursor-pointer group relative">
-        <div class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-500">
-            <i data-lucide="plus-circle" class="h-8 w-8 text-blue-500 mb-2 group-hover:scale-110 transition-transform"></i>
-            <p class="text-sm font-bold text-slate-900">Adicionar Mídia</p>
-            <p class="text-[10px] text-slate-400">Fotos ou Vídeos (MP4)</p>
-        </div>
-        <input type="file" name="{{ dropzone_name|default:'files' }}" id="{{ dropzone_id|default:'id_files' }}" multiple class="dz-input absolute inset-0 w-full h-full opacity-0 cursor-pointer {{ additional_classes|default:'' }}" accept="image/*,video/*" {% if is_subform %}data-preview="true"{% endif %} {% if not is_subform %}onchange="this.form.submit()"{% endif %}>
-    </label>
+    {% if is_subform %}
+    <input type="file" name="{{ dropzone_name|default:'files' }}" id="{{ dropzone_id|default:'id_files' }}" class="dz-master-input hidden" multiple>
+    {% endif %}
+
+    <div class="grid grid-cols-2 gap-3 w-full">
+        <!-- Botão Câmera -->
+        <label class="flex flex-col items-center justify-center w-full min-h-[120px] border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition-all cursor-pointer group relative">
+            <div class="flex flex-col items-center justify-center pt-4 pb-4 text-slate-500">
+                <i data-lucide="camera" class="h-8 w-8 text-blue-500 mb-2 group-hover:scale-110 transition-transform"></i>
+                <p class="text-sm font-bold text-slate-900">Câmera</p>
+                <p class="text-[10px] text-slate-400">Tirar Foto/Vídeo</p>
+            </div>
+            <input type="file" {% if not is_subform %}name="{{ dropzone_name|default:'files' }}" id="{{ dropzone_id|default:'id_files' }}_cam"{% endif %} class="dz-input absolute inset-0 w-full h-full opacity-0 cursor-pointer {{ additional_classes|default:'' }}" accept="image/*,video/*" capture="environment" {% if is_subform %}data-preview="true"{% endif %} {% if not is_subform %}onchange="this.form.submit()"{% endif %}>
+        </label>
+        
+        <!-- Botão Galeria -->
+        <label class="flex flex-col items-center justify-center w-full min-h-[120px] border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition-all cursor-pointer group relative">
+            <div class="flex flex-col items-center justify-center pt-4 pb-4 text-slate-500">
+                <i data-lucide="images" class="h-8 w-8 text-blue-500 mb-2 group-hover:scale-110 transition-transform"></i>
+                <p class="text-sm font-bold text-slate-900">Galeria</p>
+                <p class="text-[10px] text-slate-400">Vários Arquivos</p>
+            </div>
+            <input type="file" {% if not is_subform %}name="{{ dropzone_name|default:'files' }}" id="{{ dropzone_id|default:'id_files' }}_gal"{% endif %} multiple class="dz-input absolute inset-0 w-full h-full opacity-0 cursor-pointer {{ additional_classes|default:'' }}" accept="image/*,video/*" {% if is_subform %}data-preview="true"{% endif %} {% if not is_subform %}onchange="this.form.submit()"{% endif %}>
+        </label>
+    </div>
     
     <div class="dz-preview-container grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 empty:mt-0"></div>
 </div>
