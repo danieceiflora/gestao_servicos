@@ -73,6 +73,12 @@
                 <a href="{% url 'service_order_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Ordens</a>
                 {% endif %}
                 
+                {% if user.is_staff %}
+                <a href="{% url 'admin:index' %}" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-1">
+                    <i data-lucide="settings" class="h-4 w-4"></i> Admin
+                </a>
+                {% endif %}
+
                 <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
                     <div class="text-right hidden lg:block">
                         <p class="text-xs font-bold text-slate-900 leading-none">{{ user.get_full_name|default:user.username }}</p>
@@ -96,6 +102,11 @@
         {% if user.is_authenticated %}
         <div class="flex items-center gap-3">
             <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{{ user.get_role_display }}</span>
+            {% if user.is_staff %}
+            <a href="{% url 'admin:index' %}" class="p-1 text-slate-400 hover:text-slate-900" title="Painel Admin">
+                <i data-lucide="settings" class="h-4 w-4"></i>
+            </a>
+            {% endif %}
             <form action="{% url 'logout' %}" method="post" class="inline">
                 {% csrf_token %}
                 <button type="submit" class="p-1 text-slate-400">
