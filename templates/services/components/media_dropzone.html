@@ -8,9 +8,17 @@
         <div class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-500">
             <i data-lucide="plus-circle" class="h-8 w-8 text-blue-500 mb-2 group-hover:scale-110 transition-transform"></i>
             <p class="text-sm font-bold text-slate-900">Adicionar Mídia</p>
-            <p class="text-[10px] text-slate-400">Fotos ou Vídeos (MP4)</p>
+            <p class="text-[10px] text-slate-400">Fotos ou Vídeo</p>
         </div>
-        <input type="file" name="{{ dropzone_name|default:'files' }}" id="{{ dropzone_id|default:'id_files' }}" class="dz-input absolute inset-0 w-full h-full opacity-0 cursor-pointer {{ additional_classes|default:'' }}" accept="image/*,video/*" capture {% if is_subform %}data-preview="true"{% endif %} {% if not is_subform %}onchange="this.form.submit()"{% endif %}>
+        <input 
+            type="file" 
+            name="{{ dropzone_name|default:'files' }}" 
+            id="{{ dropzone_id|default:'id_files' }}" 
+            class="dz-input absolute inset-0 w-full h-full opacity-0 cursor-pointer {{ additional_classes|default:'' }}" 
+            accept="image/*,video/*,.pdf,.mp3" 
+            multiple
+            {% if is_subform %}data-preview="true"{% endif %} 
+            {% if not is_subform %}onchange="this.form.submit()"{% endif %}>
     </label>
 
     <div class="dz-preview-container grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 empty:mt-0"></div>
