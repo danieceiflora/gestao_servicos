@@ -10,7 +10,7 @@
             <p class="text-sm font-bold text-slate-900">Adicionar Mídia</p>
             <p class="text-[10px] text-slate-400">Fotos ou Vídeos (MP4)</p>
         </div>
-        <input type="file" name="{{ dropzone_name|default:'files' }}" id="{{ dropzone_id|default:'id_files' }}" class="dz-input absolute inset-0 w-full h-full opacity-0 cursor-pointer {{ additional_classes|default:'' }}" accept="image/*,video/*" {% if is_subform %}data-preview="true"{% endif %} {% if not is_subform %}onchange="this.form.submit()"{% endif %}>
+        <input type="file" name="{{ dropzone_name|default:'files' }}" id="{{ dropzone_id|default:'id_files' }}" class="dz-input absolute inset-0 w-full h-full opacity-0 cursor-pointer {{ additional_classes|default:'' }}" accept="image/*,video/*" capture {% if is_subform %}data-preview="true"{% endif %} {% if not is_subform %}onchange="this.form.submit()"{% endif %}>
     </label>
 
     <div class="dz-preview-container grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 empty:mt-0"></div>
