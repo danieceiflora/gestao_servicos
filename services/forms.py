@@ -174,6 +174,8 @@ class PropertyForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['cep'].required = False
+        self.fields['number'].required = False
         if self.instance and not self.instance._state.adding:
             if self.instance.latitude is None:
                 self.initial['latitude'] = ''

@@ -137,6 +137,8 @@ def client_create(request):
 
             messages.success(request, 'Cliente e Imóveis cadastrados com sucesso!')
             return redirect('client_list')
+        else:
+            messages.error(request, 'Erro ao cadastrar cliente. Verifique os campos abaixo.')
     else:
         form = ClientForm()
         phone_formset = PhoneFormSet(prefix='phones')
@@ -166,8 +168,10 @@ def client_edit(request, client_id):
             phone_formset.save()
             email_formset.save()
             property_formset.save()
-            messages.success(request, 'Dados do cliente atualizados!')
+            messages.success(request, 'Dados do cliente atualizados com sucesso!')
             return redirect('client_list')
+        else:
+            messages.error(request, 'Erro ao atualizar cliente. Verifique os campos abaixo.')
     else:
         form = ClientForm(instance=client)
         phone_formset = PhoneFormSet(instance=client, prefix='phones')

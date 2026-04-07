@@ -130,6 +130,7 @@
                         <div class="flex-1 space-y-2">
                             <label class="text-[10px] font-bold uppercase text-slate-400">Número</label>
                             {{ f.phone }}
+                            {% if f.phone.errors %}<p class="text-[10px] text-red-500">{{ f.phone.errors }}</p>{% endif %}
                         </div>
                         <div class="flex items-center gap-2 pb-2">
                             {{ f.is_primary }}
@@ -163,6 +164,7 @@
                         <div class="flex-1 space-y-2">
                             <label class="text-[10px] font-bold uppercase text-slate-400">E-mail</label>
                             {{ f.email }}
+                            {% if f.email.errors %}<p class="text-[10px] text-red-500">{{ f.email.errors }}</p>{% endif %}
                         </div>
                         <div class="flex items-center gap-2 pb-2">
                             {{ f.is_primary }}
@@ -208,10 +210,12 @@
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-slate-700">Classificação</label>
                             {{ f.classification }}
+                            {% if f.classification.errors %}<p class="text-[10px] text-red-500">{{ f.classification.errors }}</p>{% endif %}
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-slate-700">CEP</label>
                             {{ f.cep }}
+                            {% if f.cep.errors %}<p class="text-[10px] text-red-500">{{ f.cep.errors }}</p>{% endif %}
                         </div>
                     </div>
 
@@ -219,14 +223,17 @@
                         <div class="md:col-span-2 space-y-2">
                             <label class="text-sm font-medium text-slate-700">Endereço Completo</label>
                             {{ f.address }}
+                            {% if f.address.errors %}<p class="text-[10px] text-red-500">{{ f.address.errors }}</p>{% endif %}
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-slate-700">Número</label>
                             {{ f.number }}
+                            {% if f.number.errors %}<p class="text-[10px] text-red-500">{{ f.number.errors }}</p>{% endif %}
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-slate-700">Complemento</label>
                             {{ f.complement }}
+                            {% if f.complement.errors %}<p class="text-[10px] text-red-500">{{ f.complement.errors }}</p>{% endif %}
                         </div>
                     </div>
 
@@ -234,14 +241,17 @@
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-slate-700">Bairro</label>
                             {{ f.neighborhood }}
+                            {% if f.neighborhood.errors %}<p class="text-[10px] text-red-500">{{ f.neighborhood.errors }}</p>{% endif %}
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-slate-700">Cidade</label>
                             {{ f.city }}
+                            {% if f.city.errors %}<p class="text-[10px] text-red-500">{{ f.city.errors }}</p>{% endif %}
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium text-slate-700">UF</label>
                             {{ f.state }}
+                            {% if f.state.errors %}<p class="text-[10px] text-red-500">{{ f.state.errors }}</p>{% endif %}
                         </div>
                     </div>
 
