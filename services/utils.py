@@ -2,13 +2,14 @@ from datetime import timedelta
 from django.db.models import Q
 from .models import ServiceOrder, ServiceOrderTeam, WorkScheduleDay, ProfessionalScheduleBlock, ServiceOrderTask
 
-def check_professional_availability(professional, timestamp, exclude_task_id=None, ignore_working_hours=False):
+def check_professional_availability(professional, timestamp, scheduled_end_at=None, exclude_task_id=None, ignore_working_hours=False):
     """
     Retorna (bool, message, conflict_type) indicando se o profissional está disponível no timestamp.
 
     Args:
         professional: Instância do Professional
-        timestamp: datetime do agendamento
+        timestamp: datetime do agendamento (início)
+        scheduled_end_at: datetime do fim do agendamento (opcional)
         exclude_task_id: UUID da task a excluir da verificação (útil ao editar)
         ignore_working_hours: bool indicando se deve ignorar a checagem de horário de trabalho (para confirmação forçada)
     """
@@ -42,27 +43,32 @@ def check_professional_availability(professional, timestamp, exclude_task_id=Non
     if blocks:
         return False, f"O profissional {professional.name} possui um bloqueio de agenda neste período.", "BLOCK"
 
-    # 3. Verificar Conflitos de 1h30min (Buffer) com outras Tasks
-    buffer = timedelta(hours=1, minutes=30)
-    start_buffer = timestamp - buffer
-    end_buffer = timestamp + buffer
+    # 3. Verificar Conflitos com outras Tasks
+    # Usar o intervalo real do agendamento (start -> end)
+    # Se não houver fim definido, assume-se 1h de duração para fins de checagem de conflito
+    start_check = timestamp
+    end_check = scheduled_end_at if scheduled_end_at else (timestamp + timedelta(hours=1))
 
-    # Buscar tasks agendadas onde o profissional está alocado
+    # Buscar tasks agendadas onde o profissional está alocado que podem conflitar
     conflicts = ServiceOrderTask.objects.filter(
         team_members__professional=professional,
         status__in=[ServiceOrderTask.TaskStatus.SCHEDULED, ServiceOrderTask.TaskStatus.IN_PROGRESS],
-        scheduled_at__gt=start_buffer,
-        scheduled_at__lt=end_buffer
     ).select_related('service_order__client_property__client')
     
     # Excluir a task atual se estiver editando
     if exclude_task_id:
         conflicts = conflicts.exclude(id=exclude_task_id)
-
-    if conflicts.exists():
-        conflict = conflicts.first()
-        tipo = conflict.get_task_type_display()
-        cliente = conflict.service_order.client_property.client.name
-        return False, f"{professional.name} já tem um(a) {tipo} agendado(a) para {cliente} próximo a este horário (Intervalo < 1:30h).", "CONFLICT"
+    
+    # Verificar sobreposição de intervalos
+    for conflict in conflicts:
+        conflict_start = conflict.scheduled_at
+        # Se a task de conflito não tiver fim, assume-se 1h de duração
+        conflict_end = conflict.scheduled_end_at if conflict.scheduled_end_at else (conflict.scheduled_at + timedelta(hours=1))
+        
+        # Verifica se há sobreposição: novo intervalo começa antes do fim do conflito E termina depois do início do conflito
+        if start_check < conflict_end and end_check > conflict_start:
+            tipo = conflict.get_task_type_display()
+            cliente = conflict.service_order.client_property.client.name
+            return False, f"{professional.name} já tem um(a) {tipo} agendado(a) para {cliente} neste horário.", "CONFLICT"
 
     return True, "Disponível", "OK"

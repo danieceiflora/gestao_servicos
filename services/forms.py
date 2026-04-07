@@ -210,6 +210,15 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
         })
     )
 
+    scheduled_end_at = forms.DateTimeField(
+        label="Data Fim do Agendamento (Opcional)",
+        required=False,
+        widget=forms.DateTimeInput(attrs={
+            'type': 'datetime-local',
+            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+        })
+    )
+
     client = forms.ModelChoiceField(
         queryset=Client.objects.all(),
         label="Cliente",
@@ -307,11 +316,12 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
 class ServiceOrderTaskForm(forms.ModelForm):
     class Meta:
         model = ServiceOrderTask
-        fields = ['task_type', 'status', 'scheduled_at', 'notes']
+        fields = ['task_type', 'status', 'scheduled_at', 'scheduled_end_at', 'notes']
         widgets = {
             'task_type': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'status': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'scheduled_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'scheduled_end_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'notes': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
         }
 
@@ -319,6 +329,8 @@ class ServiceOrderTaskForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.instance.pk and self.instance.scheduled_at:
             self.initial['scheduled_at'] = django.utils.timezone.localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')
+        if self.instance.pk and self.instance.scheduled_end_at:
+            self.initial['scheduled_end_at'] = django.utils.timezone.localtime(self.instance.scheduled_end_at).strftime('%Y-%m-%dT%H:%M')
 
 # Equipe ligada à TASK
 ServiceOrderTeamFormSet = inlineformset_factory(
@@ -502,7 +514,7 @@ class TaskScheduleForm(forms.ModelForm):
     """
     class Meta:
         model = ServiceOrderTask
-        fields = ['task_type', 'status', 'is_approved', 'payment_method', 'scheduled_at', 'started_at', 'finished_at', 'value', 'notes']
+        fields = ['task_type', 'status', 'is_approved', 'payment_method', 'scheduled_at', 'scheduled_end_at', 'started_at', 'finished_at', 'value', 'notes']
         widgets = {
             'task_type': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
@@ -520,6 +532,11 @@ class TaskScheduleForm(forms.ModelForm):
                 'type': 'datetime-local',
                 'class': 'calendar-input w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
                 'id': 'id_scheduled_at'
+            }),
+            'scheduled_end_at': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+                'class': 'calendar-input w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
+                'id': 'id_scheduled_end_at'
             }),
             'started_at': forms.DateTimeInput(attrs={
                 'type': 'datetime-local',
@@ -547,9 +564,10 @@ class TaskScheduleForm(forms.ModelForm):
             'status': 'Status',
             'is_approved': 'Aprovado pelo Cliente',
             'payment_method': 'Método de Pagamento Preferencial',
-            'scheduled_at': 'Data e Hora',
-            'started_at': 'Iniciado em',
-            'finished_at': 'Finalizado em',
+            'scheduled_at': 'Data Início (Agendamento)',
+            'scheduled_end_at': 'Data Término (Agendamento)',
+            'started_at': 'Iniciado em (Execução)',
+            'finished_at': 'Finalizado em (Execução)',
             'value': 'Valor do Serviço (R$)',
             'notes': 'Observações'
         }
@@ -561,6 +579,8 @@ class TaskScheduleForm(forms.ModelForm):
         if self.instance.pk:
             if self.instance.scheduled_at:
                 self.initial['scheduled_at'] = django.utils.timezone.localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')
+            if self.instance.scheduled_end_at:
+                self.initial['scheduled_end_at'] = django.utils.timezone.localtime(self.instance.scheduled_end_at).strftime('%Y-%m-%dT%H:%M')
             if self.instance.started_at:
                 self.initial['started_at'] = django.utils.timezone.localtime(self.instance.started_at).strftime('%Y-%m-%dT%H:%M')
             if self.instance.finished_at:

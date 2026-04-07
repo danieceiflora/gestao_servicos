@@ -242,6 +242,15 @@ def service_order_scheduling(request):
     
     # Capturar data/hora da URL se fornecida
     scheduled_at_param = request.GET.get('scheduled_at')
+    scheduled_end_at_param = request.GET.get('scheduled_end_at')
+    
+    # DEBUG: Log dos parâmetros recebidos
+    print('=' * 80)
+    print('🔍 DEBUG service_order_scheduling - GET params:')
+    print(f'   scheduled_at: {scheduled_at_param}')
+    print(f'   scheduled_end_at: {scheduled_end_at_param}')
+    print('=' * 80)
+    
     initial_scheduled_at = None
     if scheduled_at_param:
         try:
@@ -251,7 +260,21 @@ def service_order_scheduling(request):
                 initial_scheduled_at = django.utils.timezone.make_aware(initial_scheduled_at)
         except (ValueError, TypeError):
             initial_scheduled_at = None
+
+    initial_scheduled_end_at = None
+    if scheduled_end_at_param:
+        try:
+            initial_scheduled_end_at = datetime.fromisoformat(scheduled_end_at_param.replace('Z', '+00:00'))
+            if django.utils.timezone.is_naive(initial_scheduled_end_at):
+                initial_scheduled_end_at = django.utils.timezone.make_aware(initial_scheduled_end_at)
+        except (ValueError, TypeError):
+            initial_scheduled_end_at = None
     
+    # DEBUG: Log dos valores finais
+    print(f'   initial_scheduled_at final: {initial_scheduled_at}')
+    print(f'   initial_scheduled_end_at final: {initial_scheduled_end_at}')
+    print('=' * 80)
+
     # Data de origem sempre será hoje
     initial_origin_date = django.utils.timezone.now().date()
     
@@ -262,11 +285,19 @@ def service_order_scheduling(request):
         submitted_tasks = []
         _idx = 0
         while f'task_{_idx}_type' in request.POST:
-            sched_val = request.POST.get('scheduled_at', '') if _idx == 0 else request.POST.get(f'task_{_idx}_scheduled', '')
+            # Para task 0, os campos têm nomes diferentes
+            if _idx == 0:
+                sched_val = request.POST.get('scheduled_at', '')
+                sched_end_val = request.POST.get('scheduled_end_at', '')
+            else:
+                sched_val = request.POST.get(f'task_{_idx}_scheduled', '')
+                sched_end_val = request.POST.get(f'task_{_idx}_scheduled_end', '')
+            
             task_data = {
                 'index': _idx,
                 'type': request.POST.get(f'task_{_idx}_type', ''),
                 'scheduled': sched_val,
+                'scheduled_end': sched_end_val,
                 'start_date': request.POST.get(f'task_{_idx}_start_date', ''),
                 'end_date': request.POST.get(f'task_{_idx}_end_date', ''),
                 'value': request.POST.get(f'task_{_idx}_value', ''),
@@ -293,7 +324,12 @@ def service_order_scheduling(request):
             task_index = 0
             while f'task_{task_index}_type' in request.POST:
                 task_type = request.POST.get(f'task_{task_index}_type')
-                scheduled_input = request.POST.get(f'task_{task_index}_scheduled')
+                
+                # Para task 0, o campo se chama 'scheduled_at', não 'task_0_scheduled'
+                if task_index == 0:
+                    scheduled_input = request.POST.get('scheduled_at')
+                else:
+                    scheduled_input = request.POST.get(f'task_{task_index}_scheduled')
                 
                 scheduled_datetime = None
                 if scheduled_input:
@@ -307,13 +343,28 @@ def service_order_scheduling(request):
                         scheduled_datetime = django.utils.timezone.make_aware(scheduled_datetime)
 
                 if task_type and scheduled_datetime:
+                    # Tentar obter scheduled_end_at para validação
+                    if task_index == 0:
+                        scheduled_end_input = request.POST.get('scheduled_end_at')
+                    else:
+                        scheduled_end_input = request.POST.get(f'task_{task_index}_scheduled_end')
+                    
+                    scheduled_end_datetime = None
+                    if scheduled_end_input:
+                        try:
+                            scheduled_end_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(scheduled_end_input))
+                        except (ValueError, TypeError):
+                            pass
+
                     professionals = request.POST.getlist(f'task_{task_index}_professional[]')
                     for prof_id in professionals:
                         if prof_id:
                             try:
                                 professional = Professional.objects.get(id=prof_id)
                                 available, msg, c_type = check_professional_availability(
-                                    professional, scheduled_datetime, ignore_working_hours=ignore_working_hours
+                                    professional, scheduled_datetime, 
+                                    scheduled_end_at=scheduled_end_datetime,
+                                    ignore_working_hours=ignore_working_hours
                                 )
                                 if not available:
                                     has_conflict = True
@@ -338,8 +389,9 @@ def service_order_scheduling(request):
                         'title': 'Nova OS / Agendamento',
                         'show_force_schedule_modal': True,
                         'force_message': conflict_message,
-                        'initial_scheduled_at': initial_scheduled_at.isoformat() if initial_scheduled_at else None,
-                        'initial_origin_date': initial_origin_date.isoformat() if initial_origin_date else None,
+                        'initial_scheduled_at': initial_scheduled_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_at else None,
+                        'initial_scheduled_end_at': initial_scheduled_end_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_end_at else None,
+                        'initial_origin_date': initial_origin_date.strftime('%Y-%m-%d') if initial_origin_date else None,
                         'submitted_tasks': submitted_tasks,
                     })
                 else:
@@ -350,8 +402,9 @@ def service_order_scheduling(request):
                         'professionals': Professional.objects.filter(is_active=True),
                         'roles': ProfessionalRole.objects.all(),
                         'title': 'Nova OS / Agendamento',
-                        'initial_scheduled_at': initial_scheduled_at.isoformat() if initial_scheduled_at else None,
-                        'initial_origin_date': initial_origin_date.isoformat() if initial_origin_date else None,
+                        'initial_scheduled_at': initial_scheduled_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_at else None,
+                        'initial_scheduled_end_at': initial_scheduled_end_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_end_at else None,
+                        'initial_origin_date': initial_origin_date.strftime('%Y-%m-%d') if initial_origin_date else None,
                         'submitted_tasks': submitted_tasks,
                     })
 
@@ -373,11 +426,20 @@ def service_order_scheduling(request):
             
             while f'task_{task_index}_type' in request.POST:
                 task_type = request.POST.get(f'task_{task_index}_type')
-                scheduled_input = request.POST.get(f'task_{task_index}_scheduled')
+                
+                # Para task 0, os campos têm nomes diferentes (scheduled_at/scheduled_end_at)
+                # Para demais tasks, os campos seguem o padrão task_{index}_scheduled/task_{index}_scheduled_end
+                if task_index == 0:
+                    scheduled_input = request.POST.get('scheduled_at')
+                    scheduled_end_input = request.POST.get('scheduled_end_at')
+                else:
+                    scheduled_input = request.POST.get(f'task_{task_index}_scheduled')
+                    scheduled_end_input = request.POST.get(f'task_{task_index}_scheduled_end')
+                
                 start_date = request.POST.get(f'task_{task_index}_start_date')
                 end_date = request.POST.get(f'task_{task_index}_end_date')
                 value = request.POST.get(f'task_{task_index}_value')
-                
+
                 scheduled_datetime = None
                 if scheduled_input:
                     scheduled_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(scheduled_input))
@@ -385,25 +447,29 @@ def service_order_scheduling(request):
                     scheduled_datetime = form.cleaned_data.get('scheduled_at')
                     if scheduled_datetime and django.utils.timezone.is_naive(scheduled_datetime):
                         scheduled_datetime = django.utils.timezone.make_aware(scheduled_datetime)
-                
+
+                scheduled_end_datetime = None
+                if scheduled_end_input:
+                    scheduled_end_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(scheduled_end_input))
+                elif task_index == 0:
+                    scheduled_end_datetime = form.cleaned_data.get('scheduled_end_at')
+                    if scheduled_end_datetime and django.utils.timezone.is_naive(scheduled_end_datetime):
+                        scheduled_end_datetime = django.utils.timezone.make_aware(scheduled_end_datetime)
+
                 start_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(start_date)) if start_date else None
                 end_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(end_date)) if end_date else None
-                
+
                 if task_type and scheduled_datetime:
                     # Criar a tarefa
                     task = ServiceOrderTask.objects.create(
                         service_order=service_order,
                         task_type=task_type,
                         scheduled_at=scheduled_datetime,
-                        started_at=start_datetime,
-                        finished_at=end_datetime,
-                        value=float(value) if value else None,
-                        status=ServiceOrderTask.TaskStatus.SCHEDULED
+                        scheduled_end_at=scheduled_end_datetime,
                     )
-                    
-                    # Processar equipe específica desta etapa
                     professionals = request.POST.getlist(f'task_{task_index}_professional[]')
                     roles = request.POST.getlist(f'task_{task_index}_role[]')
+                    
                     
                     for prof_id, role_id in zip(professionals, roles):
                         if prof_id and role_id:  # Ignorar campos vazios
@@ -452,8 +518,9 @@ def service_order_scheduling(request):
                 'professionals': Professional.objects.filter(is_active=True),
                 'roles': ProfessionalRole.objects.all(),
                 'title': 'Nova OS / Agendamento',
-                'initial_scheduled_at': initial_scheduled_at.isoformat() if initial_scheduled_at else None,
-                'initial_origin_date': initial_origin_date.isoformat() if initial_origin_date else None,
+                'initial_scheduled_at': initial_scheduled_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_at else None,
+                        'initial_scheduled_end_at': initial_scheduled_end_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_end_at else None,
+                'initial_origin_date': initial_origin_date.strftime('%Y-%m-%d') if initial_origin_date else None,
                 'submitted_tasks': submitted_tasks,
             })
     else:
@@ -474,8 +541,9 @@ def service_order_scheduling(request):
         'professionals': Professional.objects.filter(is_active=True),
         'roles': ProfessionalRole.objects.all(),
         'title': 'Novo Agendamento',
-        'initial_scheduled_at': initial_scheduled_at.isoformat() if initial_scheduled_at else None,
-        'initial_origin_date': initial_origin_date.isoformat() if initial_origin_date else None
+        'initial_scheduled_at': initial_scheduled_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_at else None,
+                        'initial_scheduled_end_at': initial_scheduled_end_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_end_at else None,
+        'initial_origin_date': initial_origin_date.strftime('%Y-%m-%d') if initial_origin_date else None
     })
 
 def service_order_create(request, property_id):
@@ -626,6 +694,7 @@ def task_add(request, order_id):
 
             # Validar disponibilidade da equipe
             scheduled_at = form.cleaned_data.get('scheduled_at')
+            scheduled_end_at = form.cleaned_data.get('scheduled_end_at')
             team_data = [f for f in formset.cleaned_data if f and not f.get('DELETE')]
             ignore_working_hours = request.POST.get('ignore_working_hours') == 'true'
 
@@ -633,7 +702,9 @@ def task_add(request, order_id):
                 professional = team_form.get('professional')
                 if professional:
                     available, msg, conflict_type = check_professional_availability(
-                        professional, scheduled_at, ignore_working_hours=ignore_working_hours
+                        professional, scheduled_at, 
+                        scheduled_end_at=scheduled_end_at,
+                        ignore_working_hours=ignore_working_hours
                     )
                     if not available:
                         # Se for apenas fora do horário de trabalho e não estiver ignorando, avise
@@ -721,6 +792,7 @@ def task_edit(request, task_id):
         if form.is_valid() and formset.is_valid():
             # ... (rest of logic stays same)
             scheduled_at = form.cleaned_data.get('scheduled_at')
+            scheduled_end_at = form.cleaned_data.get('scheduled_end_at')
             team_data = [f for f in formset.cleaned_data if f and not f.get('DELETE')]
             ignore_working_hours = request.POST.get('ignore_working_hours') == 'true'
 
@@ -729,7 +801,10 @@ def task_edit(request, task_id):
                 professional = team_form.get('professional')
                 if professional:
                     available, msg, conflict_type = check_professional_availability(
-                        professional, scheduled_at, exclude_task_id=task.id, ignore_working_hours=ignore_working_hours
+                        professional, scheduled_at, 
+                        scheduled_end_at=scheduled_end_at,
+                        exclude_task_id=task.id, 
+                        ignore_working_hours=ignore_working_hours
                     )
                     if not available:
                         if conflict_type == "OUT_OF_HOURS":
@@ -817,7 +892,7 @@ from dateutil.parser import parse
 @login_required
 def api_calendar_events(request):
     events = []
-    buffer = timedelta(hours=1, minutes=30)
+    default_duration = timedelta(hours=1)  # Duração padrão quando não especificada (alterado de 1h30 para 1h)
     user = request.user
     
     # Se for colaborador, ele só vê os próprios eventos, independente do filtro
@@ -847,11 +922,14 @@ def api_calendar_events(request):
         neighborhood = task.service_order.client_property.neighborhood
         title = f"{prefix}: {task.service_order.client_property.client.name} | {team_names} | {neighborhood}"
         
+        # Usar scheduled_end_at se existir, senão usar duração padrão
+        end_time = task.scheduled_end_at if task.scheduled_end_at else (task.scheduled_at + default_duration)
+        
         events.append({
             'id': f"task-{task.id}",
             'title': title,
             'start': task.scheduled_at.isoformat(),
-            'end': (task.scheduled_at + buffer).isoformat(),
+            'end': end_time.isoformat(),
             'backgroundColor': bg,
             'borderColor': border,
             'url': reverse_lazy('service_order_detail', kwargs={'order_id': task.service_order.id}),
@@ -897,12 +975,24 @@ def service_order_calendar(request):
 def api_check_availability(request):
     prof_id = request.GET.get('professional_id')
     timestamp_str = request.GET.get('timestamp')
+    end_timestamp_str = request.GET.get('scheduled_end_at')
+    
     if not prof_id or not timestamp_str:
         return JsonResponse({'available': True})
     try:
         professional = get_object_or_404(Professional, id=prof_id)
         timestamp = parse(timestamp_str)
-        available, message, conflict_type = check_professional_availability(professional, timestamp)
+        
+        scheduled_end_at = None
+        if end_timestamp_str:
+            try:
+                scheduled_end_at = parse(end_timestamp_str)
+            except:
+                pass
+                
+        available, message, conflict_type = check_professional_availability(
+            professional, timestamp, scheduled_end_at=scheduled_end_at
+        )
         return JsonResponse({'available': available, 'message': message, 'conflict_type': conflict_type})
     except:
         return JsonResponse({'available': False})
@@ -921,6 +1011,12 @@ def api_quick_create_order(request):
         prop = get_object_or_404(Property, id=data.get('property_id'))
         sched_type = data.get('type', 'BUDGET')
         scheduled_at = parse(data.get('scheduled_at'))
+        scheduled_end_at = None
+        if data.get('scheduled_end_at'):
+            try:
+                scheduled_end_at = parse(data.get('scheduled_end_at'))
+            except:
+                pass
 
         ignore_working_hours = data.get('ignore_working_hours', False)
 
@@ -930,7 +1026,9 @@ def api_quick_create_order(request):
             if prof_id:
                 prof = get_object_or_404(Professional, id=prof_id)
                 available, msg, c_type = check_professional_availability(
-                    prof, scheduled_at, ignore_working_hours=ignore_working_hours
+                    prof, scheduled_at, 
+                    scheduled_end_at=scheduled_end_at,
+                    ignore_working_hours=ignore_working_hours
                 )
                 if not available:
                     return JsonResponse({

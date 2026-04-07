@@ -497,6 +497,7 @@ class ServiceOrderTask(models.Model):
 
     # Datas e Horários
     scheduled_at = models.DateTimeField(verbose_name="Agendado para")
+    scheduled_end_at = models.DateTimeField(null=True, blank=True, verbose_name="Data Fim de Agendamento")
     started_at = models.DateTimeField(null=True, blank=True, verbose_name="Iniciado em")
     finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
     

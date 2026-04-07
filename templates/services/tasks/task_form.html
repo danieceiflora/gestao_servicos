@@ -114,26 +114,53 @@
             </div>
             {% endif %}
 
-            <!-- Data e Hora do Agendamento -->
-            <div>
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora do Agendamento</label>
-                {% if not user.is_manager and task %}
-                    <div class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center gap-2">
-                        <i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>
-                        {{ task.scheduled_at|date:"d/m/Y H:i" }}
-                    </div>
-                    <div class="hidden">{{ form.scheduled_at }}</div>
-                {% else %}
-                    <div class="relative">
-                        {{ form.scheduled_at }}
-                        <button type="button" onclick="openCalendarModal('id_scheduled_at')" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Abrir calendário">
-                            <i data-lucide="calendar" class="h-5 w-5"></i>
-                        </button>
-                    </div>
-                {% endif %}
-                {% if form.scheduled_at.errors %}
-                    <p class="text-xs text-red-600 mt-1">{{ form.scheduled_at.errors.0 }}</p>
-                {% endif %}
+            <!-- Seção: Agendamento -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Início do Agendamento</label>
+                    {% if not user.is_manager and task %}
+                        <div class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>
+                            {{ task.scheduled_at|date:"d/m/Y H:i" }}
+                        </div>
+                        <div class="hidden">{{ form.scheduled_at }}</div>
+                    {% else %}
+                        <div class="relative">
+                            {{ form.scheduled_at }}
+                            <button type="button" onclick="openCalendarModal('id_scheduled_at')" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Abrir calendário">
+                                <i data-lucide="calendar" class="h-5 w-5"></i>
+                            </button>
+                        </div>
+                    {% endif %}
+                    {% if form.scheduled_at.errors %}
+                        <p class="text-xs text-red-600 mt-1">{{ form.scheduled_at.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Fim do Agendamento</label>
+                    {% if not user.is_manager and task %}
+                        <div class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>
+                            {% if task.scheduled_end_at %}
+                                {{ task.scheduled_end_at|date:"d/m/Y H:i" }}
+                            {% else %}
+                                ---
+                            {% endif %}
+                        </div>
+                        <div class="hidden">{{ form.scheduled_end_at }}</div>
+                    {% else %}
+                        <div class="relative">
+                            {{ form.scheduled_end_at }}
+                            <button type="button" onclick="openCalendarModal('id_scheduled_end_at')" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Abrir calendário">
+                                <i data-lucide="calendar" class="h-5 w-5"></i>
+                            </button>
+                        </div>
+                    {% endif %}
+                    {% if form.scheduled_end_at.errors %}
+                        <p class="text-xs text-red-600 mt-1">{{ form.scheduled_end_at.errors.0 }}</p>
+                    {% endif %}
+                </div>
             </div>
 
             <!-- Valor do Serviço (Escondido do Colaborador) -->

@@ -475,6 +475,10 @@
     let selectedDateTime = null;
     const canSchedule = {{ perms.services.add_serviceorder|yesno:"true,false" }};
     const isCollaborator = {{ is_collaborator|yesno:"true,false" }};
+    
+    console.log('🔧 Configurações do calendário:');
+    console.log('   - canSchedule:', canSchedule);
+    console.log('   - isCollaborator:', isCollaborator);
 
     document.addEventListener('DOMContentLoaded', function() {
         const calendarEl = document.getElementById('calendar');
@@ -567,16 +571,34 @@
                 }
             },
             select: function(info) {
+                console.log('📅 Evento SELECT disparado!');
+                console.log('   - info.startStr:', info.startStr);
+                console.log('   - info.endStr:', info.endStr);
+                console.log('   - isSelectMode:', isSelectMode);
+                console.log('   - canSchedule:', canSchedule);
+                
                 if (isSelectMode) {
-                    window.parent.postMessage({ type: 'dateSelected', date: info.startStr }, '*');
+                    // Enviar tanto início quanto fim para o parent
+                    window.parent.postMessage({ 
+                        type: 'dateSelected', 
+                        date: info.startStr,
+                        endDate: info.endStr  // Adicionar data fim
+                    }, '*');
                 } else if (canSchedule) {
-                    openSchedulingModal(info.startStr);
+                    console.log('✅ Chamando openSchedulingModal com intervalo');
+                    openSchedulingModal(info.startStr, info.endStr);
                 }
                 calendar.unselect();
             },
             dateClick: function(info) {
+                console.log('🖱️ Evento DATECLICK disparado!');
+                console.log('   - info.dateStr:', info.dateStr);
+                console.log('   - isSelectMode:', isSelectMode);
+                console.log('   - canSchedule:', canSchedule);
+                
                 if (!isSelectMode && canSchedule) {
-                    openSchedulingModal(info.dateStr);
+                    console.log('✅ Chamando openSchedulingModal (clique simples)');
+                    openSchedulingModal(info.dateStr, null);
                 }
             },
             eventClick: function(info) {
@@ -666,16 +688,27 @@
     const addPropBtn = document.getElementById('btn-add-property');
     
     // Função para abrir modal de agendamento
-    function openSchedulingModal(dateStr = null) {
+    function openSchedulingModal(dateStr = null, endDateStr = null) {
         if (dateStr) {
             selectedDateTime = dateStr;
         }
-        
+
+        console.log('🎯 openSchedulingModal chamado com:');
+        console.log('   - dateStr (início):', dateStr);
+        console.log('   - endDateStr (fim):', endDateStr);
+
         let url = "{% url 'service_order_scheduling' %}?popup=1";
         if (selectedDateTime) {
             url += `&scheduled_at=${encodeURIComponent(selectedDateTime)}`;
         }
-        
+        if (endDateStr) {
+            url += `&scheduled_end_at=${encodeURIComponent(endDateStr)}`;
+            console.log('✅ Adicionado scheduled_end_at à URL');
+        } else {
+            console.log('⚠️ endDateStr é null - não adicionado à URL');
+        }
+        console.log('📤 URL final:', url);
+
         // Definir título inicial
         let titleText = 'Novo Agendamento';
         if (selectedDateTime) {
