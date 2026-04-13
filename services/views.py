@@ -82,24 +82,30 @@ def home(request):
     pending_approval = orders_qs.filter(status=ServiceOrder.Status.WAITING_APPROVAL).count()
     waiting_execution = orders_qs.filter(status=ServiceOrder.Status.WAITING_EXECUTION).count()
     
+    needs_scheduling = orders_qs.filter(
+        Q(status=ServiceOrder.Status.APPROVED_WAITING_SCHEDULE) | 
+        Q(tasks__status=ServiceOrderTask.TaskStatus.NOT_EXECUTED)
+    ).distinct().count()
+
     recent_orders = orders_qs.all().order_by('-updated_at')[:5]
-    
+
     layout_base = 'base.html' if request.user.is_manager else 'base_equipe.html'
 
     return render(request, 'services/home.html', {
         'active_orders': active_orders,
         'pending_approval': pending_approval,
         'waiting_execution': waiting_execution,
+        'needs_scheduling': needs_scheduling,
         'recent_orders': recent_orders,
         'layout_base': layout_base,
     })
 
+# --- CLIENT VIEWS ---
+
 @login_required
 @permission_required('services.view_client', raise_exception=True)
 def client_list(request):
-    clients = Client.objects.all().order_by('-created_at')
-    
-    # Filtro de busca
+    clients = Client.objects.all().order_by('name')
     search = request.GET.get('search')
     if search:
         clients = clients.filter(
@@ -227,8 +233,9 @@ def property_create(request, client_id):
 def service_order_list(request):
     query = request.GET.get('q')
     status_filter = request.GET.get('status')
+    custom_filter = request.GET.get('filter')
     orders = get_orders_queryset(request).order_by('-created_at')
-    
+
     if query:
         orders = orders.filter(
             Q(client_property__client__name__icontains=query) |
@@ -240,10 +247,17 @@ def service_order_list(request):
     if status_filter:
         orders = orders.filter(status=status_filter)
 
+    if custom_filter == 'needs_scheduling':
+        orders = orders.filter(
+            Q(status=ServiceOrder.Status.APPROVED_WAITING_SCHEDULE) | 
+            Q(tasks__status=ServiceOrderTask.TaskStatus.NOT_EXECUTED)
+        ).distinct()
+
     return render(request, 'services/orders/order_list.html', {
-        'orders': orders, 
+        'orders': orders,
         'query': query,
         'status_filter': status_filter,
+        'custom_filter': custom_filter,
         'status_choices': ServiceOrder.Status.choices,
     })
 @permission_required('services.add_serviceorder', raise_exception=True)

@@ -9,6 +9,25 @@
         <h2 class="text-2xl font-semibold tracking-tight">Olá, {{ user.first_name|default:user.username }}</h2>
     </section>
 
+    {% if user.is_manager and needs_scheduling > 0 %}
+    <section>
+        <a href="{% url 'service_order_list' %}?filter=needs_scheduling" class="block w-full rounded-xl border border-rose-200 bg-rose-50 p-4 transition-all hover:bg-rose-100/50">
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                    <i data-lucide="alert-circle" class="h-5 w-5"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-sm font-semibold text-rose-900">Atenção: Ordens pendentes de agendamento</h3>
+                    <p class="text-sm text-rose-700">Existem {{ needs_scheduling }} ordem(ns) de serviço que precisam ser agendadas ou reagendadas.</p>
+                </div>
+                <div class="shrink-0 text-rose-500">
+                    <i data-lucide="chevron-right" class="h-5 w-5"></i>
+                </div>
+            </div>
+        </a>
+    </section>
+    {% endif %}
+
     <!-- Actions Section -->
     <section class="space-y-3">
         <h3 class="text-lg font-semibold tracking-tight">Ações Rápidas</h3>
