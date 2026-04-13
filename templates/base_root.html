@@ -1,0 +1,353 @@
+{% load static %}
+{% load pwa %}
+<!DOCTYPE html>
+<html lang="pt-br" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}Gestão de Serviços{% endblock %}</title>
+    
+    <!-- Google Fonts: Inter (Padrão Shadcn) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="{% static 'dist/output.css' %}">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Push Notifications -->
+    {% if user.is_authenticated %}
+    <script src="{% static 'js/push-notifications.js' %}"></script>
+    {% endif %}
+    
+    <!-- PWA -->
+    {% progressive_web_app_meta %}
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        
+        /* Hide native calendar picker indicator */
+        .calendar-input::-webkit-calendar-picker-indicator {
+            display: none !important;
+            -webkit-appearance: none;
+        }
+        .calendar-input {
+            appearance: none;
+            -moz-appearance: none;
+            -webkit-appearance: none;
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="h-full flex flex-col text-slate-950 antialiased">
+    
+    {% block layout %}{% endblock %}
+
+
+    <script>
+        lucide.createIcons();
+        
+        // Inicializar Push Notifications se o usuário estiver logado
+        {% if user.is_authenticated and VAPID_PUBLIC_KEY %}
+        PushManager.init('{{ VAPID_PUBLIC_KEY }}');
+        {% endif %}
+
+        // --- GLOBAL CALENDAR MODAL LOGIC ---
+        let calendarTargetInput = null;
+
+        function openCalendarModal(targetInputId, professionalId = '') {
+            calendarTargetInput = document.getElementById(targetInputId);
+            const modal = document.getElementById('calendar-modal');
+            const iframe = document.getElementById('calendar-iframe');
+            
+            // Load calendar in selection mode
+            let url = "{% url 'service_order_calendar' %}?mode=select";
+            if (professionalId) {
+                url += `&professional_id=${professionalId}`;
+            }
+            
+            iframe.src = url;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeCalendarModal() {
+            const modal = document.getElementById('calendar-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.body.style.overflow = '';
+        }
+
+        // Listen for date selection from iframe
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'dateSelected' && calendarTargetInput) {
+                // FullCalendar retorna a string com timezone, precisamos formatar para datetime-local no fuso original
+                const date = new Date(event.data.date);
+                const tzOffset = date.getTimezoneOffset() * 60000; // offset in milliseconds
+                const localISOTime = (new Date(date - tzOffset)).toISOString().slice(0, 16);
+                calendarTargetInput.value = localISOTime;
+                
+                // Trigger change event for any validation
+                calendarTargetInput.dispatchEvent(new Event('change'));
+                
+                closeCalendarModal();
+            }
+            if (event.data.type === 'closeCalendar' || event.data.type === 'closeModal') {
+                closeCalendarModal();
+            }
+        });
+
+        // Global iframe close button for ANY modal to prevent getting stuck
+        if (window.self !== window.top) {
+            document.addEventListener('DOMContentLoaded', function() {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.onclick = () => window.parent.postMessage({ type: 'closeModal' }, '*');
+                btn.className = 'fixed top-3 right-3 z-[9999] p-2 bg-slate-900 text-white rounded-lg shadow-2xl hover:bg-slate-800 transition-colors border-2 border-white flex items-center justify-center';
+                btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+                btn.title = "Fechar Tela";
+                document.body.appendChild(btn);
+            });
+        }
+
+        // Delegate listener for calendar buttons and inputs
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.open-calendar-btn');
+            const input = e.target.closest('.calendar-input');
+            const trigger = btn || input;
+            
+            if (trigger) {
+                const targetId = trigger.dataset.target || trigger.id;
+                const row = trigger.closest('.team-row');
+                let profId = '';
+                if (row) {
+                    const select = row.querySelector('select[name$="-professional"]');
+                    if (select) profId = select.value;
+                }
+                openCalendarModal(targetId, profId);
+            }
+        });
+
+        // Feedback de carregamento global para botões de submit
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function() {
+                const btn = form.querySelector('button[type="submit"]');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = `<i data-lucide="loader-2" class="h-5 w-5 animate-spin"></i> Aguarde...`;
+                    lucide.createIcons();
+                }
+            });
+        });
+    </script>
+
+    <!-- Calendar Modal Structure -->
+    <div id="calendar-modal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
+        <div class="bg-white w-full max-w-5xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="calendar" class="h-5 w-5 text-blue-600"></i>
+                    <h3 class="font-bold text-slate-900">Selecionar Horário na Agenda</h3>
+                </div>
+                <button onclick="closeCalendarModal()" class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+                    <i data-lucide="x" class="h-5 w-5 text-slate-500"></i>
+                </button>
+            </div>
+            <div class="flex-1 bg-white">
+                <iframe id="calendar-iframe" src="" class="w-full h-full border-none"></iframe>
+            </div>
+            <div class="p-4 bg-slate-50 border-t border-slate-100 text-center">
+                <p class="text-xs text-slate-500 font-medium italic">Clique em um dia ou horário livre para selecionar</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Media Lightbox -->
+    <div id="media-lightbox" class="fixed inset-0 z-[120] bg-slate-950/95 hidden flex-col transition-opacity duration-300">
+        <div class="flex items-center justify-between p-4 bg-gradient-to-b from-black/50 to-transparent">
+            <span id="media-lightbox-counter" class="text-white font-medium text-sm tracking-widest uppercase"></span>
+            <button type="button" id="media-lightbox-close" class="p-2 text-white hover:bg-white/20 rounded-full transition-colors">
+                <i data-lucide="x" class="h-6 w-6"></i>
+            </button>
+        </div>
+        <div class="flex-1 relative flex items-center justify-center p-4">
+            <button type="button" id="media-lightbox-prev" class="absolute left-4 z-10 p-3 text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors hidden group">
+                <i data-lucide="chevron-left" class="h-6 w-6 group-hover:-translate-x-1 transition-transform"></i>
+            </button>
+            <div id="media-lightbox-content" class="max-w-full max-h-full flex items-center justify-center">
+                <!-- Renderized here -->
+            </div>
+            <button type="button" id="media-lightbox-next" class="absolute right-4 z-10 p-3 text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors hidden group">
+                <i data-lucide="chevron-right" class="h-6 w-6 group-hover:translate-x-1 transition-transform"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+    // ==========================================
+    // GLOBAL MEDIA DROPZONE & LIGHTBOX MANAGER
+    // ==========================================
+    const MediaDropzoneManager = (function() {
+        const fileGroups = new Map(); // input element -> Array of File
+        
+        let lbFiles = [];
+        let lbCurrentIndex = 0;
+        
+        const lbModal = document.getElementById('media-lightbox');
+        const lbContent = document.getElementById('media-lightbox-content');
+        const lbCounter = document.getElementById('media-lightbox-counter');
+        const lbPrev = document.getElementById('media-lightbox-prev');
+        const lbNext = document.getElementById('media-lightbox-next');
+
+          function init() {
+              document.addEventListener('change', function(e) {
+                  if (e.target.matches('.dz-input[data-preview="true"]')) {
+                      handleFilesAdd(e.target);
+                  }
+              });            document.getElementById('media-lightbox-close')?.addEventListener('click', closeLightbox);
+            lbPrev?.addEventListener('click', () => navigateLightbox(-1));
+            lbNext?.addEventListener('click', () => navigateLightbox(1));
+            
+            document.addEventListener('keydown', (e) => {
+                if (lbModal && !lbModal.classList.contains('hidden')) {
+                    if (e.key === 'Escape') closeLightbox();
+                    if (e.key === 'ArrowLeft') navigateLightbox(-1);
+                    if (e.key === 'ArrowRight') navigateLightbox(1);
+                }
+            });
+        }
+
+        function handleFilesAdd(input) {
+              let currentFiles = fileGroups.get(input) || [];
+              const newFiles = Array.from(input.files);
+
+              if (newFiles.length > 0) {
+                  currentFiles = currentFiles.concat(newFiles);
+                  fileGroups.set(input, currentFiles);
+                  input.value = ''; // Reset to allow same file selection     
+                  syncInput(input, currentFiles);
+                  renderPreviews(input, currentFiles);
+              }
+        }
+        function removeFile(input, index) {
+            let currentFiles = fileGroups.get(input) || [];
+            currentFiles.splice(index, 1);
+            fileGroups.set(input, currentFiles);
+            syncInput(input, currentFiles);
+            renderPreviews(input, currentFiles);
+        }
+
+        function syncInput(input, currentFiles) {
+            if (typeof DataTransfer !== 'undefined') {
+                const dt = new DataTransfer();
+                currentFiles.forEach(file => dt.items.add(file));
+                input.files = dt.files;
+            }
+        }
+
+        function renderPreviews(input, files) {
+            const scope = input.closest('.dz-container');
+            if (!scope) return;
+            const container = scope.querySelector('.dz-preview-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            files.forEach((file, index) => {
+                const item = document.createElement('div');
+                item.className = 'relative aspect-square rounded-xl bg-slate-100 border-2 border-slate-200 overflow-hidden group cursor-pointer shadow-sm hover:border-blue-400 transition-all';
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (file.type.startsWith('image/')) {
+                        item.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
+                    } else {
+                        item.innerHTML = `
+                            <video src="${e.target.result}" class="w-full h-full object-cover" muted></video>
+                            <div class="absolute inset-0 flex items-center justify-center bg-black/20">
+                                <i data-lucide="play-circle" class="h-8 w-8 text-white"></i>
+                            </div>`;
+                    }
+
+                    // Remove button (Top Right)
+                    const rmBtn = document.createElement('button');
+                    rmBtn.type = 'button';
+                    rmBtn.className = 'absolute top-1.5 right-1.5 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-100 md:opacity-0 group-hover:opacity-100 transition-all z-10 shadow-sm';
+                    rmBtn.innerHTML = `<i data-lucide="x" class="h-3 w-3"></i>`;
+                    rmBtn.onclick = (ev) => {
+                        ev.stopPropagation();
+                        removeFile(input, index);
+                    };
+                    item.appendChild(rmBtn);
+
+                    item.onclick = () => openLightbox(files, index);
+                    if (typeof lucide !== 'undefined') lucide.createIcons({root: item});
+                };
+                reader.readAsDataURL(file);
+                container.appendChild(item);
+            });
+        }
+
+        function openLightbox(files, index) {
+            lbFiles = files;
+            lbCurrentIndex = index;
+            updateLightboxContent();
+            lbModal.classList.remove('hidden');
+            lbModal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox() {
+            lbModal.classList.add('hidden');
+            lbModal.classList.remove('flex');
+            document.body.style.overflow = '';
+            lbContent.innerHTML = '';
+        }
+
+        function navigateLightbox(dir) {
+            lbCurrentIndex += dir;
+            if (lbCurrentIndex < 0) lbCurrentIndex = lbFiles.length - 1;
+            if (lbCurrentIndex >= lbFiles.length) lbCurrentIndex = 0;
+            updateLightboxContent();
+        }
+
+        function updateLightboxContent() {
+            if (!lbFiles.length) return;
+            
+            const file = lbFiles[lbCurrentIndex];
+            lbCounter.textContent = `${lbCurrentIndex + 1} / ${lbFiles.length}`;
+            lbContent.innerHTML = '';
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (file.type.startsWith('image/')) {
+                    lbContent.innerHTML = `<img src="${e.target.result}" class="max-w-full max-h-[80vh] object-contain rounded-lg">`;
+                } else {
+                    lbContent.innerHTML = `<video src="${e.target.result}" class="max-w-full max-h-[80vh] object-contain rounded-lg" controls autoplay></video>`;
+                }
+            };
+            reader.readAsDataURL(file);
+
+            if (lbFiles.length > 1) {
+                lbPrev.classList.remove('hidden');
+                lbNext.classList.remove('hidden');
+            } else {
+                lbPrev.classList.add('hidden');
+                lbNext.classList.add('hidden');
+            }
+        }
+
+        return { init };
+    })();
+
+    document.addEventListener('DOMContentLoaded', MediaDropzoneManager.init);
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

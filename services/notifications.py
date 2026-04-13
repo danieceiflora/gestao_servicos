@@ -84,9 +84,9 @@ def subscribe_push(request):
         
         # Criar ou atualizar subscription
         subscription, created = PushSubscription.objects.update_or_create(
-            user=request.user,
             endpoint=endpoint,
             defaults={
+                'user': request.user,
                 'p256dh': keys.get('p256dh', ''),
                 'auth': keys.get('auth', ''),
                 'is_active': True

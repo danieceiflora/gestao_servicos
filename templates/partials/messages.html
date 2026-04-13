@@ -1,0 +1,36 @@
+{% if messages %}
+<div class="mb-6 space-y-2">
+    {% for message in messages %}
+    <div class="p-4 rounded-xl border flex items-start gap-3 shadow-sm transition-all
+        {% if message.tags == 'success' %}bg-green-50 border-green-200 text-green-800
+        {% elif message.tags == 'error' %}bg-red-50 border-red-200 text-red-800
+        {% elif message.tags == 'warning' %}bg-orange-50 border-orange-200 text-orange-800
+        {% elif message.tags == 'info' %}bg-blue-50 border-blue-200 text-blue-800
+        {% else %}bg-slate-50 border-slate-200 text-slate-800{% endif %}"
+        role="alert">
+        
+        <div class="mt-0.5">
+            {% if message.tags == 'success' %}
+                <i data-lucide="check-circle" class="h-5 w-5 text-green-600"></i>
+            {% elif message.tags == 'error' %}
+                <i data-lucide="alert-circle" class="h-5 w-5 text-red-600"></i>
+            {% elif message.tags == 'warning' %}
+                <i data-lucide="alert-triangle" class="h-5 w-5 text-orange-600"></i>
+            {% elif message.tags == 'info' %}
+                <i data-lucide="info" class="h-5 w-5 text-blue-600"></i>
+            {% else %}
+                <i data-lucide="bell" class="h-5 w-5 text-slate-600"></i>
+            {% endif %}
+        </div>
+        
+        <div class="flex-1">
+            <p class="text-sm font-semibold">{{ message }}</p>
+        </div>
+        
+        <button type="button" class="mt-0.5 text-slate-400 hover:text-slate-600" onclick="this.parentElement.remove()">
+            <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

@@ -91,7 +91,7 @@
                     {% for order in orders %}
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-6 py-4 font-mono text-xs text-slate-500">
-                            #{{ order.id.hex|slice:":8" }}
+                            #{{ order.number }}
                         </td>
                         <td class="px-6 py-4 text-sm text-slate-600">
                             {{ order.created_at|date:"d/m/Y" }}<br>
@@ -152,7 +152,7 @@
         {% for order in orders %}
         <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
             <div class="flex items-center justify-between">
-                <span class="text-[10px] font-mono font-bold text-slate-400 tracking-widest">#{{ order.id.hex|slice:":8" }}</span>
+                <span class="text-[10px] font-mono font-bold text-slate-400 tracking-widest">#{{ order.number }}</span>
                 <div class="flex items-center gap-2">
                     {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
                     {% if order.is_recurrent %}

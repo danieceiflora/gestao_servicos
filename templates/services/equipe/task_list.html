@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends layout_base|default:'base_equipe.html' %}
 {% load static %}
 
 {% block title %}Minhas Tarefas{% endblock %}
@@ -23,7 +23,7 @@
                                 <span class="uppercase">{{ group.grouper.client_property.client.name }}</span>
                             </h2>
                             <p class="text-xs text-slate-500 mt-0.5">
-                                OS #{{ group.grouper.id.hex|slice:":8" }} &bull; {{ group.grouper.client_property.address }}, {{ group.grouper.client_property.number }} - {{ group.grouper.client_property.neighborhood }}
+                                OS #{{ group.grouper.number }} &bull; {{ group.grouper.client_property.address }}, {{ group.grouper.client_property.number }} - {{ group.grouper.client_property.neighborhood }}
                             </p>
                         </div>
                         <div class="hidden sm:block">

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends layout_base|default:'base.html' %}
 
 {% block title %}Agenda Geral - Gestão de Serviços{% endblock %}
 
@@ -687,62 +687,32 @@
     const propSelect = document.getElementById('qc-property');
     const addPropBtn = document.getElementById('btn-add-property');
     
-    // Função para abrir modal de agendamento
+// Função para direcionar para a tela de agendamento (via nova rota)
     function openSchedulingModal(dateStr = null, endDateStr = null) {
         if (dateStr) {
             selectedDateTime = dateStr;
         }
-
-        console.log('🎯 openSchedulingModal chamado com:');
-        console.log('   - dateStr (início):', dateStr);
-        console.log('   - endDateStr (fim):', endDateStr);
-
-        let url = "{% url 'service_order_scheduling' %}?popup=1";
+        
+        let url = "{% url 'service_order_scheduling' %}";
+        const params = new URLSearchParams();
+        
         if (selectedDateTime) {
-            url += `&scheduled_at=${encodeURIComponent(selectedDateTime)}`;
+            params.append('scheduled_at', selectedDateTime);
         }
         if (endDateStr) {
-            url += `&scheduled_end_at=${encodeURIComponent(endDateStr)}`;
-            console.log('✅ Adicionado scheduled_end_at à URL');
-        } else {
-            console.log('⚠️ endDateStr é null - não adicionado à URL');
-        }
-        console.log('📤 URL final:', url);
-
-        // Definir título inicial
-        let titleText = 'Novo Agendamento';
-        if (selectedDateTime) {
-            const date = new Date(selectedDateTime);
-            titleText = `Novo Agendamento - ${date.toLocaleString('pt-BR', {
-                weekday: 'short',
-                day: '2-digit',
-                month: '2-digit', 
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            })}`;
+            params.append('scheduled_end_at', endDateStr);
         }
         
-        schedulingTitle.innerHTML = `
-            <i data-lucide="calendar-plus" class="h-5 w-5 text-blue-600"></i>
-            ${titleText}
-        `;
+        const qs = params.toString();
+        if (qs) {
+            url += '?' + qs;
+        }
         
-        schedulingIframe.src = url;
-        schedulingModal.classList.remove('hidden');
-        schedulingModal.classList.add('flex');
-        document.body.style.overflow = 'hidden';
-        
-        // Re-render lucide icons
-        if (window.lucide) lucide.createIcons();
+        window.location.href = url;
     }
 
     function closeSchedulingModal() {
-        schedulingModal.classList.add('hidden');
-        schedulingModal.classList.remove('flex');
-        schedulingIframe.src = "";
-        document.body.style.overflow = '';
-        selectedDateTime = null;
+        // Obsolete
     }
     
     // Escutar mensagens do iframe de agendamento

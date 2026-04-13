@@ -2,7 +2,9 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
-from .models import ServiceOrder, ServiceOrderTask, ServiceMedia, Professional
+from django.http import JsonResponse
+import json
+from .models import ServiceOrder, ServiceOrderTask, ServiceMedia, Professional, Occurrence, Property
 
 def get_collaborator_tasks(user):
     """Retorna apenas as etapas (tasks) em que o usuário logado está alocado."""
@@ -26,7 +28,8 @@ def equipe_task_list(request):
     
     context = {
         'tasks': tasks_qs,
-        'title': 'Minhas Tarefas'
+        'title': 'Minhas Tarefas',
+        'layout_base': 'base.html' if request.user.is_manager else 'base_equipe.html'
     }
     return render(request, 'services/equipe/task_list.html', context)
 
@@ -45,7 +48,10 @@ def equipe_task_detail(request, task_id):
         'order': order,
         'client': order.client_property.client,
         'property': order.client_property,
-        'existing_medias': task.medias.all(),
+        'existing_medias': task.medias.filter(occurrence__isnull=True),
+        'occurrences': task.occurrences.all(),
+        'occurrence_types': Occurrence.OccurrenceType.choices,
+        'occurrence_categories': Occurrence.OccurrenceCategory.choices,
         # Não enviamos itens com preço ou totais para o contexto
         'title': f'Execução: {task.get_task_type_display()}'
     }
@@ -122,3 +128,53 @@ def equipe_task_add_media(request, task_id):
             messages.error(request, 'Nenhum arquivo providenciado.')
             
     return redirect('equipe_task_detail', task_id=task.id)
+
+@login_required
+def equipe_task_add_occurrence(request, task_id):
+    tasks_qs = get_collaborator_tasks(request.user)
+    task = get_object_or_404(tasks_qs, id=task_id)
+    if request.method == 'POST':
+        category = request.POST.get('category')
+        occurrence_type = request.POST.get('occurrence_type')
+        description = request.POST.get('description')
+        if category and occurrence_type and description:
+            occurrence = Occurrence.objects.create(
+                task=task,
+                category=category,
+                occurrence_type=occurrence_type,
+                description=description
+            )
+            files = request.FILES.getlist('files')
+            for file in files:
+                ServiceMedia.objects.create(task=task, occurrence=occurrence, file=file)
+            
+            if category == Occurrence.OccurrenceCategory.BLOCKING:
+                task.status = ServiceOrderTask.TaskStatus.NOT_EXECUTED
+                task.save()
+                messages.warning(request, 'Ocorrência impeditiva registrada. Etapa marcada como não executada e aguardando reagendamento.')
+            else:
+                messages.success(request, 'Ocorrência registrada com sucesso!')
+        else:
+            messages.error(request, 'Categoria, Tipo e Descrição são obrigatórios.')
+    return redirect('equipe_task_detail', task_id=task.id)
+
+
+@login_required
+def equipe_update_gps(request, property_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            lat = data.get('latitude')
+            lng = data.get('longitude')
+
+            if lat and lng:
+                property_obj = get_object_or_404(Property, id=property_id)
+                property_obj.latitude = lat
+                property_obj.longitude = lng
+                property_obj.save()
+                return JsonResponse({'status': 'success', 'message': 'Coordenadas atualizadas com sucesso.', 'latitude': lat, 'longitude': lng})
+            else:
+                return JsonResponse({'status': 'error', 'message': 'Latitude e longitude não fornecidas.'}, status=400)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'error', 'message': 'Método não permitido.'}, status=405)

@@ -106,7 +106,7 @@ class ServiceOrderAdmin(admin.ModelAdmin):
     inlines = [ServiceOrderTaskInline, ServiceItemInline]
 
     def id_short(self, obj):
-        return f"#{obj.id.hex[:8]}"
+        return f"#{obj.number}"
     id_short.short_description = "ID"
 
     def client_name(self, obj):

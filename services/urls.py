@@ -12,6 +12,8 @@ urlpatterns = [
     path('equipe/etapa/<uuid:task_id>/iniciar/', views_equipe.equipe_task_start, name='equipe_task_start'),
     path('equipe/etapa/<uuid:task_id>/finalizar/', views_equipe.equipe_task_finish, name='equipe_task_finish'),
     path('equipe/etapa/<uuid:task_id>/midia/', views_equipe.equipe_task_add_media, name='equipe_task_add_media'),
+    path('equipe/etapa/<uuid:task_id>/ocorrencia/', views_equipe.equipe_task_add_occurrence, name='equipe_task_add_occurrence'),
+    path('equipe/propriedade/<uuid:property_id>/atualizar-gps/', views_equipe.equipe_update_gps, name='equipe_update_gps'),
 
     # Clientes
     path('clients/', views.client_list, name='client_list'),

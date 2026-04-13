@@ -362,6 +362,7 @@ class ServiceOrder(models.Model):
         WARRANTY = 'WARRANTY', 'Em Garantia'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    number = models.PositiveIntegerField(unique=True, null=True, blank=True, verbose_name="Número da OS")
     client_property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='service_orders', verbose_name="Imóvel")
     status = models.CharField(max_length=30, choices=Status.choices, default=Status.WAITING_VISIT, verbose_name="Status")
     is_recurrent = models.BooleanField(default=False, verbose_name="É Recorrente?")
@@ -390,8 +391,16 @@ class ServiceOrder(models.Model):
     finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
     warranty_until = models.DateField(null=True, blank=True, verbose_name="Garantia Válida até")
 
+    def save(self, *args, **kwargs):
+        if not self.number:
+            from django.db.models import Max
+            max_number = ServiceOrder.objects.aggregate(Max('number'))['number__max']
+            self.number = (max_number or 1000) + 1
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"OS {self.id.hex[:8]} - {self.client_property.client.name}"
+        numero_visual = self.number if self.number else self.number
+        return f"OS #{numero_visual} - {self.client_property.client.name}"
 
     @property
     def total_value(self):
@@ -476,6 +485,7 @@ class ServiceOrderTask(models.Model):
         IN_PROGRESS = 'IN_PROGRESS', 'Em Andamento'
         COMPLETED = 'COMPLETED', 'Concluído'
         CANCELLED = 'CANCELLED', 'Cancelado'
+        NOT_EXECUTED = 'NOT_EXECUTED', 'Não Executado'
 
     PAYMENT_METHODS = [
         ('PIX', 'PIX'),
@@ -508,7 +518,8 @@ class ServiceOrderTask(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.get_task_type_display()} - OS {self.service_order.id.hex[:8]}"
+        numero_visual = self.service_order.number if self.service_order.number else self.service_order.number
+        return f"{self.get_task_type_display()} - OS #{numero_visual}"
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -594,9 +605,44 @@ class ServiceItem(models.Model):
     class Meta:
         verbose_name = "Item de Serviço"
 
+class Occurrence(models.Model):
+    class OccurrenceCategory(models.TextChoices):
+        BLOCKING = 'BLOCKING', 'Impeditiva'
+        MATERIAL_REQUEST = 'MATERIAL_REQUEST', 'Solicitação de Material'
+        GENERAL = 'GENERAL', 'Ocorrência'
+
+    class OccurrenceType(models.TextChoices):
+        DELAY = 'DELAY', 'Atraso'
+        MATERIAL_MISSING = 'MATERIAL_MISSING', 'Falta de Material'
+        CUSTOMER_ABSENT = 'CUSTOMER_ABSENT', 'Cliente Ausente'
+        IMPEDIMENT = 'IMPEDIMENT', 'Impedimento no Local'
+        WARRANTY_ISSUE = 'WARRANTY_ISSUE', 'Acionamento de Garantia'
+        OTHER = 'OTHER', 'Outro'
+
+    class OccurrenceStatus(models.TextChoices):
+        REGISTERED = 'REGISTERED', 'Registrada'
+        RESOLVED = 'RESOLVED', 'Resolvida'
+
+    task = models.ForeignKey(ServiceOrderTask, on_delete=models.CASCADE, related_name='occurrences', verbose_name="Etapa/Tarefa")
+    category = models.CharField(max_length=20, choices=OccurrenceCategory.choices, default=OccurrenceCategory.GENERAL, verbose_name="Categoria")
+    occurrence_type = models.CharField(max_length=20, choices=OccurrenceType.choices, default=OccurrenceType.OTHER, verbose_name="Tipo de Ocorrência")
+    description = models.TextField(verbose_name="Descrição")
+    status = models.CharField(max_length=20, choices=OccurrenceStatus.choices, default=OccurrenceStatus.REGISTERED, verbose_name="Status")
+    observation = models.TextField(verbose_name="Observação (Resolução)", blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+
+    def __str__(self):
+        return f"{self.get_occurrence_type_display()} - OS {self.task.service_order.id}"
+
+    class Meta:
+        verbose_name = "Ocorrência"
+        verbose_name_plural = "Ocorrências"
+
 class ServiceMedia(models.Model):
     # Mídia agora pertence a uma etapa específica da OS
     task = models.ForeignKey(ServiceOrderTask, on_delete=models.CASCADE, related_name='medias', verbose_name="Etapa/Tarefa", null=True, blank=True)
+    occurrence = models.ForeignKey(Occurrence, on_delete=models.CASCADE, related_name='medias', verbose_name="Ocorrência", null=True, blank=True)
     file = models.FileField(upload_to='services/%Y/%m/%d/', verbose_name="Arquivo (Foto/Vídeo)")
     created_at = models.DateTimeField(auto_now_add=True)
 

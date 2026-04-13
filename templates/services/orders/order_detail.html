@@ -3,7 +3,7 @@
 {% load l10n %}
 {% load tz %}
 
-{% block title %}OS #{{ order.id.hex|slice:":8" }} - Detalhes{% endblock %}
+{% block title %}OS #{{ order.number }} - Detalhes{% endblock %}
 
 {% block content %}
 <div class="space-y-6 md:pb-0">
@@ -16,7 +16,7 @@
             <div>
                 <div class="flex items-center gap-2 mb-1">
                     <span class="text-[10px] font-mono font-bold text-slate-400 tracking-widest bg-slate-100 px-2 py-0.5 rounded">
-                        #{{ order.id.hex|slice:":8" }}
+                        #{{ order.number }}
                     </span>
                     {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
                     {% if order.is_recurrent %}

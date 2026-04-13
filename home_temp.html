@@ -1,4 +1,4 @@
-{% extends layout_base|default:'base.html' %}
+{% extends 'base.html' %}
 
 {% block title %}Dashboard - Gestão de Serviços{% endblock %}
 
@@ -7,7 +7,39 @@
     <!-- Welcome Section -->
     <section>
         <h2 class="text-2xl font-semibold tracking-tight">Olá, {{ user.first_name|default:user.username }}</h2>
+        <p class="text-sm text-slate-500">Aqui está um resumo das atividades da sua equipe hoje.</p>
     </section>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-medium text-slate-500">Ordens Ativas</h3>
+                <i data-lucide="activity" class="h-4 w-4 text-blue-500"></i>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2">
+                <span class="text-2xl font-bold tracking-tight">{{ active_orders }}</span>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-medium text-slate-500">Aguardando Aprovação</h3>
+                <i data-lucide="clock" class="h-4 w-4 text-amber-500"></i>
+            </div>
+            <div class="mt-2">
+                <span class="text-2xl font-bold tracking-tight">{{ pending_approval }}</span>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-medium text-slate-500">Aguardando Execução</h3>
+                <i data-lucide="wrench" class="h-4 w-4 text-green-500"></i>
+            </div>
+            <div class="mt-2">
+                <span class="text-2xl font-bold tracking-tight">{{ waiting_execution }}</span>
+            </div>
+        </div>
+    </div>
 
     <!-- Actions Section -->
     <section class="space-y-3">
@@ -31,25 +63,23 @@
 
             {% if perms.services.view_client %}
             <a href="{% url 'client_list' %}" class="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-all hover:bg-slate-50 hover:border-slate-300">
-                <i data-lucide="users" class="h-6 w-6 text-slate-900"></i>
+                <i data-lucide="users" class="h-6 w-6 text-slate-900"></i>      
                 <span class="text-sm font-medium">Ver Clientes</span>
             </a>
             {% endif %}
 
             <a href="{% url 'service_order_list' %}" class="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-all hover:bg-slate-50 hover:border-slate-300">
-                <i data-lucide="file-text" class="h-6 w-6 text-slate-900"></i>
-                <span class="text-sm font-medium">Ordens de Serviço</span>
+                <i data-lucide="file-text" class="h-6 w-6 text-slate-900"></i>  
+                <span class="text-sm font-medium">Ordens de Serviço</span>      
             </a>
 
             {% if perms.services.add_serviceorder %}
             <a href="{% url 'service_order_scheduling' %}" class="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 transition-all hover:bg-slate-50 hover:border-slate-300">
                 <i data-lucide="calendar-plus" class="h-6 w-6 text-slate-900"></i>
-                <span class="text-sm font-medium">Novo Agendamento</span>
+                <span class="text-sm font-medium">Novo Agendamento</span>       
             </a>
             {% endif %}
         </div>
         {% endif %}
-    </section>
-
 </div>
 {% endblock %}

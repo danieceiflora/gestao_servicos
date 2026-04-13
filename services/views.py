@@ -74,6 +74,9 @@ class ProfessionalScheduleBlockListView(LoginRequiredMixin, ListView):
 
 @login_required
 def home(request):
+    if not request.user.is_manager:
+        return redirect('equipe_task_list')
+
     orders_qs = get_orders_queryset(request)
     active_orders = orders_qs.exclude(status__in=[ServiceOrder.Status.FINISHED, ServiceOrder.Status.CANCELLED]).count()
     pending_approval = orders_qs.filter(status=ServiceOrder.Status.WAITING_APPROVAL).count()
@@ -81,11 +84,14 @@ def home(request):
     
     recent_orders = orders_qs.all().order_by('-updated_at')[:5]
     
+    layout_base = 'base.html' if request.user.is_manager else 'base_equipe.html'
+
     return render(request, 'services/home.html', {
         'active_orders': active_orders,
         'pending_approval': pending_approval,
         'waiting_execution': waiting_execution,
-        'recent_orders': recent_orders
+        'recent_orders': recent_orders,
+        'layout_base': layout_base,
     })
 
 @login_required
@@ -489,7 +495,7 @@ def service_order_scheduling(request):
                                 # Notificar o profissional
                                 if professional.user:
                                     title = "Nova O.S. Agendada 🛠️"
-                                    body = f"Você foi escalado para {task.get_task_type_display()} na O.S. #{service_order.id.hex[:8]}\nInício: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M') if task.scheduled_at else 'A definir'}"
+                                    body = f"Você foi escalado para {task.get_task_type_display()} na O.S. #{service_order.number}\nInício: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M') if task.scheduled_at else 'A definir'}"
                                     send_push_notification(professional.user, title, body, url=f"/equipe/etapa/{task.id}/")
 
                             except (Professional.DoesNotExist, ProfessionalRole.DoesNotExist):
@@ -650,7 +656,7 @@ def service_order_edit(request, order_id):
         'items_total': items_total,
         'professionals': Professional.objects.filter(is_active=True),
         'roles': ProfessionalRole.objects.all(),
-        'title': f'Editar OS #{order.id.hex[:8]}'
+        'title': f'Editar OS #{order.number}'
     })
 
 @login_required
@@ -742,7 +748,7 @@ def task_add(request, order_id):
                 professional = team_member.professional
                 if professional and professional.user:
                     title = "Novo Agendamento 🛠️"
-                    body = f"Você foi alocado em: {task.get_task_type_display()} para a OS #{order.id.hex[:8]}\nAgendamento: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M') if task.scheduled_at else 'A definir'}"
+                    body = f"Você foi alocado em: {task.get_task_type_display()} para a OS #{order.number}\nAgendamento: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M') if task.scheduled_at else 'A definir'}"
                     send_push_notification(professional.user, title, body, url=f"/equipe/etapa/{task.id}/")
 
             # Processar arquivos de mídia (fotos/vídeos)
@@ -964,7 +970,10 @@ def service_order_calendar(request):
     }
     
     # Se for colaborador, passa apenas seu próprio perfil
-    if not (user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]):
+    layout_base = 'base.html' if user.is_manager else 'base_equipe.html'
+    context['layout_base'] = layout_base
+
+    if not user.is_manager:
         try:
             context['current_professional'] = user.professional_profile
             context['is_collaborator'] = True
@@ -1058,7 +1067,7 @@ def api_quick_create_order(request):
             # Notificar o profissional
             if prof.user:
                 title = "Nova O.S. Rápida 🛠️"
-                body = f"Você foi alocado em: {task.get_task_type_display()} (OS #{order.id.hex[:8]})\nAgendamento: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M')}"
+                body = f"Você foi alocado em: {task.get_task_type_display()} (OS #{order.number})\nAgendamento: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M')}"
                 send_push_notification(prof.user, title, body, url=f"/equipe/etapa/{task.id}/")
 
         return JsonResponse({'id': str(order.id), 'success': True})
