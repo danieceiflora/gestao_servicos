@@ -163,6 +163,7 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
 
         <!-- OCORRÊNCIAS -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -222,7 +223,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-slate-600 mb-1">Fotos (Opcional)</label>
-                                    <input type="file" name="files" multiple accept="image/*,video/*" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100" />
+                                    {% include "services/components/media_dropzone.html" with is_subform=True dropzone_name="files" dropzone_id="occurrence_files" %}
                                 </div>
                                 <button type="submit" class="w-full rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 active:scale-[0.98] transition-all h-12 flex items-center justify-center text-sm shadow-md shadow-rose-500/30">
                                     Enviar Ocorrência
@@ -233,35 +234,13 @@
                 {% endif %}
             </div>
         </div>
-        {% endif %}
     </div>
 </div>
 
+{% include "services/components/gps_modal.html" %}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const gpsButtons = document.querySelectorAll('[data-gps-trigger="true"]');
-    gpsButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const lat = this.getAttribute('data-gps-lat');
-            const lng = this.getAttribute('data-gps-lng');
-            const address = this.getAttribute('data-gps-address');
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-            const isAndroid = /android/i.test(navigator.userAgent);
-            let url = '';
-            if (lat && lng && lat !== 'None' && lng !== 'None') {
-                if (isIOS) url = "maps://?q=,";
-                else if (isAndroid) url = "geo:,?q=,";
-                else url = "https://www.google.com/maps/dir/?api=1&destination=,";
-            } else {
-                const encodedAddress = encodeURIComponent(address);
-                if (isIOS) url = "maps://?q=";
-                else if (isAndroid) url = "geo:0,0?q=";
-                else url = "https://www.google.com/maps/dir/?api=1&destination=";
-            }
-            window.open(url, '_blank');
-        });
-    });
-
     const btnUpdateGps = document.getElementById('btn-update-gps');
     if (btnUpdateGps) {
         btnUpdateGps.addEventListener('click', function() {
