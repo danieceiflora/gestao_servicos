@@ -9,9 +9,9 @@ from datetime import timedelta, datetime
 import django.utils.timezone
 from .notifications import send_push_notification
 from .models import (
-    User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem, 
+    User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem,
     Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
-    ServiceOrderTask, ServicePayment
+    ServiceOrderTask, ServicePayment, Occurrence
 )
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
@@ -666,6 +666,7 @@ def service_order_edit(request, order_id):
         'form': form,
         'order': order,
         'tasks': tasks,
+        'occurrences': Occurrence.objects.filter(task__service_order=order).order_by('-created_at'),
         'items': items,
         'items_total': items_total,
         'professionals': Professional.objects.filter(is_active=True),
@@ -1213,3 +1214,45 @@ def task_media_delete(request, media_id):
         'media': media,
         'task': task
     })
+
+# --- OCORRÊNCIAS ---
+
+@login_required
+def occurrence_list(request):
+    "Visão geral das ocorrências"
+    if request.user.role not in [User.Roles.ADMIN, User.Roles.MANAGER] and not request.user.is_superuser:
+        messages.error(request, "Acesso negado.")
+        return redirect('home')
+
+    occurrences = Occurrence.objects.all().order_by('-created_at')
+    
+    status_filter = request.GET.get('status', Occurrence.OccurrenceStatus.REGISTERED)
+    if status_filter and status_filter != 'ALL':
+        occurrences = occurrences.filter(status=status_filter)
+        
+    return render(request, 'services/occurrences/list.html', {
+        'occurrences': occurrences,
+        'current_status': status_filter,
+        'status_choices': Occurrence.OccurrenceStatus.choices,
+        'resolved_count': Occurrence.objects.filter(status=Occurrence.OccurrenceStatus.RESOLVED).count(),
+        'registered_count': Occurrence.objects.filter(status=Occurrence.OccurrenceStatus.REGISTERED).count(),
+    })
+
+@login_required
+def occurrence_resolve(request, occurrence_id):
+    "Resolve uma ocorrência"
+    if request.method == 'POST':
+        if request.user.role not in [User.Roles.ADMIN, User.Roles.MANAGER] and not request.user.is_superuser:
+            messages.error(request, "Acesso negado.")
+            return redirect('home')
+            
+        occurrence = get_object_or_404(Occurrence, id=occurrence_id)
+        observation = request.POST.get('observation', '')
+        
+        occurrence.observation = observation
+        occurrence.status = Occurrence.OccurrenceStatus.RESOLVED
+        occurrence.save()
+        
+        messages.success(request, f"Ocorrência marcada como resolvida.")
+        
+    return redirect('occurrence_list')

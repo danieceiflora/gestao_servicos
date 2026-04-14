@@ -245,6 +245,54 @@
             </div>
         </div>
 
+        <!-- ============ SEÇÃO 5: OCORRÊNCIAS ============ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-red-50 to-slate-50">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-red-600 rounded-lg">
+                            <i data-lucide="alert-triangle" class="h-5 w-5 text-white"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-900">Seção 5: Ocorrências</h3>
+                            <p class="text-xs text-slate-500">Histórico de problemas relatados em campo</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 space-y-4">
+                {% if occurrences %}
+                <div class="space-y-3">
+                    {% for occurrence in occurrences %}
+                    <div class="p-4 border-2 {% if occurrence.status == 'REGISTERED' %}border-amber-200 bg-amber-50{% else %}border-emerald-200 bg-emerald-50{% endif %} rounded-xl relative">
+                        <div class="flex items-center justify-between mb-2">    
+                            <div>
+                                <span class="font-bold text-slate-900">{{ occurrence.get_occurrence_type_display }}</span>
+                                <span class="text-xs text-slate-600 ml-2">Etapa: {{ occurrence.task.title }}</span>
+                            </div>
+                            <span class="text-xs px-2 py-1 rounded-full {% if occurrence.status == 'REGISTERED' %}bg-amber-100 text-amber-700 border border-amber-200{% else %}bg-emerald-100 text-emerald-700 border border-emerald-200{% endif %}">
+                                {{ occurrence.get_status_display }}
+                            </span>
+                        </div>
+                        <p class="text-sm text-slate-700 font-medium mb-1">Descrição do Relator:</p>
+                        <p class="text-sm text-slate-600 mb-3 whitespace-pre-wrap">{{ occurrence.description }}</p>
+                        
+                        {% if occurrence.status == 'RESOLVED' and occurrence.observation %}
+                        <div class="mt-3 pt-3 border-t border-emerald-200/50">
+                            <p class="text-xs text-slate-700 font-medium mb-1">Anotações da Resolução:</p>
+                            <p class="text-xs text-slate-600 whitespace-pre-wrap">{{ occurrence.observation }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-slate-500 italic text-center py-4">Nenhuma ocorrência registrada para esta ordem de serviço.</p>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- Submit Buttons -->
         <div class="flex gap-3 sticky bottom-6 z-10">
             <a href="{% url 'service_order_detail' order.id %}" class="flex-1 py-4 rounded-xl border-2 border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all bg-white shadow-lg">

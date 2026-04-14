@@ -449,6 +449,31 @@
             </div>
         </div>
 
+        <!-- ============ SEÇÃO 4: OCORRÊNCIAS ============ -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-red-50 to-slate-50">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-red-600 rounded-lg">
+                            <i data-lucide="alert-triangle" class="h-5 w-5 text-white"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-900">Seção 4: Ocorrências</h3>
+                            <p class="text-xs text-slate-500">Histórico de problemas relatados em campo</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <div class="flex flex-col items-center justify-center py-6 px-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center">
+                    <i data-lucide="info" class="h-8 w-8 text-slate-400 mb-3"></i>
+                    <p class="text-sm font-medium text-slate-700">A ordem de serviço precisa ser criada primeiro.</p>
+                    <p class="text-xs text-slate-500 mt-1 max-w-sm">Após a criação da OS e o agendamento de tarefas, a equipe em campo poderá registrar ocorrências que aparecerão nesta seção.</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Submit Button -->
         <div class="flex gap-3">
             <a href="{% url 'service_order_list' %}" class="flex-1 py-4 rounded-xl border-2 border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all">

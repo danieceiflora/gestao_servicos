@@ -64,4 +64,8 @@ urlpatterns = [
     ##path('api/properties/quick-create/', views.api_quick_create_property, name='api_quick_create_property'),
     path('api/properties/list/', views.api_get_properties, name='api_get_properties'),
     path('api/orders/quick-create/', views.api_quick_create_order, name='api_quick_create_order'),
+    # Ocorrências
+    path('occurrences/', views.occurrence_list, name='occurrence_list'),
+    path('occurrences/<int:occurrence_id>/resolve/', views.occurrence_resolve, name='occurrence_resolve'),
 ]
+
