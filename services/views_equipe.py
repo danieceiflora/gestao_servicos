@@ -109,10 +109,7 @@ def equipe_task_finish(request, task_id):
             task.service_order.update_status()
             
         messages.success(request, 'Etapa finalizada com sucesso!')
-        
-    return redirect('equipe_task_detail', task_id=task.id)
-
-
+        return redirect('equipe_task_list')
 @login_required
 def equipe_task_add_media(request, task_id):
     """
@@ -130,6 +127,29 @@ def equipe_task_add_media(request, task_id):
         else:
             messages.error(request, 'Nenhum arquivo providenciado.')
             
+    return redirect('equipe_task_detail', task_id=task.id)
+
+@login_required
+def equipe_media_delete(request, media_id):
+    """Permite ao instalador excluir uma mídia (foto/vídeo) que ele enviou antes de finalizar a OS."""
+    media = get_object_or_404(ServiceMedia, id=media_id)
+    task = media.task
+
+    # Verifica se o usuário logado pertence à equipe designada para esta OS (ou é admin)
+    if not request.user.is_superuser:
+        user_tasks = get_collaborator_tasks(request.user)
+        if task not in user_tasks:
+            messages.error(request, 'Você não tem permissão para modificar esta OS.')
+            return redirect('equipe_task_list')
+
+    if task.status == 'Concluído':
+        messages.error(request, 'Não é possível excluir mídias de uma OS finalizada.')
+        return redirect('equipe_task_detail', task_id=task.id)
+
+    if request.method == 'POST':
+        media.delete()
+        messages.success(request, 'Mídia excluída com sucesso.')
+    
     return redirect('equipe_task_detail', task_id=task.id)
 
 @login_required

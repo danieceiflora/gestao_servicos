@@ -945,6 +945,8 @@ def api_calendar_events(request):
     if prof_id:
         tasks = tasks.filter(team_members__professional_id=prof_id).distinct()
     
+    is_manager = user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
+
     for task in tasks:
         colors = {
             'BUDGET': ('#3b82f6', '#2563eb', 'ORÇ'),
@@ -952,14 +954,18 @@ def api_calendar_events(request):
             'WARRANTY': ('#f59e0b', '#d97706', 'GAR'),
         }
         bg, border, prefix = colors.get(task.task_type, ('#64748b', '#475569', 'TSK'))
-        
+
         team_names = ', '.join([tm.professional.name + '-' + (tm.role.name if tm.role else 'Geral') for tm in task.team_members.all()])
         neighborhood = task.service_order.client_property.neighborhood
         title = f"{prefix}: {task.service_order.client_property.client.name} | {team_names} | {neighborhood}"
-        
+
         # Usar scheduled_end_at se existir, senão usar duração padrão
         end_time = task.scheduled_end_at if task.scheduled_end_at else (task.scheduled_at + default_duration)
-        
+
+        url = reverse_lazy('service_order_detail', kwargs={'order_id': task.service_order.id})
+        if not is_manager:
+            url = reverse_lazy('equipe_task_detail', kwargs={'task_id': task.id})
+
         events.append({
             'id': f"task-{task.id}",
             'title': title,
@@ -967,7 +973,14 @@ def api_calendar_events(request):
             'end': end_time.isoformat(),
             'backgroundColor': bg,
             'borderColor': border,
-            'url': reverse_lazy('service_order_detail', kwargs={'order_id': task.service_order.id}),
+            'url': url,
+            'client': task.service_order.client_property.client.name,
+            'address': f"{task.service_order.client_property.address}, {task.service_order.client_property.number}",
+            'neighborhood': neighborhood,
+            'status': task.service_order.get_status_display(),
+            'description': task.service_order.description,
+            'team': [tm.professional.name for tm in task.team_members.all()],
+            'type': task.task_type.lower()
         })
 
     blocks = ProfessionalScheduleBlock.objects.all()

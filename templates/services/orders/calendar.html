@@ -337,7 +337,11 @@
             <div class="pt-6 border-t border-slate-100 flex gap-3">
                 <button id="ed-btn-detail" class="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
                     <i data-lucide="external-link" class="h-4 w-4"></i>
+                    {% if is_collaborator %}
+                    Painel de Execução
+                    {% else %}
                     Ver OS Completa
+                    {% endif %}
                 </button>
                 <button onclick="closeEventDetailModal()" class="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all">
                     Fechar
