@@ -103,8 +103,8 @@
                                             GPS
                                         </button>
                                         {% if perms.services.add_serviceorder %}
-                                        <a href="{% url 'service_order_create' property.id %}" title="Nova Vistoria" class="p-1.5 rounded-md bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition-colors shadow-sm">
-                                            <i data-lucide="clipboard-check" class="h-4 w-4"></i>
+                                        <a href="{% url 'service_order_scheduling' %}?property_id={{ property.id }}" title="Novo Agendamento" class="p-1.5 rounded-md bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition-colors shadow-sm">
+                                            <i data-lucide="calendar-plus" class="h-4 w-4"></i>
                                         </a>
                                         {% endif %}
                                     </div>
@@ -185,7 +185,7 @@
                             GPS
                         </button>
                         {% if perms.services.add_serviceorder %}
-                        <a href="{% url 'service_order_create' property.id %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                        <a href="{% url 'service_order_scheduling' %}?property_id={{ property.id }}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
                             <i data-lucide="clipboard-check" class="h-3 w-3"></i> OS
                         </a>
                         {% endif %}

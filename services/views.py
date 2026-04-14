@@ -552,13 +552,22 @@ def service_order_scheduling(request):
         initial_data = {}
         if hasattr(request.user, 'professional_profile'):
             initial_data['originator'] = request.user.professional_profile
-            
+
+        # Pre-selecionar cliente e imóvel se passados na URL (ex: a partir da lista de clientes)
+        property_id = request.GET.get('property_id')
+        if property_id:
+            try:
+                prop = Property.objects.get(id=property_id)
+                initial_data['client'] = prop.client
+                initial_data['client_property'] = prop
+            except Property.DoesNotExist:
+                pass
+                
         form = ServiceOrderSchedulingForm(initial=initial_data)
-        
-        # Se não tiver data de origem da URL, usar hoje por padrão
+
         if not initial_origin_date:
             initial_origin_date = django.utils.timezone.now().date()
-    
+
     return render(request, 'services/orders/order_scheduling_form.html', {
         'form': form,
         'formset': team_formset,

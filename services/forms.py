@@ -307,6 +307,12 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
                 self.fields['client_property'].queryset = Property.objects.filter(client_id=client_id).order_by('address')
             except (ValueError, TypeError):
                 pass
+        elif hasattr(self, 'initial') and self.initial.get('client'):
+            try:
+                client_id = getattr(self.initial.get('client'), 'id', self.initial.get('client'))
+                self.fields['client_property'].queryset = Property.objects.filter(client_id=client_id).order_by('address')
+            except (ValueError, TypeError):
+                pass
         elif self.instance and not self.instance._state.adding:
             try:
                 if self.instance.client_property:
@@ -389,6 +395,12 @@ class ServiceOrderForm(forms.ModelForm):
         if 'client' in self.data:
             try:
                 client_id = self.data.get('client')
+                self.fields['client_property'].queryset = Property.objects.filter(client_id=client_id).order_by('address')
+            except (ValueError, TypeError):
+                pass
+        elif hasattr(self, 'initial') and self.initial.get('client'):
+            try:
+                client_id = getattr(self.initial.get('client'), 'id', self.initial.get('client'))
                 self.fields['client_property'].queryset = Property.objects.filter(client_id=client_id).order_by('address')
             except (ValueError, TypeError):
                 pass

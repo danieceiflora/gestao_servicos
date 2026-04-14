@@ -34,8 +34,6 @@ urlpatterns = [
     path('orders/<uuid:order_id>/edit/', views.service_order_edit, name='service_order_edit'),
     path('orders/<uuid:order_id>/budget/', views.service_order_budget, name='service_order_budget'),
     path('orders/<uuid:order_id>/execute/', views.service_order_execution, name='service_order_execution'),  # Legacy redirect
-    path('property/<uuid:property_id>/service/new/', views.service_order_create, name='service_order_create'),
-    
     # Tasks (Etapas de Serviço)
     path('tasks/<uuid:task_id>/execute/', views.task_execution, name='task_execution'),
     path('tasks/<uuid:task_id>/edit/', views.task_edit, name='task_edit'),
