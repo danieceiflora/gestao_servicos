@@ -1,415 +1,310 @@
 {% extends "base_equipe.html" %}
 {% load static %}
-
 {% block title %}{{ title }}{% endblock %}
-
 {% block content %}
-<div class="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-    
-    <!-- HEADER -->
-    <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+<div class="max-w-3xl mx-auto pb-32">
+
+    <!-- Header App Style -->
+    <div class="bg-white px-4 py-5 shadow-sm border-b border-slate-100 flex items-center justify-between sticky top-14 z-30">
         <div>
-            <h1 class="text-3xl font-bold tracking-tight text-slate-900">
-                Etapa: {{ task.get_task_type_display }}
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">OS #{{ order.number }}</p>
+            <h1 class="text-xl font-black text-slate-800 leading-tight">
+                {{ task.get_task_type_display }}
             </h1>
-            <p class="text-sm text-slate-500 mt-1">
-                OS #{{ order.number }} &bull; Criada em {{ order.created_at|date:"d/m/Y" }}
-            </p>
         </div>
         
-        <!-- STATUS BADGE -->
         <div>
             {% if task.status == 'SCHEDULED' %}
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                    <svg class="mr-1.5 h-2 w-2 text-blue-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
+                <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 ring-1 ring-blue-600/20">
                     Agendada
                 </span>
             {% elif task.status == 'IN_PROGRESS' or task.started_at and not task.finished_at %}
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
-                    <svg class="animate-pulse mr-1.5 h-2 w-2 text-amber-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
+                <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 ring-1 ring-amber-600/20">
+                    <svg class="animate-pulse mr-1.5 h-2.5 w-2.5 text-amber-500" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
                     Em Execução
                 </span>
             {% elif task.status == 'COMPLETED' or task.finished_at %}
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-800">
-                    <svg class="mr-1.5 h-2 w-2 text-emerald-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
+                <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20">
                     Concluída
                 </span>
             {% else %}
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-800">
+                <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 ring-1 ring-slate-400/20">
                     {{ task.get_status_display }}
                 </span>
             {% endif %}
         </div>
     </div>
 
-    <!-- GRID INFORMAÇÕES -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <!-- CARD LOCAL E CLIENTE -->
-        <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
-            <div class="px-5 py-4 border-b bg-slate-50">
-                <h3 class="text-sm font-medium text-slate-800 uppercase tracking-wide">Detalhes do Local</h3>
-            </div>
-            <div class="p-5 space-y-4">
-                <div>
-                    <span class="text-xs text-slate-500 font-medium">Cliente</span>
-                    <p class="text-sm font-semibold text-slate-900">{{ client.name }}</p>
-                </div>
-                <div>
-                    <span class="text-xs text-slate-500 font-medium">Endereço Completo</span>
-                    <p class="text-sm text-slate-700 leading-relaxed">
-                        {{ property.address }}, {{ property.number }} <br>
-                        {% if property.complement %}{{ property.complement }} - {% endif %} {{ property.neighborhood }}<br>
-                        {{ property.city }} / {{ property.state }} <br>
-                        CEP: {{ property.zip_code }}
-                    </p>
+    <!-- MAIN CARDS CONTAINER -->
+    <div class="p-4 space-y-4">
+        
+        <!-- CARD LOCAL -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4">
+                <div class="flex items-start gap-4">
+                    <div class="h-10 w-10 shrink-0 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100">
+                        <i data-lucide="map-pin" class="h-5 w-5"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-base font-bold text-slate-800">{{ client.name }}</h3>
+                        <p class="text-sm text-slate-500 mt-1 leading-relaxed">
+                            {{ property.address }}, {{ property.number }} <br>
+                            {% if property.complement %}{{ property.complement }} - {% endif %} {{ property.neighborhood }}<br>
+                            {{ property.city }} / {{ property.state }}
+                        </p>
+                    </div>
                 </div>
             </div>
-            <div class="px-5 py-4 border-t bg-slate-50 flex items-center justify-between">
-                <div>
-                    <span class="text-xs text-slate-500 font-medium block">Coordenadas GPS</span>
-                    <p class="text-sm font-mono text-slate-700 mt-1" id="gps-coords">
-                        {% if property.latitude and property.longitude %}
-                            {{ property.latitude|floatformat:6 }}, {{ property.longitude|floatformat:6 }}
-                        {% else %}
-                            <span class="text-slate-400 italic">Não cadastradas</span>
-                        {% endif %}
-                    </p>
-                </div>
-                <button type="button" id="btn-update-gps" class="inline-flex items-center justify-center rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 transition sm:w-auto">
-                    <i data-lucide="map-pin" class="mr-1.5 h-4 w-4 text-slate-500"></i>
-                    Atualizar GPS
+            
+            <div class="bg-slate-50 px-4 py-3 border-t border-slate-100 flex items-center gap-2">
+                <button type="button" data-gps-trigger="true" data-gps-lat="{{ property.latitude|default:'' }}" data-gps-lng="{{ property.longitude|default:'' }}" data-gps-address="{{ property.address }}, {{ property.number }} - {{ property.neighborhood }}, {{ property.city }}" class="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm">
+                    <i data-lucide="navigation" class="w-4 h-4 mr-2"></i>
+                    GPS (Navegar)
+                </button>
+                <button type="button" id="btn-update-gps" class="inline-flex items-center justify-center px-3 py-2.5 rounded-xl bg-white text-slate-600 font-semibold text-sm border border-slate-300 hover:bg-slate-50 transition-all shadow-sm min-w-12 pointer-events-auto" title="Atualizar Coordenadas">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
 
-        <!-- CARD CONTEXTO DA OS -->
-        <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
-            <div class="px-5 py-4 border-b bg-slate-50">
-                <h3 class="text-sm font-medium text-slate-800 uppercase tracking-wide">Instruções / Escopo</h3>
-            </div>
-            <div class="p-5 space-y-4">
-                <div>
-                    <span class="text-xs text-slate-500 font-medium">Descrição da O.S.</span>
-                    <p class="text-sm text-slate-700 mt-1 whitespace-pre-line">{{ order.description|default:"(Sem descrição informada)" }}</p>
+        <!-- INSTRUÇÕES (Expansível no Mobile) -->
+        <details class="bg-white rounded-2xl shadow-sm border border-slate-200 group overflow-hidden" open>
+            <summary class="p-4 flex items-center justify-between cursor-pointer font-semibold text-slate-800 select-none">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="clipboard-list" class="h-5 w-5 text-amber-500"></i>
+                    O que fazer?
                 </div>
-                
-                <div class="pt-3 border-t">
-                    <span class="text-xs text-slate-500 font-medium">Equipe Escalada</span>
-                    <ul class="text-sm text-slate-700 mt-1">
-                        {% for member in task.team_members.all %}
-                            <li class="flex items-center gap-2 py-1">
-                                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                                <strong>{{ member.professional.name }}</strong> 
-                                <span class="text-slate-500">({{ member.role.name|default:"Técnico" }})</span>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                </div>
+                <i data-lucide="chevron-down" class="h-4 w-4 text-slate-400 group-open:rotate-180 transition-transform"></i>
+            </summary>
+            <div class="p-4 pt-0 border-t border-slate-100/50 mt-1">
+                <p class="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{{ order.description|default:"Nenhuma instrução específica informada." }}</p>
             </div>
-        </div>
-    </div>
+        </details>
 
-    <!-- ÁREA DE EXECUÇÃO (AÇÕES) -->
-    <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-8">
-        <div class="px-5 py-4 border-b bg-slate-50 flex items-center justify-between">
-            <h3 class="text-sm font-medium text-slate-800 uppercase tracking-wide">Controle de Execução</h3>
-            
-            <button type="button" data-gps-trigger="true" data-gps-lat="{{ property.latitude|default:'' }}" data-gps-lng="{{ property.longitude|default:'' }}" data-gps-address="{{ property.address }}, {{ property.number }} - {{ property.neighborhood }}, {{ property.city }}" class="inline-flex items-center justify-center rounded-md text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 h-8 px-3 pl-2">
-                <i data-lucide="navigation" class="w-3.5 h-3.5 mr-1.5 ml-1"></i>
-                Navegar (GPS)
-            </button>
-        </div>
-        
-        <div class="p-5">
-            <!-- 1. Não inciada -->
+        <!-- AREA DE AÇÃO FIXA / BIG CTA -->
+        <div class="mt-8 mb-6">
             {% if not task.started_at %}
-                <div class="text-center py-6">
-                    <p class="text-sm text-slate-600 mb-4">Você chegou ao local e está pronto para começar?</p>
-                    <form action="{% url 'equipe_task_start' task.id %}" method="POST">
-                        {% csrf_token %}
-                        <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-slate-900 text-slate-50 hover:bg-slate-900/90 h-10 px-8 py-2">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            Iniciar Execução da Etapa
-                        </button>
-                    </form>
-                </div>
-            
-            <!-- 2. Iniciada, ainda não finalizada -->
-            {% elif task.started_at and not task.finished_at %}
-                <form action="{% url 'equipe_task_finish' task.id %}" method="POST" class="space-y-4">
+                <form action="{% url 'equipe_task_start' task.id %}" method="POST">
                     {% csrf_token %}
-                    <div>
-                        <p class="text-sm text-slate-500 mb-2">Serviço iniciado em: <strong>{{ task.started_at|date:"d/m/Y" }} às {{ task.started_at|time:"H:i" }}</strong></p>
-                        <label for="notes" class="block text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-800 mb-1">Notas de Execução (Opcional)</label>
-                        <textarea id="notes" name="notes" rows="4" placeholder="Descreva materiais utilizados, anomalias encontradas ou observações importantes..." class="flex min-h-[80px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"></textarea>
-                    </div>
-                    <div class="flex justify-end">
-                        <button type="submit" onclick="return confirm('Deseja realmente marcar essa etapa como concluída? Não será possível editar depois.')" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 bg-emerald-600 text-white hover:bg-emerald-700 h-10 px-8 py-2">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                            Finalizar Etapa
-                        </button>
-                    </div>
+                    <button type="submit" class="w-full relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white font-bold text-base shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 active:scale-[0.98] transition-all h-14 flex items-center justify-center">
+                        <i data-lucide="play" class="w-5 h-5 mr-2"></i>
+                        INICIAR SERVIÇO
+                    </button>
                 </form>
+            {% elif task.started_at and not task.finished_at %}
+                <form action="{% url 'equipe_task_finish' task.id %}" method="POST" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    {% csrf_token %}
+                    <div class="flex items-center gap-3 text-emerald-700 bg-emerald-50 p-3 rounded-xl border border-emerald-100 mb-4">
+                        <i data-lucide="timer" class="h-5 w-5 opacity-80 animate-pulse"></i>
+                        <span class="text-sm font-semibold">Iniciado em {{ task.started_at|date:"d/m" }} às {{ task.started_at|time:"H:i" }}</span>
+                    </div>
 
-            <!-- 3. Finalizada -->
-            {% else %}
-                <div class="border border-emerald-100 bg-emerald-50 rounded-lg p-4 text-center">
-                    <svg class="w-8 h-8 text-emerald-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <h4 class="text-sm font-bold text-emerald-800">Serviço Concluído</h4>
-                    <div class="text-xs text-emerald-700 mt-2 flex flex-col items-center justify-center gap-1 sm:flex-row sm:gap-3">
-                        <span><strong>Iniciado:</strong> {{ task.started_at|date:"d/m/Y" }} às {{ task.started_at|time:"H:i" }}</span>
-                        <span class="hidden sm:inline text-emerald-400">&bull;</span>
-                        <span><strong>Finalizado:</strong> {{ task.finished_at|date:"d/m/Y" }} às {{ task.finished_at|time:"H:i" }}</span>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Relatório / Observações</label>
+                        <textarea id="notes" name="notes" rows="3" placeholder="Como foi o serviço? Gastou material extra? Deixe aqui..." class="w-full rounded-xl border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm p-3"></textarea>
                     </div>
                     
+                    <button type="submit" onclick="return confirm('Você já encerrou os trabalhos no local? O serviço será fechado.')" class="w-full rounded-2xl bg-emerald-600 text-white font-bold text-base shadow-md shadow-emerald-500/20 hover:bg-emerald-700 active:scale-[0.98] transition-all h-14 flex items-center justify-center">
+                        <i data-lucide="check-circle" class="w-5 h-5 mr-2"></i>
+                        FINALIZAR SERVIÇO
+                    </button>
+                </form>
+            {% else %}
+                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center flex flex-col items-center justify-center gap-2">
+                    <div class="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-1">
+                        <i data-lucide="check-check" class="h-6 w-6"></i>
+                    </div>
+                    <h4 class="text-lg font-black text-slate-800">Serviço Concluído</h4>
+                    <p class="text-sm text-slate-500 text-balance">Finalizado em {{ task.finished_at|date:"d/m/Y H:i" }}</p>
+                    
                     {% if task.notes %}
-                        <div class="mt-4 pt-3 border-t border-emerald-200 text-left">
-                            <strong class="block text-xs uppercase tracking-wider text-emerald-800 mb-1">Cópia do Relatório:</strong>
-                            <p class="text-sm text-emerald-900 whitespace-pre-line">{{ task.notes }}</p>
+                        <div class="mt-4 p-3 bg-white border border-slate-100 rounded-xl w-full text-left">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">Seu Relatório</span>
+                            <p class="text-sm text-slate-700 mt-1">{{ task.notes }}</p>
                         </div>
                     {% endif %}
                 </div>
             {% endif %}
         </div>
-    </div>
 
-    <!-- OCORRÊNCIAS -->
-    <div class="bg-white border rounded-xl shadow-sm overflow-hidden mb-8">
-        <div class="px-5 py-4 border-b bg-slate-50 flex justify-between items-center">
-            <h3 class="text-sm font-medium text-slate-800 uppercase tracking-wide">Ocorrências Durante Execução</h3>
+        {% if task.started_at %}
+        <!-- FOTOS & VIDEOS -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="camera" class="h-5 w-5 text-blue-500"></i>
+                    <h3 class="font-semibold text-slate-800">Fotos & Vídeos</h3>
+                </div>
+            </div>
+            <div class="p-4">
+                {% if existing_medias %}
+                    <div class="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-4">
+                        {% for media in existing_medias %}
+                            <div class="aspect-square rounded-xl bg-slate-100 overflow-hidden border border-slate-200 relative">
+                                {% if ".mp4" in media.file.name|lower or ".mov" in media.file.name|lower %}
+                                    <div class="absolute inset-0 flex items-center justify-center bg-black/40 text-white z-10"><i data-lucide="video" class="w-6 h-6"></i></div>
+                                    <video class="w-full h-full object-cover opacity-80"><source src="{{ media.file.url }}" type="video/mp4"></video>
+                                {% else %}
+                                    <a href="{{ media.file.url }}" target="_blank"><img src="{{ media.file.url }}" class="w-full h-full object-cover"></a>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% if not task.finished_at %}
+                    <form action="{% url 'equipe_task_add_media' task.id %}" method="POST" enctype="multipart/form-data" class="space-y-3">
+                        {% csrf_token %}
+                        {% include "services/components/media_dropzone.html" with is_subform=True dropzone_name="files" dropzone_id="service_files" %}
+                        <button type="submit" class="w-full rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 border border-slate-300 active:scale-[0.98] transition-all h-11 flex items-center justify-center text-sm">
+                            <i data-lucide="upload-cloud" class="w-4 h-4 mr-2 text-slate-500"></i> Enviar Arquivos
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
         </div>
 
-        <div class="p-5">
-            <!-- Listagem de ocorrências -->
-            {% if occurrences %}
-                <div class="space-y-4 mb-6">
-                    {% for occ in occurrences %}
-                        <div class="p-4 rounded-lg border {% if occ.status == 'RESOLVED' %}bg-emerald-50 border-emerald-200{% else %}bg-rose-50 border-rose-200{% endif %}">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>                                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-800 mb-1 mr-1">
-                                          {{ occ.get_category_display }}
-                                      </span>                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {% if occ.status == 'RESOLVED' %}bg-emerald-100 text-emerald-800{% else %}bg-rose-100 text-rose-800{% endif %} mb-1">
+        <!-- OCORRÊNCIAS -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="alert-triangle" class="h-5 w-5 text-rose-500"></i>
+                    <h3 class="font-semibold text-slate-800">Ocorrências</h3>
+                </div>
+            </div>
+            <div class="p-4">
+                {% if occurrences %}
+                    <div class="space-y-3 mb-5">
+                        {% for occ in occurrences %}
+                            <div class="p-3 rounded-xl border {% if occ.status == 'RESOLVED' %}bg-emerald-50 border-emerald-100{% else %}bg-rose-50 border-rose-100{% endif %}">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-xs font-bold px-2 py-1 rounded-md {% if occ.status == 'RESOLVED' %}text-emerald-700 bg-emerald-200/50{% else %}text-rose-700 bg-rose-200/50{% endif %}">
                                         {{ occ.get_occurrence_type_display }}
                                     </span>
-                                    <span class="text-xs text-slate-500 ml-2">{{ occ.created_at|date:"d/m/Y H:i" }}</span>
+                                    <span class="text-[10px] text-slate-500 font-medium">{{ occ.created_at|date:"d/m H:i" }}</span>
                                 </div>
-                                <span class="text-xs font-semibold px-2 py-1 rounded-full {% if occ.status == 'RESOLVED' %}text-emerald-700 bg-emerald-100{% else %}text-rose-700 bg-rose-100{% endif %}">
-                                    {{ occ.get_status_display }}
-                                </span>
+                                <p class="text-sm text-slate-700">{{ occ.description }}</p>
                             </div>
-                            <p class="text-sm text-slate-700 whitespace-pre-line">{{ occ.description }}</p>
-                            
-                            {% if occ.observation %}
-                                <div class="mt-3 pt-3 border-t {% if occ.status == 'RESOLVED' %}border-emerald-200{% else %}border-rose-200{% endif %}">
-                                    <strong class="text-xs uppercase tracking-wider {% if occ.status == 'RESOLVED' %}text-emerald-800{% else %}text-rose-800{% endif %} block mb-1">Resolução/Observação:</strong>
-                                    <p class="text-sm text-slate-700">{{ occ.observation }}</p>
-                                </div>
-                            {% endif %}
-
-                            {% if occ.medias.all %}
-                                <div class="mt-3 flex gap-2 overflow-x-auto pb-2">
-                                    {% for m in occ.medias.all %}
-                                        <a href="{{ m.file.url }}" target="_blank" class="block h-16 w-16 shrink-0 rounded border overflow-hidden">
-                                            {% if ".mp4" in m.file.name|lower or ".mov" in m.file.name|lower %}
-                                                <div class="h-full w-full bg-slate-800 flex items-center justify-center text-white text-xs">Vídeo</div>
-                                            {% else %}
-                                                <img src="{{ m.file.url }}" class="h-full w-full object-cover">
-                                            {% endif %}
-                                        </a>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-300 mb-6">
-                    <p class="text-sm text-slate-500">Nenhuma ocorrência registrada.</p>
-                </div>
-            {% endif %}
-
-            <!-- Form para nova ocorrência -->
-            {% if not task.finished_at %}
-                <form action="{% url 'equipe_task_add_occurrence' task.id %}" method="POST" enctype="multipart/form-data" class="pt-4 border-t border-slate-100">
-                    {% csrf_token %}
-                    <div>
-                        <label class="block text-sm font-medium leading-none text-slate-800 mb-2">Registrar Nova Ocorrência</label>
-                            
-                            <div class="mb-4">
-                                <label class="block text-xs text-slate-500 mb-1">Categoria</label>
-                                <select name="category" required class="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                                    <option value="" disabled selected>Selecione uma categoria...</option>
-                                    {% for key, label in occurrence_categories %}
-                                        <option value="{{ key }}">{{ label }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-
-                            <div class="mb-4">
-                              <label class="block text-xs text-slate-500 mb-1">Tipo de Problema</label>
-                              <select name="occurrence_type" required class="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                                  <option value="" disabled selected>Selecione um tipo...</option>
-                                  {% for key, label in occurrence_types %}
-                                      <option value="{{ key }}">{{ label }}</option>
-                                  {% endfor %}
-                              </select>
-                          </div>
-
-                          <div class="mb-4">
-                              <label class="block text-xs text-slate-500 mb-1">Descrição</label>
-                              <textarea name="description" required rows="3" class="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2" placeholder="Descreva os detalhes da ocorrência..."></textarea>
-                          </div>
-
-                          <div class="mb-4">
-                              <label class="block text-xs text-slate-500 mb-2">Fotos/Vídeos do Problema (Opcional)</label>
-                              {% include "services/components/media_dropzone.html" with is_subform=True dropzone_name="files" dropzone_id="occurrence_files" %}
-                        </div>
-                        
-                        <div class="mt-4 flex justify-end">
-                            <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2 bg-rose-600 text-white hover:bg-rose-700 h-10 px-6 py-2">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                                Salvar Ocorrência
-                            </button>
-                        </div>
+                        {% endfor %}
                     </div>
-                </form>
-            {% endif %}
-        </div>
-    </div>
+                {% endif %}
 
-    <!-- EVIDÊNCIAS / MÍDIAS -->
-    <div class="bg-white border rounded-xl shadow-sm overflow-hidden mb-8">
-        <div class="px-5 py-4 border-b bg-slate-50 flex justify-between items-center">
-            <h3 class="text-sm font-medium text-slate-800 uppercase tracking-wide">Fotos & Vídeos (Evidências)</h3>
-        </div>
-
-        <div class="p-5">
-            <!-- Grid de mídias existentes -->
-            {% if existing_medias %}
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-                    {% for media in existing_medias %}
-                        <div class="group relative aspect-square rounded-lg overflow-hidden border bg-slate-100 flex items-center justify-center">
-                            {% if ".mp4" in media.file.name|lower or ".mov" in media.file.name|lower %}
-                                <video controls class="w-full h-full object-cover">
-                                    <source src="{{ media.file.url }}" type="video/mp4">
-                                </video>
-                            {% else %}
-                                <a href="{{ media.file.url }}" target="_blank" rel="noopener noreferrer" class="w-full h-full block cursor-pointer">
-                                    <img src="{{ media.file.url }}" alt="Midia da O.S." class="w-full h-full object-cover object-center transition-transform group-hover:scale-105" loading="lazy">
-                                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
-                                        <svg class="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                                    </div>
-                                </a>
-                            {% endif %}
+                {% if not task.finished_at %}
+                    <details class="group bg-rose-50/50 border border-rose-100 rounded-xl overflow-hidden">
+                        <summary class="p-3 text-sm font-bold tracking-wide text-rose-700 cursor-pointer flex items-center justify-center gap-2 select-none active:bg-rose-100 transition-colors">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                            REGISTRAR PROBLEMA
+                        </summary>
+                        <div class="p-4 border-t border-rose-100 bg-white">
+                            <form action="{% url 'equipe_task_add_occurrence' task.id %}" method="POST" enctype="multipart/form-data" class="space-y-3">
+                                {% csrf_token %}
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">Categoria</label>
+                                    <select name="category" required class="w-full rounded-xl border-slate-300 text-sm focus:ring-rose-500 focus:border-rose-500">
+                                        <option value="" disabled selected>Selecione...</option>
+                                        {% for key, label in occurrence_categories %}
+                                            <option value="{{ key }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                  <label class="block text-xs font-bold text-slate-600 mb-1">Motivo / Tipo</label>
+                                  <select name="occurrence_type" required class="w-full rounded-xl border-slate-300 text-sm focus:ring-rose-500 focus:border-rose-500">
+                                      <option value="" disabled selected>Selecione...</option>
+                                      {% for key, label in occurrence_types %}
+                                          <option value="{{ key }}">{{ label }}</option>
+                                      {% endfor %}
+                                  </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">O que houve?</label>
+                                    <textarea name="description" required rows="2" class="w-full rounded-xl border-slate-300 text-sm focus:ring-rose-500 focus:border-rose-500"></textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">Fotos (Opcional)</label>
+                                    <input type="file" name="files" multiple accept="image/*,video/*" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100" />
+                                </div>
+                                <button type="submit" class="w-full rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 active:scale-[0.98] transition-all h-12 flex items-center justify-center text-sm shadow-md shadow-rose-500/30">
+                                    Enviar Ocorrência
+                                </button>
+                            </form>
                         </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-300 mb-6">
-                    <p class="text-sm text-slate-500">Nenhuma foto ou vídeo anexado a esta etapa ainda.</p>
-                </div>
-            {% endif %}
-
-            <!-- Upload só se não estiver finalizado -->
-            {% if not task.finished_at %}
-                <form action="{% url 'equipe_task_add_media' task.id %}" method="POST" enctype="multipart/form-data" class="pt-4 border-t border-slate-100">
-                    {% csrf_token %}
-                    <div>
-                        <label class="block text-sm font-medium leading-none text-slate-800 mb-2">Anexar Novas Imagens/Vídeos</label>
-                        {% include "services/components/media_dropzone.html" with is_subform=True %}
-                        <div class="mt-4 flex justify-end">
-                            <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 bg-slate-900 text-slate-50 hover:bg-slate-900/90 h-10 px-6 py-2">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                                Enviar Mídias Selecionadas
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            {% endif %}
+                    </details>
+                {% endif %}
+            </div>
         </div>
+        {% endif %}
     </div>
-
 </div>
-
-{% include "services/components/gps_modal.html" %}
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const btnUpdateGps = document.getElementById('btn-update-gps');
+    const gpsButtons = document.querySelectorAll('[data-gps-trigger="true"]');
+    gpsButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const lat = this.getAttribute('data-gps-lat');
+            const lng = this.getAttribute('data-gps-lng');
+            const address = this.getAttribute('data-gps-address');
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            const isAndroid = /android/i.test(navigator.userAgent);
+            let url = '';
+            if (lat && lng && lat !== 'None' && lng !== 'None') {
+                if (isIOS) url = "maps://?q=,";
+                else if (isAndroid) url = "geo:,?q=,";
+                else url = "https://www.google.com/maps/dir/?api=1&destination=,";
+            } else {
+                const encodedAddress = encodeURIComponent(address);
+                if (isIOS) url = "maps://?q=";
+                else if (isAndroid) url = "geo:0,0?q=";
+                else url = "https://www.google.com/maps/dir/?api=1&destination=";
+            }
+            window.open(url, '_blank');
+        });
+    });
 
+    const btnUpdateGps = document.getElementById('btn-update-gps');
     if (btnUpdateGps) {
         btnUpdateGps.addEventListener('click', function() {
             if ("geolocation" in navigator) {
-                // Change button state
                 const originalContent = btnUpdateGps.innerHTML;
-                btnUpdateGps.innerHTML = '<i data-lucide="loader-2" class="mr-1.5 h-4 w-4 text-slate-500 animate-spin"></i> Atualizando...';
+                btnUpdateGps.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-slate-500"></i>';
                 btnUpdateGps.disabled = true;
-                if (window.lucide) {
-                    lucide.createIcons();
-                }
+                if (window.lucide) lucide.createIcons();
 
                 navigator.geolocation.getCurrentPosition(
                     function(position) {
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
-
-                        // Send to backend
                         fetch('{% url "equipe_update_gps" property.id %}', {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRFToken': '{{ csrf_token }}'
-                            },
-                            body: JSON.stringify({
-                                latitude: lat,
-                                longitude: lng
-                            })
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                            body: JSON.stringify({ latitude: lat, longitude: lng })
                         })
-                        .then(response => response.json())
+                        .then(r => r.json())
                         .then(data => {
                             if (data.status === 'success') {
-                                document.getElementById('gps-coords').innerHTML = lat.toFixed(6) + ', ' + lng.toFixed(6);
-                                alert('Coordenadas atualizadas com sucesso!');
+                                alert('Coordenadas de GPS atualizadas com sucesso!');
                             } else {
-                                alert('Erro ao atualizar coordenadas: ' + data.message);
+                                alert('Erro: ' + data.message);
                             }
-                        })
-                        .catch(error => {
-                            console.error('Erro:', error);
-                            alert('Ocorreu um erro ao comunicar com o servidor.');
                         })
                         .finally(() => {
-                            // Restore button state
                             btnUpdateGps.innerHTML = originalContent;
                             btnUpdateGps.disabled = false;
-                            if (window.lucide) {
-                                lucide.createIcons();
-                            }
+                            if (window.lucide) lucide.createIcons();
                         });
                     },
                     function(error) {
-                        console.error('Erro de geolocalização:', error);
-                        let msg = 'Erro ao obter localização.';
-                        if (error.code === error.PERMISSION_DENIED) {
-                            msg = 'Permissão para acessar a localização foi negada.';
-                        }
-                        alert(msg);
-                        
-                        // Restore button state
+                        alert('Erro ao obter localização.');
                         btnUpdateGps.innerHTML = originalContent;
                         btnUpdateGps.disabled = false;
-                        if (window.lucide) {
-                            lucide.createIcons();
-                        }
+                        if (window.lucide) lucide.createIcons();
                     },
                     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
-            } else {
-                alert('Geolocalização não é suportada por este navegador.');
             }
         });
     }
 });
 </script>
-
 {% endblock %}
