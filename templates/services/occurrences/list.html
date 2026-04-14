@@ -103,7 +103,7 @@
 
 <!-- Modals for Occurrences -->
 {% for occurrence in occurrences %}
-<dialog id="modal-{{ occurrence.id }}" class="bg-white backdrop:bg-slate-900/50 rounded-xl p-0 w-[95%] max-w-lg shadow-xl open:animate-in open:fade-in open:zoom-in-95">
+<dialog id="modal-{{ occurrence.id }}" class="bg-white backdrop:bg-slate-900/50 rounded-xl p-0 w-[95%] max-w-lg shadow-xl open:animate-in open:fade-in open:zoom-in-95 m-auto fixed inset-0 max-h-[90vh] overflow-y-auto">
     <div class="p-6">
         <h3 class="text-lg font-bold text-slate-900 mb-4">Detalhes da Ocorrência</h3>
         
@@ -112,7 +112,24 @@
                 <h4 class="text-sm font-medium text-slate-500">Descrição do Relator</h4>
                 <p class="text-slate-800 mt-1 whitespace-pre-wrap">{{ occurrence.description }}</p>
             </div>
-            
+
+            {% if occurrence.medias.exists %}
+            <div>
+                <h4 class="text-sm font-medium text-slate-500 mb-2">Mídias Anexadas ({{ occurrence.medias.count }})</h4>
+                <div class="flex gap-3 overflow-x-auto pb-2">
+                    {% for media in occurrence.medias.all %}
+                    <a href="{{ media.file.url }}" target="_blank" class="w-20 h-20 shrink-0 rounded-lg bg-slate-100 border border-slate-200 hover:ring-2 hover:ring-blue-500 transition-all flex items-center justify-center overflow-hidden group">
+                        {% if media.is_video %}
+                            <i data-lucide="video" class="h-8 w-8 text-slate-400 group-hover:text-blue-500 transition-colors"></i>
+                        {% else %}
+                            <img src="{{ media.file.url }}" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity" alt="Mídia Anexada">
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
             {% if occurrence.status == 'RESOLVED' %}
             <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
                 <h4 class="text-sm font-medium text-slate-500">Observação da Resolução</h4>
