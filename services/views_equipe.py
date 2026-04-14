@@ -150,7 +150,24 @@ def equipe_task_add_occurrence(request, task_id):
             files = request.FILES.getlist('files')
             for file in files:
                 ServiceMedia.objects.create(task=task, occurrence=occurrence, file=file)
-            
+
+            try:
+                from django.contrib.auth import get_user_model
+                from django.db.models import Q
+                from .notifications import send_push_notification
+                admins = get_user_model().objects.filter(Q(is_superuser=True) | Q(role__in=['ADMIN', 'MANAGER']))
+                os_number = task.service_order.number or task.service_order.id
+                for admin in admins:
+                    send_push_notification(
+                        admin, 
+                        "Nova Ocorrência", 
+                        f"Em {task.get_task_type_display()} na OS #{os_number}: {occurrence.get_occurrence_type_display()}"
+                    )
+            except Exception as e:
+                import traceback
+                print(f"Erro no push: {e}")
+                traceback.print_exc()
+
             if category == Occurrence.OccurrenceCategory.BLOCKING:
                 task.status = ServiceOrderTask.TaskStatus.NOT_EXECUTED
                 task.save()
