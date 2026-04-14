@@ -637,7 +637,8 @@ def service_order_budget(request, order_id):
 def service_order_detail(request, order_id):
     order = get_object_or_404(get_orders_queryset(request), id=order_id)
     tasks = order.tasks.all().prefetch_related('team_members__professional', 'medias')
-    return render(request, 'services/orders/order_detail.html', {'order': order, 'tasks': tasks})
+    occurrences = Occurrence.objects.filter(task__service_order=order).order_by('-created_at')
+    return render(request, 'services/orders/order_detail.html', {'order': order, 'tasks': tasks, 'occurrences': occurrences})
 
 @login_required
 @permission_required('services.change_serviceorder', raise_exception=True)
