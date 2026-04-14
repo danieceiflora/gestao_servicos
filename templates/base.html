@@ -99,47 +99,21 @@
     <!-- Mobile Bottom Navigation (IHC: Thumb Zone) -->
     {% if user.is_authenticated %}
     <nav class="md:hidden fixed bottom-0 left-0 z-50 w-full bg-white border-t border-slate-200 safe-area-bottom">
-        <div class="grid h-16 {% if perms.services.view_professional and perms.services.view_client %}grid-cols-5{% else %}grid-cols-4{% endif %} items-center justify-around">
+        <div class="grid h-16 {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}grid-cols-3{% else %}grid-cols-2{% endif %} items-center justify-around">
             <a href="{% url 'home' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'home' %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="layout-dashboard" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Início</span>
             </a>
-            
-            {% if perms.services.view_client %}
-            <a href="{% url 'client_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'client' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
-                <i data-lucide="book-user" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Clientes</span>
-            </a>
-            {% endif %}
-            
-            {% if perms.services.view_professional %}
-            <a href="{% url 'professional_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'professional' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
-                <i data-lucide="users" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Equipe</span>
-            </a>
-            {% endif %}
 
-              {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
-              <a href="{% url 'occurrence_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'occurrence' in request.resolver_match.url_name %}text-amber-600{% else %}text-slate-500{% endif %}">
-                  <i data-lucide="alert-triangle" class="h-5 w-5"></i>
-                  <span class="text-[10px] font-medium">Ocorrências</span>
-              </a>
-              {% endif %}
-
-                          <a href="{% url 'service_order_calendar' %}" class="flex flex-col items-center justify-center gap-1 {% if 'calendar' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
+            <a href="{% url 'service_order_calendar' %}" class="flex flex-col items-center justify-center gap-1 {% if 'calendar' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="calendar" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Agenda</span>
             </a>
-            
-            {% if not user.is_manager %}
-            <a href="{% url 'equipe_task_list' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'equipe_task_list' %}text-slate-900{% else %}text-slate-500{% endif %}">
-                <i data-lucide="clipboard-list" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Tarefas</span>
-            </a>
-            {% else %}
-            <a href="{% url 'service_order_list' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-500{% endif %}">
-                <i data-lucide="clipboard-list" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Ordens</span>
+
+            {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
+            <a href="{% url 'occurrence_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'occurrence' in request.resolver_match.url_name %}text-amber-600{% else %}text-slate-500{% endif %}">
+                <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+                <span class="text-[10px] font-medium">Ocorrências</span>
             </a>
             {% endif %}
         </div>
