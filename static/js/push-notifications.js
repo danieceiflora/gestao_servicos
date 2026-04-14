@@ -196,7 +196,10 @@ const PushManager = (function() {
 
     return {
         init: init,
-        openSettings: function(vapidKey) {
+        openSettings: async function(vapidKey) {
+            if (Notification.permission === 'default') {
+                await requestPermission(vapidKey);
+            }
             showSettingsModal(vapidKey);
         }
     };
