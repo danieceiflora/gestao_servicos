@@ -51,6 +51,11 @@
                             <i data-lucide="log-out" class="h-5 w-5"></i>
                         </button>
                     </form>
+                    {% if VAPID_PUBLIC_KEY %}
+                    <button type="button" onclick="PushManagerUI.openSettings('{{ VAPID_PUBLIC_KEY }}')" class="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Notificações">
+                        <i data-lucide="bell" class="h-5 w-5"></i>
+                    </button>
+                    {% endif %}
                 </div>
             </nav>
             {% endif %}
@@ -70,10 +75,15 @@
             {% endif %}
             <form action="{% url 'logout' %}" method="post" class="inline">
                 {% csrf_token %}
-                <button type="submit" class="p-1 text-slate-400">
+                <button type="submit" class="p-1 text-slate-400 hover:text-red-600">
                     <i data-lucide="log-out" class="h-4 w-4"></i>
                 </button>
             </form>
+            {% if VAPID_PUBLIC_KEY %}
+            <button type="button" onclick="PushManagerUI.openSettings('{{ VAPID_PUBLIC_KEY }}')" class="p-1 text-slate-400 hover:text-blue-600" title="Notificações">
+                <i data-lucide="bell" class="h-4 w-4"></i>
+            </button>
+            {% endif %}
         </div>
         {% endif %}
     </header>
@@ -136,5 +146,7 @@
     </nav>
     {% endif %}
 {% endblock %}
+
+
 
 

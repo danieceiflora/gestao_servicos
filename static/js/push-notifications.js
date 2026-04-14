@@ -132,7 +132,72 @@ const PushManager = (function() {
         }
     }
 
+    // Modal de Configurações de Notificação
+    function showSettingsModal(vapidPublicKey) {
+        if (document.getElementById('push-settings-modal')) return;
+
+        const modal = document.createElement('dialog');
+        modal.id = 'push-settings-modal';
+        modal.className = 'bg-white rounded-xl p-0 w-[95%] max-w-sm shadow-xl backdrop:bg-slate-900/50 m-auto fixed inset-0 max-h-[90vh] overflow-y-auto open:animate-in open:fade-in open:zoom-in-95';
+        
+        let stateHtml = '';
+        if (Notification.permission === 'granted') {
+            stateHtml = '<div class="p-3 bg-emerald-50 text-emerald-700 rounded-lg text-sm mb-4">As notificações estão <strong class="font-bold">ATIVADAS</strong> neste dispositivo.<br><br>Você receberá alertas instantâneos.</div>';
+        } else if (Notification.permission === 'denied') {
+            stateHtml = '<div class="p-3 bg-red-50 text-red-700 rounded-lg text-sm mb-4">As notificações estão <strong class="font-bold">BLOQUEADAS</strong> no seu navegador.<br><br>Para permitir, acesse as "Configurações de Site" do seu navegador (cadeado ao lado da URL) e ative as notificações.</div>';
+        } else {
+            stateHtml = '<div class="p-3 bg-amber-50 text-amber-700 rounded-lg text-sm mb-4">As notificações <strong class="font-bold">NÃO ESTÃO ATIVADAS</strong> para este dispositivo.<br><br>Ative para não perder nenhuma Ocorrência.</div>';
+        }
+
+        modal.innerHTML = `
+            <div class="p-6">
+                <h3 class="text-lg font-bold text-slate-900 mb-1">Notificações Push</h3>
+                <p class="text-xs text-slate-500 mb-6">Gerencie como você recebe atualizações.</p>
+                ${stateHtml}
+                <div class="flex flex-col gap-2 mt-6">
+                    ${(Notification.permission === 'default') ? '<button id="btn-enable-push" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors">Ativar Alertas</button>' : ''}
+                    ${Notification.permission === 'granted' ? '<button id="btn-disable-push" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold transition-colors">Desativar e Sair do Push</button>' : ''}
+                    <button id="btn-close-push-modal" class="px-4 py-2.5 text-slate-500 hover:text-slate-900 rounded-lg text-sm font-semibold transition-colors">Fechar Painel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.showModal();
+
+        const btnEnable = document.getElementById('btn-enable-push');
+        if (btnEnable) {
+            btnEnable.addEventListener('click', () => {
+                requestPermission(vapidPublicKey);
+                modal.close();
+                modal.remove();
+            });
+        }
+        
+        const btnDisable = document.getElementById('btn-disable-push');
+        if (btnDisable) {
+            btnDisable.addEventListener('click', async () => {
+                if (swRegistration) {
+                    const sub = await swRegistration.pushManager.getSubscription();
+                    if (sub) {
+                        await sub.unsubscribe();
+                        alert('Notificações desativas.');
+                    }
+                }
+                modal.close();
+                modal.remove();
+            });
+        }
+
+        document.getElementById('btn-close-push-modal').addEventListener('click', () => {
+            modal.close();
+            modal.remove();
+        });
+    }
+
     return {
-        init: init
+        init: init,
+        openSettings: function(vapidKey) {
+            showSettingsModal(vapidKey);
+        }
     };
 })();

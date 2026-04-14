@@ -31,6 +31,11 @@
                     <i data-lucide="log-out" class="h-5 w-5"></i>
                 </button>
             </form>
+            {% if VAPID_PUBLIC_KEY %}
+            <button type="button" onclick="PushManagerUI.openSettings('{{ VAPID_PUBLIC_KEY }}')" class="p-2 -mr-2 md:mr-0 text-slate-500 hover:text-blue-600 transition-colors" title="Notificações">
+                <i data-lucide="bell" class="h-5 w-5"></i>
+            </button>
+            {% endif %}
         </div>
         {% endif %}
     </header>
