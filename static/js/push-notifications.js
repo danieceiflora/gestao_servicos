@@ -201,3 +201,7 @@ const PushManager = (function() {
         }
     };
 })();
+
+// Export explicitly for inline handlers
+window.PushManagerUI = PushManager;
+window.PushManagerUI = PushManager;
