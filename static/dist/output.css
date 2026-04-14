@@ -1552,6 +1552,9 @@
   .p-2 {
     padding: calc(var(--spacing) * 2);
   }
+  .p-2\.5 {
+    padding: calc(var(--spacing) * 2.5);
+  }
   .p-3 {
     padding: calc(var(--spacing) * 3);
   }
@@ -2224,16 +2227,6 @@
       }
     }
   }
-  .group-hover\:bg-black\/50 {
-    &:is(:where(.group):hover *) {
-      @media (hover: hover) {
-        background-color: color-mix(in srgb, #000 50%, transparent);
-        @supports (color: color-mix(in lab, red, red)) {
-          background-color: color-mix(in oklab, var(--color-black) 50%, transparent);
-        }
-      }
-    }
-  }
   .group-hover\:text-blue-400 {
     &:is(:where(.group):hover *) {
       @media (hover: hover) {
@@ -2443,6 +2436,16 @@
       }
     }
   }
+  .hover\:bg-black\/50 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: color-mix(in srgb, #000 50%, transparent);
+        @supports (color: color-mix(in lab, red, red)) {
+          background-color: color-mix(in oklab, var(--color-black) 50%, transparent);
+        }
+      }
+    }
+  }
   .hover\:bg-black\/80 {
     &:hover {
       @media (hover: hover) {
@@ -2551,6 +2554,20 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-red-700);
+      }
+    }
+  }
+  .hover\:bg-rose-50 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-rose-50);
+      }
+    }
+  }
+  .hover\:bg-rose-100 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-rose-100);
       }
     }
   }
@@ -2679,6 +2696,13 @@
     &:hover {
       @media (hover: hover) {
         color: var(--color-red-700);
+      }
+    }
+  }
+  .hover\:text-rose-600 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-rose-600);
       }
     }
   }
@@ -2917,6 +2941,11 @@
   .sm\:w-auto {
     @media (width >= 40rem) {
       width: auto;
+    }
+  }
+  .sm\:grid-cols-2 {
+    @media (width >= 40rem) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
   .sm\:grid-cols-4 {
