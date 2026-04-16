@@ -367,9 +367,6 @@
   .right-1\.5 {
     right: calc(var(--spacing) * 1.5);
   }
-  .right-2 {
-    right: calc(var(--spacing) * 2);
-  }
   .right-3 {
     right: calc(var(--spacing) * 3);
   }

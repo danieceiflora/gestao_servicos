@@ -225,11 +225,11 @@
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
-                                        <input type="datetime-local" {% if task.index == 0 %}name="scheduled_at" id="id_scheduled_at"{% else %}name="task_{{ task.index }}_scheduled"{% endif %} value="{{ task.scheduled }}" required class="calendar-input w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                        <input type="datetime-local" {% if task.index == 0 %}name="scheduled_at" id="id_scheduled_at"{% else %}name="task_{{ task.index }}_scheduled"{% endif %} value="{{ task.scheduled }}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
                                     </div>
                                     <div>
                                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data Fim de Agendamento</label>
-                                        <input type="datetime-local" {% if task.index == 0 %}name="scheduled_end_at" id="id_scheduled_end_at"{% else %}name="task_{{ task.index }}_scheduled_end"{% endif %} value="{{ task.scheduled_end }}" class="calendar-input w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                        <input type="datetime-local" {% if task.index == 0 %}name="scheduled_end_at" id="id_scheduled_end_at"{% else %}name="task_{{ task.index }}_scheduled_end"{% endif %} value="{{ task.scheduled_end }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
                                     </div>
                                 </div>
 
@@ -361,11 +361,11 @@
                               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <div>
                                       <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Início do Agendamento *</label>
-                                      <input type="datetime-local" name="scheduled_at" id="id_scheduled_at" value="{% if initial_scheduled_at %}{{ initial_scheduled_at }}{% else %}{{ task.scheduled|default:'' }}{% endif %}" required class="calendar-input w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                      <input type="datetime-local" name="scheduled_at" id="id_scheduled_at" value="{% if initial_scheduled_at %}{{ initial_scheduled_at }}{% else %}{{ task.scheduled|default:'' }}{% endif %}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
                                   </div>
                                   <div>
                                       <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Fim do Agendamento</label>
-                                      <input type="datetime-local" name="scheduled_end_at" id="id_scheduled_end_at" value="{% if initial_scheduled_end_at %}{{ initial_scheduled_end_at }}{% else %}{{ task.scheduled_end|default:'' }}{% endif %}" class="calendar-input w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                      <input type="datetime-local" name="scheduled_end_at" id="id_scheduled_end_at" value="{% if initial_scheduled_end_at %}{{ initial_scheduled_end_at }}{% else %}{{ task.scheduled_end|default:'' }}{% endif %}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
                                   </div>
                               </div>
 
@@ -663,11 +663,11 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
-                            <input type="datetime-local" id="task_${number-1}_scheduled" name="task_${number-1}_scheduled" required class="calendar-input w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                            <input type="datetime-local" id="task_${number-1}_scheduled" name="task_${number-1}_scheduled" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data Fim de Agendamento</label>
-                            <input type="datetime-local" name="task_${number-1}_scheduled_end" class="calendar-input w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                            <input type="datetime-local" name="task_${number-1}_scheduled_end" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
                         </div>
                     </div>
 
