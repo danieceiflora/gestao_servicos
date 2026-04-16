@@ -57,7 +57,7 @@
             </div>
             
             <div class="bg-slate-50 px-4 py-3 border-t border-slate-100 flex items-center gap-2">
-                <button type="button" data-gps-trigger="true" data-gps-lat="{{ property.latitude|default:'' }}" data-gps-lng="{{ property.longitude|default:'' }}" data-gps-address="{{ property.address }}, {{ property.number }} - {{ property.neighborhood }}, {{ property.city }}" class="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm">
+                <button type="button" data-gps-trigger="true" data-gps-lat="{{ property.latitude|default:'' }}" data-gps-lng="{{ property.longitude|default:'' }}" data-gps-address="{{ property.gps_address }}" class="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm">
                     <i data-lucide="navigation" class="w-4 h-4 mr-2"></i>
                     GPS (Navegar)
                 </button>

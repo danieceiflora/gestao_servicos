@@ -238,8 +238,27 @@ class Property(models.Model):
 
         components.append('Brasil')
 
-        cleaned = [str(part).strip() for part in components if part]
-        return ', '.join(cleaned)
+        cleaned = [str(part).strip() for part in components if part]        
+    @property
+    def gps_address(self):
+        """Endereço sem o complemento para melhor precisão nas buscas do Google Maps/Waze"""
+        components = []
+        if self.address:
+            addr = self.address
+            if self.number:
+                addr += f", {self.number}"
+            components.append(addr)
+        
+        if self.neighborhood:
+            components.append(self.neighborhood)
+            
+        if self.city:
+            city_str = self.city
+            if self.state:
+                city_str += f" - {self.state}"
+            components.append(city_str)
+            
+        return ", ".join(filter(bool, components))
 
     def __str__(self):
         return f"{self.classification} - {self.address}, {self.number}"

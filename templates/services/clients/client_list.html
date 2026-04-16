@@ -98,7 +98,7 @@
                                                 data-gps-trigger="true"
                                                 data-gps-lat="{{ property.latitude|default_if_none:''|unlocalize }}"
                                                 data-gps-lng="{{ property.longitude|default_if_none:''|unlocalize }}"
-                                                 data-gps-address="{{ property.full_address }}">
+                                                 data-gps-address="{{ property.gps_address }}">
                                             <i data-lucide="navigation" class="h-3.5 w-3.5"></i>
                                             GPS
                                         </button>
@@ -180,7 +180,7 @@
                                 data-gps-trigger="true"
                                 data-gps-lat="{{ property.latitude|default_if_none:''|unlocalize }}"
                                 data-gps-lng="{{ property.longitude|default_if_none:''|unlocalize }}"
-                                data-gps-address="{{ property.full_address }}">
+                                data-gps-address="{{ property.gps_address }}">
                             <i data-lucide="navigation" class="h-3 w-3"></i>
                             GPS
                         </button>

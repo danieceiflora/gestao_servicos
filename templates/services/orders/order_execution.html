@@ -86,7 +86,7 @@
                             data-gps-trigger="true"
                             data-gps-lat="{{ order.client_property.latitude|default_if_none:''|unlocalize }}"
                             data-gps-lng="{{ order.client_property.longitude|default_if_none:''|unlocalize }}"
-                            data-gps-address="{{ order.client_property.full_address }}">
+                            data-gps-address="{{ order.client_property.gps_address }}">
                         <i data-lucide="navigation" class="h-4 w-4 text-blue-600"></i>
                         Abrir GPS
                     </button>
