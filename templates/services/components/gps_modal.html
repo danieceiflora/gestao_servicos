@@ -109,6 +109,7 @@
                 if (!currentData) return;
                 const { lat, lng, hasCoords } = getCleanCoords();
                 const dest = hasCoords ? `${lat},${lng}` : currentData.address;
+                if (!dest || dest === 'undefined') { alert('Nenhum endereço ou coordenada informada.'); return; }
                 window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest)}`, '_blank');
                 closeModal();
             });
@@ -118,11 +119,14 @@
             btnWaze.addEventListener('click', function() {
                 if (!currentData) return;
                 const { lat, lng, hasCoords } = getCleanCoords();
+                const dest = currentData.address;
+                if (!hasCoords && (!dest || dest === 'undefined')) { alert('Nenhum endereço ou coordenada informada.'); return; }
+                
                 let url;
                 if (hasCoords) {
                     url = `https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes`;
                 } else {
-                    url = `https://www.waze.com/ul?q=${encodeURIComponent(currentData.address)}&navigate=yes`;
+                    url = `https://www.waze.com/ul?q=${encodeURIComponent(dest)}&navigate=yes`;
                 }
                 window.open(url, '_blank');
                 closeModal();
@@ -134,6 +138,7 @@
                 if (!currentData) return;
                 const { lat, lng, hasCoords } = getCleanCoords();
                 const dest = hasCoords ? `${lat},${lng}` : currentData.address;
+                if (!dest || dest === 'undefined') { alert('Nenhum endereço ou coordenada informada.'); return; }
                 window.open(`https://maps.apple.com/?daddr=${encodeURIComponent(dest)}`, '_blank');
                 closeModal();
             });
@@ -142,10 +147,18 @@
         // Controles do Modal
         triggers.forEach(button => {
             button.addEventListener('click', () => {
+                // Tenta pegar o endereço completo ou monta iterativamente a partir da rua, setor(bairro) e cidade
+                const street = button.dataset.gpsStreet;
+                const neighborhood = button.dataset.gpsNeighborhood;
+                const city = button.dataset.gpsCity;
+                const fallbackAddress = [street, neighborhood, city].filter(Boolean).join(', ');
+                
+                const finalAddress = button.dataset.gpsAddress || fallbackAddress;
+
                 openModal({
                     lat: button.dataset.gpsLat,
                     lng: button.dataset.gpsLng,
-                    address: button.dataset.gpsAddress
+                    address: finalAddress
                 });
             });
         });
