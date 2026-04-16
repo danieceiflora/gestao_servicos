@@ -271,6 +271,12 @@
                                 </button>
                             </div>
                         </div>
+
+                        <div class="space-y-1 mb-2">
+                            <label class="text-[10px] font-bold uppercase text-slate-400">Link do Google Maps (Opcional)</label>
+                            <input type="text" class="w-full text-sm border-slate-200 rounded-lg px-3 py-2" placeholder="Cole o link aqui para extrair as coordenadas..." oninput="extractCoordinatesFromUrl(this)">
+                            <p class="text-[10px] text-slate-400">Ex: https://www.google.com/maps?q=-16.695...,-49.277...</p>
+                        </div>
                         
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-1">
@@ -596,6 +602,31 @@
         const address = addressParts.join(', ');
 
         openGpsNavigator({ lat, lng, address });
+    }
+
+    function extractCoordinatesFromUrl(input) {
+        const url = input.value.trim();
+        if (!url) return;
+        
+        // Match q=-lat,-lng or @-lat,-lng
+        const regex = /(-?\d+\.\d+),\s*(-?\d+\.\d+)/;
+        const match = url.match(regex);
+        
+        if (match) {
+            const container = input.closest('.properties-form');
+            if (container) {
+                container.querySelector('[name*="-latitude"]').value = match[1];
+                container.querySelector('[name*="-longitude"]').value = match[2];
+                
+                const status = container.querySelector('.location-status');
+                if (status) {
+                    status.textContent = "✓ COORDENADAS EXTRAÍDAS";
+                    status.className = "location-status text-[10px] font-bold text-green-600";
+                }
+                const mapsBtn = container.querySelector('.maps-btn');
+                if (mapsBtn) mapsBtn.classList.remove('hidden');
+            }
+        }
     }
 
     window.addEventListener('load', () => {
