@@ -1195,6 +1195,23 @@ def order_payment_add(request, order_id):
         'title': 'Registrar Pagamento'
     })
 
+from django.http import JsonResponse
+import urllib.request
+
+@login_required
+def resolve_maps_url(request):
+    """Resolve URLs encurtadas do Google Maps para extrair as coordenadas reais"""
+    short_url = request.GET.get('url', '')
+    if not short_url:
+        return JsonResponse({'error': 'No URL provided'}, status=400)
+    
+    try:
+        req = urllib.request.Request(short_url, method='HEAD', headers={'User-Agent': 'Mozilla/5.0'})
+        response = urllib.request.urlopen(req, timeout=5)
+        return JsonResponse({'resolved_url': response.url})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
 @login_required
 @permission_required('services.change_serviceorder', raise_exception=True)
 def order_discount_update(request, order_id):

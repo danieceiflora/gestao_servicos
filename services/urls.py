@@ -43,6 +43,7 @@ urlpatterns = [
     path('tasks/media/<int:media_id>/delete/', views.task_media_delete, name='task_media_delete'),
     
     # Itens da OS e Pagamentos
+    path('api/resolve-maps-url/', views.resolve_maps_url, name='resolve_maps_url'),
     path('orders/<uuid:order_id>/items/add/', views.order_item_add, name='order_item_add'),
     path('items/<int:item_id>/delete/', views.order_item_delete, name='order_item_delete'),
     path('orders/<uuid:order_id>/payments/add/', views.order_payment_add, name='order_payment_add'),

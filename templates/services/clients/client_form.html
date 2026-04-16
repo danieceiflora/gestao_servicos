@@ -607,25 +607,69 @@
     function extractCoordinatesFromUrl(input) {
         const url = input.value.trim();
         if (!url) return;
+
+        const container = input.closest('.properties-form');
+        const status = container ? container.querySelector('.location-status') : null;
         
-        // Match q=-lat,-lng or @-lat,-lng
-        const regex = /(-?\d+\.\d+),\s*(-?\d+\.\d+)/;
-        const match = url.match(regex);
+        // Verifica se é um link encurtado do Google Maps
+        if (url.includes('maps.app.goo.gl') || url.includes('goo.gl/maps')) {
+            if (status) {
+                status.textContent = "Resolvendo link do Google Maps...";
+                status.className = "location-status text-[10px] font-medium text-blue-600 animate-pulse";
+            }
+            
+            fetch(`/api/resolve-maps-url/?url=${encodeURIComponent(url)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.resolved_url) {
+                        parseResolvedUrl(data.resolved_url, container, status);
+                    } else if (status) {
+                        status.textContent = "✖ ERRO: NÃO FOI POSSÍVEL RESOLVER O LINK";
+                        status.className = "location-status text-[10px] font-bold text-red-600";
+                    }
+                })
+                .catch(() => {
+                    if (status) {
+                        status.textContent = "✖ ERRO AO RESOLVER LINK";
+                        status.className = "location-status text-[10px] font-bold text-red-600";
+                    }
+                });
+        } else {
+            // Se já for uma URL completa, tentar extrair direto
+            parseResolvedUrl(url, container, status);
+        }
+    }
+
+    function parseResolvedUrl(url, container, status) {
+        if (!container) return;
+        
+        // Regex para extrair do formato @lat,lng ou !3dlat!4dlng ou q=lat,lng
+        const regexOptions = [
+            /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/,
+            /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+            /q=(-?\d+\.\d+),(-?\d+\.\d+)/,
+            /(-?\d+\.\d+),\s*(-?\d+\.\d+)/
+        ];
+        
+        let match = null;
+        for (let regex of regexOptions) {
+            match = url.match(regex);
+            if (match) break;
+        }
         
         if (match) {
-            const container = input.closest('.properties-form');
-            if (container) {
-                container.querySelector('[name*="-latitude"]').value = match[1];
-                container.querySelector('[name*="-longitude"]').value = match[2];
-                
-                const status = container.querySelector('.location-status');
-                if (status) {
-                    status.textContent = "✓ COORDENADAS EXTRAÍDAS";
-                    status.className = "location-status text-[10px] font-bold text-green-600";
-                }
-                const mapsBtn = container.querySelector('.maps-btn');
-                if (mapsBtn) mapsBtn.classList.remove('hidden');
+            container.querySelector('[name*="-latitude"]').value = match[1];
+            container.querySelector('[name*="-longitude"]').value = match[2];
+            
+            if (status) {
+                status.textContent = "✓ COORDENADAS EXTRAÍDAS";
+                status.className = "location-status text-[10px] font-bold text-green-600";
             }
+            const mapsBtn = container.querySelector('.maps-btn');
+            if (mapsBtn) mapsBtn.classList.remove('hidden');
+        } else if (status) {
+            status.textContent = "✖ COORDENADAS NÃO ENCONTRADAS NESTE LINK";
+            status.className = "location-status text-[10px] font-bold text-red-600";
         }
     }
 
