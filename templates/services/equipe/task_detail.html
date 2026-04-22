@@ -147,17 +147,17 @@
                               <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200">
                                   <div class="flex items-center gap-3">
                                       <div class="w-14 h-14 rounded-lg bg-slate-200 overflow-hidden relative shrink-0">
-                                          {% if ".mp4" in media.file.name|lower or ".mov" in media.file.name|lower %}
-                                              <a href="{{ media.file.url }}" target="_blank" class="block w-full h-full relative cursor-pointer">
-                                                  <div class="absolute inset-0 flex items-center justify-center bg-black/40 text-white z-10 hover:bg-black/50 transition-colors"><i data-lucide="play-circle" class="w-6 h-6 opacity-90"></i></div>
-                                                  <video class="w-full h-full object-cover opacity-80"><source src="{{ media.file.url }}" type="video/mp4"></video>
+                                          {% if media.is_video %}
+                                              <a href="{{ media.file.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="task-medias" data-is-video="true" class="block w-full h-full relative cursor-pointer group/media">
+                                                  <div class="absolute inset-0 flex items-center justify-center bg-black/40 text-white z-10 group-hover/media:bg-black/50 transition-colors"><i data-lucide="play-circle" class="w-6 h-6 opacity-90"></i></div>
+                                                  <video class="w-full h-full object-cover opacity-80"><source src="{{ media.file.url }}"></video>
                                               </a>
                                           {% else %}
-                                              <a href="{{ media.file.url }}" target="_blank" class="block w-full h-full"><img src="{{ media.file.url }}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500"></a>
+                                              <a href="{{ media.file.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="task-medias" data-is-video="false" class="block w-full h-full relative cursor-pointer overflow-hidden"><img src="{{ media.file.url }}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500"></a>
                                           {% endif %}
                                       </div>
                                       <div class="flex flex-col">
-                                          <span class="text-xs font-bold text-slate-700">{% if ".mp4" in media.file.name|lower or ".mov" in media.file.name|lower %}Vídeo{% else %}Foto{% endif %}</span>
+                                          <span class="text-xs font-bold text-slate-700">{% if media.is_video %}Vídeo{% else %}Foto{% endif %}</span>
                                           <span class="text-[10px] text-slate-400">Anexo</span>
                                       </div>
                                   </div>
@@ -213,12 +213,12 @@
                                                 <div class="flex items-center gap-3">
                                                     <div class="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden relative shrink-0">
                                                         {% if media.is_video %}
-                                                            <a href="{{ media.file.url }}" target="_blank" class="block w-full h-full relative cursor-pointer">        
-                                                                <div class="absolute inset-0 flex items-center justify-center bg-black/30 text-white z-10 hover:bg-black/50 transition-colors"><i data-lucide="play-circle" class="w-5 h-5 opacity-90"></i></div>
-                                                                <video class="w-full h-full object-cover opacity-80"><source src="{{ media.file.url }}" type="video/mp4"></video>
+                                                            <a href="{{ media.file.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="occurrence-medias-{{ occ.id }}" data-is-video="true" class="block w-full h-full relative cursor-pointer group/media">        
+                                                                <div class="absolute inset-0 flex items-center justify-center bg-black/30 text-white z-10 group-hover/media:bg-black/50 transition-colors"><i data-lucide="play-circle" class="w-5 h-5 opacity-90"></i></div>
+                                                                <video class="w-full h-full object-cover opacity-80"><source src="{{ media.file.url }}"></video>
                                                             </a>
                                                         {% else %}
-                                                            <a href="{{ media.file.url }}" target="_blank" class="block w-full h-full"><img src="{{ media.file.url }}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500"></a>
+                                                            <a href="{{ media.file.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="occurrence-medias-{{ occ.id }}" data-is-video="false" class="block w-full h-full relative cursor-pointer overflow-hidden"><img src="{{ media.file.url }}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500"></a>
                                                         {% endif %}
                                                     </div>
                                                 </div>

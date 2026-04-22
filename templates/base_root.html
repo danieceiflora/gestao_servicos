@@ -169,23 +169,82 @@
 
     <!-- Global Media Lightbox -->
     <div id="media-lightbox" class="fixed inset-0 z-[120] bg-slate-950/95 hidden flex-col transition-opacity duration-300">
-        <div class="flex items-center justify-between p-4 bg-gradient-to-b from-black/50 to-transparent">
+        <div class="flex items-center justify-between p-4 flex-none bg-gradient-to-b from-black/50 to-transparent">
             <span id="media-lightbox-counter" class="text-white font-medium text-sm tracking-widest uppercase"></span>
-            <button type="button" id="media-lightbox-close" class="p-2 text-white hover:bg-white/20 rounded-full transition-colors">
-                <i data-lucide="x" class="h-6 w-6"></i>
+            <button type="button" id="media-lightbox-close" class="p-2 text-white hover:bg-white/20 rounded-full transition-colors flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6">
+                    <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+                </svg>
             </button>
         </div>
-        <div class="flex-1 relative flex items-center justify-center p-4">
-            <button type="button" id="media-lightbox-prev" class="absolute left-4 z-10 p-3 text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors hidden group">
-                <i data-lucide="chevron-left" class="h-6 w-6 group-hover:-translate-x-1 transition-transform"></i>
+        <div class="flex-1 relative flex items-center justify-center p-4 min-h-0">
+            <button type="button" id="media-lightbox-prev" class="absolute left-2 sm:left-4 z-10 p-2 sm:p-3 text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors hidden group flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 group-hover:-translate-x-1 transition-transform">
+                    <path d="m15 18-6-6 6-6"/>
+                </svg>
             </button>
-            <div id="media-lightbox-content" class="max-w-full max-h-full flex items-center justify-center">
+            <div id="media-lightbox-content" class="w-full h-full flex items-center justify-center">
                 <!-- Renderized here -->
             </div>
-            <button type="button" id="media-lightbox-next" class="absolute right-4 z-10 p-3 text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors hidden group">
-                <i data-lucide="chevron-right" class="h-6 w-6 group-hover:translate-x-1 transition-transform"></i>
+            <button type="button" id="media-lightbox-next" class="absolute right-2 sm:right-4 z-10 p-2 sm:p-3 text-white bg-black/50 hover:bg-black/80 rounded-full transition-colors hidden group flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 group-hover:translate-x-1 transition-transform">
+                    <path d="m9 18 6-6-6-6"/>
+                </svg>
             </button>
         </div>
+    </div>
+
+    <!-- Global Camera Modal -->
+    <div id="camera-modal" class="fixed inset-0 z-[9999] bg-black hidden flex-col transition-opacity duration-300">
+        <!-- Top context bar -->
+        <div class="flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent absolute top-0 w-full z-20">
+            <button type="button" id="camera-close" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-full transition-colors font-medium backdrop-blur break-words text-sm">
+                Cancelar
+            </button>
+            <div class="flex items-center gap-2">
+                <span id="camera-counter" class="font-bold bg-blue-600 px-3 py-1 rounded-full text-sm text-white">0 fotos</span>
+            </div>
+            <button type="button" id="camera-switch" class="p-3 text-white bg-white/20 hover:bg-white/30 rounded-full transition-colors backdrop-blur">
+                <i data-lucide="switch-camera" class="h-6 w-6"></i>
+            </button>
+        </div>
+        
+        <!-- Viewfinder -->
+        <div class="flex-1 w-full h-full relative flex items-center justify-center bg-black overflow-hidden pointer-events-none">
+            <video id="camera-video" class="w-full h-full object-cover" autoplay playsinline></video>
+            <!-- Flash effect overlay -->
+            <div id="camera-flash" class="absolute inset-0 bg-white opacity-0 transition-opacity duration-100 z-10"></div>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="p-6 pb-12 bg-gradient-to-t from-black/90 via-black/80 to-transparent absolute bottom-0 w-full z-20 flex flex-col items-center gap-4">
+            
+            <!-- Mode Toggle -->
+            <div class="flex items-center gap-4 px-4 py-1.5 bg-black/50 rounded-full backdrop-blur text-sm font-medium">
+                <button type="button" id="camera-mode-photo" class="text-white transition-colors duration-200" onclick="MediaDropzoneManager.setMode('photo')">FOTO</button>
+                <div class="w-1 h-1 rounded-full bg-slate-500"></div>
+                <button type="button" id="camera-mode-video" class="text-slate-400 transition-colors duration-200" onclick="MediaDropzoneManager.setMode('video')">VÍDEO</button>
+            </div>
+
+            <!-- Capture Bar -->
+            <div class="relative flex items-center justify-center w-full max-w-md mx-auto">
+                <div class="absolute left-0 w-16">
+                    <span id="camera-timer" class="text-red-500 font-mono text-lg opacity-0 transition-opacity hidden">00:00</span>
+                </div>
+            
+                <button type="button" id="camera-capture" class="w-20 h-20 bg-white rounded-full flex items-center justify-center border-4 border-slate-300 active:scale-90 transition-all shadow-xl">
+                    <div id="camera-capture-inner" class="w-[3.5rem] h-[3.5rem] rounded-full border-[3px] border-black transition-all duration-300 flex items-center justify-center">
+                        <div id="camera-capture-rec" class="w-0 h-0 bg-red-600 rounded opacity-0 transition-all duration-300"></div>
+                    </div>
+                </button>
+
+                <button type="button" id="camera-done" class="absolute right-0 px-4 py-3 sm:px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold active:scale-95 transition-all shadow-lg flex items-center gap-1.5 sm:gap-2 scale-0 opacity-0 transform origin-center">
+                    <span class="text-sm sm:text-base">Concluir</span>
+                    <i data-lucide="check" class="h-5 w-5"></i>
+                </button>
+            </div>
+        </div>
+        <canvas id="camera-canvas" class="hidden"></canvas>
     </div>
 
     <script>
@@ -204,20 +263,52 @@
         const lbPrev = document.getElementById('media-lightbox-prev');
         const lbNext = document.getElementById('media-lightbox-next');
 
-          function init() {
-              document.addEventListener('change', function(e) {
-                  if (e.target.matches('.dz-input[data-preview="true"]')) {
-                      handleFilesAdd(e.target);
-                  }
-              });            document.getElementById('media-lightbox-close')?.addEventListener('click', closeLightbox);
+        // Camera variables
+        const camModal = document.getElementById('camera-modal');
+        const camVideo = document.getElementById('camera-video');
+        const camCanvas = document.getElementById('camera-canvas');
+        const camFlash = document.getElementById('camera-flash');
+        const camCounter = document.getElementById('camera-counter');
+        const camDoneBtn = document.getElementById('camera-done');
+        let currentTargetInput = null;
+        let stream = null;
+        let facingMode = 'environment';
+        let temporaryCameraFiles = [];
+
+        // Video recording variables
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let currentMode = 'photo'; // 'photo' | 'video'
+        let timerInterval = null;
+        let recordingSeconds = 0;
+
+        function init() {
+            // ... existing init listeners ...
+            document.addEventListener('change', function(e) {
+                if (e.target.matches('.dz-input[data-preview="true"]')) {
+                    handleFilesAdd(e.target);
+                }
+            });
+            document.getElementById('media-lightbox-close')?.addEventListener('click', closeLightbox);
             lbPrev?.addEventListener('click', () => navigateLightbox(-1));
             lbNext?.addEventListener('click', () => navigateLightbox(1));
             
+            // Camera Listeners
+            document.getElementById('camera-close')?.addEventListener('click', () => closeCamera(false));
+            document.getElementById('camera-done')?.addEventListener('click', () => closeCamera(true));
+            document.getElementById('camera-switch')?.addEventListener('click', switchCamera);
+            document.getElementById('camera-capture')?.addEventListener('click', handleCaptureClick);
+
             document.addEventListener('keydown', (e) => {
                 if (lbModal && !lbModal.classList.contains('hidden')) {
                     if (e.key === 'Escape') closeLightbox();
                     if (e.key === 'ArrowLeft') navigateLightbox(-1);
                     if (e.key === 'ArrowRight') navigateLightbox(1);
+                }
+                if (camModal && !camModal.classList.contains('hidden') && e.key === 'Escape') {
+                    // Do not close if recording video
+                    if (!isRecording) closeCamera(false);
                 }
             });
         }
@@ -323,15 +414,24 @@
             lbCounter.textContent = `${lbCurrentIndex + 1} / ${lbFiles.length}`;
             lbContent.innerHTML = '';
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                if (file.type.startsWith('image/')) {
-                    lbContent.innerHTML = `<img src="${e.target.result}" class="max-w-full max-h-[80vh] object-contain rounded-lg">`;
+            if (file instanceof File) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (file.type.startsWith('image/')) {
+                        lbContent.innerHTML = `<img src="${e.target.result}" class="max-w-full max-h-[80vh] object-contain rounded-lg">`;
+                    } else {
+                        lbContent.innerHTML = `<video src="${e.target.result}" class="max-w-full max-h-[80vh] object-contain rounded-lg" controls autoplay></video>`;
+                    }
+                };
+                reader.readAsDataURL(file);
+            } else {
+                // Handle static server urls formatted as {url: string, is_video: boolean}
+                if (!file.is_video) {
+                    lbContent.innerHTML = `<img src="${file.url}" class="max-w-full max-h-[80vh] object-contain rounded-lg">`;
                 } else {
-                    lbContent.innerHTML = `<video src="${e.target.result}" class="max-w-full max-h-[80vh] object-contain rounded-lg" controls autoplay></video>`;
+                    lbContent.innerHTML = `<video src="${file.url}" class="max-w-full max-h-[80vh] object-contain rounded-lg" controls autoplay></video>`;
                 }
-            };
-            reader.readAsDataURL(file);
+            }
 
             if (lbFiles.length > 1) {
                 lbPrev.classList.remove('hidden');
@@ -342,7 +442,264 @@
             }
         }
 
-        return { init };
+        // STATIC GALLERY FROM DOM
+        function openGallery(element) {
+            const groupName = element.dataset.gallery;
+            if (!groupName) return;
+            
+            const elements = Array.from(document.querySelectorAll(`[data-gallery="${groupName}"]`));
+            
+            const files = elements.map(el => ({
+                url: el.href || el.dataset.url,
+                is_video: el.dataset.isVideo === 'true'
+            }));
+            
+            const index = elements.indexOf(element);
+            openLightbox(files, Math.max(0, index));
+        }
+
+        // ==========================================
+        // CAMERA MODAL (CONTINUOUS PHOTOS & VIDEO)
+        // ==========================================
+        async function openCamera(inputElement) {
+            currentTargetInput = inputElement;
+            temporaryCameraFiles = [];
+            setMode('photo'); // Reset to photo on open
+            updateCounterUI();
+            camDoneBtn.classList.remove('scale-100', 'opacity-100');
+            camDoneBtn.classList.add('scale-0', 'opacity-0');
+            
+            try {
+                camModal.classList.remove('hidden');
+                camModal.classList.add('flex');
+                await startStream();
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                alert("Não foi possível acessar a câmera. Verifique as permissões de acesso.");
+                closeCamera(false);
+            }
+        }
+
+        async function startStream() {
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+            }
+
+            const constraints = {
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                },
+                audio: true // Add audio for video recording
+            };
+
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            camVideo.srcObject = stream;
+        }
+
+        async function switchCamera() {
+            if (isRecording) return; // Prevent switching while recording
+            facingMode = facingMode === 'user' ? 'environment' : 'user';
+            await startStream();
+        }
+
+        function setMode(newMode) {
+            if (isRecording) return;
+            currentMode = newMode;
+            
+            const btnP = document.getElementById('camera-mode-photo');
+            const btnV = document.getElementById('camera-mode-video');
+            const captureInner = document.getElementById('camera-capture-inner');
+            const timerUI = document.getElementById('camera-timer');
+
+            if (currentMode === 'video') {
+                btnV.classList.replace('text-slate-400', 'text-white');
+                btnP.classList.replace('text-white', 'text-slate-400');
+                captureInner.classList.replace('border-black', 'border-red-600');
+                timerUI.classList.remove('hidden');
+                
+                // Mute local playback to avoid echo while recording
+                camVideo.muted = true;
+            } else {
+                btnP.classList.replace('text-slate-400', 'text-white');
+                btnV.classList.replace('text-white', 'text-slate-400');
+                captureInner.classList.replace('border-red-600', 'border-black');
+                timerUI.classList.add('hidden');
+                
+                // For photo stream it is safe to mute it
+                camVideo.muted = true; 
+            }
+        }
+
+        function updateCounterUI() {
+            const count = temporaryCameraFiles.length;
+            const items = temporaryCameraFiles.map(f => f.type.startsWith('video') ? 'v' : 'p');
+            const videos = items.filter(x => x === 'v').length;
+            const photos = items.filter(x => x === 'p').length;
+            
+            let parts = [];
+            if (photos > 0) parts.push(`${photos} foto${photos > 1 ? 's' : ''}`);
+            if (videos > 0) parts.push(`${videos} vídeo${videos > 1 ? 's' : ''}`);
+            
+            camCounter.textContent = parts.length > 0 ? parts.join(' | ') : '0 mídias';
+            
+            if (count > 0) {
+                camDoneBtn.classList.remove('scale-0', 'opacity-0');
+                camDoneBtn.classList.add('scale-100', 'opacity-100');
+            } else {
+                camDoneBtn.classList.remove('scale-100', 'opacity-100');
+                camDoneBtn.classList.add('scale-0', 'opacity-0');
+            }
+        }
+
+        function handleCaptureClick() {
+            if (currentMode === 'photo') {
+                capturePhoto();
+            } else {
+                if (!isRecording) startRecording();
+                else stopRecording();
+            }
+        }
+
+        // VIDEO RECORDING
+        function startRecording() {
+            if (!stream) return;
+            recordedChunks = [];
+            isRecording = true;
+
+            // UI updates
+            document.getElementById('camera-capture-rec').classList.replace('w-0', 'w-10');
+            document.getElementById('camera-capture-rec').classList.replace('h-0', 'h-10');
+            document.getElementById('camera-capture-rec').classList.replace('opacity-0', 'opacity-100');
+            document.getElementById('camera-capture-inner').classList.replace('rounded-full', 'rounded-xl');
+            
+            const timerUI = document.getElementById('camera-timer');
+            timerUI.classList.remove('opacity-0');
+            timerUI.textContent = '00:00';
+            recordingSeconds = 0;
+            timerInterval = setInterval(() => {
+                recordingSeconds++;
+                const m = Math.floor(recordingSeconds / 60).toString().padStart(2, '0');
+                const s = (recordingSeconds % 60).toString().padStart(2, '0');
+                timerUI.textContent = `${m}:${s}`;
+            }, 1000);
+
+            // Setup MediaRecorder
+            // Try to find an optimal format
+            let options = { mimeType: 'video/webm;codecs=vp8,opus' };
+            if (!MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                options = { mimeType: 'video/webm' };
+                if (!MediaRecorder.isTypeSupported('video/webm')) {
+                    options = { mimeType: 'video/mp4' };
+                    if (!MediaRecorder.isTypeSupported('video/mp4')) {
+                        options = {}; // fallback to browser default
+                    }
+                }
+            }
+
+            mediaRecorder = new MediaRecorder(stream, options);
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+            
+            mediaRecorder.onstop = () => {
+                const mimeType = mediaRecorder.mimeType || 'video/webm';
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+                const filename = `video_${Date.now()}.${ext}`;
+                const file = new File([blob], filename, { type: mimeType });
+                
+                temporaryCameraFiles.push(file);
+                updateCounterUI();
+            };
+
+            mediaRecorder.start();
+        }
+
+        function stopRecording() {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+            mediaRecorder.stop();
+            isRecording = false;
+            
+            // Revert UI Update
+            document.getElementById('camera-capture-rec').classList.replace('w-10', 'w-0');
+            document.getElementById('camera-capture-rec').classList.replace('h-10', 'h-0');
+            document.getElementById('camera-capture-rec').classList.replace('opacity-100', 'opacity-0');
+            document.getElementById('camera-capture-inner').classList.replace('rounded-xl', 'rounded-full');
+            
+            document.getElementById('camera-timer').classList.add('opacity-0');
+            clearInterval(timerInterval);
+        }
+
+        // PHOTO CAPTURE
+        function capturePhoto() {
+            if (!stream) return;
+
+            // Visual feedback (flash)
+            camFlash.style.opacity = '1';
+            setTimeout(() => camFlash.style.opacity = '0', 100);
+
+            camCanvas.width = camVideo.videoWidth;
+            camCanvas.height = camVideo.videoHeight;
+            const ctx = camCanvas.getContext('2d');
+            
+            // Mirror image if using front camera
+            if (facingMode === 'user') {
+                ctx.translate(camCanvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+            
+            // Draw background to avoid transparency issues if any
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, camCanvas.width, camCanvas.height);
+            ctx.drawImage(camVideo, 0, 0);
+            
+            camCanvas.toBlob((blob) => {
+                if(!blob) return;
+                const filename = `photo_${Date.now()}.jpg`;
+                const file = new File([blob], filename, { type: 'image/jpeg' });
+                temporaryCameraFiles.push(file);
+                updateCounterUI();
+            }, 'image/jpeg', 0.8);
+        }
+
+        function closeCamera(save = false) {
+            // Se estiver gravando, para antes de fechar e salva
+            if (isRecording) {
+                stopRecording();
+                setTimeout(() => closeCamera(save), 500); // give it a moment to compile blob
+                return;
+            }
+
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+                stream = null;
+            }
+            camModal.classList.add('hidden');
+            camModal.classList.remove('flex');
+            
+            // Apply photos to the input only if save == true AND there are photos
+            if (save && temporaryCameraFiles.length > 0 && currentTargetInput) {
+                let currentFiles = fileGroups.get(currentTargetInput) || [];
+                currentFiles = currentFiles.concat(temporaryCameraFiles);
+                fileGroups.set(currentTargetInput, currentFiles);
+                syncInput(currentTargetInput, currentFiles);
+                renderPreviews(currentTargetInput, currentFiles);
+            }
+            
+            currentTargetInput = null; // Clean up
+            temporaryCameraFiles = []; // Clean up
+        }
+
+        return { 
+            init,
+            openCamera,
+            setMode,
+            openGallery
+        };
     })();
 
     document.addEventListener('DOMContentLoaded', MediaDropzoneManager.init);

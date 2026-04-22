@@ -28,9 +28,9 @@
             <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <p class="text-sm text-slate-600 mb-3">Arquivo a ser removido:</p>
                 
-                {% if media.file.name|slice:"-4:" == ".mp4" or media.file.name|slice:"-4:" == ".mov" %}
+                {% if media.is_video %}
                     <video class="w-full rounded-lg border border-slate-200 max-h-64">
-                        <source src="{{ media.file.url }}" type="video/mp4">
+                        <source src="{{ media.file.url }}">
                     </video>
                     <p class="text-xs text-slate-500 mt-2">Vídeo</p>
                 {% else %}

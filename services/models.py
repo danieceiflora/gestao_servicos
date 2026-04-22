@@ -666,7 +666,7 @@ class ServiceMedia(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def is_video(self):
-        return self.file.name.lower().endswith(('.mp4', '.mov', '.avi'))
+        return self.file.name.lower().endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv'))
 
     class Meta:
         verbose_name = "Mídia de Serviço"

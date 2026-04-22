@@ -115,9 +115,13 @@
 
         <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {% for media in task.medias.all %}
-            <div class="aspect-square rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
+            <div onclick="MediaDropzoneManager.openGallery(this)" data-gallery="order-task-{{ task.id }}" data-url="{{ media.file.url }}" data-is-video="{% if media.is_video %}true{% else %}false{% endif %}" class="cursor-pointer aspect-square rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
+                <div class="absolute inset-0 transition-colors group-hover:bg-black/10 z-10 pointer-events-none"></div>
                 {% if media.is_video %}
-                    <div class="w-full h-full flex items-center justify-center bg-slate-900"><i data-lucide="play" class="h-6 w-6 text-white fill-current"></i></div>
+                    <div class="w-full h-full flex items-center justify-center bg-slate-900 relative">
+                        <video class="absolute inset-0 w-full h-full object-cover opacity-50" src="{{ media.file.url }}"></video>
+                        <i data-lucide="play" class="h-6 w-6 text-white fill-current relative z-20"></i>
+                    </div>
                 {% else %}
                     <img src="{{ media.file.url }}" class="w-full h-full object-cover">
                 {% endif %}
