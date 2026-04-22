@@ -198,14 +198,19 @@
     <div id="camera-modal" class="fixed inset-0 z-[9999] bg-black hidden flex-col transition-opacity duration-300">
         <!-- Top context bar -->
         <div class="flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent absolute top-0 w-full z-20">
-            <button type="button" id="camera-close" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-full transition-colors font-medium backdrop-blur break-words text-sm">
+            <button type="button" id="camera-close" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-full transition-colors font-medium backdrop-blur break-words text-sm flex items-center justify-center flex-none">
                 Cancelar
             </button>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-1 justify-center">
                 <span id="camera-counter" class="font-bold bg-blue-600 px-3 py-1 rounded-full text-sm text-white">0 fotos</span>
             </div>
-            <button type="button" id="camera-switch" class="p-3 text-white bg-white/20 hover:bg-white/30 rounded-full transition-colors backdrop-blur">
-                <i data-lucide="switch-camera" class="h-6 w-6"></i>
+            <button type="button" id="camera-switch" class="p-3 text-white bg-white/20 hover:bg-white/30 rounded-full transition-colors backdrop-blur flex-none flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6">
+                    <path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/>
+                    <path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
+                    <circle cx="16.5" cy="11.5" r="2.5"/>
+                    <path d="m17 16-2.5-2.5"/>
+                </svg>
             </button>
         </div>
         
@@ -238,9 +243,11 @@
                     </div>
                 </button>
 
-                <button type="button" id="camera-done" class="absolute right-0 px-4 py-3 sm:px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold active:scale-95 transition-all shadow-lg flex items-center gap-1.5 sm:gap-2 scale-0 opacity-0 transform origin-center">
+                <button type="button" id="camera-done" class="absolute right-0 px-4 py-3 sm:px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold active:scale-95 transition-all shadow-lg flex items-center justify-center gap-1.5 sm:gap-2 scale-0 opacity-0 transform origin-center">
                     <span class="text-sm sm:text-base">Concluir</span>
-                    <i data-lucide="check" class="h-5 w-5"></i>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                        <path d="M20 6 9 17l-5-5"/>
+                    </svg>
                 </button>
             </div>
         </div>
@@ -698,7 +705,8 @@
             init,
             openCamera,
             setMode,
-            openGallery
+            openGallery,
+            hasUnsubmittedFiles: () => Array.from(fileGroups.values()).some(files => files.length > 0)
         };
     })();
 

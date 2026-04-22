@@ -81,9 +81,9 @@
             </div>
         </details>
 
-        <!-- AREA DE AÇÃO FIXA / BIG CTA -->
-        <div class="mt-8 mb-6">
-            {% if not task.started_at %}
+        <!-- STATUS DA ETAPA TOPO -->
+        <div class="mt-6 mb-6">
+            {% if not task.started_at and task.task_type != 'BUDGET' %}
                 <form action="{% url 'equipe_task_start' task.id %}" method="POST">
                     {% csrf_token %}
                     <button type="submit" class="w-full relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white font-bold text-base shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 active:scale-[0.98] transition-all h-14 flex items-center justify-center">
@@ -91,30 +91,12 @@
                         INICIAR SERVIÇO
                     </button>
                 </form>
-            {% elif task.started_at and not task.finished_at %}
-                <form action="{% url 'equipe_task_finish' task.id %}" method="POST" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                    {% csrf_token %}
-                    <div class="flex items-center gap-3 text-emerald-700 bg-emerald-50 p-3 rounded-xl border border-emerald-100 mb-4">
-                        <i data-lucide="timer" class="h-5 w-5 opacity-80 animate-pulse"></i>
-                        <span class="text-sm font-semibold">Iniciado em {{ task.started_at|date:"d/m" }} às {{ task.started_at|time:"H:i" }}</span>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Relatório / Observações</label>
-                        <textarea id="notes" name="notes" rows="3" placeholder="Como foi o serviço? Gastou material extra? Deixe aqui..." class="w-full rounded-xl border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm p-3"></textarea>
-                    </div>
-                    
-                    <button type="submit" onclick="return confirm('Você já encerrou os trabalhos no local? O serviço será fechado.')" class="w-full rounded-2xl bg-emerald-600 text-white font-bold text-base shadow-md shadow-emerald-500/20 hover:bg-emerald-700 active:scale-[0.98] transition-all h-14 flex items-center justify-center">
-                        <i data-lucide="check-circle" class="w-5 h-5 mr-2"></i>
-                        FINALIZAR SERVIÇO
-                    </button>
-                </form>
-            {% else %}
+            {% elif task.finished_at %}
                 <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center flex flex-col items-center justify-center gap-2">
                     <div class="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-1">
                         <i data-lucide="check-check" class="h-6 w-6"></i>
                     </div>
-                    <h4 class="text-lg font-black text-slate-800">Serviço Concluído</h4>
+                    <h4 class="text-lg font-black text-slate-800">{% if task.task_type == 'BUDGET' %}Orçamento Concluído{% else %}Serviço Concluído{% endif %}</h4>
                     <p class="text-sm text-slate-500 text-balance">Finalizado em {{ task.finished_at|date:"d/m/Y H:i" }}</p>
                     
                     {% if task.notes %}
@@ -127,7 +109,7 @@
             {% endif %}
         </div>
 
-        {% if task.started_at %}
+        {% if task.started_at or task.finished_at or task.task_type == 'BUDGET' %}
         <!-- FOTOS & VIDEOS -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
             <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
@@ -282,12 +264,53 @@
                 {% endif %}
             </div>
         </div>
+
+        {% if not task.finished_at %}
+            {% if task.started_at or task.task_type == 'BUDGET' %}
+            <div class="mt-8 mb-6">
+                <form action="{% url 'equipe_task_finish' task.id %}" method="POST" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    {% csrf_token %}
+                    {% if task.task_type != 'BUDGET' and task.started_at %}
+                    <div class="flex items-center gap-3 text-emerald-700 bg-emerald-50 p-3 rounded-xl border border-emerald-100 mb-4">
+                        <i data-lucide="timer" class="h-5 w-5 opacity-80 animate-pulse"></i>
+                        <span class="text-sm font-semibold">Iniciado em {{ task.started_at|date:"d/m" }} às {{ task.started_at|time:"H:i" }}</span>
+                    </div>
+                    {% endif %}
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Relatório / Observações</label>
+                        <textarea id="notes" name="notes" rows="3" placeholder="{% if task.task_type == 'BUDGET' %}Ex: Foi realizado a medição, o cliente solicitou 2 pontos extras...{% else %}Como foi o serviço? Gastou material extra? Deixe aqui...{% endif %}" class="w-full rounded-xl border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm p-3"></textarea>
+                    </div>
+                    
+                    <button type="submit" onclick="return confirmFinishTask('{{ task.task_type }}')" class="w-full rounded-2xl bg-emerald-600 text-white font-bold text-base shadow-md shadow-emerald-500/20 hover:bg-emerald-700 active:scale-[0.98] transition-all h-14 flex items-center justify-center">
+                        <i data-lucide="check-circle" class="w-5 h-5 mr-2"></i>
+                        {% if task.task_type == 'BUDGET' %}SALVAR ORÇAMENTO{% else %}FINALIZAR SERVIÇO{% endif %}
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        {% endif %}
     </div>
 </div>
 
 {% include "services/components/gps_modal.html" %}
 
 <script>
+function confirmFinishTask(taskType) {
+    if (window.MediaDropzoneManager && window.MediaDropzoneManager.hasUnsubmittedFiles()) {
+        const confirmed = confirm('⚠️ ATENÇÃO!\n\nExistem fotos ou vídeos selecionados que ainda NÃO FORAM ENVIADOS.\nSe você finalizar o serviço agora, estas mídias NÃO serão salvas.\n\nDeseja continuar mesmo assim e perder as mídias não enviadas?');
+        if (!confirmed) {
+            return false;
+        }
+    }
+    
+    if (taskType === 'BUDGET') {
+        return confirm('Você deseja salvar o orçamento? O serviço será fechado.');
+    } else {
+        return confirm('Você já encerrou os trabalhos no local? O serviço será fechado.');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const btnUpdateGps = document.getElementById('btn-update-gps');
     if (btnUpdateGps) {
