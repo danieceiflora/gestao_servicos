@@ -1,7 +1,14 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
+from decimal import Decimal, ROUND_HALF_UP
 import uuid
+
+MONEY_PLACES = Decimal('0.01')
+
+
+def quantize_money(value):
+    return (value or Decimal('0')).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
 
 # --- SISTEMA DE USUÁRIOS & AUTENTICAÇÃO ---
 
@@ -423,17 +430,18 @@ class ServiceOrder(models.Model):
 
     @property
     def total_value(self):
-        items_total = sum(item.total_price for item in self.items.all())
-        tasks_total = sum(task.value for task in self.tasks.all() if task.value)
-        return (items_total + tasks_total)
+        items_total = sum((item.total_price for item in self.items.all()), Decimal('0'))
+        tasks_total = sum((task.value for task in self.tasks.all() if task.value), Decimal('0'))
+        return quantize_money(items_total + tasks_total)
 
     @property
     def total_paid(self):
-        return sum(payment.amount for payment in self.payments.all())
+        paid_total = sum((payment.amount for payment in self.payments.all()), Decimal('0'))
+        return quantize_money(paid_total)
 
     @property
     def balance_due(self):
-        return self.total_value - self.total_paid - self.discount
+        return quantize_money(self.total_value - self.total_paid - quantize_money(self.discount))
 
     def update_status(self):
         """Lógica centralizada de atualização de status da OS"""
@@ -615,7 +623,7 @@ class ServiceItem(models.Model):
 
     @property
     def total_price(self):
-        return self.quantity * self.unit_price
+        return quantize_money(self.quantity * self.unit_price)
     
     def __str__(self):
         task_info = f" (Etapa: {self.task.get_task_type_display()})" if self.task else " (Orçamento Geral)"
