@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required, permission_required, 
 from django.urls import reverse_lazy
 from django.db.models import Q
 from datetime import timedelta, datetime
+from decimal import Decimal, ROUND_HALF_UP
 import django.utils.timezone
 from .notifications import send_push_notification
 from .models import (
@@ -1184,10 +1185,12 @@ def order_payment_add(request, order_id):
             payment = form.save(commit=False)
             payment.order = order
             payment.save()
-            messages.success(request, f'Pagamento de R$ {payment.amount} registrado com sucesso!')
+            amount_display = f'{payment.amount:.2f}'.replace('.', ',')
+            messages.success(request, f'Pagamento de R$ {amount_display} registrado com sucesso!')
             return redirect('service_order_detail', order_id=order.id)
     else:
-        form = ServicePaymentForm(initial={'amount': order.balance_due})
+        default_amount = (order.balance_due or Decimal('0')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        form = ServicePaymentForm(initial={'amount': f'{default_amount:.2f}'})
     
     return render(request, 'services/orders/order_payment_form.html', {
         'order': order,

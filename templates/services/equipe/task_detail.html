@@ -297,7 +297,8 @@
 
 <script>
 function confirmFinishTask(taskType) {
-    if (window.MediaDropzoneManager && window.MediaDropzoneManager.hasUnsubmittedFiles()) {
+    const mediaManager = window.MediaDropzoneManager || (typeof MediaDropzoneManager !== 'undefined' ? MediaDropzoneManager : null);
+    if (mediaManager && typeof mediaManager.hasUnsubmittedFiles === 'function' && mediaManager.hasUnsubmittedFiles()) {
         const confirmed = confirm('⚠️ ATENÇÃO!\n\nExistem fotos ou vídeos selecionados que ainda NÃO FORAM ENVIADOS.\nSe você finalizar o serviço agora, estas mídias NÃO serão salvas.\n\nDeseja continuar mesmo assim e perder as mídias não enviadas?');
         if (!confirmed) {
             return false;
