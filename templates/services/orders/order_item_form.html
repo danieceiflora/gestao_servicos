@@ -44,22 +44,38 @@
         </div>
 
         <div class="border-t border-slate-100 pt-6 space-y-5">
+            <!-- Produto Cadastrado -->
+            <div class="space-y-2">
+                <label class="text-sm font-bold text-slate-700">Produto Cadastrado *</label>
+                <input type="hidden" id="product-id" name="product">
+                <div class="relative">
+                    <input type="text" id="product-search" autocomplete="off" placeholder="Digite nome ou código do produto..." class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                    <div id="product-suggestions" class="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-auto hidden"></div>
+                </div>
+                <p class="text-xs text-slate-500">Comece a digitar para buscar por nome/código. Descrição e valor são sempre carregados a partir do produto selecionado.</p>
+            </div>
+
             <!-- Descrição -->
             <div class="space-y-2">
                 <label class="text-sm font-bold text-slate-700">Descrição *</label>
-                <input type="text" name="description" required placeholder="Ex: Telha cerâmica 50x30" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                <input type="text" id="item-description" name="description" readonly placeholder="Selecione um produto" class="w-full px-3 py-2 border rounded-lg bg-slate-50 text-slate-700 focus:ring-2 focus:ring-green-500">
             </div>
 
             <!-- Quantidade e Preço -->
             <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-2">
-                    <label class="text-sm font-bold text-slate-700">Quantidade *</label>
-                    <input type="number" name="quantity" step="0.01" value="1" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                    <label id="quantity-label" class="text-sm font-bold text-slate-700">Quantidade *</label>
+                    <input type="number" id="item-quantity" name="quantity" step="0.01" value="1" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-bold text-slate-700">Preço Unitário (R$) *</label>
-                    <input type="number" name="unit_price" step="0.01" placeholder="0,00" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500">
+                    <input type="number" id="item-unit-price" name="unit_price" step="0.01" readonly class="w-full px-3 py-2 border rounded-lg bg-slate-50 text-slate-700 focus:ring-2 focus:ring-green-500">
                 </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between">
+                <span class="text-sm font-semibold text-slate-600">Total do Item</span>
+                <span id="item-total" class="text-lg font-black text-slate-900">R$ 0,00</span>
             </div>
         </div>
 
@@ -74,4 +90,140 @@
         </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const productSearch = document.getElementById('product-search');
+    const productIdInput = document.getElementById('product-id');
+    const suggestions = document.getElementById('product-suggestions');
+    const descriptionInput = document.getElementById('item-description');
+    const unitPriceInput = document.getElementById('item-unit-price');
+    const quantityInput = document.getElementById('item-quantity');
+    const quantityLabel = document.getElementById('quantity-label');
+    const totalEl = document.getElementById('item-total');
+
+    if (!productSearch || !productIdInput || !suggestions || !descriptionInput || !unitPriceInput || !quantityInput || !totalEl) return;
+
+    const products = [
+        {% for product in products %}
+        {
+            id: "{{ product.id }}",
+            name: "{{ product.name|escapejs }}",
+            code: "{{ product.code|default:''|escapejs }}",
+            unit: "{{ product.unit_type }}",
+            unitDisplay: "{{ product.get_unit_type_display|escapejs }}",
+            price: "{{ product.default_unit_price }}"
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    function closeSuggestions() {
+        suggestions.classList.add('hidden');
+        suggestions.innerHTML = '';
+    }
+
+    function formatCurrencyBR(value) {
+        return 'R$ ' + Number(value || 0).toFixed(2).replace('.', ',');
+    }
+
+    function parseDecimal(value) {
+        if (value === null || value === undefined) return 0;
+        const normalized = String(value).trim().replace(',', '.').replace(/[^0-9.-]/g, '');
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function updateTotal() {
+        const qty = parseDecimal(quantityInput.value || 0);
+        const unit = parseDecimal(unitPriceInput.value || 0);
+        totalEl.textContent = formatCurrencyBR(qty * unit);
+    }
+
+    function applyProduct(product) {
+        productIdInput.value = product.id;
+        productSearch.value = product.code ? (product.code + ' - ' + product.name) : product.name;
+        descriptionInput.value = product.name;
+        unitPriceInput.value = parseDecimal(product.price).toFixed(2);
+
+        if (quantityLabel) {
+            quantityLabel.textContent = product.unit === 'METER' ? 'Quantidade (mt) *' : 'Quantidade (un) *';
+        }
+
+        updateTotal();
+
+        closeSuggestions();
+    }
+
+    function renderSuggestions(matches) {
+        if (!matches.length) {
+            closeSuggestions();
+            return;
+        }
+
+        suggestions.innerHTML = matches.map(function(product) {
+            const codePart = product.code ? ('<span class="text-[11px] font-bold text-slate-500">' + product.code + '</span>') : '<span></span>';
+            return '<button type="button" class="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-100 last:border-b-0" data-id="' + product.id + '">'
+                + '<div class="flex items-center justify-between gap-3">'
+                + '<span class="text-sm font-semibold text-slate-800">' + product.name + '</span>'
+                + codePart
+                + '</div>'
+                + '<div class="text-xs text-slate-500 mt-0.5">' + product.unitDisplay + ' • R$ ' + parseDecimal(product.price).toFixed(2).replace('.', ',') + '</div>'
+                + '</button>';
+        }).join('');
+
+        suggestions.classList.remove('hidden');
+
+        suggestions.querySelectorAll('button[data-id]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const selected = products.find(function(p) { return p.id === btn.getAttribute('data-id'); });
+                if (selected) applyProduct(selected);
+            });
+        });
+    }
+
+    productSearch.addEventListener('input', function() {
+        const term = productSearch.value.trim().toLowerCase();
+        productIdInput.value = '';
+        descriptionInput.value = '';
+        unitPriceInput.value = '';
+        updateTotal();
+
+        if (quantityLabel) {
+            quantityLabel.textContent = 'Quantidade *';
+        }
+
+        if (term.length < 1) {
+            closeSuggestions();
+            return;
+        }
+
+        const matches = products.filter(function(product) {
+            return product.name.toLowerCase().includes(term) || (product.code && product.code.toLowerCase().includes(term));
+        }).slice(0, 20);
+
+        renderSuggestions(matches);
+    });
+
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('#product-suggestions') && event.target !== productSearch) {
+            closeSuggestions();
+        }
+    });
+
+    quantityInput.addEventListener('input', updateTotal);
+
+    const form = document.querySelector('form[method="post"]');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            if (!productIdInput.value) {
+                event.preventDefault();
+                alert('Selecione um produto cadastrado antes de adicionar o item.');
+                productSearch.focus();
+            }
+        });
+    }
+
+    updateTotal();
+});
+</script>
 {% endblock %}

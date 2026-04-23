@@ -145,7 +145,19 @@
                 </div>
                 <div class="flex-1">
                     <p class="text-sm font-bold text-slate-800">{{ item.description }}</p>
-                    <p class="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Quantidade: {{ item.quantity|floatformat:0 }}</p>
+                    <p class="text-[10px] font-medium text-slate-500 uppercase tracking-wider">
+                        Quantidade:
+                        {% if item.product and item.product.unit_type == 'METER' %}
+                            {{ item.quantity|floatformat:2 }} mt
+                        {% else %}
+                            {{ item.quantity|floatformat:0 }} un
+                        {% endif %}
+                    </p>
+                    {% if item.product %}
+                    <p class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                        {% if item.product.code %}{{ item.product.code }} • {% endif %}{{ item.product.get_unit_type_display }}
+                    </p>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}

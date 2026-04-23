@@ -603,6 +603,27 @@ class ServiceOrderTeam(models.Model):
         verbose_name_plural = "Equipe do Serviço"
         unique_together = ('task', 'professional')
 
+
+class Product(models.Model):
+    class UnitType(models.TextChoices):
+        UNIT = 'UNIT', 'Unidade (un)'
+        METER = 'METER', 'Metro (mt)'
+
+    name = models.CharField(max_length=255, unique=True, verbose_name="Produto")
+    code = models.CharField(max_length=60, unique=True, null=True, blank=True, verbose_name="Código")
+    unit_type = models.CharField(max_length=10, choices=UnitType.choices, default=UnitType.UNIT, verbose_name="Unidade de Venda")
+    default_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço Padrão")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Produto"
+        verbose_name_plural = "Produtos"
+        ordering = ['name']
+
 class ServiceItem(models.Model):
     service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='items')
     
@@ -616,6 +637,7 @@ class ServiceItem(models.Model):
         verbose_name="Etapa Específica",
         help_text="Deixe vazio para itens do orçamento geral. Preencha se o item foi adicionado durante uma etapa."
     )
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name='service_items', verbose_name="Produto")
     
     description = models.CharField(max_length=255, verbose_name="Serviço/Material")
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)

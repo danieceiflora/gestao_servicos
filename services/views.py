@@ -6,13 +6,13 @@ from django.contrib.auth.decorators import login_required, permission_required, 
 from django.urls import reverse_lazy
 from django.db.models import Q
 from datetime import timedelta, datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import django.utils.timezone
 from .notifications import send_push_notification
 from .models import (
     User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem,
     Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
-    ServiceOrderTask, ServicePayment, Occurrence
+    ServiceOrderTask, ServicePayment, Occurrence, Product
 )
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
@@ -1132,17 +1132,51 @@ def order_item_add(request, order_id):
     """View para adicionar item ao orçamento geral ou a uma etapa específica"""
     order = get_object_or_404(ServiceOrder, id=order_id)
     tasks = order.tasks.all()
+    products = Product.objects.filter(is_active=True).order_by('name')
     
     if request.method == 'POST':
         task_id = request.POST.get('task')
         task = get_object_or_404(ServiceOrderTask, id=task_id) if task_id else None
+        product_id = request.POST.get('product')
+        if not product_id:
+            messages.error(request, 'Selecione um produto cadastrado para adicionar o item.')
+            return render(request, 'services/orders/order_item_form.html', {
+                'order': order,
+                'tasks': tasks,
+                'products': products,
+                'title': 'Adicionar Item ao Orçamento'
+            })
+
+        product = get_object_or_404(Product, id=product_id, is_active=True)
+
+        quantity_raw = (request.POST.get('quantity') or '1').strip().replace(',', '.')
+        try:
+            quantity_value = Decimal(quantity_raw)
+        except (InvalidOperation, TypeError):
+            messages.error(request, 'Informe uma quantidade válida.')
+            return render(request, 'services/orders/order_item_form.html', {
+                'order': order,
+                'tasks': tasks,
+                'products': products,
+                'title': 'Adicionar Item ao Orçamento'
+            })
+
+        if quantity_value <= 0:
+            messages.error(request, 'A quantidade deve ser maior que zero.')
+            return render(request, 'services/orders/order_item_form.html', {
+                'order': order,
+                'tasks': tasks,
+                'products': products,
+                'title': 'Adicionar Item ao Orçamento'
+            })
         
         ServiceItem.objects.create(
             service_order=order,
             task=task,
-            description=request.POST.get('description'),
-            quantity=float(request.POST.get('quantity', 1)),
-            unit_price=float(request.POST.get('unit_price', 0))
+            product=product,
+            description=product.name,
+            quantity=quantity_value,
+            unit_price=product.default_unit_price
         )
         
         messages.success(request, 'Item adicionado com sucesso!')
@@ -1151,6 +1185,7 @@ def order_item_add(request, order_id):
     return render(request, 'services/orders/order_item_form.html', {
         'order': order,
         'tasks': tasks,
+        'products': products,
         'title': 'Adicionar Item ao Orçamento'
     })
 

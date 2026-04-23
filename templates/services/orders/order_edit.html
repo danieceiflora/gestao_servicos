@@ -221,7 +221,19 @@
                     <div class="flex items-center justify-between p-3 border border-slate-200 rounded-lg">
                         <div>
                             <p class="font-bold text-slate-900">{{ item.description }}</p>
-                            <p class="text-sm text-slate-600">{{ item.quantity|floatformat:0 }} × R$ {{ item.unit_price|floatformat:2 }} = R$ {{ item.total_price|floatformat:2 }}</p>
+                            <p class="text-sm text-slate-600">
+                                {% if item.product and item.product.unit_type == 'METER' %}
+                                    {{ item.quantity|floatformat:2 }} mt
+                                {% else %}
+                                    {{ item.quantity|floatformat:0 }} un
+                                {% endif %}
+                                × R$ {{ item.unit_price|floatformat:2 }} = R$ {{ item.total_price|floatformat:2 }}
+                            </p>
+                            {% if item.product %}
+                            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider mt-1">
+                                {% if item.product.code %}{{ item.product.code }} • {% endif %}{{ item.product.get_unit_type_display }}
+                            </p>
+                            {% endif %}
                             {% if item.task %}
                             <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">{{ item.task.get_task_type_display }}</span>
                             {% else %}

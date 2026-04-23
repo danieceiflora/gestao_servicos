@@ -4,8 +4,15 @@ from .models import (
     User, Client, ClientPhone, ClientEmail, Property,
     ProfessionalRole, Professional, WorkSchedule, WorkScheduleDay,
     ServiceOrder, ServiceItem, ServiceMedia, ServiceOrderTeam,
-    ServiceOrderTask
+    ServiceOrderTask, Product
 )
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ['name', 'code', 'unit_type', 'default_unit_price', 'is_active']
+    list_filter = ['is_active', 'unit_type']
+    search_fields = ['name', 'code']
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
