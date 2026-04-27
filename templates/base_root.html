@@ -289,6 +289,7 @@
         let currentMode = 'photo'; // 'photo' | 'video'
         let timerInterval = null;
         let recordingSeconds = 0;
+        const isAndroidDevice = /Android/i.test(navigator.userAgent || '');
 
         function init() {
             // ... existing init listeners ...
@@ -604,6 +605,9 @@
                     }
                 }
             }
+
+            options.videoBitsPerSecond = isAndroidDevice ? 900000 : 1800000;
+            options.bitsPerSecond = isAndroidDevice ? 960000 : 2000000;
 
             mediaRecorder = new MediaRecorder(stream, options);
             mediaRecorder.ondataavailable = (event) => {
