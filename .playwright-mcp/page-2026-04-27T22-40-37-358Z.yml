@@ -1,0 +1,205 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e9]: Gestão de Serviços
+      - navigation [ref=e10]:
+        - link "Dashboard" [ref=e11] [cursor=pointer]:
+          - /url: /
+        - link "Clientes" [ref=e12] [cursor=pointer]:
+          - /url: /clients/
+        - link "Equipe" [ref=e13] [cursor=pointer]:
+          - /url: /professionals/
+        - link "Ocorrências" [ref=e14] [cursor=pointer]:
+          - /url: /occurrences/
+        - link "Agenda" [ref=e15] [cursor=pointer]:
+          - /url: /orders/calendar/
+        - link "Ordens" [ref=e16] [cursor=pointer]:
+          - /url: /orders/
+        - link "Admin" [ref=e17] [cursor=pointer]:
+          - /url: /admin/
+          - img [ref=e18]
+          - text: Admin
+        - generic [ref=e21]:
+          - generic [ref=e22]:
+            - paragraph [ref=e23]: admin
+            - paragraph [ref=e24]: Administrador
+          - button "Sair" [ref=e26]:
+            - img [ref=e27]
+          - button "Notificações" [ref=e30]:
+            - img [ref=e31]
+  - main [ref=e34]:
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - link [ref=e37] [cursor=pointer]:
+          - /url: /orders/
+          - img [ref=e38]
+        - generic [ref=e40]:
+          - heading "Novo Agendamento" [level=2] [ref=e41]
+          - paragraph [ref=e42]: Configure o cliente, descrição e etapa inicial do serviço
+      - generic [ref=e43]:
+        - generic [ref=e44]:
+          - generic [ref=e46]:
+            - img [ref=e48]
+            - generic [ref=e51]:
+              - 'heading "Seção 1: Informações do Cliente" [level=3] [ref=e52]'
+              - paragraph [ref=e53]: Selecione o cliente e o imóvel para o serviço
+          - generic [ref=e54]:
+            - generic [ref=e55]:
+              - generic [ref=e56]:
+                - generic [ref=e57]: Cliente
+                - button "Novo Cliente" [ref=e58]:
+                  - img [ref=e59]
+                  - text: Novo Cliente
+              - combobox [ref=e60]:
+                - option "---------" [selected]
+                - option "daniel de sousa (03324945194)"
+                - option "cei flora (01.125.483/0001-13)"
+                - option "peter park (Sem documento)"
+                - option "peter park (Sem documento)"
+                - option "tony stark (Sem documento)"
+              - combobox "Cliente" [ref=e63] [cursor=pointer]
+            - generic [ref=e64]:
+              - generic [ref=e65]:
+                - generic [ref=e66]: Imóvel
+                - button "Novo Imóvel" [disabled] [ref=e67]:
+                  - img [ref=e68]
+                  - text: Novo Imóvel
+              - combobox "Imóvel" [ref=e69]:
+                - option "---------" [selected]
+        - generic [ref=e70]:
+          - generic [ref=e72]:
+            - img [ref=e74]
+            - generic [ref=e77]:
+              - 'heading "Seção 2: Informações da Ordem de Serviço" [level=3] [ref=e78]'
+              - paragraph [ref=e79]: Descreva o problema e origem da solicitação
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - text: Descrição do Problema/Solicitação
+              - textbox "Descrição do Problema/Solicitação" [ref=e82]:
+                - /placeholder: Descreva o problema ou solicitação...
+            - generic [ref=e83]:
+              - text: Valor Estimado Total (R$)
+              - spinbutton "Valor Estimado Total (R$)" [ref=e84]
+              - paragraph [ref=e85]: Valor total estimado para toda a ordem de serviço
+            - generic [ref=e86]:
+              - generic [ref=e87]:
+                - text: Data de Origem
+                - textbox "Data de Origem" [ref=e88]
+                - paragraph [ref=e89]: Quando a solicitação surgiu
+              - generic [ref=e90]:
+                - text: Vendedor/Originador
+                - combobox "Vendedor/Originador" [ref=e91]:
+                  - option "---------" [selected]
+                  - option "denio"
+                - paragraph [ref=e92]: Colaborador responsável
+        - generic [ref=e93]:
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - img [ref=e98]
+              - generic [ref=e101]:
+                - 'heading "Seção 3: Etapas do Serviço" [level=3] [ref=e102]'
+                - paragraph [ref=e103]: Adicione uma ou mais etapas para esta ordem de serviço
+            - generic [ref=e104]:
+              - img [ref=e105]
+              - generic [ref=e107]: Múltiplas Etapas
+          - generic [ref=e108]:
+            - generic [ref=e110]:
+              - generic [ref=e112]:
+                - generic [ref=e113]: "1"
+                - heading "Etapa 1" [level=4] [ref=e114]
+              - generic [ref=e115]:
+                - generic [ref=e116]:
+                  - generic [ref=e117]: Tipo de Etapa *
+                  - combobox [ref=e118]:
+                    - option "Selecione..." [selected]
+                    - option "Vistoria/Orçamento"
+                    - option "Execução/Instalação"
+                    - option "Garantia"
+                - generic [ref=e119]:
+                  - generic [ref=e120]:
+                    - generic [ref=e121]: Início do Agendamento *
+                    - textbox [ref=e122]
+                  - generic [ref=e123]:
+                    - generic [ref=e124]: Fim do Agendamento
+                    - textbox [ref=e125]
+                - generic [ref=e126]:
+                  - heading "Execução" [level=4] [ref=e127]:
+                    - img [ref=e128]
+                    - text: Execução
+                  - generic [ref=e131]:
+                    - generic [ref=e132]: Data de Início (Execução)
+                    - textbox [ref=e133]
+                  - generic [ref=e134]:
+                    - generic [ref=e135]: Data de Término (Execução)
+                    - textbox [ref=e136]
+                - generic [ref=e138]:
+                  - generic [ref=e139]: Valor do Serviço (R$)
+                  - spinbutton [ref=e140]
+                - generic [ref=e142]:
+                  - generic [ref=e143]:
+                    - generic [ref=e144]: Equipe Alocada
+                    - button "Adicionar" [ref=e145]:
+                      - img [ref=e146]
+                      - text: Adicionar
+                  - generic [ref=e150]:
+                    - generic [ref=e151]:
+                      - generic [ref=e152]: Profissional
+                      - combobox [ref=e153]:
+                        - option "Selecione..." [selected]
+                        - option "joão batista"
+                        - option "denio"
+                        - option "lucas"
+                    - generic [ref=e154]:
+                      - generic [ref=e155]: Função
+                      - combobox [ref=e156]:
+                        - option "Selecione..." [selected]
+                        - option "instalador"
+                        - option "ajudante"
+                        - option "vendedor"
+                - generic [ref=e157]:
+                  - generic [ref=e158]: Anexar Fotos/Vídeos
+                  - generic [ref=e160]:
+                    - generic [ref=e161] [cursor=pointer]:
+                      - generic:
+                        - img
+                        - paragraph: Galeria / Arquivos
+                        - paragraph: Selecione do seu dispositivo
+                      - button "Galeria / Arquivos Selecione do seu dispositivo" [ref=e162]
+                    - button "Câmera Rápida Tire várias fotos em sequência" [ref=e163] [cursor=pointer]:
+                      - generic [ref=e164]:
+                        - img [ref=e165]
+                        - paragraph [ref=e168]: Câmera Rápida
+                        - paragraph [ref=e169]:
+                          - text: Tire várias fotos
+                          - text: em sequência
+                  - paragraph [ref=e170]: Adicione evidências da etapa. Toque em qualquer arquivo para removê-lo antes de salvar.
+            - button "Adicionar Nova Etapa" [ref=e171]:
+              - img [ref=e172]
+              - text: Adicionar Nova Etapa
+        - generic [ref=e174]:
+          - generic [ref=e177]:
+            - img [ref=e179]
+            - generic [ref=e181]:
+              - 'heading "Seção 4: Ocorrências" [level=3] [ref=e182]'
+              - paragraph [ref=e183]: Histórico de problemas relatados em campo
+          - generic [ref=e185]:
+            - img [ref=e186]
+            - paragraph [ref=e188]: A ordem de serviço precisa ser criada primeiro.
+            - paragraph [ref=e189]: Após a criação da OS e o agendamento de tarefas, a equipe em campo poderá registrar ocorrências que aparecerão nesta seção.
+        - generic [ref=e190]:
+          - link "Cancelar" [ref=e191] [cursor=pointer]:
+            - /url: /orders/
+          - button "Criar Ordem de Serviço" [ref=e192]:
+            - img [ref=e193]
+            - text: Criar Ordem de Serviço
+  - generic [ref=e196]:
+    - generic [ref=e197]:
+      - img [ref=e199]
+      - generic [ref=e202]:
+        - paragraph [ref=e203]: Ativar Alertas?
+        - paragraph [ref=e204]: Receba avisos de novas OS em tempo real.
+    - generic [ref=e205]:
+      - button "Depois" [ref=e206]
+      - button "Ativar" [ref=e207]

@@ -1,0 +1,180 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Page not found (404)" [level=1] [ref=e3]
+    - table [ref=e4]:
+      - rowgroup [ref=e5]:
+        - 'row "Request Method: GET" [ref=e6]':
+          - rowheader "Request Method:" [ref=e7]
+          - cell "GET" [ref=e8]
+        - 'row "Request URL: http://localhost:8000/equipe/" [ref=e9]':
+          - rowheader "Request URL:" [ref=e10]
+          - cell "http://localhost:8000/equipe/" [ref=e11]
+  - main [ref=e12]:
+    - paragraph [ref=e13]:
+      - text: Using the URLconf defined in
+      - code [ref=e14]: core.urls
+      - text: ", Django tried these URL patterns, in this order:"
+    - list [ref=e15]:
+      - listitem [ref=e16]:
+        - code [ref=e17]: admin/
+      - listitem [ref=e18]:
+        - code [ref=e19]: accounts/
+      - listitem [ref=e20]:
+        - code
+        - code [ref=e21]: ^serviceworker\.js$ [name='serviceworker']
+      - listitem [ref=e22]:
+        - code
+        - code [ref=e23]: ^manifest\.json$ [name='manifest']
+      - listitem [ref=e24]:
+        - code
+        - code [ref=e25]: offline/ [name='offline']
+      - listitem [ref=e26]:
+        - code
+        - code [ref=e27]: "[name='home']"
+      - listitem [ref=e28]:
+        - code
+        - code [ref=e29]: equipe/tarefas/ [name='equipe_task_list']
+      - listitem [ref=e30]:
+        - code
+        - code [ref=e31]: equipe/etapa/<uuid:task_id>/ [name='equipe_task_detail']
+      - listitem [ref=e32]:
+        - code
+        - code [ref=e33]: equipe/etapa/<uuid:task_id>/iniciar/ [name='equipe_task_start']
+      - listitem [ref=e34]:
+        - code
+        - code [ref=e35]: equipe/etapa/<uuid:task_id>/finalizar/ [name='equipe_task_finish']
+      - listitem [ref=e36]:
+        - code
+        - code [ref=e37]: equipe/etapa/<uuid:task_id>/midia/ [name='equipe_task_add_media']
+      - listitem [ref=e38]:
+        - code
+        - code [ref=e39]: equipe/midia/<int:media_id>/excluir/ [name='equipe_media_delete']
+      - listitem [ref=e40]:
+        - code
+        - code [ref=e41]: equipe/etapa/<uuid:task_id>/ocorrencia/ [name='equipe_task_add_occurrence']
+      - listitem [ref=e42]:
+        - code
+        - code [ref=e43]: equipe/propriedade/<uuid:property_id>/atualizar-gps/ [name='equipe_update_gps']
+      - listitem [ref=e44]:
+        - code
+        - code [ref=e45]: clients/ [name='client_list']
+      - listitem [ref=e46]:
+        - code
+        - code [ref=e47]: clients/new/ [name='client_create']
+      - listitem [ref=e48]:
+        - code
+        - code [ref=e49]: clients/<uuid:client_id>/edit/ [name='client_edit']
+      - listitem [ref=e50]:
+        - code
+        - code [ref=e51]: clients/<uuid:client_id>/property/new/ [name='property_create']
+      - listitem [ref=e52]:
+        - code
+        - code [ref=e53]: professionals/ [name='professional_list']
+      - listitem [ref=e54]:
+        - code
+        - code [ref=e55]: professionals/new/ [name='professional_create']
+      - listitem [ref=e56]:
+        - code
+        - code [ref=e57]: professionals/<uuid:pk>/edit/ [name='professional_edit']
+      - listitem [ref=e58]:
+        - code
+        - code [ref=e59]: orders/ [name='service_order_list']
+      - listitem [ref=e60]:
+        - code
+        - code [ref=e61]: orders/new/ [name='service_order_scheduling']
+      - listitem [ref=e62]:
+        - code
+        - code [ref=e63]: orders/calendar/ [name='service_order_calendar']
+      - listitem [ref=e64]:
+        - code
+        - code [ref=e65]: orders/<uuid:order_id>/ [name='service_order_detail']
+      - listitem [ref=e66]:
+        - code
+        - code [ref=e67]: orders/<uuid:order_id>/edit/ [name='service_order_edit']
+      - listitem [ref=e68]:
+        - code
+        - code [ref=e69]: orders/<uuid:order_id>/budget/ [name='service_order_budget']
+      - listitem [ref=e70]:
+        - code
+        - code [ref=e71]: orders/<uuid:order_id>/execute/ [name='service_order_execution']
+      - listitem [ref=e72]:
+        - code
+        - code [ref=e73]: tasks/<uuid:task_id>/execute/ [name='task_execution']
+      - listitem [ref=e74]:
+        - code
+        - code [ref=e75]: tasks/<uuid:task_id>/edit/ [name='task_edit']
+      - listitem [ref=e76]:
+        - code
+        - code [ref=e77]: tasks/<uuid:task_id>/cancel/ [name='task_cancel']
+      - listitem [ref=e78]:
+        - code
+        - code [ref=e79]: orders/<uuid:order_id>/tasks/add/ [name='task_add']
+      - listitem [ref=e80]:
+        - code
+        - code [ref=e81]: tasks/media/<int:media_id>/delete/ [name='task_media_delete']
+      - listitem [ref=e82]:
+        - code
+        - code [ref=e83]: api/resolve-maps-url/ [name='resolve_maps_url']
+      - listitem [ref=e84]:
+        - code
+        - code [ref=e85]: orders/<uuid:order_id>/items/add/ [name='order_item_add']
+      - listitem [ref=e86]:
+        - code
+        - code [ref=e87]: items/<int:item_id>/delete/ [name='order_item_delete']
+      - listitem [ref=e88]:
+        - code
+        - code [ref=e89]: orders/<uuid:order_id>/payments/add/ [name='order_payment_add']
+      - listitem [ref=e90]:
+        - code
+        - code [ref=e91]: orders/<uuid:order_id>/discount/ [name='order_discount_update']
+      - listitem [ref=e92]:
+        - code
+        - code [ref=e93]: notifications/panel/ [name='notifications_test']
+      - listitem [ref=e94]:
+        - code
+        - code [ref=e95]: notifications/subscribe/ [name='subscribe_push']
+      - listitem [ref=e96]:
+        - code
+        - code [ref=e97]: notifications/unsubscribe/ [name='unsubscribe_push']
+      - listitem [ref=e98]:
+        - code
+        - code [ref=e99]: notifications/send-test/ [name='test_notification']
+      - listitem [ref=e100]:
+        - code
+        - code [ref=e101]: notifications/send/ [name='send_notification']
+      - listitem [ref=e102]:
+        - code
+        - code [ref=e103]: api/check-availability/ [name='api_check_availability']
+      - listitem [ref=e104]:
+        - code
+        - code [ref=e105]: api/calendar-events/ [name='api_calendar_events']
+      - listitem [ref=e106]:
+        - code
+        - code [ref=e107]: api/clients/list/ [name='api_get_clients']
+      - listitem [ref=e108]:
+        - code
+        - code [ref=e109]: api/properties/list/ [name='api_get_properties']
+      - listitem [ref=e110]:
+        - code
+        - code [ref=e111]: api/orders/quick-create/ [name='api_quick_create_order']
+      - listitem [ref=e112]:
+        - code
+        - code [ref=e113]: occurrences/ [name='occurrence_list']
+      - listitem [ref=e114]:
+        - code
+        - code [ref=e115]: occurrences/<int:occurrence_id>/resolve/ [name='occurrence_resolve']
+      - listitem [ref=e116]:
+        - code [ref=e117]: ^media/(?P<path>.*)$
+      - listitem [ref=e118]:
+        - code [ref=e119]: ^static/(?P<path>.*)$
+    - paragraph [ref=e120]:
+      - text: The current path,
+      - code [ref=e121]: equipe/
+      - text: ", didn’t match any of these."
+  - contentinfo [ref=e122]:
+    - paragraph [ref=e123]:
+      - text: You’re seeing this error because you have
+      - code [ref=e124]: DEBUG = True
+      - text: in your Django settings file. Change that to
+      - code [ref=e125]: "False"
+      - text: ", and Django will display a standard 404 page."

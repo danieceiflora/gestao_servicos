@@ -91,6 +91,8 @@
     </form>
 </div>
 
+{{ products_data|json_script:"product-data" }}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const productSearch = document.getElementById('product-search');
@@ -104,18 +106,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (!productSearch || !productIdInput || !suggestions || !descriptionInput || !unitPriceInput || !quantityInput || !totalEl) return;
 
-    const products = [
-        {% for product in products %}
-        {
-            id: "{{ product.id }}",
-            name: "{{ product.name|escapejs }}",
-            code: "{{ product.code|default:''|escapejs }}",
-            unit: "{{ product.unit_type }}",
-            unitDisplay: "{{ product.get_unit_type_display|escapejs }}",
-            price: "{{ product.default_unit_price }}"
-        }{% if not forloop.last %},{% endif %}
-        {% endfor %}
-    ];
+    const products = JSON.parse(document.getElementById('product-data').textContent || '[]');
 
     function closeSuggestions() {
         suggestions.classList.add('hidden');

@@ -1,0 +1,66 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e9]: Gestão de Serviços
+      - navigation [ref=e10]:
+        - link "Dashboard" [ref=e11] [cursor=pointer]:
+          - /url: /
+        - link "Clientes" [ref=e12] [cursor=pointer]:
+          - /url: /clients/
+        - link "Equipe" [ref=e13] [cursor=pointer]:
+          - /url: /professionals/
+        - link "Ocorrências" [ref=e14] [cursor=pointer]:
+          - /url: /occurrences/
+        - link "Agenda" [ref=e15] [cursor=pointer]:
+          - /url: /orders/calendar/
+        - link "Ordens" [ref=e16] [cursor=pointer]:
+          - /url: /orders/
+        - link "Admin" [ref=e17] [cursor=pointer]:
+          - /url: /admin/
+          - img [ref=e18]
+          - text: Admin
+        - generic [ref=e21]:
+          - generic [ref=e22]:
+            - paragraph [ref=e23]: admin
+            - paragraph [ref=e24]: Administrador
+          - button "Sair" [ref=e26]:
+            - img [ref=e27]
+          - button "Notificações" [ref=e30]:
+            - img [ref=e31]
+  - main [ref=e34]:
+    - generic [ref=e35]:
+      - heading "Olá, admin" [level=2] [ref=e37]
+      - generic [ref=e38]:
+        - heading "Ações Rápidas" [level=3] [ref=e39]
+        - generic [ref=e40]:
+          - link "Novo Cliente" [ref=e41] [cursor=pointer]:
+            - /url: /clients/new/
+            - img [ref=e42]
+            - generic [ref=e45]: Novo Cliente
+          - link "Ver Clientes" [ref=e46] [cursor=pointer]:
+            - /url: /clients/
+            - img [ref=e47]
+            - generic [ref=e52]: Ver Clientes
+          - link "Profissionais" [ref=e53] [cursor=pointer]:
+            - /url: /professionals/
+            - img [ref=e54]
+            - generic [ref=e66]: Profissionais
+          - link "Ordens de Serviço" [ref=e67] [cursor=pointer]:
+            - /url: /orders/
+            - img [ref=e68]
+            - generic [ref=e71]: Ordens de Serviço
+          - link "Novo Agendamento" [ref=e72] [cursor=pointer]:
+            - /url: /orders/new/
+            - img [ref=e73]
+            - generic [ref=e75]: Novo Agendamento
+  - generic [ref=e76]:
+    - generic [ref=e77]:
+      - img [ref=e79]
+      - generic [ref=e82]:
+        - paragraph [ref=e83]: Ativar Alertas?
+        - paragraph [ref=e84]: Receba avisos de novas OS em tempo real.
+    - generic [ref=e85]:
+      - button "Depois" [ref=e86]
+      - button "Ativar" [ref=e87]

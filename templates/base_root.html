@@ -204,14 +204,6 @@
             <div class="flex items-center gap-2 flex-1 justify-center">
                 <span id="camera-counter" class="font-bold bg-blue-600 px-3 py-1 rounded-full text-sm text-white">0 fotos</span>
             </div>
-            <button type="button" id="camera-switch" class="p-3 text-white bg-white/20 hover:bg-white/30 rounded-full transition-colors backdrop-blur flex-none flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6">
-                    <path d="M11 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/>
-                    <path d="M13 5h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5"/>
-                    <circle cx="16.5" cy="11.5" r="2.5"/>
-                    <path d="m17 16-2.5-2.5"/>
-                </svg>
-            </button>
         </div>
         
         <!-- Viewfinder -->
@@ -224,22 +216,11 @@
         <!-- Bottom Controls -->
         <div class="p-6 pb-12 bg-gradient-to-t from-black/90 via-black/80 to-transparent absolute bottom-0 w-full z-20 flex flex-col items-center gap-4">
             
-            <!-- Mode Toggle -->
-            <div class="flex items-center gap-4 px-4 py-1.5 bg-black/50 rounded-full backdrop-blur text-sm font-medium">
-                <button type="button" id="camera-mode-photo" class="text-white transition-colors duration-200" onclick="MediaDropzoneManager.setMode('photo')">FOTO</button>
-                <div class="w-1 h-1 rounded-full bg-slate-500"></div>
-                <button type="button" id="camera-mode-video" class="text-slate-400 transition-colors duration-200" onclick="MediaDropzoneManager.setMode('video')">VÍDEO</button>
-            </div>
-
             <!-- Capture Bar -->
             <div class="relative flex items-center justify-center w-full max-w-md mx-auto">
-                <div class="absolute left-0 w-16">
-                    <span id="camera-timer" class="text-red-500 font-mono text-lg opacity-0 transition-opacity hidden">00:00</span>
-                </div>
-            
                 <button type="button" id="camera-capture" class="w-20 h-20 bg-white rounded-full flex items-center justify-center border-4 border-slate-300 active:scale-90 transition-all shadow-xl">
-                    <div id="camera-capture-inner" class="w-[3.5rem] h-[3.5rem] rounded-full border-[3px] border-black transition-all duration-300 flex items-center justify-center">
-                        <div id="camera-capture-rec" class="w-0 h-0 bg-red-600 rounded opacity-0 transition-all duration-300"></div>
+                    <div class="w-[3.5rem] h-[3.5rem] rounded-full border-[3px] border-black transition-all duration-300 flex items-center justify-center">
+                        <div class="w-0 h-0 bg-blue-600 rounded opacity-0 transition-all duration-300"></div>
                     </div>
                 </button>
 
@@ -282,15 +263,6 @@
         let facingMode = 'environment';
         let temporaryCameraFiles = [];
 
-        // Video recording variables
-        let mediaRecorder = null;
-        let recordedChunks = [];
-        let isRecording = false;
-        let currentMode = 'photo'; // 'photo' | 'video'
-        let timerInterval = null;
-        let recordingSeconds = 0;
-        const isAndroidDevice = /Android/i.test(navigator.userAgent || '');
-
         function init() {
             // ... existing init listeners ...
             document.addEventListener('change', function(e) {
@@ -305,8 +277,13 @@
             // Camera Listeners
             document.getElementById('camera-close')?.addEventListener('click', () => closeCamera(false));
             document.getElementById('camera-done')?.addEventListener('click', () => closeCamera(true));
-            document.getElementById('camera-switch')?.addEventListener('click', switchCamera);
-            document.getElementById('camera-capture')?.addEventListener('click', handleCaptureClick);
+            document.getElementById('camera-capture')?.addEventListener('click', capturePhoto);
+            document.querySelectorAll('[data-open-camera]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const targetInput = document.getElementById(button.dataset.openCamera);
+                    if (targetInput) openCamera(targetInput);
+                });
+            });
 
             document.addEventListener('keydown', (e) => {
                 if (lbModal && !lbModal.classList.contains('hidden')) {
@@ -315,8 +292,7 @@
                     if (e.key === 'ArrowRight') navigateLightbox(1);
                 }
                 if (camModal && !camModal.classList.contains('hidden') && e.key === 'Escape') {
-                    // Do not close if recording video
-                    if (!isRecording) closeCamera(false);
+                    closeCamera(false);
                 }
             });
         }
@@ -333,13 +309,6 @@
                   renderPreviews(input, currentFiles);
               }
         }
-        function removeFile(input, index) {
-            let currentFiles = fileGroups.get(input) || [];
-            currentFiles.splice(index, 1);
-            fileGroups.set(input, currentFiles);
-            syncInput(input, currentFiles);
-            renderPreviews(input, currentFiles);
-        }
 
         function syncInput(input, currentFiles) {
             if (typeof DataTransfer !== 'undefined') {
@@ -349,46 +318,69 @@
             }
         }
 
-        function renderPreviews(input, files) {
-            const scope = input.closest('.dz-container');
-            if (!scope) return;
-            const container = scope.querySelector('.dz-preview-container');
+        function renderPreviews(input, currentFiles) {
+            const container = input.closest('.dz-container')?.querySelector('.dz-preview-container');
             if (!container) return;
-
+            
             container.innerHTML = '';
-
-            files.forEach((file, index) => {
-                const item = document.createElement('div');
-                item.className = 'relative aspect-square rounded-xl bg-slate-100 border-2 border-slate-200 overflow-hidden group cursor-pointer shadow-sm hover:border-blue-400 transition-all';
+            currentFiles.forEach((file, index) => {
+                const div = document.createElement('div');
+                div.className = 'relative group';
                 
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    if (file.type.startsWith('image/')) {
-                        item.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
-                    } else {
-                        item.innerHTML = `
-                            <video src="${e.target.result}" class="w-full h-full object-cover" muted></video>
-                            <div class="absolute inset-0 flex items-center justify-center bg-black/20">
-                                <i data-lucide="play-circle" class="h-8 w-8 text-white"></i>
-                            </div>`;
-                    }
-
-                    // Remove button (Top Right)
-                    const rmBtn = document.createElement('button');
-                    rmBtn.type = 'button';
-                    rmBtn.className = 'absolute top-1.5 right-1.5 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-100 md:opacity-0 group-hover:opacity-100 transition-all z-10 shadow-sm';
-                    rmBtn.innerHTML = `<i data-lucide="x" class="h-3 w-3"></i>`;
-                    rmBtn.onclick = (ev) => {
-                        ev.stopPropagation();
-                        removeFile(input, index);
+                const isVideo = file.type.startsWith('video/');
+                const isImage = file.type.startsWith('image/');
+                
+                if (isImage || isVideo) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        if (isImage) {
+                            div.innerHTML = `
+                                <img src="${e.target.result}" class="w-full h-full object-cover rounded-lg border border-slate-200">
+                                <button type="button" class="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" data-remove-preview="${index}">
+                                    <i data-lucide="x" class="h-3 w-3"></i>
+                                </button>
+                            `;
+                        } else {
+                            div.innerHTML = `
+                                <div class="w-full h-full bg-slate-900 rounded-lg border border-slate-200 flex items-center justify-center">
+                                    <i data-lucide="video" class="h-8 w-8 text-white"></i>
+                                </div>
+                                <button type="button" class="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" data-remove-preview="${index}">
+                                    <i data-lucide="x" class="h-3 w-3"></i>
+                                </button>
+                            `;
+                        }
                     };
-                    item.appendChild(rmBtn);
-
-                    item.onclick = () => openLightbox(files, index);
-                    if (typeof lucide !== 'undefined') lucide.createIcons({root: item});
-                };
-                reader.readAsDataURL(file);
-                container.appendChild(item);
+                    reader.readAsDataURL(file);
+                } else {
+                    div.innerHTML = `
+                        <div class="w-full h-full bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center">
+                            <i data-lucide="file" class="h-8 w-8 text-slate-400"></i>
+                        </div>
+                        <button type="button" class="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" data-remove-preview="${index}">
+                            <i data-lucide="x" class="h-3 w-3"></i>
+                        </button>
+                    `;
+                }
+                
+                container.appendChild(div);
+            });
+            
+            if (container.children.length === 0) {
+                container.classList.add('empty');
+            } else {
+                container.classList.remove('empty');
+            }
+            
+            // Add remove listeners
+            container.querySelectorAll('[data-remove-preview]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const idx = parseInt(btn.dataset.removePreview);
+                    currentFiles.splice(idx, 1);
+                    fileGroups.set(input, currentFiles);
+                    renderPreviews(input, currentFiles);
+                });
             });
         }
 
@@ -472,7 +464,6 @@
         async function openCamera(inputElement) {
             currentTargetInput = inputElement;
             temporaryCameraFiles = [];
-            setMode('photo'); // Reset to photo on open
             updateCounterUI();
             camDoneBtn.classList.remove('scale-100', 'opacity-100');
             camDoneBtn.classList.add('scale-0', 'opacity-0');
@@ -507,37 +498,8 @@
         }
 
         async function switchCamera() {
-            if (isRecording) return; // Prevent switching while recording
             facingMode = facingMode === 'user' ? 'environment' : 'user';
             await startStream();
-        }
-
-        function setMode(newMode) {
-            if (isRecording) return;
-            currentMode = newMode;
-            
-            const btnP = document.getElementById('camera-mode-photo');
-            const btnV = document.getElementById('camera-mode-video');
-            const captureInner = document.getElementById('camera-capture-inner');
-            const timerUI = document.getElementById('camera-timer');
-
-            if (currentMode === 'video') {
-                btnV.classList.replace('text-slate-400', 'text-white');
-                btnP.classList.replace('text-white', 'text-slate-400');
-                captureInner.classList.replace('border-black', 'border-red-600');
-                timerUI.classList.remove('hidden');
-                
-                // Mute local playback to avoid echo while recording
-                camVideo.muted = true;
-            } else {
-                btnP.classList.replace('text-slate-400', 'text-white');
-                btnV.classList.replace('text-white', 'text-slate-400');
-                captureInner.classList.replace('border-red-600', 'border-black');
-                timerUI.classList.add('hidden');
-                
-                // For photo stream it is safe to mute it
-                camVideo.muted = true; 
-            }
         }
 
         function updateCounterUI() {
@@ -559,90 +521,6 @@
                 camDoneBtn.classList.remove('scale-100', 'opacity-100');
                 camDoneBtn.classList.add('scale-0', 'opacity-0');
             }
-        }
-
-        function handleCaptureClick() {
-            if (currentMode === 'photo') {
-                capturePhoto();
-            } else {
-                if (!isRecording) startRecording();
-                else stopRecording();
-            }
-        }
-
-        // VIDEO RECORDING
-        function startRecording() {
-            if (!stream) return;
-            recordedChunks = [];
-            isRecording = true;
-
-            // UI updates
-            document.getElementById('camera-capture-rec').classList.replace('w-0', 'w-10');
-            document.getElementById('camera-capture-rec').classList.replace('h-0', 'h-10');
-            document.getElementById('camera-capture-rec').classList.replace('opacity-0', 'opacity-100');
-            document.getElementById('camera-capture-inner').classList.replace('rounded-full', 'rounded-xl');
-            
-            const timerUI = document.getElementById('camera-timer');
-            timerUI.classList.remove('opacity-0');
-            timerUI.textContent = '00:00';
-            recordingSeconds = 0;
-            timerInterval = setInterval(() => {
-                recordingSeconds++;
-                const m = Math.floor(recordingSeconds / 60).toString().padStart(2, '0');
-                const s = (recordingSeconds % 60).toString().padStart(2, '0');
-                timerUI.textContent = `${m}:${s}`;
-            }, 1000);
-
-            // Setup MediaRecorder
-            // Try to find an optimal format
-            let options = { mimeType: 'video/webm;codecs=vp8,opus' };
-            if (!MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
-                options = { mimeType: 'video/webm' };
-                if (!MediaRecorder.isTypeSupported('video/webm')) {
-                    options = { mimeType: 'video/mp4' };
-                    if (!MediaRecorder.isTypeSupported('video/mp4')) {
-                        options = {}; // fallback to browser default
-                    }
-                }
-            }
-
-            options.videoBitsPerSecond = isAndroidDevice ? 900000 : 1800000;
-            options.bitsPerSecond = isAndroidDevice ? 960000 : 2000000;
-
-            mediaRecorder = new MediaRecorder(stream, options);
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-            };
-            
-            mediaRecorder.onstop = () => {
-                const mimeType = mediaRecorder.mimeType || 'video/webm';
-                const blob = new Blob(recordedChunks, { type: mimeType });
-                const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-                const filename = `video_${Date.now()}.${ext}`;
-                const file = new File([blob], filename, { type: mimeType });
-                
-                temporaryCameraFiles.push(file);
-                updateCounterUI();
-            };
-
-            mediaRecorder.start();
-        }
-
-        function stopRecording() {
-            if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-            mediaRecorder.stop();
-            isRecording = false;
-            
-            // Revert UI Update
-            document.getElementById('camera-capture-rec').classList.replace('w-10', 'w-0');
-            document.getElementById('camera-capture-rec').classList.replace('h-10', 'h-0');
-            document.getElementById('camera-capture-rec').classList.replace('opacity-100', 'opacity-0');
-            document.getElementById('camera-capture-inner').classList.replace('rounded-xl', 'rounded-full');
-            
-            document.getElementById('camera-timer').classList.add('opacity-0');
-            clearInterval(timerInterval);
         }
 
         // PHOTO CAPTURE
@@ -678,13 +556,6 @@
         }
 
         function closeCamera(save = false) {
-            // Se estiver gravando, para antes de fechar e salva
-            if (isRecording) {
-                stopRecording();
-                setTimeout(() => closeCamera(save), 500); // give it a moment to compile blob
-                return;
-            }
-
             if (stream) {
                 stream.getTracks().forEach(t => t.stop());
                 stream = null;
@@ -708,13 +579,13 @@
         return { 
             init,
             openCamera,
-            setMode,
             openGallery,
             hasUnsubmittedFiles: () => Array.from(fileGroups.values()).some(files => files.length > 0)
         };
     })();
 
     window.MediaDropzoneManager = MediaDropzoneManager;
+    globalThis.MediaDropzoneManager = MediaDropzoneManager;
     document.addEventListener('DOMContentLoaded', MediaDropzoneManager.init);
     </script>
 

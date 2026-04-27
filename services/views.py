@@ -1133,6 +1133,17 @@ def order_item_add(request, order_id):
     order = get_object_or_404(ServiceOrder, id=order_id)
     tasks = order.tasks.all()
     products = Product.objects.filter(is_active=True).order_by('name')
+    products_data = [
+        {
+            'id': str(product.id),
+            'name': product.name,
+            'code': product.code or '',
+            'unit': product.unit_type,
+            'unitDisplay': product.get_unit_type_display(),
+            'price': str(product.default_unit_price),
+        }
+        for product in products
+    ]
     
     if request.method == 'POST':
         task_id = request.POST.get('task')
@@ -1144,6 +1155,7 @@ def order_item_add(request, order_id):
                 'order': order,
                 'tasks': tasks,
                 'products': products,
+                'products_data': products_data,
                 'title': 'Adicionar Item ao Orçamento'
             })
 
@@ -1158,6 +1170,7 @@ def order_item_add(request, order_id):
                 'order': order,
                 'tasks': tasks,
                 'products': products,
+                'products_data': products_data,
                 'title': 'Adicionar Item ao Orçamento'
             })
 
@@ -1167,6 +1180,7 @@ def order_item_add(request, order_id):
                 'order': order,
                 'tasks': tasks,
                 'products': products,
+                'products_data': products_data,
                 'title': 'Adicionar Item ao Orçamento'
             })
         
@@ -1186,6 +1200,7 @@ def order_item_add(request, order_id):
         'order': order,
         'tasks': tasks,
         'products': products,
+        'products_data': products_data,
         'title': 'Adicionar Item ao Orçamento'
     })
 
