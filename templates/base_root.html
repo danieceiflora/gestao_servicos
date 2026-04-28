@@ -321,6 +321,11 @@
         function renderPreviews(input, currentFiles) {
             const container = input.closest('.dz-container')?.querySelector('.dz-preview-container');
             if (!container) return;
+
+            // Release previous blob URLs before rebuilding previews.
+            container.querySelectorAll('[data-object-url]').forEach((el) => {
+                URL.revokeObjectURL(el.dataset.objectUrl);
+            });
             
             container.innerHTML = '';
             currentFiles.forEach((file, index) => {
@@ -330,28 +335,23 @@
                 const isVideo = file.type.startsWith('video/');
                 const isImage = file.type.startsWith('image/');
                 
-                if (isImage || isVideo) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        if (isImage) {
-                            div.innerHTML = `
-                                <img src="${e.target.result}" class="w-full h-full object-cover rounded-lg border border-slate-200">
-                                <button type="button" class="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" data-remove-preview="${index}">
-                                    <i data-lucide="x" class="h-3 w-3"></i>
-                                </button>
-                            `;
-                        } else {
-                            div.innerHTML = `
-                                <div class="w-full h-full bg-slate-900 rounded-lg border border-slate-200 flex items-center justify-center">
-                                    <i data-lucide="video" class="h-8 w-8 text-white"></i>
-                                </div>
-                                <button type="button" class="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" data-remove-preview="${index}">
-                                    <i data-lucide="x" class="h-3 w-3"></i>
-                                </button>
-                            `;
-                        }
-                    };
-                    reader.readAsDataURL(file);
+                if (isImage) {
+                    const objectUrl = URL.createObjectURL(file);
+                    div.innerHTML = `
+                        <img src="${objectUrl}" data-object-url="${objectUrl}" class="w-full h-full object-cover rounded-lg border border-slate-200">
+                        <button type="button" class="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" data-remove-preview="${index}">
+                            <i data-lucide="x" class="h-3 w-3"></i>
+                        </button>
+                    `;
+                } else if (isVideo) {
+                    // Use blob URLs for videos to avoid large base64 strings in memory.
+                    const objectUrl = URL.createObjectURL(file);
+                    div.innerHTML = `
+                        <video src="${objectUrl}" data-object-url="${objectUrl}" class="w-full h-full object-cover rounded-lg border border-slate-200 bg-black" muted playsinline preload="metadata"></video>
+                        <button type="button" class="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" data-remove-preview="${index}">
+                            <i data-lucide="x" class="h-3 w-3"></i>
+                        </button>
+                    `;
                 } else {
                     div.innerHTML = `
                         <div class="w-full h-full bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center">
@@ -379,9 +379,14 @@
                     const idx = parseInt(btn.dataset.removePreview);
                     currentFiles.splice(idx, 1);
                     fileGroups.set(input, currentFiles);
+                    syncInput(input, currentFiles);
                     renderPreviews(input, currentFiles);
                 });
             });
+
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
         }
 
         function openLightbox(files, index) {
@@ -484,13 +489,16 @@
                 stream.getTracks().forEach(t => t.stop());
             }
 
+            const isAndroidDevice = /Android/i.test(navigator.userAgent);
+
             const constraints = {
                 video: {
                     facingMode: facingMode,
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
+                    width: { ideal: isAndroidDevice ? 854 : 1280 },
+                    height: { ideal: isAndroidDevice ? 480 : 720 },
+                    frameRate: { ideal: isAndroidDevice ? 24 : 30, max: 30 }
                 },
-                audio: true // Add audio for video recording
+                audio: false
             };
 
             stream = await navigator.mediaDevices.getUserMedia(constraints);
