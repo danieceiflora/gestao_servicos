@@ -648,7 +648,24 @@ def service_order_detail(request, order_id):
     order = get_object_or_404(get_orders_queryset(request), id=order_id)
     tasks = order.tasks.all().prefetch_related('team_members__professional', 'medias')
     occurrences = Occurrence.objects.filter(task__service_order=order).order_by('-created_at')
-    return render(request, 'services/orders/order_detail.html', {'order': order, 'tasks': tasks, 'occurrences': occurrences})
+    products = Product.objects.filter(is_active=True).order_by('name')
+    products_data = [
+        {
+            'id': str(product.id),
+            'name': product.name,
+            'code': product.code or '',
+            'unit': product.unit_type,
+            'unitDisplay': product.get_unit_type_display(),
+            'price': str(product.default_unit_price),
+        }
+        for product in products
+    ]
+    return render(request, 'services/orders/order_detail.html', {
+        'order': order,
+        'tasks': tasks,
+        'occurrences': occurrences,
+        'products_data': products_data,
+    })
 
 @login_required
 @permission_required('services.change_serviceorder', raise_exception=True)
@@ -1146,11 +1163,12 @@ def order_item_add(request, order_id):
     ]
     
     if request.method == 'POST':
-        task_id = request.POST.get('task')
-        task = get_object_or_404(ServiceOrderTask, id=task_id) if task_id else None
-        product_id = request.POST.get('product')
-        if not product_id:
-            messages.error(request, 'Selecione um produto cadastrado para adicionar o item.')
+        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
+        def error_response(message):
+            if is_ajax:
+                return JsonResponse({'success': False, 'message': message}, status=400)
+            messages.error(request, message)
             return render(request, 'services/orders/order_item_form.html', {
                 'order': order,
                 'tasks': tasks,
@@ -1159,23 +1177,98 @@ def order_item_add(request, order_id):
                 'title': 'Adicionar Item ao Orçamento'
             })
 
-        product = get_object_or_404(Product, id=product_id, is_active=True)
-
-        quantity_raw = (request.POST.get('quantity') or '1').strip().replace(',', '.')
         try:
-            quantity_value = Decimal(quantity_raw)
-        except (InvalidOperation, TypeError):
-            messages.error(request, 'Informe uma quantidade válida.')
-            return render(request, 'services/orders/order_item_form.html', {
-                'order': order,
-                'tasks': tasks,
-                'products': products,
-                'products_data': products_data,
-                'title': 'Adicionar Item ao Orçamento'
-            })
+            task_id = request.POST.get('task')
+            task = get_object_or_404(ServiceOrderTask, id=task_id) if task_id else None
+            product_id = request.POST.get('product')
+            if not product_id:
+                return error_response('Selecione um produto cadastrado para adicionar o item.')
 
-        if quantity_value <= 0:
-            messages.error(request, 'A quantidade deve ser maior que zero.')
+            product = get_object_or_404(Product, id=product_id, is_active=True)
+
+            quantity_raw = (request.POST.get('quantity') or '1').strip().replace(',', '.')
+            try:
+                quantity_value = Decimal(quantity_raw)
+            except (InvalidOperation, TypeError):
+                return error_response('Informe uma quantidade válida.')
+
+            if quantity_value <= 0:
+                return error_response('A quantidade deve ser maior que zero.')
+            
+            item = ServiceItem.objects.create(
+                service_order=order,
+                task=task,
+                product=product,
+                description=product.name,
+                quantity=quantity_value,
+                unit_price=product.default_unit_price
+            )
+
+            if is_ajax:
+                try:
+                    item_total = item.total_price
+                    item_unit = item.product.get_unit_type_display() if item.product else '-'
+                    if item.product and item.product.unit_type == Product.UnitType.METER:
+                        quantity_display = f'{item.quantity:.2f}'
+                    else:
+                        quantity_display = f'{item.quantity:.0f}'
+
+                    # Calcular o total da order
+                    try:
+                        order_total = order.total_value
+                        order_total_display = f'{order_total:.2f}'.replace('.', ',')
+                    except Exception as e:
+                        print(f"Erro ao calcular total da order: {e}")
+                        order_total_display = "0,00"
+
+                    return JsonResponse({
+                        'success': True,
+                        'message': 'Item adicionado com sucesso!',
+                        'item': {
+                            'id': item.id,
+                            'description': item.description,
+                            'product_code': item.product.code if item.product else '',
+                            'product_name': item.product.name if item.product else '',
+                            'unit_display': item_unit,
+                            'origin_display': item.task.get_task_type_display() if item.task else 'Orçamento',
+                            'origin_is_task': bool(item.task),
+                            'quantity_display': str(quantity_display).replace('.', ','),
+                            'unit_price_display': f'{item.unit_price:.2f}'.replace('.', ','),
+                            'total_price_display': f'{item_total:.2f}'.replace('.', ','),
+                        },
+                        'order_total_display': order_total_display,
+                    })
+                except Exception as e:
+                    print(f"Erro ao preparar resposta JSON: {e}")
+                    return JsonResponse({
+                        'success': True,
+                        'message': 'Item adicionado com sucesso!',
+                        'item': {
+                            'id': item.id,
+                            'description': item.description,
+                            'product_code': item.product.code if item.product else '',
+                            'product_name': item.product.name if item.product else '',
+                            'unit_display': item.product.get_unit_type_display() if item.product else '-',
+                            'origin_display': item.task.get_task_type_display() if item.task else 'Orçamento',
+                            'origin_is_task': bool(item.task),
+                            'quantity_display': '1',
+                            'unit_price_display': '0,00',
+                            'total_price_display': '0,00',
+                        },
+                        'order_total_display': '0,00',
+                    })
+            
+            messages.success(request, 'Item adicionado com sucesso!')
+            return redirect('service_order_detail', order_id=order.id)
+        
+        except Exception as e:
+            print(f"Erro inesperado ao adicionar item: {e}")
+            if is_ajax:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Erro inesperado: {str(e)}'
+                }, status=500)
+            messages.error(request, f'Erro inesperado: {str(e)}')
             return render(request, 'services/orders/order_item_form.html', {
                 'order': order,
                 'tasks': tasks,
@@ -1183,18 +1276,6 @@ def order_item_add(request, order_id):
                 'products_data': products_data,
                 'title': 'Adicionar Item ao Orçamento'
             })
-        
-        ServiceItem.objects.create(
-            service_order=order,
-            task=task,
-            product=product,
-            description=product.name,
-            quantity=quantity_value,
-            unit_price=product.default_unit_price
-        )
-        
-        messages.success(request, 'Item adicionado com sucesso!')
-        return redirect('service_order_detail', order_id=order.id)
     
     return render(request, 'services/orders/order_item_form.html', {
         'order': order,
@@ -1209,16 +1290,32 @@ def order_item_add(request, order_id):
 def order_item_delete(request, item_id):
     """View para remover item"""
     item = get_object_or_404(ServiceItem, id=item_id)
-    order_id = item.service_order.id
+    order = item.service_order
+    order_id = order.id
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
     
     if request.method == 'POST':
         item.delete()
+        
+        if is_ajax:
+            try:
+                order_total_display = f'{order.total_value:.2f}'.replace('.', ',')
+            except Exception as e:
+                print(f"Erro ao calcular total da order: {e}")
+                order_total_display = "0,00"
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Item removido com sucesso!',
+                'order_total_display': order_total_display,
+            })
+        
         messages.success(request, 'Item removido com sucesso!')
         return redirect('service_order_detail', order_id=order_id)
     
     return render(request, 'services/orders/order_item_delete.html', {
         'item': item,
-        'order': item.service_order
+        'order': order
     })
 
 # ============ PAGAMENTOS E DESCONTOS ============

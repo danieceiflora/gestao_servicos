@@ -135,6 +135,10 @@
 
         // Feedback de carregamento global para botões de submit
         document.querySelectorAll('form').forEach(form => {
+            if (form.matches('[data-preserve-submit-button="true"]')) {
+                return;
+            }
+
             form.addEventListener('submit', function() {
                 const btn = form.querySelector('button[type="submit"]');
                 if (btn) {

@@ -173,13 +173,75 @@
                     </h3>
                     <div class="flex items-center gap-3">
                         {% if user.role != 'COLLABORATOR' %}
-                        <a href="{% url 'order_item_add' order.id %}" class="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
-                            <i data-lucide="plus" class="h-3 w-3"></i> Adicionar Item
-                        </a>
-                        <span class="text-sm font-bold text-slate-900">Total: R$ {{ order.total_value|floatformat:2 }}</span>
+                        <span class="text-sm font-bold text-slate-900">Total: R$ <span data-order-total-value>{{ order.total_value|floatformat:2 }}</span></span>
                         {% endif %}
                     </div>
                 </div>
+                {% if user.role != 'COLLABORATOR' and perms.services.add_serviceitem %}
+                <div class="p-5 border-b border-slate-100 bg-white">
+                    <form id="inline-add-item-form" method="post" action="{% url 'order_item_add' order.id %}" class="space-y-4" data-preserve-submit-button="true">
+                        {% csrf_token %}
+                        <div id="inline-add-item-feedback" class="hidden rounded-lg px-3 py-2 text-sm font-semibold"></div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Item pertence a</label>
+                                <div class="space-y-2 max-h-40 overflow-y-auto pr-1">
+                                    <label class="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-slate-50 transition-all [&:has(input:checked)]:border-green-600 [&:has(input:checked)]:bg-green-50">
+                                        <input type="radio" name="task" value="" checked class="w-4 h-4">
+                                        <span class="text-sm font-semibold text-slate-900">Orçamento Geral</span>
+                                    </label>
+                                    {% for task in tasks %}
+                                    <label class="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-slate-50 transition-all [&:has(input:checked)]:border-blue-600 [&:has(input:checked)]:bg-blue-50">
+                                        <input type="radio" name="task" value="{{ task.id }}" class="w-4 h-4">
+                                        <span class="text-sm font-semibold text-slate-900">{{ task.get_task_type_display }} - {{ task.scheduled_at|date:"d/m H:i" }}</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <div class="space-y-3">
+                                <div class="space-y-2">
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Produto Cadastrado *</label>
+                                    <input type="hidden" id="inline-product-id" name="product">
+                                    <div class="relative">
+                                        <input type="text" id="inline-product-search" autocomplete="off" placeholder="Digite nome ou código do produto..." class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                                        <div id="inline-product-suggestions" class="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-auto hidden"></div>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Descrição</label>
+                                    <input type="text" id="inline-item-description" name="description" readonly placeholder="Selecione um produto" class="w-full px-3 py-2 border rounded-lg bg-slate-50 text-slate-700">
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="space-y-2">
+                                        <label id="inline-quantity-label" class="text-xs font-bold text-slate-600 uppercase tracking-wider">Quantidade *</label>
+                                        <input type="number" id="inline-item-quantity" name="quantity" step="0.01" value="1" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Preço Unitário</label>
+                                        <input type="number" id="inline-item-unit-price" name="unit_price" step="0.01" readonly class="w-full px-3 py-2 border rounded-lg bg-slate-50 text-slate-700">
+                                    </div>
+                                </div>
+
+                                <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 flex items-center justify-between">
+                                    <span class="text-sm font-semibold text-slate-600">Total do Item</span>
+                                    <span id="inline-item-total" class="text-base font-black text-slate-900">R$ 0,00</span>
+                                </div>
+
+                                <div class="flex justify-end">
+                                    <button type="submit" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all">
+                                        <i data-lucide="plus" class="h-4 w-4"></i>
+                                        Adicionar Item
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left">
                         <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
@@ -195,9 +257,9 @@
                                 {% endif %}
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100">
+                        <tbody id="order-items-table-body" class="divide-y divide-slate-100">
                             {% for item in order.items.all %}
-                            <tr class="hover:bg-slate-50/50 transition-colors">
+                            <tr class="hover:bg-slate-50/50 transition-colors js-order-item-row" data-item-id="{{ item.id }}">
                                 <td class="px-6 py-4 font-medium text-slate-700">
                                     <div class="flex flex-col">
                                         <span>{{ item.description }}</span>
@@ -239,9 +301,9 @@
                                 <td class="px-6 py-4 text-right">R$ {{ item.unit_price|floatformat:2 }}</td>
                                 <td class="px-6 py-4 text-right font-bold text-slate-900">R$ {{ item.total_price|floatformat:2 }}</td>
                                 <td class="px-6 py-4 text-center">
-                                    <a href="{% url 'order_item_delete' item.id %}" class="text-red-600 hover:text-red-700">
+                                    <button type="button" class="js-delete-item text-red-600 hover:text-red-700 transition-colors" data-item-id="{{ item.id }}" title="Remover item">
                                         <i data-lucide="trash-2" class="h-4 w-4"></i>
-                                    </a>
+                                    </button>
                                 </td>
                                 {% endif %}
                             </tr>
@@ -433,7 +495,7 @@
                 <div class="p-4 space-y-3">
                     <div class="flex justify-between text-sm">
                         <span class="text-slate-500">Total do Serviço:</span>
-                        <span class="font-bold text-slate-900">R$ {{ order.total_value|floatformat:2 }}</span>
+                        <span class="font-bold text-slate-900">R$ <span data-order-total-value>{{ order.total_value|floatformat:2 }}</span></span>
                     </div>
                     {% if order.discount > 0 %}
                     <div class="flex justify-between text-sm">
@@ -514,4 +576,305 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ products_data|json_script:"product-data-inline" }}
+{% if user.role != 'COLLABORATOR' and perms.services.add_serviceitem %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('inline-add-item-form');
+    const feedback = document.getElementById('inline-add-item-feedback');
+
+    if (!form) return;
+
+    const productSearch = document.getElementById('inline-product-search');
+    const productIdInput = document.getElementById('inline-product-id');
+    const suggestions = document.getElementById('inline-product-suggestions');
+    const descriptionInput = document.getElementById('inline-item-description');
+    const unitPriceInput = document.getElementById('inline-item-unit-price');
+    const quantityInput = document.getElementById('inline-item-quantity');
+    const quantityLabel = document.getElementById('inline-quantity-label');
+    const totalEl = document.getElementById('inline-item-total');
+
+    const products = JSON.parse(document.getElementById('product-data-inline').textContent || '[]');
+
+    function showFeedback(message, isError) {
+        feedback.textContent = message;
+        feedback.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'border', 'border-red-200', 'bg-green-50', 'text-green-700', 'border-green-200');
+        if (isError) {
+            feedback.classList.add('bg-red-50', 'text-red-700', 'border', 'border-red-200');
+        } else {
+            feedback.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-200');
+        }
+    }
+
+    function clearFeedback() {
+        feedback.classList.add('hidden');
+        feedback.textContent = '';
+    }
+
+    function formatCurrencyBR(value) {
+        return Number(value || 0).toFixed(2).replace('.', ',');
+    }
+
+    function parseDecimal(value) {
+        if (value === null || value === undefined) return 0;
+        const normalized = String(value).trim().replace(',', '.').replace(/[^0-9.-]/g, '');
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function closeSuggestions() {
+        suggestions.classList.add('hidden');
+        suggestions.innerHTML = '';
+    }
+
+    function updateTotal() {
+        const qty = parseDecimal(quantityInput.value || 0);
+        const unit = parseDecimal(unitPriceInput.value || 0);
+        totalEl.textContent = 'R$ ' + formatCurrencyBR(qty * unit);
+    }
+
+    function applyProduct(product) {
+        productIdInput.value = product.id;
+        productSearch.value = product.code ? (product.code + ' - ' + product.name) : product.name;
+        descriptionInput.value = product.name;
+        unitPriceInput.value = parseDecimal(product.price).toFixed(2);
+        quantityLabel.textContent = product.unit === 'METER' ? 'Quantidade (mt) *' : 'Quantidade (un) *';
+        updateTotal();
+        closeSuggestions();
+    }
+
+    function renderSuggestions(matches) {
+        if (!matches.length) {
+            closeSuggestions();
+            return;
+        }
+
+        suggestions.innerHTML = matches.map(function(product) {
+            const codePart = product.code ? ('<span class="text-[11px] font-bold text-slate-500">' + product.code + '</span>') : '<span></span>';
+            return '<button type="button" class="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-100 last:border-b-0" data-id="' + product.id + '">'
+                + '<div class="flex items-center justify-between gap-3">'
+                + '<span class="text-sm font-semibold text-slate-800">' + product.name + '</span>'
+                + codePart
+                + '</div>'
+                + '<div class="text-xs text-slate-500 mt-0.5">' + product.unitDisplay + ' • R$ ' + formatCurrencyBR(product.price) + '</div>'
+                + '</button>';
+        }).join('');
+
+        suggestions.classList.remove('hidden');
+        suggestions.querySelectorAll('button[data-id]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const selected = products.find(function(p) { return p.id === btn.getAttribute('data-id'); });
+                if (selected) applyProduct(selected);
+            });
+        });
+    }
+
+    function resetForm() {
+        form.reset();
+        productIdInput.value = '';
+        productSearch.value = '';
+        descriptionInput.value = '';
+        unitPriceInput.value = '';
+        quantityInput.value = '1';
+        quantityLabel.textContent = 'Quantidade *';
+        closeSuggestions();
+        updateTotal();
+    }
+
+    function updateOrderTotal(totalDisplay) {
+        document.querySelectorAll('[data-order-total-value]').forEach(function(el) {
+            el.textContent = totalDisplay;
+        });
+    }
+
+    function prependItemRow(item) {
+        const tbody = document.getElementById('order-items-table-body');
+        if (!tbody) return;
+
+        const emptyRow = tbody.querySelector('td[colspan="7"]')?.parentElement;
+        if (emptyRow) {
+            emptyRow.remove();
+        }
+
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-50/50 transition-colors js-order-item-row';
+        row.setAttribute('data-item-id', item.id);
+
+        row.innerHTML = `
+            <td class="px-6 py-4 font-medium text-slate-700">
+                <div class="flex flex-col">
+                    <span>${item.description}</span>
+                    <span class="text-[10px] uppercase font-bold text-slate-400 mt-0.5">${item.product_code ? (item.product_code + ' • ') : ''}${item.product_name}</span>
+                </div>
+            </td>
+            <td class="px-6 py-4 text-center">
+                <span class="px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-[10px] font-bold">${item.unit_display}</span>
+            </td>
+            <td class="px-6 py-4 text-center">
+                <span class="px-2 py-1 ${item.origin_is_task ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'} rounded-full text-[10px] font-bold">${item.origin_display}</span>
+            </td>
+            <td class="px-6 py-4 text-center">${item.quantity_display}</td>
+            <td class="px-6 py-4 text-right">R$ ${item.unit_price_display}</td>
+            <td class="px-6 py-4 text-right font-bold text-slate-900">R$ ${item.total_price_display}</td>
+            <td class="px-6 py-4 text-center">
+                <button type="button" class="js-delete-item text-red-600 hover:text-red-700 transition-colors" data-item-id="${item.id}" title="Remover item">
+                    <i data-lucide="trash-2" class="h-4 w-4"></i>
+                </button>
+            </td>
+        `;
+
+        const firstTaskRow = tbody.querySelector('tr[class*="bg-blue-50/30"]');
+        if (firstTaskRow) {
+            tbody.insertBefore(row, firstTaskRow);
+        } else {
+            tbody.appendChild(row);
+        }
+
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
+    }
+
+    productSearch.addEventListener('input', function() {
+        const term = productSearch.value.trim().toLowerCase();
+        productIdInput.value = '';
+        descriptionInput.value = '';
+        unitPriceInput.value = '';
+        quantityLabel.textContent = 'Quantidade *';
+        updateTotal();
+
+        if (term.length < 1) {
+            closeSuggestions();
+            return;
+        }
+
+        const matches = products.filter(function(product) {
+            return product.name.toLowerCase().includes(term) || (product.code && product.code.toLowerCase().includes(term));
+        }).slice(0, 20);
+
+        renderSuggestions(matches);
+    });
+
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('#inline-product-suggestions') && event.target !== productSearch) {
+            closeSuggestions();
+        }
+    });
+
+    quantityInput.addEventListener('input', updateTotal);
+
+    form.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        clearFeedback();
+
+        if (!productIdInput.value) {
+            showFeedback('Selecione um produto cadastrado antes de adicionar o item.', true);
+            productSearch.focus();
+            return;
+        }
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const oldContent = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i><span>Adicionando...</span>';
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: new FormData(form)
+            });
+
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                console.error('Erro ao parsear JSON:', parseError);
+                throw new Error('Resposta inválida do servidor.');
+            }
+
+            if (!response.ok) {
+                throw new Error(data?.message || 'Erro ao adicionar item (HTTP ' + response.status + ')');
+            }
+
+            if (!data.success) {
+                throw new Error(data?.message || 'Falha ao adicionar item.');
+            }
+
+            if (data.item) {
+                prependItemRow(data.item);
+            }
+            
+            if (data.order_total_display) {
+                updateOrderTotal(data.order_total_display);
+            }
+            
+            showFeedback(data.message || 'Item adicionado com sucesso!', false);
+            resetForm();
+            productSearch.focus();
+        } catch (error) {
+            console.error('Erro ao adicionar item:', error);
+            showFeedback(error.message || 'Erro desconhecido ao adicionar item.', true);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = oldContent;
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+        }
+    });
+
+    // Event listener para deletar itens
+    document.addEventListener('click', async function(event) {
+        const deleteBtn = event.target.closest('.js-delete-item');
+        if (!deleteBtn) return;
+
+        event.preventDefault();
+        const itemId = deleteBtn.getAttribute('data-item-id');
+        
+        if (!confirm('Deseja remover este item?')) return;
+
+        try {
+            deleteBtn.disabled = true;
+            deleteBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            const response = await fetch(`/items/${itemId}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': document.querySelector('[name="csrfmiddlewaretoken"]')?.value || ''
+                }
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok || !data.success) {
+                throw new Error(data?.message || 'Erro ao remover item.');
+            }
+
+            // Remover a linha da tabela
+            const itemRow = document.querySelector(`tr[data-item-id="${itemId}"]`);
+            if (itemRow) {
+                itemRow.remove();
+            }
+
+            // Atualizar total da ordem
+            if (data.order_total_display) {
+                updateOrderTotal(data.order_total_display);
+            }
+
+            showFeedback(data.message || 'Item removido com sucesso!', false);
+        } catch (error) {
+            console.error('Erro ao remover item:', error);
+            showFeedback(error.message || 'Erro ao remover item.', true);
+        } finally {
+            deleteBtn.disabled = false;
+            deleteBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    });
+
+    updateTotal();
+});
+</script>
+{% endif %}
 {% endblock %}
