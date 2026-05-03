@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'pwa',
     'services',
+    'integracoes',
 ]
 
 MIDDLEWARE = [
@@ -159,3 +160,7 @@ PWA_SERVICE_WORKER_PATH = str(BASE_DIR / 'static' / 'js' / 'serviceworker.js')
 VAPID_PUBLIC_KEY = 'BDZbfktaARHBARUImIrqiUjk8qVLP7voLcr2DppTOWYF4lMJRCsIav6EBywVgtnUMeMZ1b7NbHOc1Dni7gyOgf0'
 VAPID_PRIVATE_KEY = 'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgh5fSGKWI80xtyhl9M6mjDd43eKUMpL6q2en2s0rwkUehRANCAAQ2W35LWgERwQEVCJiK6olI5PKlSz-76C3K9g6aUzlmBeJTCUQrCGr-hAcsFYLZ1DHjGdW-zWxznNQ54u4MjoH9'
 VAPID_ADMIN_EMAIL = 'admin@douradoscalhas.com.br'
+
+# Bling Integration
+# O Client Secret pode ser encontrado nas configurações do seu aplicativo no Bling
+BLING_CLIENT_SECRET = None

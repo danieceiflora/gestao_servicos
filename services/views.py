@@ -23,6 +23,18 @@ from .forms import (
 )
 from .utils import check_professional_availability
 
+
+def privacy_policy(request):
+    return render(request, 'services/policies/privacy_policy.html')
+
+
+def data_deletion_policy(request):
+    return render(request, 'services/policies/data_deletion_policy.html')
+
+
+def terms_of_service(request):
+    return render(request, 'services/policies/terms_of_service.html')
+
 # --- AUXILIARES DE FILTRAGEM ---
 
 def get_orders_queryset(request):

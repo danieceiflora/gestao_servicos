@@ -1,0 +1,42 @@
+{% extends 'base_root.html' %}
+
+{% block title %}Termos de Serviço - Gestão de Serviços{% endblock %}
+
+{% block layout %}
+<main class="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
+    <section class="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+        <div class="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm sm:p-10">
+            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Gestão de Serviços</p>
+            <h1 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Termos de Serviço</h1>
+            <p class="mt-4 max-w-2xl text-sm leading-6 text-slate-600">Ao usar o sistema, o usuário concorda com as regras descritas abaixo para acesso, uso e responsabilidade sobre os dados inseridos.</p>
+
+            <div class="mt-8 space-y-8 text-sm leading-7 text-slate-700">
+                <section>
+                    <h2 class="text-lg font-semibold text-slate-900">1. Uso permitido</h2>
+                    <p class="mt-2">O sistema deve ser utilizado apenas para finalidades legítimas de gestão de serviços, cadastro de clientes, execução de ordens, agendamento, comunicação operacional e registro de atividades.</p>
+                </section>
+
+                <section>
+                    <h2 class="text-lg font-semibold text-slate-900">2. Responsabilidades do usuário</h2>
+                    <p class="mt-2">O usuário é responsável por manter a confidencialidade da sua conta, registrar informações verdadeiras e evitar o uso indevido de dados de terceiros. Qualquer atividade executada com seu acesso poderá ser atribuída à sua conta, salvo comunicação em contrário à equipe responsável.</p>
+                </section>
+
+                <section>
+                    <h2 class="text-lg font-semibold text-slate-900">3. Restrições</h2>
+                    <p class="mt-2">É proibido tentar acessar áreas não autorizadas, burlar mecanismos de segurança, inserir conteúdo malicioso, usar a plataforma para fins ilícitos ou violar direitos de terceiros.</p>
+                </section>
+
+                <section>
+                    <h2 class="text-lg font-semibold text-slate-900">4. Disponibilidade do serviço</h2>
+                    <p class="mt-2">A plataforma é fornecida conforme disponibilidade técnica e pode sofrer interrupções para manutenção, correção de falhas, atualizações ou causas externas fora do controle da organização.</p>
+                </section>
+
+                <section>
+                    <h2 class="text-lg font-semibold text-slate-900">5. Alterações</h2>
+                    <p class="mt-2">Estes termos podem ser atualizados periodicamente para refletir mudanças legais, operacionais ou de segurança. A continuidade do uso após a atualização indica aceitação dos novos termos.</p>
+                </section>
+            </div>
+        </div>
+    </section>
+</main>
+{% endblock %}

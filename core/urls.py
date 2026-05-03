@@ -7,6 +7,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
     path('', include('pwa.urls')),
+    path('api/integracoes/', include('integracoes.urls', namespace='integracoes')),
     path('', include('services.urls')),
 ]
 

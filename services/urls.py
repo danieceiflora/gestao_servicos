@@ -5,6 +5,9 @@ from . import views_equipe
 
 urlpatterns = [
     path('', views.home, name='home'),
+    path('politica-de-privacidade/', views.privacy_policy, name='privacy_policy'),
+    path('exclusao-de-dados/', views.data_deletion_policy, name='data_deletion_policy'),
+    path('termos-de-servico/', views.terms_of_service, name='terms_of_service'),
     
     # --- VISÃO EQUIPE / COLABORADORES ---
     path('equipe/tarefas/', views_equipe.equipe_task_list, name='equipe_task_list'),
