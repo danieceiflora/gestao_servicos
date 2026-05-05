@@ -1,7 +1,28 @@
 import json
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import WebhookEvent
+from .models import WebhookEvent, SystemConfig
+
+@admin.register(SystemConfig)
+class SystemConfigAdmin(admin.ModelAdmin):
+    fieldsets = (
+        ('Dados da Empresa (PDF de Orçamento)', {
+            'fields': ('company_name', 'company_cnpj', 'company_address', 'company_phone', 'company_website', 'company_logo')
+        }),
+        ('Integração Chatwoot (WhatsApp)', {
+            'fields': ('chatwoot_base_url', 'chatwoot_account_id', 'chatwoot_inbox_id', 'chatwoot_api_token', 'chatwoot_budget_template')
+        }),
+    )
+
+    def has_add_permission(self, request):
+        # Evita criar mais de um registro
+        if self.model.objects.exists():
+            return False
+        return super().has_add_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        # Evita deletar o registro de configuração global
+        return False
 
 @admin.register(WebhookEvent)
 class WebhookEventAdmin(admin.ModelAdmin):

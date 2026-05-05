@@ -37,6 +37,17 @@
                 {% endif %}
             </div>
 
+            <!-- Client Observation -->
+            <div class="space-y-2">
+                <label for="{{ form.client_observation.id_for_label }}" class="text-sm font-medium text-slate-700">
+                    {{ form.client_observation.label }}
+                </label>
+                {{ form.client_observation }}
+                {% if form.client_observation.errors %}
+                <p class="text-xs text-red-600">{{ form.client_observation.errors.0 }}</p>
+                {% endif %}
+            </div>
+
             <!-- Technical Notes -->
             <div class="space-y-2">
                 <label for="{{ form.technical_notes.id_for_label }}" class="text-sm font-medium text-slate-700">

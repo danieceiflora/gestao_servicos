@@ -14,6 +14,7 @@ urlpatterns = [
     path('equipe/etapa/<uuid:task_id>/', views_equipe.equipe_task_detail, name='equipe_task_detail'),
     path('equipe/etapa/<uuid:task_id>/iniciar/', views_equipe.equipe_task_start, name='equipe_task_start'),
     path('equipe/etapa/<uuid:task_id>/finalizar/', views_equipe.equipe_task_finish, name='equipe_task_finish'),
+    path('equipe/etapa/<uuid:task_id>/checklist/atualizar/', views_equipe.equipe_task_checklist_update, name='equipe_task_checklist_update'),
     path('equipe/etapa/<uuid:task_id>/midia/', views_equipe.equipe_task_add_media, name='equipe_task_add_media'),
     path('equipe/midia/<int:media_id>/excluir/', views_equipe.equipe_media_delete, name='equipe_media_delete'),
     path('equipe/etapa/<uuid:task_id>/ocorrencia/', views_equipe.equipe_task_add_occurrence, name='equipe_task_add_occurrence'),
@@ -35,6 +36,8 @@ urlpatterns = [
     path('orders/new/', views.service_order_scheduling, name='service_order_scheduling'),
     path('orders/calendar/', views.service_order_calendar, name='service_order_calendar'),
     path('orders/<uuid:order_id>/', views.service_order_detail, name='service_order_detail'),
+    path('orders/<uuid:order_id>/pdf/', views.service_order_pdf, name='service_order_pdf'),
+    path('orders/<uuid:order_id>/send-budget/', views.service_order_send_budget, name='service_order_send_budget'),
     path('orders/<uuid:order_id>/edit/', views.service_order_edit, name='service_order_edit'),
     path('orders/<uuid:order_id>/budget/', views.service_order_budget, name='service_order_budget'),
     path('orders/<uuid:order_id>/execute/', views.service_order_execution, name='service_order_execution'),  # Legacy redirect
@@ -51,6 +54,7 @@ urlpatterns = [
     path('items/<int:item_id>/delete/', views.order_item_delete, name='order_item_delete'),
     path('orders/<uuid:order_id>/payments/add/', views.order_payment_add, name='order_payment_add'),
     path('orders/<uuid:order_id>/discount/', views.order_discount_update, name='order_discount_update'),
+    path('orders/<uuid:order_id>/observation/', views.order_observation_update, name='order_observation_update'),
     
     # Push Notifications
     path('notifications/panel/', notifications.notifications_test_view, name='notifications_test'),

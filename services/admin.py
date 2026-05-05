@@ -4,8 +4,35 @@ from .models import (
     User, Client, ClientPhone, ClientEmail, Property,
     ProfessionalRole, Professional, WorkSchedule, WorkScheduleDay,
     ServiceOrder, ServiceItem, ServiceMedia, ServiceOrderTeam,
-    ServiceOrderTask, Product
+    ServiceOrderTask, Product, ServiceCategory, Service,
+    ServiceChecklistItem, TaskChecklistResponse
 )
+
+
+@admin.register(ServiceCategory)
+class ServiceCategoryAdmin(admin.ModelAdmin):
+    list_display = ['name']
+    search_fields = ['name']
+
+
+class ServiceChecklistItemInline(admin.TabularInline):
+    model = ServiceChecklistItem
+    extra = 1
+
+
+@admin.register(Service)
+class ServiceAdmin(admin.ModelAdmin):
+    list_display = ['name', 'category', 'base_price', 'unit_of_measure', 'is_active']
+    list_filter = ['is_active', 'category']
+    search_fields = ['name', 'description']
+    inlines = [ServiceChecklistItemInline]
+
+
+@admin.register(TaskChecklistResponse)
+class TaskChecklistResponseAdmin(admin.ModelAdmin):
+    list_display = ['item', 'task', 'completed', 'updated_at']
+    list_filter = ['completed', 'item__service']
+    search_fields = ['task__service_order__number', 'item__name']
 
 
 @admin.register(Product)

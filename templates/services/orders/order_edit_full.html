@@ -100,6 +100,14 @@
                 {{ form.description }}
             </div>
 
+            <!-- Client Observation -->
+            <div class="space-y-2">
+                <label for="{{ form.client_observation.id_for_label }}" class="text-sm font-medium text-slate-700 text-amber-600">
+                    Observação para o Cliente
+                </label>
+                {{ form.client_observation }}
+            </div>
+
             <!-- Technical Notes -->
             <div class="space-y-2">
                 <label for="{{ form.technical_notes.id_for_label }}" class="text-sm font-medium text-slate-700 text-blue-600">

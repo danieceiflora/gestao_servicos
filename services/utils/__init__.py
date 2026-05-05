@@ -1,6 +1,6 @@
 from datetime import timedelta
 from django.db.models import Q
-from .models import ServiceOrder, ServiceOrderTeam, WorkScheduleDay, ProfessionalScheduleBlock, ServiceOrderTask
+from ..models import ServiceOrder, ServiceOrderTeam, WorkScheduleDay, ProfessionalScheduleBlock, ServiceOrderTask
 
 def check_professional_availability(professional, timestamp, scheduled_end_at=None, exclude_task_id=None, ignore_working_hours=False):
     """
@@ -72,3 +72,33 @@ def check_professional_availability(professional, timestamp, scheduled_end_at=No
             return False, f"{professional.name} já tem um(a) {tipo} agendado(a) para {cliente} neste horário.", "CONFLICT"
 
     return True, "Disponível", "OK"
+
+def format_phone_e164(phone):
+    """
+    Formata telefone para padrão E.164 (Brasil) com normalização do 9º dígito.
+    Ex: 1188887777 -> +5511988887777
+    """
+    if not phone:
+        return ""
+    
+    # Remove tudo que não é dígito
+    digits = "".join(filter(str.isdigit, phone))
+    
+    # Remove zero à esquerda se existir (ex: 011...)
+    if digits.startswith("0") and len(digits) > 10:
+        digits = digits[1:]
+
+    # Se já começa com 55 e tem tamanho de DDI+DDD+NUM (12 ou 13 dígitos), remove o 55 para normalizar
+    if digits.startswith("55") and len(digits) >= 12:
+        digits = digits[2:]
+
+    # Normalização do 9º dígito para celulares (DDD + 8 dígitos -> DDD + 9 + 8 dígitos)
+    # No Brasil, celulares começam com 6, 7, 8 ou 9.
+    if len(digits) == 10:
+        ddd = digits[:2]
+        prefix = digits[2]
+        if prefix in "6789":
+            digits = f"{ddd}9{digits[2:]}"
+            
+    # Retorna sempre no formato +55DDXXXXXXXXX
+    return f"+55{digits}"

@@ -253,7 +253,7 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
 
     class Meta:
         model = ServiceOrder
-        fields = ['client', 'client_property', 'description', 'estimated_value', 'origin_date', 'originator']
+        fields = ['client', 'client_property', 'description', 'client_observation', 'estimated_value', 'origin_date', 'originator']
         widgets = {
             'client_property': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
@@ -261,6 +261,11 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
             'description': forms.Textarea(attrs={
                 'rows': 3, 
                 'placeholder': 'Descreva o problema ou solicitação...',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+            'client_observation': forms.Textarea(attrs={
+                'rows': 3, 
+                'placeholder': 'Observação para o cliente (orçamento)...',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
             'estimated_value': forms.NumberInput(attrs={
@@ -365,7 +370,7 @@ class ServiceOrderForm(forms.ModelForm):
 
     class Meta:
         model = ServiceOrder
-        fields = ['client', 'client_property', 'status', 'is_recurrent', 'description', 'technical_notes']
+        fields = ['client', 'client_property', 'status', 'is_recurrent', 'description', 'technical_notes', 'client_observation']
         widgets = {
             'client_property': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
@@ -384,6 +389,11 @@ class ServiceOrderForm(forms.ModelForm):
             'technical_notes': forms.Textarea(attrs={
                 'rows': 3, 
                 'placeholder': 'Notas técnicas gerais...',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+            'client_observation': forms.Textarea(attrs={
+                'rows': 3, 
+                'placeholder': 'Observação para o cliente (orçamento)...',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
         }

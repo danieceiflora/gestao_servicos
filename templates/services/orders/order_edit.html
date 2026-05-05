@@ -107,6 +107,17 @@
                     {% endif %}
                 </div>
 
+                <!-- Client Observation -->
+                <div class="space-y-2">
+                    <label for="{{ form.client_observation.id_for_label }}" class="text-sm font-semibold text-slate-700 text-amber-600">
+                        Observação para o Cliente
+                    </label>
+                    {{ form.client_observation }}
+                    {% if form.client_observation.errors %}
+                    <p class="text-xs text-red-600">{{ form.client_observation.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
                 <!-- Valor Estimado -->
                 <div class="space-y-2">
                     <label for="{{ form.estimated_value.id_for_label }}" class="text-sm font-semibold text-slate-700">

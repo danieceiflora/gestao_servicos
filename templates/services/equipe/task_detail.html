@@ -81,6 +81,125 @@
             </div>
         </details>
 
+        <!-- CHECK-LIST DE SERVIÇO -->
+        {% if checklist_responses %}
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
+            <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="check-square" class="h-5 w-5 text-emerald-500"></i>
+                    <div>
+                        <h3 class="font-semibold text-slate-800">Check-list de Padrão</h3>
+                        <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Itens Obrigatórios de Verificação</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 space-y-6">
+                {% regroup checklist_responses by item.service as service_list %}
+                {% for service_group in service_list %}
+                    <div class="space-y-3">
+                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <i data-lucide="wrench" class="h-3 w-3"></i>
+                            {{ service_group.grouper.name }}
+                        </h4>
+                        
+                        <div class="space-y-4">
+                            {% for response in service_group.list %}
+                                <div class="relative p-4 rounded-xl border border-slate-100 bg-slate-50/50 group/item transition-all" id="checklist-item-{{ response.id }}">
+                                    <div class="flex items-start gap-3">
+                                        <div class="pt-0.5">
+                                            <input type="checkbox" 
+                                                   class="js-checklist-checkbox w-6 h-6 rounded-lg border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-all cursor-pointer shadow-sm"
+                                                   data-response-id="{{ response.id }}"
+                                                   {% if response.completed %}checked{% endif %}
+                                                   {% if task.finished_at %}disabled{% endif %}>
+                                        </div>
+                                        <div class="flex-1">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label class="text-sm font-bold text-slate-800 cursor-pointer">
+                                                    {{ response.item.name }}
+                                                    {% if response.item.is_required %}
+                                                        <span class="text-rose-500" title="Obrigatório">*</span>
+                                                    {% endif %}
+                                                </label>
+                                            </div>
+                                            {% if response.item.description %}
+                                                <p class="text-xs text-slate-500 mt-1 leading-relaxed">{{ response.item.description }}</p>
+                                            {% endif %}
+
+                                            <!-- Evidence Section -->
+                                            <div class="mt-4 js-evidence-container {% if not response.completed %}hidden{% endif %}">
+                                                {% if response.item.evidence_type == 'TEXT' %}
+                                                    <textarea class="js-checklist-text w-full rounded-xl border-slate-200 text-sm focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-slate-400 bg-white"
+                                                              placeholder="Descreva aqui o resultado ou observação..."
+                                                              data-response-id="{{ response.id }}"
+                                                              rows="3"
+                                                              {% if task.finished_at %}readonly{% endif %}>{{ response.text_response|default:'' }}</textarea>
+                                                {% elif response.item.evidence_type == 'PHOTO' %}
+                                                    <div class="space-y-3">
+                                                        {% if response.photo %}
+                                                            <div class="relative w-full aspect-video rounded-xl overflow-hidden border border-slate-200 shadow-sm group/img">
+                                                                <img src="{{ response.photo.url }}" class="w-full h-full object-cover">
+                                                                <a href="{{ response.photo.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" class="absolute inset-0 bg-black/20 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                                                                    <i data-lucide="maximize-2" class="text-white h-8 w-8"></i>
+                                                                </a>
+                                                            </div>
+                                                        {% endif %}
+                                                        {% if not task.finished_at %}
+                                                            <div class="relative">
+                                                                <input type="file" 
+                                                                       accept="image/*" 
+                                                                       capture="environment"
+                                                                       id="photo-input-{{ response.id }}"
+                                                                       class="js-checklist-file hidden"
+                                                                       data-response-id="{{ response.id }}"
+                                                                       data-type="photo">
+                                                                <label for="photo-input-{{ response.id }}" class="flex items-center justify-center gap-2 w-full py-4 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 transition-all cursor-pointer font-bold text-sm bg-white">
+                                                                    <i data-lucide="camera" class="h-5 w-5"></i>
+                                                                    {% if response.photo %}Alterar Foto{% else %}Tirar Foto da Evidência{% endif %}
+                                                                </label>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% elif response.item.evidence_type == 'VIDEO' %}
+                                                    <div class="space-y-3">
+                                                        {% if response.video %}
+                                                            <div class="relative w-full aspect-video rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-900 group/video">
+                                                                <video class="w-full h-full object-cover opacity-60"><source src="{{ response.video.url }}"></video>
+                                                                <a href="{{ response.video.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-is-video="true" class="absolute inset-0 flex items-center justify-center">
+                                                                    <i data-lucide="play-circle" class="h-12 w-12 text-white group-hover/video:scale-110 transition-transform"></i>
+                                                                </a>
+                                                            </div>
+                                                        {% endif %}
+                                                        {% if not task.finished_at %}
+                                                            <div class="relative">
+                                                                <input type="file" 
+                                                                       accept="video/*" 
+                                                                       capture="environment"
+                                                                       id="video-input-{{ response.id }}"
+                                                                       class="js-checklist-file hidden"
+                                                                       data-response-id="{{ response.id }}"
+                                                                       data-type="video">
+                                                                <label for="video-input-{{ response.id }}" class="flex items-center justify-center gap-2 w-full py-4 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 transition-all cursor-pointer font-bold text-sm bg-white">
+                                                                    <i data-lucide="video" class="h-5 w-5"></i>
+                                                                    {% if response.video %}Alterar Vídeo{% else %}Gravar Vídeo da Evidência{% endif %}
+                                                                </label>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- STATUS DA ETAPA TOPO -->
         <div class="mt-6 mb-6">
             {% if not task.started_at and task.task_type != 'BUDGET' %}
@@ -356,6 +475,108 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // --- CHECKLIST LOGIC ---
+    const checklistCheckboxes = document.querySelectorAll('.js-checklist-checkbox');
+    const checklistTexts = document.querySelectorAll('.js-checklist-text');
+    const checklistFiles = document.querySelectorAll('.js-checklist-file');
+
+    function updateChecklistItem(responseId, data, isFile = false) {
+        const formData = new FormData();
+        formData.append('response_id', responseId);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        for (const key in data) {
+            formData.append(key, data[key]);
+        }
+
+        const itemContainer = document.getElementById(`checklist-item-${responseId}`);
+        if (itemContainer) itemContainer.classList.add('opacity-70');
+
+        return fetch('{% url "equipe_task_checklist_update" task.id %}', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                if (itemContainer) {
+                    itemContainer.classList.remove('opacity-70');
+                    itemContainer.classList.add('ring-1', 'ring-emerald-500');
+                    setTimeout(() => itemContainer.classList.remove('ring-1', 'ring-emerald-500'), 1500);
+                }
+                return data;
+            } else {
+                throw new Error(data.message || 'Erro ao atualizar item');
+            }
+        })
+        .catch(err => {
+            alert('Erro ao salvar item do check-list: ' + err.message);
+            if (itemContainer) itemContainer.classList.remove('opacity-70');
+        });
+    }
+
+    checklistCheckboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            const responseId = this.dataset.responseId;
+            const container = this.closest('.group\\/item');
+            const evidence = container.querySelector('.js-evidence-container');
+            
+            if (this.checked) {
+                evidence.classList.remove('hidden');
+            } else {
+                evidence.classList.add('hidden');
+            }
+
+            updateChecklistItem(responseId, { 'completed': this.checked });
+        });
+    });
+
+    let debounceTimer;
+    checklistTexts.forEach(textarea => {
+        textarea.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            const responseId = this.dataset.responseId;
+            debounceTimer = setTimeout(() => {
+                updateChecklistItem(responseId, { 
+                    'text_response': this.value,
+                    'completed': true // Auto-completa se escreveu algo
+                }).then(data => {
+                    if (data && data.completed) {
+                        const cb = document.querySelector(`.js-checklist-checkbox[data-response-id="${responseId}"]`);
+                        if (cb) cb.checked = true;
+                    }
+                });
+            }, 800);
+        });
+    });
+
+    checklistFiles.forEach(input => {
+        input.addEventListener('change', function() {
+            if (!this.files.length) return;
+            
+            const responseId = this.dataset.responseId;
+            const type = this.dataset.type; // 'photo' ou 'video'
+            const data = { 'completed': true };
+            data[type] = this.files[0];
+
+            const label = this.nextElementSibling;
+            const originalHTML = label.innerHTML;
+            label.innerHTML = '<i data-lucide="loader-2" class="h-5 w-5 animate-spin"></i> Enviando...';
+            if (window.lucide) lucide.createIcons();
+
+            updateChecklistItem(responseId, data)
+            .then(() => {
+                // Recarrega a página para mostrar a nova mídia
+                window.location.reload();
+            })
+            .finally(() => {
+                label.innerHTML = originalHTML;
+                if (window.lucide) lucide.createIcons();
+            });
+        });
+    });
 });
 </script>
 {% endblock %}

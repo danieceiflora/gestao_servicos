@@ -8,11 +8,15 @@ from django.db.models import Q
 from datetime import timedelta, datetime
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import django.utils.timezone
+import logging
 from .notifications import send_push_notification
+from django.http import HttpResponse, JsonResponse
+from .utils.pdf_generator import BudgetPDFGenerator
+from integracoes.chatwoot_client import ChatwootClient
 from .models import (
     User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem,
     Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
-    ServiceOrderTask, ServicePayment, Occurrence, Product
+    ServiceOrderTask, ServicePayment, Occurrence, Product, Service, ServiceCategory
 )
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
@@ -21,7 +25,9 @@ from .forms import (
     ServiceOrderTeamFormSet, TaskScheduleForm, TaskCancelForm,
     ServicePaymentForm, ServiceOrderDiscountForm
 )
-from .utils import check_professional_availability
+from .utils import check_professional_availability, format_phone_e164
+
+logger = logging.getLogger(__name__)
 
 
 def privacy_policy(request):
@@ -669,14 +675,31 @@ def service_order_detail(request, order_id):
             'unit': product.unit_type,
             'unitDisplay': product.get_unit_type_display(),
             'price': str(product.default_unit_price),
+            'type': 'PRODUCT'
         }
         for product in products
     ]
+    
+    services = Service.objects.filter(is_active=True).order_by('name')
+    services_data = [
+        {
+            'id': str(service.id),
+            'name': service.name,
+            'code': '',
+            'unit': service.unit_of_measure,
+            'unitDisplay': service.unit_of_measure,
+            'price': str(service.base_price),
+            'type': 'SERVICE'
+        }
+        for service in services
+    ]
+    
     return render(request, 'services/orders/order_detail.html', {
         'order': order,
         'tasks': tasks,
         'occurrences': occurrences,
         'products_data': products_data,
+        'services_data': services_data,
     })
 
 @login_required
@@ -1192,11 +1215,32 @@ def order_item_add(request, order_id):
         try:
             task_id = request.POST.get('task')
             task = get_object_or_404(ServiceOrderTask, id=task_id) if task_id else None
+            
             product_id = request.POST.get('product')
-            if not product_id:
-                return error_response('Selecione um produto cadastrado para adicionar o item.')
+            service_id = request.POST.get('service')
+            
+            if not product_id and not service_id:
+                return error_response('Selecione um produto ou serviço cadastrado para adicionar o item.')
 
-            product = get_object_or_404(Product, id=product_id, is_active=True)
+            item_data = {
+                'service_order': order,
+                'task': task,
+                'product': None,
+                'service': None,
+                'description': '',
+                'unit_price': Decimal('0')
+            }
+
+            if product_id:
+                product = get_object_or_404(Product, id=product_id, is_active=True)
+                item_data['product'] = product
+                item_data['description'] = product.name
+                item_data['unit_price'] = product.default_unit_price
+            else:
+                service = get_object_or_404(Service, id=service_id, is_active=True)
+                item_data['service'] = service
+                item_data['description'] = service.name
+                item_data['unit_price'] = service.base_price
 
             quantity_raw = (request.POST.get('quantity') or '1').strip().replace(',', '.')
             try:
@@ -1208,18 +1252,24 @@ def order_item_add(request, order_id):
                 return error_response('A quantidade deve ser maior que zero.')
             
             item = ServiceItem.objects.create(
-                service_order=order,
-                task=task,
-                product=product,
-                description=product.name,
+                service_order=item_data['service_order'],
+                task=item_data['task'],
+                product=item_data['product'],
+                service=item_data['service'],
+                description=item_data['description'],
                 quantity=quantity_value,
-                unit_price=product.default_unit_price
+                unit_price=item_data['unit_price']
             )
 
             if is_ajax:
                 try:
                     item_total = item.total_price
-                    item_unit = item.product.get_unit_type_display() if item.product else '-'
+                    item_unit = '-'
+                    if item.product:
+                        item_unit = item.product.get_unit_type_display()
+                    elif item.service:
+                        item_unit = item.service.unit_of_measure
+
                     if item.product and item.product.unit_type == Product.UnitType.METER:
                         quantity_display = f'{item.quantity:.2f}'
                     else:
@@ -1240,8 +1290,10 @@ def order_item_add(request, order_id):
                             'id': item.id,
                             'description': item.description,
                             'product_code': item.product.code if item.product else '',
-                            'product_name': item.product.name if item.product else '',
+                            'product_name': item.product.name if item.product else (item.service.name if item.service else ''),
                             'unit_display': item_unit,
+                            'type_display': 'Produto' if item.product else ('Serviço' if item.service else '-'),
+                            'type_class': 'bg-blue-50 text-blue-600' if item.product else ('bg-purple-50 text-purple-600' if item.service else ''),
                             'origin_display': item.task.get_task_type_display() if item.task else 'Orçamento',
                             'origin_is_task': bool(item.task),
                             'quantity_display': str(quantity_display).replace('.', ','),
@@ -1259,8 +1311,10 @@ def order_item_add(request, order_id):
                             'id': item.id,
                             'description': item.description,
                             'product_code': item.product.code if item.product else '',
-                            'product_name': item.product.name if item.product else '',
+                            'product_name': item.product.name if item.product else (item.service.name if item.service else ''),
                             'unit_display': item.product.get_unit_type_display() if item.product else '-',
+                            'type_display': 'Produto' if item.product else ('Serviço' if item.service else '-'),
+                            'type_class': 'bg-blue-50 text-blue-600' if item.product else ('bg-purple-50 text-purple-600' if item.service else ''),
                             'origin_display': item.task.get_task_type_display() if item.task else 'Orçamento',
                             'origin_is_task': bool(item.task),
                             'quantity_display': '1',
@@ -1269,6 +1323,7 @@ def order_item_add(request, order_id):
                         },
                         'order_total_display': '0,00',
                     })
+                    
             
             messages.success(request, 'Item adicionado com sucesso!')
             return redirect('service_order_detail', order_id=order.id)
@@ -1458,3 +1513,98 @@ def occurrence_resolve(request, occurrence_id):
         messages.success(request, f"Ocorrência marcada como resolvida.")
         
     return redirect('occurrence_list')
+
+@login_required
+@permission_required("services.change_serviceorder", raise_exception=True)
+@require_POST
+def order_observation_update(request, order_id):
+    order = get_object_or_404(ServiceOrder, id=order_id)
+    observation = request.POST.get("client_observation", "")
+    order.client_observation = observation
+    order.save(update_fields=["client_observation"])
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({"success": True, "observation": observation})
+    messages.success(request, "Observação do cliente atualizada com sucesso.")
+    return redirect("service_order_detail", order_id=order.id)
+
+
+@login_required
+def service_order_pdf(request, order_id):
+    service_order = get_object_or_404(ServiceOrder, id=order_id)
+    generator = BudgetPDFGenerator(service_order)
+    pdf_content = generator.generate()
+    
+    response = HttpResponse(pdf_content, content_type='application/pdf')
+    filename = f"Orcamento_OS_{service_order.number}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
+
+
+@login_required
+@permission_required('services.change_serviceorder', raise_exception=True)
+def service_order_send_budget(request, order_id):
+    order = get_object_or_404(ServiceOrder, id=order_id)
+    client_name = order.client_property.client.name
+    client_phone = order.client_property.client.phones.first()
+    
+    if not client_phone:
+        messages.error(request, "Cliente não possui telefone cadastrado.")
+        return redirect('service_order_detail', order_id=order.id)
+    
+    phone_e164 = format_phone_e164(client_phone.phone)
+    
+    try:
+        # 1. Gerar PDF
+        generator = BudgetPDFGenerator(order)
+        pdf_content = generator.generate()
+        filename = f"Orcamento_OS_{order.number}.pdf"
+        
+        # 2. Integração Chatwoot
+        cw = ChatwootClient()
+        
+        # Buscar ou criar contato
+        contact = cw.search_contact(phone_e164)
+        if not contact:
+            contact = cw.create_contact(client_name, phone_e164)
+            
+        if not contact:
+            raise Exception("Não foi possível localizar ou criar o contato no Chatwoot.")
+            
+        # Buscar ou criar conversa
+        conversation = cw.get_or_create_conversation(contact['id'])
+        if not conversation:
+            raise Exception("Não foi possível criar a conversa no Chatwoot.")
+            
+        conversation_id = conversation['id']
+        
+        # 3. Enviar PDF e Template
+        attachment = (filename, pdf_content, 'application/pdf')
+        
+        response = None
+        if cw.config.chatwoot_budget_template:
+            # Preparar variáveis: 1: Número da OS, 2: Valor Estimado
+            value_display = f"R$ {order.estimated_value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') if order.estimated_value else "A definir"
+            variables = [str(order.number), value_display]
+            
+            response = cw.send_template(
+                conversation_id=conversation_id,
+                template_name=cw.config.chatwoot_budget_template,
+                variables=variables,
+                attachment=attachment
+            )
+            success_msg = f"Orçamento enviado com sucesso para {client_name} via WhatsApp (Template)!"
+        else:
+            # Fallback para mensagem simples com anexo
+            response = cw.send_message(conversation_id, "Segue o orçamento solicitado em anexo.", attachments=[attachment])
+            success_msg = f"Orçamento enviado com sucesso para {client_name} via WhatsApp!"
+            
+        if response:
+            messages.success(request, success_msg)
+        else:
+            raise Exception("A API do Chatwoot não retornou uma confirmação de sucesso. Verifique as configurações e os logs do sistema.")
+        
+    except Exception as e:
+        logger.exception("Erro ao enviar orçamento via Chatwoot")
+        messages.error(request, f"Erro ao enviar orçamento: {str(e)}")
+        
+    return redirect('service_order_detail', order_id=order.id)

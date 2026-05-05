@@ -245,7 +245,9 @@ class Property(models.Model):
 
         components.append('Brasil')
 
-        cleaned = [str(part).strip() for part in components if part]        
+        cleaned = [str(part).strip() for part in components if part]
+        return ", ".join(cleaned)
+
     @property
     def gps_address(self):
         """Endereço sem o complemento para melhor precisão nas buscas do Google Maps/Waze"""
@@ -374,6 +376,90 @@ class ProfessionalScheduleBlock(models.Model):
         verbose_name_plural = "Bloqueios de Agenda"
         ordering = ['-start_at']
 
+# --- SERVIÇOS DO CATÁLOGO ---
+
+class ServiceCategory(models.Model):
+    name = models.CharField(max_length=100, unique=True, verbose_name="Nome da Categoria")
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name = "Categoria de Serviço"
+        verbose_name_plural = "Categorias de Serviços"
+        ordering = ['name']
+
+
+class Service(models.Model):
+    name = models.CharField(max_length=255, verbose_name="Nome do Serviço")
+    description = models.TextField(verbose_name="Descrição", blank=True)
+    base_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Base")
+    unit_of_measure = models.CharField(max_length=50, verbose_name="Unidade de Medida", default="un")
+    category = models.ForeignKey(ServiceCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='services', verbose_name="Categoria")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Serviço"
+        verbose_name_plural = "Serviços"
+        ordering = ['name']
+
+
+class ServiceChecklistItem(models.Model):
+    class EvidenceType(models.TextChoices):
+        TEXT = 'TEXT', 'Texto'
+        PHOTO = 'PHOTO', 'Foto'
+        VIDEO = 'VIDEO', 'Vídeo'
+
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='checklist_items', verbose_name="Serviço")
+    name = models.CharField(max_length=255, verbose_name="Nome do Item")
+    description = models.TextField(verbose_name="Descrição/Instrução", blank=True)
+    evidence_type = models.CharField(
+        max_length=10, 
+        choices=EvidenceType.choices, 
+        default=EvidenceType.TEXT,
+        verbose_name="Tipo de Evidência"
+    )
+    is_required = models.BooleanField(default=True, verbose_name="Obrigatório")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    order = models.PositiveIntegerField(default=0, verbose_name="Ordem de Exibição")
+
+    def __str__(self):
+        return f"{self.service.name} - {self.name}"
+
+    class Meta:
+        verbose_name = "Item de Check-list"
+        verbose_name_plural = "Itens de Check-list"
+        ordering = ['order', 'id']
+
+# --- PRODUTOS ---
+
+class Product(models.Model):
+    class UnitType(models.TextChoices):
+        UNIT = 'UNIT', 'Unidade (un)'
+        METER = 'METER', 'Metro (mt)'
+
+    name = models.CharField(max_length=255, unique=True, verbose_name="Produto")
+    code = models.CharField(max_length=60, unique=True, null=True, blank=True, verbose_name="Código")
+    unit_type = models.CharField(max_length=10, choices=UnitType.choices, default=UnitType.UNIT, verbose_name="Unidade de Venda")
+    default_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço Padrão")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Produto"
+        verbose_name_plural = "Produtos"
+        ordering = ['name']
+
+# --- ORDENS DE SERVIÇO ---
+
 class ServiceOrder(models.Model):
     class Status(models.TextChoices):
         WAITING_VISIT = 'WAITING_VISIT', 'Aguardando visita inicial'
@@ -395,6 +481,7 @@ class ServiceOrder(models.Model):
     
     description = models.TextField(verbose_name="Descrição do Problema/Solicitação", blank=True)
     technical_notes = models.TextField(verbose_name="Notas Técnicas Gerais", blank=True)
+    client_observation = models.TextField(verbose_name="Observação para o Cliente", blank=True, null=True)
     
     # Valores e Pagamento
     estimated_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Valor Estimado Total (R$)")
@@ -501,6 +588,7 @@ class ServiceOrder(models.Model):
         verbose_name = "Ordem de Serviço"
         verbose_name_plural = "Ordens de Serviço"
 
+
 class ServiceOrderTask(models.Model):
     class TaskType(models.TextChoices):
         BUDGET = 'BUDGET', 'Vistoria/Orçamento'
@@ -545,7 +633,7 @@ class ServiceOrderTask(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        numero_visual = self.service_order.number if self.service_order.number else self.service_order.number
+        numero_visual = self.service_order.number if self.service_order.number else "S/N"
         return f"{self.get_task_type_display()} - OS #{numero_visual}"
 
     def save(self, *args, **kwargs):
@@ -557,6 +645,61 @@ class ServiceOrderTask(models.Model):
         verbose_name = "Etapa de Serviço"
         verbose_name_plural = "Etapas de Serviço"
         ordering = ['scheduled_at']
+
+
+class TaskChecklistResponse(models.Model):
+    task = models.ForeignKey(ServiceOrderTask, on_delete=models.CASCADE, related_name='checklist_responses', verbose_name="Etapa")
+    item = models.ForeignKey(ServiceChecklistItem, on_delete=models.CASCADE, related_name='responses', verbose_name="Item do Check-list")
+    
+    completed = models.BooleanField(default=False, verbose_name="Concluído")
+    text_response = models.TextField(blank=True, null=True, verbose_name="Resposta em Texto")
+    
+    photo = models.ImageField(upload_to='checklist/photos/%Y/%m/%d/', blank=True, null=True, verbose_name="Foto de Evidência")
+    video = models.FileField(upload_to='checklist/videos/%Y/%m/%d/', blank=True, null=True, verbose_name="Vídeo de Evidência")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Resposta: {self.item.name} na OS #{self.task.service_order.number}"
+
+    class Meta:
+        verbose_name = "Resposta de Check-list"
+        verbose_name_plural = "Respostas de Check-list"
+        unique_together = ('task', 'item')
+
+
+class ServiceItem(models.Model):
+    service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='items')
+    
+    # Vínculo opcional à etapa
+    task = models.ForeignKey(
+        ServiceOrderTask,
+        on_delete=models.CASCADE,
+        related_name='items',
+        null=True,
+        blank=True,
+        verbose_name="Etapa Específica",
+        help_text="Deixe vazio para itens do orçamento geral. Preencha se o item foi adicionado durante uma etapa."
+    )
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name='service_items', verbose_name="Produto")
+    service = models.ForeignKey(Service, on_delete=models.SET_NULL, null=True, blank=True, related_name='service_items', verbose_name="Serviço do Catálogo")
+    
+    description = models.CharField(max_length=255, verbose_name="Descrição Manual/Complemento")
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Unitário")
+
+    @property
+    def total_price(self):
+        return quantize_money(self.quantity * self.unit_price)
+    
+    def __str__(self):
+        task_info = f" (Etapa: {self.task.get_task_type_display()})" if self.task else " (Orçamento Geral)"
+        return f"{self.description} - Qtd: {self.quantity}{task_info}"
+
+    class Meta:
+        verbose_name = "Item de Serviço"
+
 
 class ServicePayment(models.Model):
     order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='payments', verbose_name="Ordem de Serviço")
@@ -575,25 +718,8 @@ class ServicePayment(models.Model):
         verbose_name_plural = "Pagamentos"
         ordering = ['-paid_at']
 
-# --- AGENDAMENTO & BLOQUEIOS ---
-
-class ProfessionalScheduleBlock(models.Model):
-    professional = models.ForeignKey(Professional, on_delete=models.CASCADE, related_name='schedule_blocks', verbose_name="Profissional")
-    start_at = models.DateTimeField(verbose_name="Início do Bloqueio")
-    end_at = models.DateTimeField(verbose_name="Fim do Bloqueio")
-    reason = models.CharField(max_length=255, verbose_name="Motivo (Ex: Férias, Folga, Manutenção)")
-    is_all_day = models.BooleanField(default=False, verbose_name="Dia Inteiro")
-
-    def __str__(self):
-        return f"Bloqueio: {self.professional.name} ({self.start_at.strftime('%d/%m %H:%M')})"
-
-    class Meta:
-        verbose_name = "Bloqueio de Agenda"
-        verbose_name_plural = "Bloqueios de Agenda"
-        ordering = ['-start_at']
 
 class ServiceOrderTeam(models.Model):
-    # Agora ligamos a equipe à TAREFA específica, não mais à OS inteira
     task = models.ForeignKey(ServiceOrderTask, on_delete=models.CASCADE, related_name='team_members', verbose_name="Etapa/Tarefa", null=True, blank=True)
     professional = models.ForeignKey(Professional, on_delete=models.CASCADE, related_name='service_alocations')
     role = models.ForeignKey(ProfessionalRole, on_delete=models.SET_NULL, null=True, verbose_name="Função no Serviço")
@@ -603,56 +729,6 @@ class ServiceOrderTeam(models.Model):
         verbose_name_plural = "Equipe do Serviço"
         unique_together = ('task', 'professional')
 
-
-class Product(models.Model):
-    class UnitType(models.TextChoices):
-        UNIT = 'UNIT', 'Unidade (un)'
-        METER = 'METER', 'Metro (mt)'
-
-    name = models.CharField(max_length=255, unique=True, verbose_name="Produto")
-    code = models.CharField(max_length=60, unique=True, null=True, blank=True, verbose_name="Código")
-    unit_type = models.CharField(max_length=10, choices=UnitType.choices, default=UnitType.UNIT, verbose_name="Unidade de Venda")
-    default_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço Padrão")
-    is_active = models.BooleanField(default=True, verbose_name="Ativo")
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name = "Produto"
-        verbose_name_plural = "Produtos"
-        ordering = ['name']
-
-class ServiceItem(models.Model):
-    service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='items')
-    
-    # Vínculo opcional à etapa
-    task = models.ForeignKey(
-        ServiceOrderTask,
-        on_delete=models.CASCADE,
-        related_name='items',
-        null=True,
-        blank=True,
-        verbose_name="Etapa Específica",
-        help_text="Deixe vazio para itens do orçamento geral. Preencha se o item foi adicionado durante uma etapa."
-    )
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name='service_items', verbose_name="Produto")
-    
-    description = models.CharField(max_length=255, verbose_name="Serviço/Material")
-    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Unitário")
-
-    @property
-    def total_price(self):
-        return quantize_money(self.quantity * self.unit_price)
-    
-    def __str__(self):
-        task_info = f" (Etapa: {self.task.get_task_type_display()})" if self.task else " (Orçamento Geral)"
-        return f"{self.description} - Qtd: {self.quantity}{task_info}"
-
-    class Meta:
-        verbose_name = "Item de Serviço"
 
 class Occurrence(models.Model):
     class OccurrenceCategory(models.TextChoices):
@@ -682,14 +758,14 @@ class Occurrence(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
 
     def __str__(self):
-        return f"{self.get_occurrence_type_display()} - OS {self.task.service_order.id}"
+        return f"{self.get_occurrence_type_display()} - OS {self.task.service_order.number}"
 
     class Meta:
         verbose_name = "Ocorrência"
         verbose_name_plural = "Ocorrências"
 
+
 class ServiceMedia(models.Model):
-    # Mídia agora pertence a uma etapa específica da OS
     task = models.ForeignKey(ServiceOrderTask, on_delete=models.CASCADE, related_name='medias', verbose_name="Etapa/Tarefa", null=True, blank=True)
     occurrence = models.ForeignKey(Occurrence, on_delete=models.CASCADE, related_name='medias', verbose_name="Ocorrência", null=True, blank=True)
     file = models.FileField(upload_to='services/%Y/%m/%d/', verbose_name="Arquivo (Foto/Vídeo)")
@@ -702,12 +778,7 @@ class ServiceMedia(models.Model):
         verbose_name = "Mídia de Serviço"
 
 
-# --- PUSH NOTIFICATIONS ---
-
 class PushSubscription(models.Model):
-    """
-    Armazena as inscrições de push notification dos usuários
-    """
     user = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
@@ -728,4 +799,3 @@ class PushSubscription(models.Model):
 
     def __str__(self):
         return f"Push Subscription - {self.user.username}"
-

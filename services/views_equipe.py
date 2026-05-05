@@ -7,7 +7,10 @@ import json
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .notifications import send_push_notification
-from .models import ServiceOrder, ServiceOrderTask, ServiceMedia, Professional, Occurrence, Property
+from .models import (
+    ServiceOrder, ServiceOrderTask, ServiceMedia, Professional, 
+    Occurrence, Property, ServiceChecklistItem, TaskChecklistResponse
+)
 
 def get_collaborator_tasks(user):
     """Retorna apenas as etapas (tasks) em que o usuário logado está alocado."""
@@ -39,13 +42,27 @@ def equipe_task_list(request):
 @login_required
 def equipe_task_detail(request, task_id):
     """
-    Exibe os detalhes da etapa e da OS para o colaborador, OMITINDO qualquer
-    valor financeiro ou formulários de adição de itens.
+    Exibe os detalhes da etapa e da OS para o colaborador.
+    Carrega também o checklist caso existam serviços vinculados.
     """
     tasks_qs = get_collaborator_tasks(request.user)
     task = get_object_or_404(tasks_qs, id=task_id)
     order = task.service_order
     
+    # --- LÓGICA DE CHECKLIST ---
+    # Busca todos os serviços (catalogo) incluídos nesta OS
+    order_services = order.items.filter(service__isnull=False).values_list('service', flat=True).distinct()
+    
+    # Busca itens de checklist ativos para estes serviços
+    checklist_items = ServiceChecklistItem.objects.filter(service_id__in=order_services, is_active=True)
+    
+    # Inicializa as respostas caso não existam (apenas para etapas de execução ou garantia por padrão)
+    if checklist_items.exists() and task.task_type in [ServiceOrderTask.TaskType.EXECUTION, ServiceOrderTask.TaskType.WARRANTY]:
+        for item in checklist_items:
+            TaskChecklistResponse.objects.get_or_create(task=task, item=item)
+            
+    checklist_responses = task.checklist_responses.select_related('item', 'item__service').order_by('item__service__name', 'item__order')
+
     context = {
         'task': task,
         'order': order,
@@ -55,7 +72,7 @@ def equipe_task_detail(request, task_id):
         'occurrences': task.occurrences.all(),
         'occurrence_types': Occurrence.OccurrenceType.choices,
         'occurrence_categories': Occurrence.OccurrenceCategory.choices,
-        # Não enviamos itens com preço ou totais para o contexto
+        'checklist_responses': checklist_responses,
         'title': f'Execução: {task.get_task_type_display()}'
     }
     return render(request, 'services/equipe/task_detail.html', context)
@@ -88,12 +105,18 @@ def equipe_task_start(request, task_id):
 def equipe_task_finish(request, task_id):
     """
     Registra o fim do trabalho da etapa, alterando o status para 'COMPLETED'.
-    Permite adicionar notas finais da execução.
+    Valida se o checklist obrigatório foi preenchido.
     """
     tasks_qs = get_collaborator_tasks(request.user)
     task = get_object_or_404(tasks_qs, id=task_id)
     
     if request.method == 'POST':
+        # Validar checklist obrigatório
+        pending_required = task.checklist_responses.filter(item__is_required=True, completed=False).exists()
+        if pending_required:
+            messages.error(request, 'Existem itens obrigatórios no check-list que ainda não foram preenchidos.')
+            return redirect('equipe_task_detail', task_id=task.id)
+
         notes = request.POST.get('notes', '').strip()
         
         if notes:
@@ -103,13 +126,43 @@ def equipe_task_finish(request, task_id):
         task.status = ServiceOrderTask.TaskStatus.COMPLETED
         task.save()
         
-        # Pode chamar o método update_status() da OS caso exista no modelo,
-        # para garantir que a OS mude para FINISHED caso todas as etapas sejam concluídas.
         if hasattr(task.service_order, 'update_status'):
             task.service_order.update_status()
             
         messages.success(request, 'Etapa finalizada com sucesso!')
         return redirect('equipe_task_list')
+
+@login_required
+def equipe_task_checklist_update(request, task_id):
+    """Atualiza um item específico do checklist via POST/AJAX"""
+    tasks_qs = get_collaborator_tasks(request.user)
+    task = get_object_or_404(tasks_qs, id=task_id)
+    
+    if request.method == 'POST':
+        response_id = request.POST.get('response_id')
+        response = get_object_or_404(TaskChecklistResponse, id=response_id, task=task)
+        item = response.item
+        
+        completed = request.POST.get('completed') == 'true' or request.POST.get('completed') == 'on'
+        
+        if item.evidence_type == ServiceChecklistItem.EvidenceType.TEXT:
+            response.text_response = request.POST.get('text_response', '')
+        elif item.evidence_type == ServiceChecklistItem.EvidenceType.PHOTO:
+            if 'photo' in request.FILES:
+                response.photo = request.FILES['photo']
+        elif item.evidence_type == ServiceChecklistItem.EvidenceType.VIDEO:
+            if 'video' in request.FILES:
+                response.video = request.FILES['video']
+                
+        response.completed = completed
+        response.save()
+        
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'completed': response.completed})
+            
+        messages.success(request, 'Check-list atualizado!')
+    
+    return redirect('equipe_task_detail', task_id=task.id)
 @login_required
 def equipe_task_add_media(request, task_id):
     """
