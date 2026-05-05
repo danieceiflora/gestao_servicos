@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .notifications import send_push_notification
 from .models import (
-    ServiceOrder, ServiceOrderTask, ServiceMedia, Professional, 
+    Service, ServiceOrder, ServiceOrderTask, ServiceMedia, Professional, 
     Occurrence, Property, ServiceChecklistItem, TaskChecklistResponse
 )
 
@@ -49,19 +49,37 @@ def equipe_task_detail(request, task_id):
     task = get_object_or_404(tasks_qs, id=task_id)
     order = task.service_order
     
-    # --- LÓGICA DE CHECKLIST ---
-    # Busca todos os serviços (catalogo) incluídos nesta OS
-    order_services = order.items.filter(service__isnull=False).values_list('service', flat=True).distinct()
+    # --- LÓGICA DE CHECKLIST REFORMULADA ---
+    # 1. Identifica todos os serviços incluídos nesta OS
+    order_services = Service.objects.filter(service_items__service_order=order).distinct()
     
-    # Busca itens de checklist ativos para estes serviços
-    checklist_items = ServiceChecklistItem.objects.filter(service_id__in=order_services, is_active=True)
+    # 2. Coleta itens específicos de cada serviço E itens de seus templates
+    checklist_items = []
     
-    # Inicializa as respostas caso não existam (apenas para etapas de execução ou garantia por padrão)
-    if checklist_items.exists() and task.task_type in [ServiceOrderTask.TaskType.EXECUTION, ServiceOrderTask.TaskType.WARRANTY]:
-        for item in checklist_items:
+    for service in order_services:
+        # Itens diretos do serviço
+        checklist_items.extend(list(service.checklist_items.filter(is_active=True)))
+        
+        # Itens do template vinculado ao serviço
+        if service.checklist_template:
+            checklist_items.extend(list(service.checklist_template.items.filter(is_active=True)))
+    
+    # Remove duplicados baseados em ID
+    seen_ids = set()
+    unique_items = []
+    for item in checklist_items:
+        if item.id not in seen_ids:
+            unique_items.append(item)
+            seen_ids.add(item.id)
+    
+    # 3. Inicializa as respostas caso não existam
+    if unique_items and task.task_type in [ServiceOrderTask.TaskType.EXECUTION, ServiceOrderTask.TaskType.WARRANTY]:
+        for item in unique_items:
             TaskChecklistResponse.objects.get_or_create(task=task, item=item)
             
-    checklist_responses = task.checklist_responses.select_related('item', 'item__service').order_by('item__service__name', 'item__order')
+    checklist_responses = task.checklist_responses.select_related(
+        'item', 'item__service', 'item__template'
+    ).prefetch_related('medias').order_by('item__order', 'id')
 
     context = {
         'task': task,
@@ -134,7 +152,8 @@ def equipe_task_finish(request, task_id):
 
 @login_required
 def equipe_task_checklist_update(request, task_id):
-    """Atualiza um item específico do checklist via POST/AJAX"""
+    """Atualiza um item específico do checklist via POST/AJAX. Agora suporta múltiplas mídias."""
+    from .models import ChecklistResponseMedia
     tasks_qs = get_collaborator_tasks(request.user)
     task = get_object_or_404(tasks_qs, id=task_id)
     
@@ -145,14 +164,18 @@ def equipe_task_checklist_update(request, task_id):
         
         completed = request.POST.get('completed') == 'true' or request.POST.get('completed') == 'on'
         
+        # Atualiza texto se houver
         if item.evidence_type == ServiceChecklistItem.EvidenceType.TEXT:
             response.text_response = request.POST.get('text_response', '')
-        elif item.evidence_type == ServiceChecklistItem.EvidenceType.PHOTO:
-            if 'photo' in request.FILES:
-                response.photo = request.FILES['photo']
-        elif item.evidence_type == ServiceChecklistItem.EvidenceType.VIDEO:
-            if 'video' in request.FILES:
-                response.video = request.FILES['video']
+            
+        # Adiciona nova mídia se houver (suporta upload um por um via AJAX)
+        if item.evidence_type in [ServiceChecklistItem.EvidenceType.PHOTO, ServiceChecklistItem.EvidenceType.VIDEO]:
+            file_key = 'photo' if item.evidence_type == ServiceChecklistItem.EvidenceType.PHOTO else 'video'
+            if file_key in request.FILES:
+                ChecklistResponseMedia.objects.create(
+                    response=response,
+                    file=request.FILES[file_key]
+                )
                 
         response.completed = completed
         response.save()
@@ -163,6 +186,30 @@ def equipe_task_checklist_update(request, task_id):
         messages.success(request, 'Check-list atualizado!')
     
     return redirect('equipe_task_detail', task_id=task.id)
+@login_required
+def equipe_checklist_media_delete(request, media_id):
+    """Permite ao instalador excluir uma mídia específica de um item do check-list."""
+    from .models import ChecklistResponseMedia
+    media = get_object_or_404(ChecklistResponseMedia, id=media_id)
+    task = media.response.task
+
+    if not request.user.is_superuser:
+        user_tasks = get_collaborator_tasks(request.user)
+        if task not in user_tasks:
+            messages.error(request, 'Permissão negada.')
+            return redirect('equipe_task_list')
+
+    if task.status == ServiceOrderTask.TaskStatus.COMPLETED:
+        messages.error(request, 'Etapa já finalizada.')
+    else:
+        media.delete()
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': True})
+        messages.success(request, 'Mídia removida.')
+    
+    return redirect('equipe_task_detail', task_id=task.id)
+
+
 @login_required
 def equipe_task_add_media(request, task_id):
     """

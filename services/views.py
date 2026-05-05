@@ -11,19 +11,19 @@ import django.utils.timezone
 import logging
 from .notifications import send_push_notification
 from django.http import HttpResponse, JsonResponse
-from .utils.pdf_generator import BudgetPDFGenerator
+from .utils.pdf_generator import BudgetPDFGenerator, CompletionPDFGenerator
 from integracoes.chatwoot_client import ChatwootClient
 from .models import (
     User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem,
     Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
-    ServiceOrderTask, ServicePayment, Occurrence, Product, Service, ServiceCategory
+    ServiceOrderTask, ServicePayment, Occurrence, Product, Service, ServiceCategory, TaskChecklistResponse
 )
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
     ServiceOrderSchedulingForm, ServiceOrderForm, ServiceInspectionForm,
     ServiceItemFormSet, ProfessionalForm, ProfessionalScheduleBlockForm,
     ServiceOrderTeamFormSet, TaskScheduleForm, TaskCancelForm,
-    ServicePaymentForm, ServiceOrderDiscountForm
+    ServicePaymentForm, ServiceOrderDiscountForm,
 )
 from .utils import check_professional_availability, format_phone_e164
 
@@ -664,8 +664,17 @@ def service_order_budget(request, order_id):
 @permission_required('services.view_serviceorder', raise_exception=True)
 def service_order_detail(request, order_id):
     order = get_object_or_404(get_orders_queryset(request), id=order_id)
-    tasks = order.tasks.all().prefetch_related('team_members__professional', 'medias')
+    tasks = order.tasks.all().prefetch_related(
+        'team_members__professional', 
+        'medias',
+        'checklist_responses__item',
+        'checklist_responses__medias'
+    )
     occurrences = Occurrence.objects.filter(task__service_order=order).order_by('-created_at')
+    
+    # Verifica se existe algum checklist preenchido em qualquer etapa
+    any_task_has_checklist = TaskChecklistResponse.objects.filter(task__service_order=order).exists()
+
     products = Product.objects.filter(is_active=True).order_by('name')
     products_data = [
         {
@@ -700,6 +709,7 @@ def service_order_detail(request, order_id):
         'occurrences': occurrences,
         'products_data': products_data,
         'services_data': services_data,
+        'any_task_has_checklist': any_task_has_checklist,
     })
 
 @login_required
@@ -1536,6 +1546,18 @@ def service_order_pdf(request, order_id):
     
     response = HttpResponse(pdf_content, content_type='application/pdf')
     filename = f"Orcamento_OS_{service_order.number}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
+
+
+@login_required
+def service_order_report_pdf(request, order_id):
+    service_order = get_object_or_404(ServiceOrder, id=order_id)
+    generator = CompletionPDFGenerator(service_order)
+    pdf_content = generator.generate()
+    
+    response = HttpResponse(pdf_content, content_type='application/pdf')
+    filename = f"Relatorio_Execucao_OS_{service_order.number}.pdf"
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     return response
 

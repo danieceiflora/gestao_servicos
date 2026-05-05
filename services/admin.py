@@ -5,7 +5,8 @@ from .models import (
     ProfessionalRole, Professional, WorkSchedule, WorkScheduleDay,
     ServiceOrder, ServiceItem, ServiceMedia, ServiceOrderTeam,
     ServiceOrderTask, Product, ServiceCategory, Service,
-    ServiceChecklistItem, TaskChecklistResponse
+    ServiceChecklistItem, TaskChecklistResponse, ChecklistTemplate,
+    ChecklistResponseMedia
 )
 
 
@@ -18,21 +19,36 @@ class ServiceCategoryAdmin(admin.ModelAdmin):
 class ServiceChecklistItemInline(admin.TabularInline):
     model = ServiceChecklistItem
     extra = 1
+    fields = ['name', 'description', 'evidence_type', 'is_required', 'is_active', 'order']
+
+
+@admin.register(ChecklistTemplate)
+class ChecklistTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'is_active', 'created_at']
+    list_filter = ['is_active']
+    search_fields = ['name', 'description']
+    inlines = [ServiceChecklistItemInline]
 
 
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category', 'base_price', 'unit_of_measure', 'is_active']
-    list_filter = ['is_active', 'category']
+    list_display = ['name', 'category', 'checklist_template', 'base_price', 'is_active']
+    list_filter = ['is_active', 'category', 'checklist_template']
     search_fields = ['name', 'description']
     inlines = [ServiceChecklistItemInline]
+
+
+class ChecklistResponseMediaInline(admin.TabularInline):
+    model = ChecklistResponseMedia
+    extra = 0
 
 
 @admin.register(TaskChecklistResponse)
 class TaskChecklistResponseAdmin(admin.ModelAdmin):
     list_display = ['item', 'task', 'completed', 'updated_at']
-    list_filter = ['completed', 'item__service']
+    list_filter = ['completed', 'item__service', 'item__template']
     search_fields = ['task__service_order__number', 'item__name']
+    inlines = [ChecklistResponseMediaInline]
 
 
 @admin.register(Product)

@@ -376,7 +376,7 @@ class ProfessionalScheduleBlock(models.Model):
         verbose_name_plural = "Bloqueios de Agenda"
         ordering = ['-start_at']
 
-# --- SERVIÇOS DO CATÁLOGO ---
+# --- SERVIÇOS DO CATÁLOGO & CHECKLISTS ---
 
 class ServiceCategory(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name="Nome da Categoria")
@@ -390,12 +390,31 @@ class ServiceCategory(models.Model):
         ordering = ['name']
 
 
+class ChecklistTemplate(models.Model):
+    name = models.CharField(max_length=255, verbose_name="Nome do Modelo/Grupo")
+    description = models.TextField(verbose_name="Descrição", blank=True)
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Modelo de Check-list"
+        verbose_name_plural = "Modelos de Check-list"
+
+
 class Service(models.Model):
     name = models.CharField(max_length=255, verbose_name="Nome do Serviço")
     description = models.TextField(verbose_name="Descrição", blank=True)
     base_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Base")
     unit_of_measure = models.CharField(max_length=50, verbose_name="Unidade de Medida", default="un")
     category = models.ForeignKey(ServiceCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='services', verbose_name="Categoria")
+    
+    # Vínculo com modelo de checklist (opcional)
+    checklist_template = models.ForeignKey(ChecklistTemplate, on_delete=models.SET_NULL, null=True, blank=True, related_name='services', verbose_name="Modelo de Check-list")
+    
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -415,7 +434,10 @@ class ServiceChecklistItem(models.Model):
         PHOTO = 'PHOTO', 'Foto'
         VIDEO = 'VIDEO', 'Vídeo'
 
-    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='checklist_items', verbose_name="Serviço")
+    # Pode pertencer a um serviço específico OU a um template global
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='checklist_items', verbose_name="Serviço", null=True, blank=True)
+    template = models.ForeignKey(ChecklistTemplate, on_delete=models.CASCADE, related_name='items', verbose_name="Modelo", null=True, blank=True)
+    
     name = models.CharField(max_length=255, verbose_name="Nome do Item")
     description = models.TextField(verbose_name="Descrição/Instrução", blank=True)
     evidence_type = models.CharField(
@@ -429,7 +451,8 @@ class ServiceChecklistItem(models.Model):
     order = models.PositiveIntegerField(default=0, verbose_name="Ordem de Exibição")
 
     def __str__(self):
-        return f"{self.service.name} - {self.name}"
+        owner = self.service.name if self.service else self.template.name
+        return f"{owner} - {self.name}"
 
     class Meta:
         verbose_name = "Item de Check-list"
@@ -654,9 +677,6 @@ class TaskChecklistResponse(models.Model):
     completed = models.BooleanField(default=False, verbose_name="Concluído")
     text_response = models.TextField(blank=True, null=True, verbose_name="Resposta em Texto")
     
-    photo = models.ImageField(upload_to='checklist/photos/%Y/%m/%d/', blank=True, null=True, verbose_name="Foto de Evidência")
-    video = models.FileField(upload_to='checklist/videos/%Y/%m/%d/', blank=True, null=True, verbose_name="Vídeo de Evidência")
-    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -667,6 +687,19 @@ class TaskChecklistResponse(models.Model):
         verbose_name = "Resposta de Check-list"
         verbose_name_plural = "Respostas de Check-list"
         unique_together = ('task', 'item')
+
+
+class ChecklistResponseMedia(models.Model):
+    response = models.ForeignKey(TaskChecklistResponse, on_delete=models.CASCADE, related_name='medias', verbose_name="Resposta")
+    file = models.FileField(upload_to='checklist/evidence/%Y/%m/%d/', verbose_name="Arquivo de Evidência")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_video(self):
+        return self.file.name.lower().endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv'))
+
+    class Meta:
+        verbose_name = "Mídia de Check-list"
+        verbose_name_plural = "Mídias de Check-list"
 
 
 class ServiceItem(models.Model):
