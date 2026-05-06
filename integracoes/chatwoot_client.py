@@ -1,6 +1,8 @@
 import requests
 import json
 import logging
+import sys
+import re
 from django.conf import settings
 from .models import SystemConfig
 
@@ -23,233 +25,251 @@ class ChatwootClient:
     def _get_api_url(self, endpoint):
         return f"{self.base_url}/api/v1/accounts/{self.account_id}/{endpoint}"
 
+    def get_meta_template(self, template_name):
+        if not self.config.meta_waba_id or not self.config.meta_access_token:
+            return None
+        url = f"https://graph.facebook.com/v20.0/{self.config.meta_waba_id}/message_templates"
+        params = {"name": template_name, "access_token": self.config.meta_access_token}
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            data = response.json()
+            if data.get('data'):
+                for t in data['data']:
+                    if t['status'] == 'APPROVED': return t
+        except: pass
+        return None
+
     def _normalize_phone_for_search(self, phone):
-        """
-        Retorna uma lista de variações de telefone para busca.
-        """
-        if not phone:
-            return []
-            
-        # Remove espaços e hifens, mantém + se existir
+        if not phone: return []
         clean_phone = phone.strip().replace(" ", "").replace("-", "")
-        
-        # Garante que temos apenas dígitos para as variações
         digits = "".join(filter(str.isdigit, clean_phone))
-        
         variations = []
-        
-        # 1. Formato E.164 completo (+55...)
-        if clean_phone.startswith("+"):
-            variations.append(clean_phone)
-        else:
-            variations.append(f"+{digits}")
-            
-        # 2. Formato sem +
+        if clean_phone.startswith("+"): variations.append(clean_phone)
+        else: variations.append(f"+{digits}")
         variations.append(digits)
-        
-        # 3. Fallback para 9º dígito (Brasil)
-        # Se for +55... com 14 caracteres (incluindo +) e o 6º dígito for 9
         if len(clean_phone) == 14 and clean_phone.startswith("+55") and clean_phone[5] == '9':
-            # Tenta sem o 9
             short_phone = clean_phone[:5] + clean_phone[6:]
             variations.append(short_phone)
             variations.append(short_phone.replace("+", ""))
-            
-        # 4. Caso inverso: se for 8 dígitos, tenta com 9 (se for celular)
-        if len(clean_phone) == 13 and clean_phone.startswith("+55"):
-            ddd = clean_phone[3:5]
-            prefix = clean_phone[5]
-            if prefix in "6789":
-                long_phone = clean_phone[:5] + "9" + clean_phone[5:]
-                variations.append(long_phone)
-                variations.append(long_phone.replace("+", ""))
-
-        # Remove duplicatas mantendo a ordem
         return list(dict.fromkeys(variations))
 
     def search_contact(self, phone):
-        """
-        Busca contato pelo telefone tentando diversas variações.
-        """
         url = self._get_api_url("contacts/search")
         variations = self._normalize_phone_for_search(phone)
-        
         for q in variations:
             try:
                 response = requests.get(url, headers=self.headers, params={"q": q}, timeout=10)
-                response.raise_for_status()
                 data = response.json()
-                if data['payload']:
-                    # Retorna o primeiro contato que tenha o telefone na busca
-                    return data['payload'][0]
-            except Exception as e:
-                logger.warning(f"Erro na busca do contato com termo '{q}': {e}")
-                
+                if data['payload']: return data['payload'][0]
+            except: pass
         return None
 
     def create_contact(self, name, phone):
-        """Cria um novo contato no formato E.164"""
         url = self._get_api_url("contacts")
-        
-        # Garante formato +55...
         digits = "".join(filter(str.isdigit, phone))
-        if not digits.startswith("55") and len(digits) <= 11:
-            digits = "55" + digits
-        
+        if not digits.startswith("55") and len(digits) <= 11: digits = "55" + digits
         formatted_phone = f"+{digits}"
-        
-        payload = {
-            "name": name,
-            "phone_number": formatted_phone,
-            "inbox_id": self.inbox_id
-        }
-        
+        payload = {"name": name, "phone_number": formatted_phone, "inbox_id": self.inbox_id}
         try:
             response = requests.post(url, headers=self.headers, json=payload, timeout=10)
-            if response.status_code == 422:
-                # Provavelmente contato já existe. Tenta buscar uma última vez com o formato exato enviado.
-                logger.info(f"Contato com telefone {formatted_phone} já parece existir (422). Buscando...")
-                return self.search_contact(formatted_phone)
-                
-            response.raise_for_status()
+            if response.status_code == 422: return self.search_contact(formatted_phone)
             return response.json()['payload']['contact']
-        except Exception as e:
-            logger.error(f"Erro ao criar contato no Chatwoot: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                logger.error(f"Detalhes do erro: {e.response.text}")
-            return None
+        except: return None
 
     def get_or_create_conversation(self, contact_id):
-        """Busca conversa ativa ou cria uma nova"""
-        # Tenta buscar conversas existentes do contato
         url_search = self._get_api_url(f"contacts/{contact_id}/conversations")
         try:
             resp = requests.get(url_search, headers=self.headers, timeout=10)
-            resp.raise_for_status()
             conversations = resp.json()['payload']
             if conversations:
-                # Retorna a mais recente que esteja aberta ou pendente
                 for conv in conversations:
-                    if conv['status'] in ['open', 'pending']:
-                        return conv
-        except Exception as e:
-            logger.error(f"Erro ao buscar conversas do contato {contact_id}: {e}")
-
-        # Se não encontrou, cria uma nova
+                    if conv['status'] in ['open', 'pending']: return conv
+        except: pass
         url_create = self._get_api_url("conversations")
-        payload = {
-            "contact_id": contact_id,
-            "inbox_id": self.inbox_id,
-            "status": "open"
-        }
+        payload = {"contact_id": contact_id, "inbox_id": self.inbox_id, "status": "open"}
         try:
             response = requests.post(url_create, headers=self.headers, json=payload, timeout=10)
-            response.raise_for_status()
             return response.json()
-        except Exception as e:
-            logger.error(f"Erro ao criar conversa no Chatwoot: {e}")
+        except: return None
+
+    def get_templates(self):
+        endpoints = [f"inboxes/{self.inbox_id}/templates", "templates"]
+        for endpoint in endpoints:
+            url = self._get_api_url(endpoint)
+            try:
+                response = requests.get(url, headers=self.headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data: return data
+            except: pass
+        return []
+
+    def _resolve_template_parameter_format(self, template_def, variables):
+        body_comp = None
+        if template_def:
+            body_comp = next((c for c in template_def.get("components", []) if c.get("type") == "BODY"), None)
+        body_text = body_comp.get("text", "") if body_comp else ""
+        explicit_format = (template_def or {}).get("parameter_format")
+
+        if explicit_format in {"POSITIONAL", "NAMED"}:
+            return explicit_format
+
+        if isinstance(variables, dict):
+            return "NAMED"
+
+        if re.search(r"\{\{\s*[a-zA-Z_]\w*\s*\}\}", body_text):
+            return "NAMED"
+
+        if re.search(r"\{\{\s*\d+\s*\}\}", body_text):
+            return "POSITIONAL"
+
+        return "POSITIONAL"
+
+    def _build_template_body_params(self, template_def, variables, parameter_format):
+        body_comp = None
+        if template_def:
+            body_comp = next((c for c in template_def.get("components", []) if c.get("type") == "BODY"), None)
+        body_text = body_comp.get("text", "") if body_comp else ""
+        vars_input = variables or []
+
+        if parameter_format == "NAMED":
+            if isinstance(vars_input, dict):
+                return {str(k): str(v) for k, v in vars_input.items()}
+
+            names = re.findall(r"\{\{\s*([a-zA-Z_]\w*)\s*\}\}", body_text)
+            if names:
+                return {name: str(value) for name, value in zip(names, vars_input)}
+
+            # Fallback: mantém estrutura nomeada com índices em string
+            return {str(i + 1): str(v) for i, v in enumerate(vars_input)}
+
+        if isinstance(vars_input, dict):
+            def sort_key(item):
+                key = str(item[0]).strip()
+                return int(key) if key.isdigit() else key
+
+            return {str(k): str(v) for k, v in sorted(vars_input.items(), key=sort_key)}
+
+        numbers = re.findall(r"\{\{\s*(\d+)\s*\}\}", body_text)
+        if numbers and len(numbers) == len(vars_input):
+            return {str(number): str(value) for number, value in zip(numbers, vars_input)}
+
+        return {str(i + 1): str(v) for i, v in enumerate(vars_input)}
+
+    def _upload_attachment_and_get_url(self, conversation_id, attachment):
+        if not attachment:
             return None
 
-    def send_message(self, conversation_id, content, message_type="outgoing", attachments=None):
-        """
-        Envia mensagem. 
-        Para anexos, 'attachments' deve ser uma lista de arquivos (file-like objects ou caminhos).
-        """
         url = self._get_api_url(f"conversations/{conversation_id}/messages")
-        
-        if attachments:
-            # Chatwoot API usa multipart/form-data para anexos
-            headers = {"api_access_token": self.token}
-            data = {
-                "content": content,
-                "message_type": message_type,
-                "private": "false"
-            }
-            files = []
-            for i, attr in enumerate(attachments):
-                # attr pode ser (filename, content, content_type)
-                files.append(('attachments[]', attr))
-            
-            try:
-                response = requests.post(url, headers=headers, data=data, files=files, timeout=30)
-                response.raise_for_status()
-                resp_json = response.json()
-                print(f"DEBUG Chatwoot send_message (with attachment) response: {json.dumps(resp_json, indent=2)}")
-                return resp_json
-            except Exception as e:
-                logger.error(f"Erro ao enviar mensagem com anexo no Chatwoot: {e}")
-                return None
-        else:
-            payload = {
-                "content": content,
-                "message_type": message_type,
-                "private": False
-            }
-            try:
-                response = requests.post(url, headers=self.headers, json=payload, timeout=10)
-                response.raise_for_status()
-                resp_json = response.json()
-                print(f"DEBUG Chatwoot send_message response: {json.dumps(resp_json, indent=2)}")
-                return resp_json
-            except Exception as e:
-                logger.error(f"Erro ao enviar mensagem no Chatwoot: {e}")
-                return None
-
-    def send_template(self, conversation_id, template_name, variables=None, attachment=None):
-        """
-        Envia um template HSM (via WhatsApp) com parâmetros e opcionalmente um anexo de cabeçalho.
-        variables: lista de strings para os parâmetros do corpo do template.
-        attachment: tupla (filename, content, content_type) para o documento do cabeçalho.
-        """
-        url = self._get_api_url(f"conversations/{conversation_id}/messages")
-        
-        # Prepara os parâmetros do template no formato esperado pelo Chatwoot (integração WhatsApp)
-        params = [{"type": "text", "text": str(v)} for v in (variables or [])]
-        
-        content_attributes = {
-            "template_name": template_name,
-            "template_language": "pt_BR",
-            "parameters": params
+        headers = {"api_access_token": self.token}
+        data = {
+            "content": "upload-template-header",
+            "message_type": "outgoing",
+            "private": "true",
         }
+        files = [('attachments[]', attachment)]
 
-        if attachment:
-            # Para envios com anexo, usamos multipart/form-data
+        try:
+            response = requests.post(url, headers=headers, data=data, files=files, timeout=30)
+            if response.status_code >= 400:
+                return None
+            payload = response.json()
+            attachments = payload.get("attachments") or []
+            if not attachments:
+                return None
+            return attachments[0].get("data_url")
+        except:
+            return None
+
+    def send_template(self, conversation_id, template_name, variables=None, attachment=None, content=None):
+        """
+        Envia um template HSM (via WhatsApp) usando o formato Flat Multipart exigido pelo Rails.
+        """
+        debug_log = f"\n[CALL] send_template: conv={conversation_id}, template={template_name}\n"
+        url = self._get_api_url(f"conversations/{conversation_id}/messages")
+        
+        templates = self.get_templates()
+        template_def = next((t for t in templates if t['name'].lower() == template_name.strip().lower()), None)
+        if not template_def: template_def = self.get_meta_template(template_name)
+
+        language = template_def.get('language', 'pt_BR') if template_def else "pt_BR"
+        category = template_def.get('category', 'UTILITY') if template_def else "UTILITY"
+        parameter_format = self._resolve_template_parameter_format(template_def, variables)
+        body_params = self._build_template_body_params(template_def, variables, parameter_format)
+
+        if not content or content == ".":
+            if template_def:
+                body_comp = next((c for c in template_def.get('components', []) if c['type'] == 'BODY'), None)
+                content = body_comp['text'] if body_comp else f"Template: {template_name}"
+                for key, value in body_params.items():
+                    content = content.replace(f"{{{{{key}}}}}", str(value))
+
+                buttons_comp = next((c for c in template_def.get("components", []) if c.get("type") == "BUTTONS"), None)
+                button_texts = [b.get("text") for b in (buttons_comp or {}).get("buttons", []) if b.get("text")]
+                if button_texts and "[Botões]:" not in content:
+                    content = f"{content}\n\n[Botões]: {', '.join(button_texts)}"
+            else:
+                content = f"Enviando template {template_name}..."
+
+        try:
             headers = {"api_access_token": self.token}
+            uploaded_header_media_url = None
+            if attachment:
+                uploaded_header_media_url = self._upload_attachment_and_get_url(conversation_id, attachment)
+             
+            # FORMATO FLAT: O segredo para o erro "must be of type hash" no multipart
             data = {
-                "content": "", # Templates geralmente não precisam de content textual extra
-                "message_type": "outgoing",
-                "content_type": "template",
-                "content_attributes": json.dumps(content_attributes),
-                "private": "false"
+                "content": content,
+                "message_type": "template",
+                "private": "false",
+                "template_params[name]": template_name.strip(),
+                "template_params[language]": language,
+                "template_params[category]": category,
+                "template_params[parameter_format]": parameter_format,
             }
-            files = [('attachments[]', attachment)]
+
+            # Variáveis do Corpo no template_params
+            for key, value in body_params.items():
+                data[f"template_params[processed_params][body][{key}]"] = str(value)
+
+            # Header no template_params
+            if attachment:
+                data["template_params[processed_params][header][media_type]"] = "document"
+                if uploaded_header_media_url:
+                    data["template_params[processed_params][header][media_url]"] = uploaded_header_media_url
+
+            # Content Attributes (Fallback/Legacy)
+            data["content_attributes[template_name]"] = template_name.strip()
+            data["content_attributes[template_language]"] = language
+            for i, (key, value) in enumerate(body_params.items()):
+                data[f"content_attributes[parameters][{i}][type]"] = "text"
+                data[f"content_attributes[parameters][{i}][text]"] = str(value)
+                if parameter_format == "NAMED":
+                    data[f"content_attributes[parameters][{i}][parameter_name]"] = str(key)
+
+            files = []
+
+            debug_log += (
+                f"Template format: {parameter_format}\n"
+                f"Template body params: {json.dumps(body_params, ensure_ascii=False)}\n"
+                f"Header media_url: {uploaded_header_media_url}\n"
+                f"URL: {url}\nDATA: {json.dumps(data, indent=2, ensure_ascii=False)}\n"
+            )
             
-            try:
-                response = requests.post(url, headers=headers, data=data, files=files, timeout=30)
-                response.raise_for_status()
-                resp_json = response.json()
-                print(f"DEBUG Chatwoot send_template (with attachment) response: {json.dumps(resp_json, indent=2)}")
-                return resp_json
-            except Exception as e:
-                logger.error(f"Erro ao enviar template com anexo no Chatwoot: {e}")
-                if hasattr(e, 'response') and e.response:
-                    logger.error(f"Detalhes do erro: {e.response.text}")
-                return None
-        else:
-            # Envio simples via JSON
-            payload = {
-                "content": "",
-                "message_type": "outgoing",
-                "content_type": "template",
-                "content_attributes": content_attributes,
-                "private": False
-            }
-            try:
-                response = requests.post(url, headers=self.headers, json=payload, timeout=10)
-                response.raise_for_status()
-                resp_json = response.json()
-                print(f"DEBUG Chatwoot send_template response: {json.dumps(resp_json, indent=2)}")
-                return resp_json
-            except Exception as e:
-                logger.error(f"Erro ao enviar template no Chatwoot: {e}")
-                return None
+            response = requests.post(url, headers=headers, data=data, files=files, timeout=30)
+            res_json = response.json()
+            
+            if response.status_code >= 400:
+                debug_log += f"ERROR {response.status_code}: {response.text}\n"
+            else:
+                debug_log += f"SUCCESS: {json.dumps(res_json, indent=2)}\n"
+            
+            return res_json if response.status_code < 400 else None
+
+        except Exception as e:
+            debug_log += f"EXCEPTION: {str(e)}\n"
+            return None
+        finally:
+            with open("chatwoot_debug.log", "a", encoding="utf-8") as f:
+                f.write("="*50 + debug_log + "="*50 + "\n")
+            print(f"\n>>> DEBUG: Template {template_name} processado. Veja chatwoot_debug.log <<<", flush=True)

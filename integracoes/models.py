@@ -44,6 +44,10 @@ class SystemConfig(models.Model):
     chatwoot_api_token = models.CharField('User API Access Token', max_length=255, blank=True, null=True, help_text='Token de acesso à API (do usuário/bot)')
     chatwoot_budget_template = models.CharField('Nome do Template de Orçamento', max_length=100, blank=True, null=True, help_text='Ex: enviar_orcamento_v1')
 
+    # Configurações Diretas da Meta (WhatsApp Cloud API)
+    meta_waba_id = models.CharField('WhatsApp Business Account ID', max_length=100, blank=True, null=True, help_text='Necessário para buscar definições de templates diretamente na Meta')
+    meta_access_token = models.CharField('Meta System User Access Token', max_length=512, blank=True, null=True, help_text='Token de acesso permanente do Gerenciador de Negócios da Meta')
+
     class Meta:
         verbose_name = 'Configuração do Sistema'
         verbose_name_plural = 'Configurações do Sistema'

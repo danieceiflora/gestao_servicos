@@ -12,6 +12,10 @@ class SystemConfigAdmin(admin.ModelAdmin):
         ('Integração Chatwoot (WhatsApp)', {
             'fields': ('chatwoot_base_url', 'chatwoot_account_id', 'chatwoot_inbox_id', 'chatwoot_api_token', 'chatwoot_budget_template')
         }),
+        ('Integração Direta Meta (Fallback Templates)', {
+            'fields': ('meta_waba_id', 'meta_access_token'),
+            'description': 'Opcional: Use estes campos se o Chatwoot não conseguir listar seus templates automaticamente.'
+        }),
     )
 
     def has_add_permission(self, request):

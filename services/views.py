@@ -1604,15 +1604,23 @@ def service_order_send_budget(request, order_id):
         
         response = None
         if cw.config.chatwoot_budget_template:
-            # Preparar variáveis: 1: Número da OS, 2: Valor Estimado
-            value_display = f"R$ {order.estimated_value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') if order.estimated_value else "A definir"
+            # Preparar variáveis para o corpo do template:
+            # Variável 1: Número da OS, Variável 2: Valor (apenas o número, pois R$ já está no template)
+            if order.estimated_value:
+                # Formata como 1.580,00
+                value_display = f"{order.estimated_value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            else:
+                value_display = "0,00"
+            
             variables = [str(order.number), value_display]
             
+            # Deixamos o content como None para o ChatwootClient buscar o texto real do template
             response = cw.send_template(
                 conversation_id=conversation_id,
                 template_name=cw.config.chatwoot_budget_template,
                 variables=variables,
-                attachment=attachment
+                attachment=attachment,
+                content=None 
             )
             success_msg = f"Orçamento enviado com sucesso para {client_name} via WhatsApp (Template)!"
         else:
