@@ -237,6 +237,7 @@ class ChatwootClient:
                 data["template_params[processed_params][header][media_type]"] = "document"
                 if uploaded_header_media_url:
                     data["template_params[processed_params][header][media_url]"] = uploaded_header_media_url
+                    data["template_params[processed_params][header][media_name]"] = attachment[0]
 
             # Content Attributes (Fallback/Legacy)
             data["content_attributes[template_name]"] = template_name.strip()
