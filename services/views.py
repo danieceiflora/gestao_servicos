@@ -605,7 +605,7 @@ def service_order_create(request, property_id):
         if form.is_valid():
             service_order = ServiceOrder.objects.create(
                 client_property=property_obj,
-                status=ServiceOrder.Status.WAITING_BUDGET
+                status=ServiceOrder.Status.WAITING_VISIT
             )
             task = form.save(commit=False)
             task.service_order = service_order
@@ -642,8 +642,8 @@ def service_order_budget(request, order_id):
             form.save()
             formset.save()
             
-            if order.status in [ServiceOrder.Status.WAITING_BUDGET, ServiceOrder.Status.BUDGET_SCHEDULED] and order.items.exists():
-                order.status = ServiceOrder.Status.WAITING_APPROVAL
+            if order.status in [ServiceOrder.Status.BUDGET_SCHEDULED, ServiceOrder.Status.BUDGET_DONE_WAITING_SEND] and order.items.exists():
+                order.status = ServiceOrder.Status.BUDGET_DONE_WAITING_SEND
                 order.save()
                 
             messages.success(request, 'Orçamento atualizado!')
@@ -1188,6 +1188,9 @@ def api_get_clients(request):
 
 # ============ GERENCIAMENTO DE ITENS DA OS ============
 
+def _get_order_items_total(order):
+    return sum((item.total_price for item in order.items.all()), Decimal('0'))
+
 @login_required
 @permission_required('services.add_serviceitem', raise_exception=True)
 def order_item_add(request, order_id):
@@ -1271,6 +1274,10 @@ def order_item_add(request, order_id):
                 unit_price=item_data['unit_price']
             )
 
+            estimated_total = _get_order_items_total(order)
+            order.estimated_value = estimated_total
+            order.save(update_fields=['estimated_value', 'updated_at'])
+
             if is_ajax:
                 try:
                     item_total = item.total_price
@@ -1288,10 +1295,15 @@ def order_item_add(request, order_id):
                     # Calcular o total da order
                     try:
                         order_total = order.total_value
+                        balance_due = order.balance_due
                         order_total_display = f'{order_total:.2f}'.replace('.', ',')
+                        estimated_value_display = f'{estimated_total:.2f}'.replace('.', ',')
+                        balance_due_display = f'{balance_due:.2f}'.replace('.', ',')
                     except Exception as e:
                         print(f"Erro ao calcular total da order: {e}")
                         order_total_display = "0,00"
+                        estimated_value_display = "0,00"
+                        balance_due_display = "0,00"
 
                     return JsonResponse({
                         'success': True,
@@ -1311,6 +1323,9 @@ def order_item_add(request, order_id):
                             'total_price_display': f'{item_total:.2f}'.replace('.', ','),
                         },
                         'order_total_display': order_total_display,
+                        'estimated_value_display': estimated_value_display,
+                        'balance_due_display': balance_due_display,
+                        'balance_due_positive': bool(order.balance_due > 0),
                     })
                 except Exception as e:
                     print(f"Erro ao preparar resposta JSON: {e}")
@@ -1332,6 +1347,9 @@ def order_item_add(request, order_id):
                             'total_price_display': '0,00',
                         },
                         'order_total_display': '0,00',
+                        'estimated_value_display': '0,00',
+                        'balance_due_display': '0,00',
+                        'balance_due_positive': False,
                     })
                     
             
@@ -1373,18 +1391,29 @@ def order_item_delete(request, item_id):
     
     if request.method == 'POST':
         item.delete()
+
+        estimated_total = _get_order_items_total(order)
+        order.estimated_value = estimated_total
+        order.save(update_fields=['estimated_value', 'updated_at'])
         
         if is_ajax:
             try:
                 order_total_display = f'{order.total_value:.2f}'.replace('.', ',')
+                estimated_value_display = f'{estimated_total:.2f}'.replace('.', ',')
+                balance_due_display = f'{order.balance_due:.2f}'.replace('.', ',')
             except Exception as e:
                 print(f"Erro ao calcular total da order: {e}")
                 order_total_display = "0,00"
+                estimated_value_display = "0,00"
+                balance_due_display = "0,00"
             
             return JsonResponse({
                 'success': True,
                 'message': 'Item removido com sucesso!',
                 'order_total_display': order_total_display,
+                'estimated_value_display': estimated_value_display,
+                'balance_due_display': balance_due_display,
+                'balance_due_positive': bool(order.balance_due > 0),
             })
         
         messages.success(request, 'Item removido com sucesso!')
@@ -1632,12 +1661,16 @@ def service_order_send_budget(request, order_id):
             message_id, tracked_conversation_id = cw.extract_message_tracking(response)
             order.chatwoot_budget_message_id = message_id
             order.chatwoot_budget_conversation_id = tracked_conversation_id or str(conversation_id)
+            order.status = ServiceOrder.Status.WAITING_APPROVAL
             order.client_budget_response = None
+            order.client_budget_responded_at = None
             order.client_budget_approved_at = None
             order.save(update_fields=[
                 'chatwoot_budget_message_id',
                 'chatwoot_budget_conversation_id',
+                'status',
                 'client_budget_response',
+                'client_budget_responded_at',
                 'client_budget_approved_at',
                 'updated_at',
             ])

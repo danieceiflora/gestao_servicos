@@ -112,6 +112,44 @@
             </div>
             {% endif %}
 
+            {% if task and task.task_type == 'BUDGET' %}
+            <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100 space-y-3">
+                <h4 class="text-xs font-bold text-emerald-700 uppercase tracking-widest">Resposta do Cliente (WhatsApp)</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Situação</p>
+                        <p class="text-sm font-semibold text-slate-800">
+                            {% if order.client_budget_response %}
+                                {% if task.is_approved %}Aprovado{% else %}Reprovado{% endif %}
+                            {% else %}
+                                Aguardando resposta
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Data da resposta</p>
+                        <p class="text-sm font-semibold text-slate-800">
+                            {% if order.client_budget_responded_at %}
+                                {{ order.client_budget_responded_at|date:"d/m/Y H:i" }}
+                            {% else %}
+                                ---
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Mensagem recebida</p>
+                    <p class="text-sm text-slate-700 mt-1 whitespace-pre-line">
+                        {% if order.client_budget_response %}
+                            {{ order.client_budget_response }}
+                        {% else %}
+                            Sem resposta registrada.
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Seção: Agendamento -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

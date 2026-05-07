@@ -213,17 +213,25 @@ class BudgetPDFGenerator(BasePDFGenerator):
     def _get_items_table(self):
         elements = []
         elements.append(Paragraph("ITENS E SERVIÇOS", self.styles['SectionHeader']))
-        data = [['Descrição', 'Quantidade']]
+        data = [['Descrição', 'Quantidade', 'Total']]
         for item in self.service_order.items.all():
             description = item.description or (item.product.name if item.product else (item.service.name if item.service else "---"))
-            data.append([Paragraph(description, self.styles['Value']), Paragraph(str(item.quantity).replace('.', ','), self.styles['Value'])])
-        if len(data) == 1: data.append(["Nenhum item detalhado", "-"])
-        table = Table(data, colWidths=[15*cm, 3*cm])
+            quantity = str(item.quantity).replace('.', ',')
+            total = f"R$ {item.total_price:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            data.append([
+                Paragraph(description, self.styles['Value']),
+                Paragraph(quantity, self.styles['Value']),
+                Paragraph(total, self.styles['Value'])
+            ])
+        if len(data) == 1:
+            data.append(["Nenhum item detalhado", "-", "-"])
+        table = Table(data, colWidths=[11*cm, 2.5*cm, 4.5*cm])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), self.bg_header),
             ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#1F2937')),
             ('ALIGN', (0,0), (-1,0), 'CENTER'),
-            ('ALIGN', (1,1), (-1,-1), 'CENTER'),
+            ('ALIGN', (1,1), (1,-1), 'CENTER'),
+            ('ALIGN', (2,1), (2,-1), 'RIGHT'),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
             ('GRID', (0,0), (-1,-1), 0.8, self.grid_color),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
@@ -328,6 +336,62 @@ class CompletionPDFGenerator(BasePDFGenerator):
         elements.append(Spacer(1, 0.5*cm))
         return elements
 
+    def _get_items_table(self):
+        elements = []
+        elements.append(Paragraph("ITENS E VALORES DO SERVIÇO", self.styles['SectionHeader']))
+        data = [['Descrição', 'Quantidade', 'Valor']]
+        items_total = 0
+
+        for item in self.service_order.items.all():
+            description = item.description or (item.product.name if item.product else (item.service.name if item.service else "---"))
+            quantity = str(item.quantity).replace('.', ',')
+            item_total = item.total_price or 0
+            items_total += item_total
+            item_total_display = f"R$ {item_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            data.append([
+                Paragraph(description, self.styles['SmallValue']),
+                Paragraph(quantity, self.styles['SmallValue']),
+                Paragraph(item_total_display, self.styles['SmallValue'])
+            ])
+
+        has_items = len(data) > 1
+        if not has_items:
+            data.append(["Nenhum item detalhado", "-", "-"])
+        else:
+            total_display = f"R$ {items_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            data.append([
+                Paragraph("<b>Total dos itens</b>", self.styles['Value']),
+                "",
+                Paragraph(f"<b>{total_display}</b>", self.styles['Value'])
+            ])
+
+        table = Table(data, colWidths=[11*cm, 2.5*cm, 4.5*cm])
+        table_style = [
+            ('BACKGROUND', (0,0), (-1,0), self.bg_header),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#1F2937')),
+            ('GRID', (0,0), (-1,-1), 0.8, self.grid_color),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN', (1,1), (1,-1), 'CENTER'),
+            ('ALIGN', (2,1), (2,-1), 'RIGHT'),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+            ('LEFTPADDING', (0,0), (-1,-1), 4),
+            ('RIGHTPADDING', (0,0), (-1,-1), 4),
+        ]
+
+        if has_items:
+            total_row_index = len(data) - 1
+            table_style.extend([
+                ('BACKGROUND', (0,total_row_index), (-1,total_row_index), self.bg_light),
+                ('FONTNAME', (0,total_row_index), (-1,total_row_index), 'Helvetica-Bold'),
+            ])
+
+        table.setStyle(TableStyle(table_style))
+        elements.append(table)
+        elements.append(Spacer(1, 0.5*cm))
+        return elements
+
     def _get_tasks_timeline(self):
         elements = []
         elements.append(Paragraph("CRONOGRAMA DE ETAPAS", self.styles['SectionHeader']))
@@ -427,6 +491,7 @@ class CompletionPDFGenerator(BasePDFGenerator):
         elements.extend(self._get_header())
         elements.extend(self._get_client_info())
         elements.extend(self._get_completion_info())
+        elements.extend(self._get_items_table())
         elements.extend(self._get_tasks_timeline())
         elements.extend(self._get_checklists())
         elements.extend(self._get_general_media())

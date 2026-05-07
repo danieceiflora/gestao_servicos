@@ -6,7 +6,9 @@ from integracoes.views import (
     _build_budget_response_label,
     _is_chatwoot_client_budget_reply,
     _is_chatwoot_outgoing_message,
+    _resolve_order_status_from_budget_decision,
 )
+from services.models import ServiceOrder
 
 
 @override_settings(WEBHOOK_SHARED_SECRET='test-shared-secret')
@@ -82,6 +84,18 @@ class BudgetResponseLabelTests(TestCase):
 
     def test_builds_approved_pix_label(self):
         self.assertEqual(_build_budget_response_label(True, "PIX"), "Aprovado - Pix")
+
+    def test_sets_order_status_when_budget_approved(self):
+        self.assertEqual(
+            _resolve_order_status_from_budget_decision(True),
+            ServiceOrder.Status.APPROVED_WAITING_SCHEDULE
+        )
+
+    def test_sets_order_status_when_budget_rejected(self):
+        self.assertEqual(
+            _resolve_order_status_from_budget_decision(False),
+            ServiceOrder.Status.REJECTED_BY_CLIENT
+        )
 
 
 class ChatwootReplyFilterTests(TestCase):

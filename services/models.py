@@ -487,8 +487,10 @@ class ServiceOrder(models.Model):
     class Status(models.TextChoices):
         WAITING_VISIT = 'WAITING_VISIT', 'Aguardando visita inicial'
         BUDGET_SCHEDULED = 'BUDGET_SCHEDULED', 'Orçamento Agendado'
-        WAITING_APPROVAL = 'WAITING_APPROVAL', 'Orçamento Realizado - Aguardando Aprovação'
-        APPROVED_WAITING_SCHEDULE = 'APPROVED_WAITING_SCHEDULE', 'Aprovado - Aguardando Agendamento'
+        BUDGET_DONE_WAITING_SEND = 'BUDGET_DONE_WAITING_SEND', 'Orçamento realizado, aguardando envio'
+        WAITING_APPROVAL = 'WAITING_APPROVAL', 'Orçamento enviado - aguardando aprovação'
+        APPROVED_WAITING_SCHEDULE = 'APPROVED_WAITING_SCHEDULE', 'Aprovado pelo cliente - Aguardando Agendamento de execução'
+        REJECTED_BY_CLIENT = 'REJECTED_BY_CLIENT', 'Reprovado pelo cliente'
         WAITING_EXECUTION = 'WAITING_EXECUTION', 'Aguardando Execução'
         WAITING_PAYMENT = 'WAITING_PAYMENT', 'Aguardando Pagamento'
         PARTIAL_PAYMENT = 'PARTIAL_PAYMENT', 'Pagamento Parcial'
@@ -514,6 +516,7 @@ class ServiceOrder(models.Model):
     chatwoot_budget_message_id = models.CharField(max_length=100, null=True, blank=True, verbose_name="ID da Mensagem de Orçamento (Chatwoot)")
     chatwoot_budget_conversation_id = models.CharField(max_length=100, null=True, blank=True, verbose_name="ID da Conversa (Chatwoot)")
     client_budget_response = models.TextField(null=True, blank=True, verbose_name="Resposta do Cliente ao Orçamento")
+    client_budget_responded_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente respondeu o orçamento em")
     client_budget_approved_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente aprovou o orçamento em")
     
     # Origem da OS
@@ -605,7 +608,7 @@ class ServiceOrder(models.Model):
 
         # Se orçamento foi concluído mas não aprovado
         elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
-            self.status = self.Status.WAITING_APPROVAL
+            self.status = self.Status.BUDGET_DONE_WAITING_SEND
 
         # Se tem orçamento agendado
         elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.SCHEDULED).exists():

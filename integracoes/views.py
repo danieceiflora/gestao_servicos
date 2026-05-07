@@ -145,6 +145,12 @@ def _build_budget_response_label(is_approved, payment_method):
     return payment_labels.get(payment_method, 'Aprovado')
 
 
+def _resolve_order_status_from_budget_decision(is_approved):
+    if is_approved:
+        return ServiceOrder.Status.APPROVED_WAITING_SCHEDULE
+    return ServiceOrder.Status.REJECTED_BY_CLIENT
+
+
 def _is_chatwoot_client_budget_reply(payload):
     if not isinstance(payload, dict):
         return False
@@ -208,7 +214,10 @@ def _process_chatwoot_budget_sent(payload):
     if not order:
         order = ServiceOrder.objects.filter(
             chatwoot_budget_conversation_id=str(conversation_id),
-            status=ServiceOrder.Status.WAITING_APPROVAL
+            status__in=[
+                ServiceOrder.Status.BUDGET_DONE_WAITING_SEND,
+                ServiceOrder.Status.WAITING_APPROVAL,
+            ]
         ).order_by('-updated_at').first()
 
     if not order:
@@ -251,7 +260,10 @@ def _process_chatwoot_budget_reply(payload):
     if not order and conversation_refs:
         order = ServiceOrder.objects.filter(
             chatwoot_budget_conversation_id__in=conversation_refs,
-            status=ServiceOrder.Status.WAITING_APPROVAL
+            status__in=[
+                ServiceOrder.Status.BUDGET_DONE_WAITING_SEND,
+                ServiceOrder.Status.WAITING_APPROVAL,
+            ]
         ).order_by('-updated_at').first()
 
     if not order:
@@ -266,9 +278,11 @@ def _process_chatwoot_budget_reply(payload):
     budget_task.payment_method = payment_method if is_approved else None
     budget_task.save(update_fields=['is_approved', 'payment_method'])
 
+    order.status = _resolve_order_status_from_budget_decision(is_approved)
     order.client_budget_response = reply_text
+    order.client_budget_responded_at = timezone.now()
     order.client_budget_approved_at = timezone.now() if is_approved else None
-    order.save(update_fields=['client_budget_response', 'client_budget_approved_at', 'updated_at'])
+    order.save(update_fields=['status', 'client_budget_response', 'client_budget_responded_at', 'client_budget_approved_at', 'updated_at'])
 
     label_title = _build_budget_response_label(is_approved, payment_method)
     conversation_id = next(iter(conversation_refs), None) or order.chatwoot_budget_conversation_id

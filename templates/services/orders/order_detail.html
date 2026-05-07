@@ -543,6 +543,64 @@
                 </div>
             </div>
 
+            <!-- Card de Aprovação do Cliente -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <i data-lucide="message-circle-more" class="h-5 w-5 text-slate-500"></i>
+                    Aprovação do Cliente
+                </h3>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Situação</p>
+                        {% if order.status == 'APPROVED_WAITING_SCHEDULE' or order.status == 'WAITING_EXECUTION' or order.status == 'WAITING_PAYMENT' or order.status == 'PARTIAL_PAYMENT' or order.status == 'FINISHED' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">Aprovado</span>
+                        {% elif order.status == 'REJECTED_BY_CLIENT' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">Reprovado</span>
+                        {% elif order.status == 'WAITING_APPROVAL' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Orçamento enviado - aguardando aprovação</span>
+                        {% elif order.status == 'BUDGET_DONE_WAITING_SEND' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">Orçamento realizado, aguardando envio</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">Sem decisão registrada</span>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mensagem do WhatsApp</p>
+                        <p class="text-sm text-slate-700 whitespace-pre-wrap">
+                            {% if order.client_budget_response %}
+                                {{ order.client_budget_response }}
+                            {% else %}
+                                Sem resposta registrada.
+                            {% endif %}
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Data da resposta</p>
+                            <p class="text-sm font-semibold text-slate-900">
+                                {% if order.client_budget_responded_at %}
+                                    {{ order.client_budget_responded_at|localtime|date:"d/m/Y H:i" }}
+                                {% else %}
+                                    ---
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Data da aprovação</p>
+                            <p class="text-sm font-semibold text-slate-900">
+                                {% if order.client_budget_approved_at %}
+                                    {{ order.client_budget_approved_at|localtime|date:"d/m/Y H:i" }}
+                                {% else %}
+                                    ---
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Card do Imóvel -->
             <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                 <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -628,6 +686,10 @@
                 </div>
                 <div class="p-4 space-y-3">
                     <div class="flex justify-between text-sm">
+                        <span class="text-slate-500">Valor Estimado:</span>
+                        <span class="font-bold text-slate-900">R$ <span data-order-estimated-value>{{ order.estimated_value|default_if_none:0|floatformat:2 }}</span></span>
+                    </div>
+                    <div class="flex justify-between text-sm">
                         <span class="text-slate-500">Total do Serviço:</span>
                         <span class="font-bold text-slate-900">R$ <span data-order-total-value>{{ order.total_value|floatformat:2 }}</span></span>
                     </div>
@@ -643,8 +705,8 @@
                     </div>
                     <div class="pt-2 border-t border-slate-100 flex justify-between items-center">
                         <span class="text-xs font-bold text-slate-400 uppercase">Saldo Devedor:</span>
-                        <span class="text-lg font-black {% if order.balance_due > 0 %}text-slate-900{% else %}text-green-600{% endif %}">
-                            R$ {{ order.balance_due|floatformat:2 }}
+                        <span data-order-balance-wrap class="text-lg font-black {% if order.balance_due > 0 %}text-slate-900{% else %}text-green-600{% endif %}">
+                            R$ <span data-order-balance-due>{{ order.balance_due|floatformat:2 }}</span>
                         </span>
                     </div>
                 </div>
@@ -863,6 +925,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function updateEstimatedValue(totalDisplay) {
+        document.querySelectorAll('[data-order-estimated-value]').forEach(function(el) {
+            el.textContent = totalDisplay;
+        });
+    }
+
+    function updateBalanceDue(totalDisplay, isPositive) {
+        document.querySelectorAll('[data-order-balance-due]').forEach(function(el) {
+            el.textContent = totalDisplay;
+        });
+        document.querySelectorAll('[data-order-balance-wrap]').forEach(function(el) {
+            el.classList.remove('text-slate-900', 'text-green-600');
+            el.classList.add(isPositive ? 'text-slate-900' : 'text-green-600');
+        });
+    }
+
     function prependItemRow(item) {
         const tbody = document.getElementById('order-items-table-body');
         if (!tbody) return;
@@ -992,6 +1070,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.order_total_display) {
                 updateOrderTotal(data.order_total_display);
             }
+            if (data.estimated_value_display) {
+                updateEstimatedValue(data.estimated_value_display);
+            }
+            if (data.balance_due_display !== undefined) {
+                updateBalanceDue(data.balance_due_display, !!data.balance_due_positive);
+            }
             
             showFeedback(data.message || 'Item adicionado com sucesso!', false);
             resetForm();
@@ -1045,6 +1129,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Atualizar total da ordem
             if (data.order_total_display) {
                 updateOrderTotal(data.order_total_display);
+            }
+            if (data.estimated_value_display) {
+                updateEstimatedValue(data.estimated_value_display);
+            }
+            if (data.balance_due_display !== undefined) {
+                updateBalanceDue(data.balance_due_display, !!data.balance_due_positive);
             }
 
             showFeedback(data.message || 'Item removido com sucesso!', false);
