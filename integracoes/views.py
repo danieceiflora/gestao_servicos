@@ -317,34 +317,50 @@ def _process_chatwoot_budget_reply(payload):
 def _validate_webhook_secret(request):
     expected_secret = (getattr(settings, 'WEBHOOK_SHARED_SECRET', '') or '').strip()
     if not expected_secret:
-        logger.error("WEBHOOK_SHARED_SECRET não configurado para /webhooks")
+        logger.error("WEBHOOK_SHARED_SECRET não configurado no Django settings.")
         return False
 
     received_signature = (request.headers.get('X-Chatwoot-Signature') or '').strip()
     timestamp = (request.headers.get('X-Chatwoot-Timestamp') or '').strip()
 
     if not received_signature or not timestamp:
+        logger.warning("Webhook Chatwoot rejeitado: headers de assinatura ausentes.")
         return False
 
     try:
         timestamp_value = int(timestamp)
     except (TypeError, ValueError):
+        logger.warning("Webhook Chatwoot rejeitado: timestamp inválido. ts=%s", timestamp)
         return False
 
     # Janela de 5 minutos para mitigar replay attack.
     current_timestamp = int(timezone.now().timestamp())
     if abs(current_timestamp - timestamp_value) > 300:
-        logger.warning("Webhook Chatwoot rejeitado por timestamp fora da janela. ts=%s", timestamp)
+        logger.warning("Webhook Chatwoot rejeitado: timestamp fora da janela (skew). recebido=%s, atual=%s", timestamp_value, current_timestamp)
         return False
 
+    # O formato correto do payload assinado pelo Chatwoot é "{timestamp}.{raw_body}"
+    # O raw_body deve ser bytes puros vindos do request.body
     message = f"{timestamp}.".encode('utf-8') + request.body
-    expected_signature = "sha256=" + hmac.new(
+    
+    computed_hash = hmac.new(
         expected_secret.encode('utf-8'),
         message,
         hashlib.sha256,
     ).hexdigest()
 
-    return hmac.compare_digest(expected_signature, received_signature)
+    # Chatwoot costuma enviar com prefixo 'sha256=', mas aceitamos ambos para robustez
+    expected_with_prefix = f"sha256={computed_hash}"
+    
+    # Verificação constante de tempo
+    if hmac.compare_digest(expected_with_prefix, received_signature):
+        return True
+    
+    if hmac.compare_digest(computed_hash, received_signature):
+        return True
+
+    logger.error("Falha na verificação de assinatura do Webhook Chatwoot. Hash calculado não confere.")
+    return False
 
 
 def _handle_webhook_request(request, provider):
