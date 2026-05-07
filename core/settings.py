@@ -168,9 +168,17 @@ BLING_CLIENT_SECRET = None
 
 # Webhook Integration
 # Preferencialmente definir via variável de ambiente WEBHOOK_SHARED_SECRET.
+# Compatibilidade: também aceitamos CHATWOOT_WEBHOOK_SECRET.
 # Fallback local: arquivo segredowebhook.md na raiz do projeto.
-WEBHOOK_SHARED_SECRET = (os.getenv('WEBHOOK_SHARED_SECRET') or '').strip()
+# Fallback temporário para teste manual (trocar depois em produção).
+WEBHOOK_SHARED_SECRET = (
+    os.getenv('WEBHOOK_SHARED_SECRET')
+    or os.getenv('CHATWOOT_WEBHOOK_SECRET')
+    or ''
+).strip()
 if not WEBHOOK_SHARED_SECRET:
     webhook_secret_file = BASE_DIR / 'segredowebhook.md'
     if webhook_secret_file.exists():
         WEBHOOK_SHARED_SECRET = webhook_secret_file.read_text(encoding='utf-8').strip()
+if not WEBHOOK_SHARED_SECRET:
+    WEBHOOK_SHARED_SECRET = 'ofMMvS4WT9qusYCsjGZD3d5D'
