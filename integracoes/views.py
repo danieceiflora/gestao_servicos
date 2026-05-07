@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 from .models import WebhookEvent
+from .chatwoot_client import ChatwootClient
 from services.models import ServiceOrder, ServiceOrderTask
 
 logger = logging.getLogger(__name__)
@@ -97,10 +98,15 @@ def _extract_chatwoot_references(payload):
 def _parse_approval_decision(reply_text):
     text = _normalize_text(reply_text)
 
+    has_approved = 'aprova' in text
+    has_rejected = 'reprova' in text
+
     is_approved = None
-    if 'reprova' in text:
+    if has_approved and has_rejected:
+        return None, None
+    if has_rejected:
         is_approved = False
-    elif 'aprova' in text:
+    elif has_approved:
         is_approved = True
 
     if is_approved is None:
@@ -124,7 +130,110 @@ def _parse_approval_decision(reply_text):
     return is_approved, payment_method
 
 
+def _build_budget_response_label(is_approved, payment_method):
+    if not is_approved:
+        return "Reprovado"
+
+    payment_labels = {
+        'PIX': 'Aprovado - Pix',
+        'DEBIT_CARD': 'Aprovado - Cartão',
+        'CREDIT_CARD': 'Aprovado - Cartão',
+        'CASH': 'Aprovado - Dinheiro',
+        'TRANSFER': 'Aprovado - Transferência',
+        'BOLETO': 'Aprovado - Boleto',
+    }
+    return payment_labels.get(payment_method, 'Aprovado')
+
+
+def _is_chatwoot_client_budget_reply(payload):
+    if not isinstance(payload, dict):
+        return False
+
+    event_name = str(payload.get('event') or '').strip().lower()
+    if event_name and event_name != 'message_created':
+        return False
+
+    message_type = payload.get('message_type')
+    if isinstance(message_type, str):
+        normalized_type = message_type.strip().lower()
+        if normalized_type in {'outgoing', 'template', 'activity'}:
+            return False
+    elif isinstance(message_type, int) and message_type != 0:
+        return False
+
+    sender_type = _dig(payload, 'sender', 'type')
+    if sender_type and str(sender_type).strip().lower() != 'contact':
+        return False
+
+    if payload.get('private') is True:
+        return False
+
+    return True
+
+
+def _is_chatwoot_outgoing_message(payload):
+    if not isinstance(payload, dict):
+        return False
+
+    event_name = str(payload.get('event') or '').strip().lower()
+    if event_name != 'message_created':
+        return False
+
+    message_type = payload.get('message_type')
+    is_outgoing = False
+    if isinstance(message_type, str):
+        is_outgoing = message_type.strip().lower() in {'outgoing', 'template'}
+    elif isinstance(message_type, int):
+        is_outgoing = message_type == 3
+
+    if not is_outgoing:
+        return False
+
+    return True
+
+
+def _process_chatwoot_budget_sent(payload):
+    if not _is_chatwoot_outgoing_message(payload):
+        return 'processed', 'Evento Chatwoot ignorado (não é envio de orçamento).'
+
+    message_id = _extract_first(payload, [('id',), ('source_id',)])
+    conversation_id = _extract_first(payload, [('conversation_id',), ('conversation', 'id')])
+    if conversation_id in (None, ''):
+        return 'failed', 'Envio de orçamento detectado sem conversation_id.'
+
+    order = None
+    if message_id not in (None, ''):
+        order = ServiceOrder.objects.filter(chatwoot_budget_message_id=str(message_id)).order_by('-updated_at').first()
+
+    if not order:
+        order = ServiceOrder.objects.filter(
+            chatwoot_budget_conversation_id=str(conversation_id),
+            status=ServiceOrder.Status.WAITING_APPROVAL
+        ).order_by('-updated_at').first()
+
+    if not order:
+        return 'processed', 'Evento de envio ignorado (sem OS de orçamento vinculada).'
+
+    try:
+        cw = ChatwootClient()
+        label = cw.get_label_by_title("Orçamento-Enviado") or cw.create_label("Orçamento-Enviado")
+        if not label:
+            return 'failed', 'Não foi possível criar/localizar etiqueta Orçamento-Enviado.'
+
+        assigned = cw.assign_label_to_conversation(conversation_id, label.get("title", "Orçamento-Enviado"))
+        if not assigned:
+            return 'failed', 'Não foi possível atribuir etiqueta Orçamento-Enviado na conversa.'
+    except Exception:
+        logger.exception("Erro ao etiquetar envio de orçamento no Chatwoot. conversation_id=%s", conversation_id)
+        return 'failed', 'Erro ao etiquetar envio de orçamento.'
+
+    return 'processed', 'Etiqueta Orçamento-Enviado atribuída após envio do template.'
+
+
 def _process_chatwoot_budget_reply(payload):
+    if not _is_chatwoot_client_budget_reply(payload):
+        return 'processed', 'Evento Chatwoot ignorado (não é resposta de cliente).'
+
     reply_text = _extract_chatwoot_reply_text(payload)
     if not reply_text:
         return 'processed', 'Payload Chatwoot sem conteúdo de resposta.'
@@ -160,6 +269,33 @@ def _process_chatwoot_budget_reply(payload):
     order.client_budget_response = reply_text
     order.client_budget_approved_at = timezone.now() if is_approved else None
     order.save(update_fields=['client_budget_response', 'client_budget_approved_at', 'updated_at'])
+
+    label_title = _build_budget_response_label(is_approved, payment_method)
+    conversation_id = next(iter(conversation_refs), None) or order.chatwoot_budget_conversation_id
+    if conversation_id:
+        try:
+            cw = ChatwootClient()
+            label = cw.get_label_by_title(label_title) or cw.create_label(label_title)
+            if not label:
+                logger.warning(
+                    "Não foi possível criar/localizar etiqueta de resposta no Chatwoot. label=%s conversation_id=%s",
+                    label_title,
+                    conversation_id
+                )
+            else:
+                assigned = cw.assign_label_to_conversation(conversation_id, label.get("title", label_title))
+                if not assigned:
+                    logger.warning(
+                        "Não foi possível atribuir etiqueta de resposta no Chatwoot. label=%s conversation_id=%s",
+                        label_title,
+                        conversation_id
+                    )
+        except Exception:
+            logger.exception(
+                "Erro ao etiquetar conversa de orçamento no Chatwoot. label=%s conversation_id=%s",
+                label_title,
+                conversation_id
+            )
 
     return 'processed', f'OS #{order.number} atualizada via Chatwoot ({ "aprovado" if is_approved else "reprovado" }).'
 
@@ -243,7 +379,12 @@ def _handle_webhook_request(request, provider):
     event_notes = None
 
     if provider == 'chatwoot':
-        event_status, event_notes = _process_chatwoot_budget_reply(payload)
+        sent_status, sent_notes = _process_chatwoot_budget_sent(payload)
+        reply_status, reply_notes = _process_chatwoot_budget_reply(payload)
+
+        status_candidates = [sent_status, reply_status]
+        event_status = 'failed' if 'failed' in status_candidates else 'processed'
+        event_notes = ' | '.join(note for note in [sent_notes, reply_notes] if note)
 
     # Salva o evento no banco
     event = WebhookEvent.objects.create(

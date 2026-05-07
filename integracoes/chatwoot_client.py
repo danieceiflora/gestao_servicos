@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 import re
+import unicodedata
 from django.conf import settings
 from .models import SystemConfig
 
@@ -24,6 +25,143 @@ class ChatwootClient:
 
     def _get_api_url(self, endpoint):
         return f"{self.base_url}/api/v1/accounts/{self.account_id}/{endpoint}"
+
+    def normalize_label_title(self, title):
+        text = unicodedata.normalize("NFKD", str(title or ""))
+        text = "".join(ch for ch in text if not unicodedata.combining(ch))
+        text = text.lower().strip()
+        text = re.sub(r"\s+", "-", text)
+        text = re.sub(r"[^a-z0-9_-]", "", text)
+        text = re.sub(r"-{2,}", "-", text).strip("-_")
+        return text
+
+    def list_labels(self):
+        url = self._get_api_url("labels")
+        try:
+            response = requests.get(url, headers=self.headers, timeout=10)
+            if response.status_code >= 400:
+                logger.warning("Falha ao listar labels no Chatwoot. status=%s body=%s", response.status_code, response.text)
+                return []
+
+            data = response.json()
+            payload = data.get("payload")
+            if isinstance(payload, list):
+                return payload
+            return []
+        except Exception:
+            logger.exception("Erro ao listar labels no Chatwoot")
+            return []
+
+    def get_label_by_title(self, title):
+        target = self.normalize_label_title(title)
+        if not target:
+            return None
+
+        for label in self.list_labels():
+            label_title = self.normalize_label_title(label.get("title"))
+            if label_title == target:
+                return label
+        return None
+
+    def create_label(self, title, description=None, color="#1f93ff", show_on_sidebar=True):
+        label_title = self.normalize_label_title(title)
+        if not label_title:
+            return None
+
+        url = self._get_api_url("labels")
+        payload = {
+            "title": label_title,
+            "description": description or f"Etiqueta criada automaticamente para fluxo de orçamento: {label_title}",
+            "color": color,
+            "show_on_sidebar": bool(show_on_sidebar),
+        }
+        try:
+            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            if response.status_code >= 400:
+                logger.warning("Falha ao criar label no Chatwoot. title=%s status=%s body=%s", label_title, response.status_code, response.text)
+                return None
+
+            data = response.json()
+            if isinstance(data, dict):
+                if isinstance(data.get("payload"), dict):
+                    return data["payload"]
+                if data.get("title"):
+                    return data
+            return None
+        except Exception:
+            logger.exception("Erro ao criar label no Chatwoot. title=%s", label_title)
+            return None
+
+    def list_conversation_labels(self, conversation_id):
+        if conversation_id in (None, ""):
+            return []
+
+        url = self._get_api_url(f"conversations/{conversation_id}/labels")
+        try:
+            response = requests.get(url, headers=self.headers, timeout=10)
+            if response.status_code >= 400:
+                logger.warning(
+                    "Falha ao listar labels da conversa no Chatwoot. conversation_id=%s status=%s body=%s",
+                    conversation_id,
+                    response.status_code,
+                    response.text
+                )
+                return []
+
+            data = response.json()
+            payload = data.get("payload")
+            if isinstance(payload, list):
+                return [str(item).strip() for item in payload if str(item).strip()]
+            return []
+        except Exception:
+            logger.exception("Erro ao listar labels da conversa no Chatwoot. conversation_id=%s", conversation_id)
+            return []
+
+    def assign_labels_to_conversation(self, conversation_id, labels):
+        if conversation_id in (None, ""):
+            return None
+
+        normalized_labels = []
+        for label in labels or []:
+            text = self.normalize_label_title(label)
+            if text and text not in normalized_labels:
+                normalized_labels.append(text)
+
+        if not normalized_labels:
+            return None
+
+        url = self._get_api_url(f"conversations/{conversation_id}/labels")
+        payload = {"labels": normalized_labels}
+
+        try:
+            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            if response.status_code >= 400:
+                logger.warning(
+                    "Falha ao atribuir labels à conversa no Chatwoot. conversation_id=%s status=%s body=%s",
+                    conversation_id,
+                    response.status_code,
+                    response.text
+                )
+                return None
+
+            data = response.json()
+            if isinstance(data, dict):
+                payload = data.get("payload")
+                if isinstance(payload, list):
+                    return payload
+            return normalized_labels
+        except Exception:
+            logger.exception("Erro ao atribuir labels à conversa no Chatwoot. conversation_id=%s", conversation_id)
+            return None
+
+    def assign_label_to_conversation(self, conversation_id, label_title):
+        label_title = self.normalize_label_title(label_title)
+        if not label_title:
+            return None
+
+        # A API do Chatwoot sobrescreve as etiquetas da conversa.
+        # Por regra de negócio, sempre mantemos apenas a etiqueta mais recente.
+        return self.assign_labels_to_conversation(conversation_id, [label_title])
 
     def extract_message_tracking(self, response_payload):
         if not isinstance(response_payload, dict):

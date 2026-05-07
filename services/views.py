@@ -1641,6 +1641,38 @@ def service_order_send_budget(request, order_id):
                 'client_budget_approved_at',
                 'updated_at',
             ])
+
+            budget_sent_label = cw.get_label_by_title("Orçamento-Enviado") or cw.create_label("Orçamento-Enviado")
+            if budget_sent_label:
+                conversation_ids = []
+                for cid in (
+                    tracked_conversation_id,
+                    response.get('conversation_id') if isinstance(response, dict) else None,
+                    order.chatwoot_budget_conversation_id,
+                    str(conversation_id),
+                ):
+                    normalized_cid = str(cid).strip() if cid not in (None, '') else ''
+                    if normalized_cid and normalized_cid not in conversation_ids:
+                        conversation_ids.append(normalized_cid)
+
+                assigned_labels = None
+                for cid in conversation_ids:
+                    assigned_labels = cw.assign_label_to_conversation(
+                        cid,
+                        budget_sent_label.get("title", "Orçamento-Enviado")
+                    )
+                    if assigned_labels:
+                        break
+
+                if not assigned_labels:
+                    logger.warning(
+                        "Orçamento enviado, mas falhou ao atribuir etiqueta no Chatwoot. os=%s conversation_ids=%s",
+                        order.number,
+                        conversation_ids
+                    )
+            else:
+                logger.warning("Orçamento enviado, mas não foi possível criar/localizar etiqueta Orçamento-Enviado. os=%s", order.number)
+
             messages.success(request, success_msg)
         else:
             raise Exception("A API do Chatwoot não retornou uma confirmação de sucesso. Verifique as configurações e os logs do sistema.")
