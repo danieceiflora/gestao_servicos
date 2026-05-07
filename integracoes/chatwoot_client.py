@@ -25,6 +25,21 @@ class ChatwootClient:
     def _get_api_url(self, endpoint):
         return f"{self.base_url}/api/v1/accounts/{self.account_id}/{endpoint}"
 
+    def extract_message_tracking(self, response_payload):
+        if not isinstance(response_payload, dict):
+            return None, None
+
+        message_id = response_payload.get("id") or response_payload.get("source_id")
+        conversation_id = response_payload.get("conversation_id")
+
+        conversation = response_payload.get("conversation")
+        if not conversation_id and isinstance(conversation, dict):
+            conversation_id = conversation.get("id")
+
+        message_id = str(message_id) if message_id is not None else None
+        conversation_id = str(conversation_id) if conversation_id is not None else None
+        return message_id, conversation_id
+
     def get_meta_template(self, template_name):
         if not self.config.meta_waba_id or not self.config.meta_access_token:
             return None

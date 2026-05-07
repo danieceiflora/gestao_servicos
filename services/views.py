@@ -1629,6 +1629,18 @@ def service_order_send_budget(request, order_id):
             success_msg = f"Orçamento enviado com sucesso para {client_name} via WhatsApp!"
             
         if response:
+            message_id, tracked_conversation_id = cw.extract_message_tracking(response)
+            order.chatwoot_budget_message_id = message_id
+            order.chatwoot_budget_conversation_id = tracked_conversation_id or str(conversation_id)
+            order.client_budget_response = None
+            order.client_budget_approved_at = None
+            order.save(update_fields=[
+                'chatwoot_budget_message_id',
+                'chatwoot_budget_conversation_id',
+                'client_budget_response',
+                'client_budget_approved_at',
+                'updated_at',
+            ])
             messages.success(request, success_msg)
         else:
             raise Exception("A API do Chatwoot não retornou uma confirmação de sucesso. Verifique as configurações e os logs do sistema.")

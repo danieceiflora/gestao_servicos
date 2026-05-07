@@ -509,6 +509,12 @@ class ServiceOrder(models.Model):
     # Valores e Pagamento
     estimated_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Valor Estimado Total (R$)")
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto (R$)")
+
+    # Integração com Chatwoot (orçamento)
+    chatwoot_budget_message_id = models.CharField(max_length=100, null=True, blank=True, verbose_name="ID da Mensagem de Orçamento (Chatwoot)")
+    chatwoot_budget_conversation_id = models.CharField(max_length=100, null=True, blank=True, verbose_name="ID da Conversa (Chatwoot)")
+    client_budget_response = models.TextField(null=True, blank=True, verbose_name="Resposta do Cliente ao Orçamento")
+    client_budget_approved_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente aprovou o orçamento em")
     
     # Origem da OS
     origin_date = models.DateField(null=True, blank=True, verbose_name="Data de Origem")

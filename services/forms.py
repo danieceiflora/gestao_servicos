@@ -546,8 +546,8 @@ class TaskScheduleForm(forms.ModelForm):
             'status': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
-            'is_approved': forms.CheckboxInput(attrs={
-                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded'
+            'is_approved': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
             'payment_method': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
@@ -598,7 +598,20 @@ class TaskScheduleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['is_approved'].required = False
+        self.fields['is_approved'] = forms.TypedChoiceField(
+            label='Aprovado pelo Cliente',
+            choices=((True, 'Aprovado'), (False, 'Reprovado')),
+            coerce=lambda value: str(value).lower() in ('true', '1'),
+            required=False,
+            widget=forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+        )
+        if self.instance.pk:
+            self.initial['is_approved'] = self.instance.is_approved
+        else:
+            self.initial['is_approved'] = False
+
         self.fields['payment_method'].required = False
         if self.instance.pk:
             if self.instance.scheduled_at:

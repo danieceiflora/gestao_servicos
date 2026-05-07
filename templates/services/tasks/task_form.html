@@ -95,12 +95,10 @@
             <!-- Aprovação e Pagamento (Apenas para ADM/Gerente) -->
             {% if user.is_manager %}
             <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="flex items-center gap-3">
+                <div>
+                    <label for="{{ form.is_approved.id_for_label }}" class="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-2">Aprovado pelo Cliente</label>
                     {{ form.is_approved }}
-                    <div>
-                        <label for="{{ form.is_approved.id_for_label }}" class="text-sm font-bold text-blue-900">Aprovado pelo Cliente</label>
-                        <p class="text-[10px] text-blue-700">Necessário para iniciar execução</p>
-                    </div>
+                    <p class="text-[10px] text-blue-700 mt-1">Selecione entre Aprovado ou Reprovado.</p>
                 </div>
                 <div>
                     <label class="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-2">Método de Pagamento</label>
@@ -363,9 +361,16 @@
 
         function updateButtonState() {
             // Trava: Só permite iniciar se estiver aprovado
-            const isApproved = inputApproved ? inputApproved.checked : true; // Se o campo não existir (ex: colab), assume que o ADM já aprovou ou trata no backend
+            const isApproved = inputApproved
+                ? ['true', '1'].includes(String(inputApproved.value).toLowerCase())
+                : true; // Se o campo não existir (ex: colab), assume que o ADM já aprovou ou trata no backend
 
-            if (!inputStarted.value) {
+            if (!inputStarted.value && !isApproved) {
+                btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-100 text-amber-700 font-bold text-xs cursor-not-allowed';
+                executionText.innerText = 'Aguardando Aprovação';
+                executionIcon.setAttribute('data-lucide', 'pause-circle');
+                btnExecution.disabled = true;
+            } else if (!inputStarted.value) {
                 btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-all shadow-sm';
                 executionText.innerText = 'Iniciar Execução';
                 executionIcon.setAttribute('data-lucide', 'play');
@@ -390,6 +395,14 @@
         btnExecution.addEventListener('click', function() {
             const now = new Date();
             const formattedNow = formatDateTimeLocal(now);
+            const isApproved = inputApproved
+                ? ['true', '1'].includes(String(inputApproved.value).toLowerCase())
+                : true;
+
+            if (!inputStarted.value && !isApproved) {
+                updateButtonState();
+                return;
+            }
 
             if (!inputStarted.value) {
                 inputStarted.value = formattedNow;
@@ -405,6 +418,9 @@
         });
 
         updateButtonState();
+        if (inputApproved) {
+            inputApproved.addEventListener('change', updateButtonState);
+        }
     });
 </script>
 
