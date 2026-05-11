@@ -293,7 +293,6 @@ class ChatwootClient:
             if names:
                 return {name: str(value) for name, value in zip(names, vars_input)}
 
-            # Fallback: mantém estrutura nomeada com índices em string
             return {str(i + 1): str(v) for i, v in enumerate(vars_input)}
 
         if isinstance(vars_input, dict):
@@ -334,9 +333,10 @@ class ChatwootClient:
         except:
             return None
 
-    def send_template(self, conversation_id, template_name, variables=None, attachment=None, content=None):
+    def send_template(self, conversation_id, template_name, variables=None, attachment=None, content=None, header_variables=None, button_data=None):
         """
-        Envia um template HSM (via WhatsApp) usando o formato Flat Multipart exigido pelo Rails.
+        Envia um template HSM (via WhatsApp) suportando cabeçalho, corpo e botões (PIX/Order Details).
+        Utiliza a estrutura content_attributes exigida por certas integrações do Chatwoot.
         """
         debug_log = f"\n[CALL] send_template: conv={conversation_id}, template={template_name}\n"
         url = self._get_api_url(f"conversations/{conversation_id}/messages")
@@ -348,6 +348,7 @@ class ChatwootClient:
         language = template_def.get('language', 'pt_BR') if template_def else "pt_BR"
         category = template_def.get('category', 'UTILITY') if template_def else "UTILITY"
         parameter_format = self._resolve_template_parameter_format(template_def, variables)
+        
         body_params = self._build_template_body_params(template_def, variables, parameter_format)
 
         if not content or content == ".":
@@ -356,61 +357,96 @@ class ChatwootClient:
                 content = body_comp['text'] if body_comp else f"Template: {template_name}"
                 for key, value in body_params.items():
                     content = content.replace(f"{{{{{key}}}}}", str(value))
-
-                buttons_comp = next((c for c in template_def.get("components", []) if c.get("type") == "BUTTONS"), None)
-                button_texts = [b.get("text") for b in (buttons_comp or {}).get("buttons", []) if b.get("text")]
-                if button_texts and "[Botões]:" not in content:
-                    content = f"{content}\n\n[Botões]: {', '.join(button_texts)}"
             else:
                 content = f"Enviando template {template_name}..."
 
         try:
-            headers = {"api_access_token": self.token}
+            headers = {"api_access_token": self.token, "Content-Type": "application/json"}
             uploaded_header_media_url = None
             if attachment:
                 uploaded_header_media_url = self._upload_attachment_and_get_url(conversation_id, attachment)
              
-            # FORMATO FLAT: O segredo para o erro "must be of type hash" no multipart
-            data = {
-                "content": content,
-                "message_type": "template",
-                "private": "false",
-                "template_params[name]": template_name.strip(),
-                "template_params[language]": language,
-                "template_params[category]": category,
-                "template_params[parameter_format]": parameter_format,
+            # Montagem estruturada do content_attributes
+            content_attributes = {
+                "template_name": template_name.strip(),
+                "template_language": language,
+                "template_params": {
+                    "name": template_name.strip(),
+                    "category": category,
+                    "language": language,
+                    "processed_params": {
+                        "body": body_params
+                    }
+                }
             }
 
-            # Variáveis do Corpo no template_params
-            for key, value in body_params.items():
-                data[f"template_params[processed_params][body][{key}]"] = str(value)
+            # 1. Cabeçalho no processed_params
+            if attachment or header_variables:
+                content_attributes["template_params"]["processed_params"]["header"] = {}
+                if attachment:
+                    content_attributes["template_params"]["processed_params"]["header"]["media_type"] = "document"
+                    if uploaded_header_media_url:
+                        content_attributes["template_params"]["processed_params"]["header"]["media_url"] = uploaded_header_media_url
+                        content_attributes["template_params"]["processed_params"]["header"]["media_name"] = attachment[0]
+                
+                if header_variables:
+                    for i, val in enumerate(header_variables):
+                        content_attributes["template_params"]["processed_params"]["header"][str(i+1)] = str(val)
 
-            # Header no template_params
-            if attachment:
-                data["template_params[processed_params][header][media_type]"] = "document"
-                if uploaded_header_media_url:
-                    data["template_params[processed_params][header][media_url]"] = uploaded_header_media_url
-                    data["template_params[processed_params][header][media_name]"] = attachment[0]
+            # 2. Botões no processed_params
+            if button_data:
+                content_attributes["template_params"]["processed_params"]["buttons"] = []
+                b_type = button_data.get('type')
+                
+                if b_type == 'order_details':
+                    # VALOR COM OFFSET (ESTRUTURA META EXIGIDA)
+                    amount_val = int(float(button_data.get('total_amount', 0)) * 100)
+                    
+                    button_payload = {
+                        "index": 0,
+                        "type": "order_details",
+                        "parameter": {
+                            "reference_id": str(button_data.get('reference_id', '')),
+                            "type": "digital-goods",
+                            "payment_type": "br",
+                            "currency": "BRL",
+                            "total_amount": {
+                                "value": amount_val,
+                                "offset": 100
+                            },
+                            "payment_settings": [
+                                {
+                                    "type": "pix_dynamic_code",
+                                    "pix_dynamic_code": {
+                                        "merchant_name": self.config.company_name or "Empresa",
+                                        "pix_key": str(button_data.get('pix_key', '')),
+                                        "code": str(button_data.get('pix_code', ''))
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                    content_attributes["template_params"]["processed_params"]["buttons"].append(button_payload)
+                
+                elif b_type == 'copy_code':
+                    button_payload = {
+                        "index": 0,
+                        "type": "copy_code",
+                        "parameter": str(button_data.get('pix_code', ''))
+                    }
+                    content_attributes["template_params"]["processed_params"]["buttons"].append(button_payload)
 
-            # Content Attributes (Fallback/Legacy)
-            data["content_attributes[template_name]"] = template_name.strip()
-            data["content_attributes[template_language]"] = language
-            for i, (key, value) in enumerate(body_params.items()):
-                data[f"content_attributes[parameters][{i}][type]"] = "text"
-                data[f"content_attributes[parameters][{i}][text]"] = str(value)
-                if parameter_format == "NAMED":
-                    data[f"content_attributes[parameters][{i}][parameter_name]"] = str(key)
+            # Payload final do Chatwoot
+            payload = {
+                "content": content,
+                "message_type": "template",
+                "template_params": content_attributes["template_params"],
+                "content_attributes": content_attributes
+            }
 
-            files = []
-
-            debug_log += (
-                f"Template format: {parameter_format}\n"
-                f"Template body params: {json.dumps(body_params, ensure_ascii=False)}\n"
-                f"Header media_url: {uploaded_header_media_url}\n"
-                f"URL: {url}\nDATA: {json.dumps(data, indent=2, ensure_ascii=False)}\n"
-            )
+            debug_log += f"PAYLOAD JSON FINAL: {json.dumps(payload, indent=2, ensure_ascii=False)}\n"
             
-            response = requests.post(url, headers=headers, data=data, files=files, timeout=30)
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
             res_json = response.json()
             
             if response.status_code >= 400:

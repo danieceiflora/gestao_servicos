@@ -2,9 +2,11 @@ from django.urls import path
 from . import views
 from . import notifications
 from . import views_equipe
+from . import views_finance
 
 urlpatterns = [
     path('', views.home, name='home'),
+    path('finance/', views_finance.finance_dashboard, name='finance_dashboard'),
     path('politica-de-privacidade/', views.privacy_policy, name='privacy_policy'),
     path('exclusao-de-dados/', views.data_deletion_policy, name='data_deletion_policy'),
     path('termos-de-servico/', views.terms_of_service, name='terms_of_service'),

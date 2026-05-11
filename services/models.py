@@ -519,6 +519,9 @@ class ServiceOrder(models.Model):
     client_budget_responded_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente respondeu o orçamento em")
     client_budget_approved_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente aprovou o orçamento em")
     
+    # Controle de Cobrança
+    pix_sent_at = models.DateTimeField(null=True, blank=True, verbose_name="Cobrança/PIX enviada em")
+    
     # Origem da OS
     origin_date = models.DateField(null=True, blank=True, verbose_name="Data de Origem")
     originator = models.ForeignKey(

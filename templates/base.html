@@ -32,6 +32,7 @@
                 <a href="{% url 'equipe_task_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'equipe_task_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Tarefas</a>
                 {% else %}
                 <a href="{% url 'service_order_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Ordens</a>
+                <a href="{% url 'finance_dashboard' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'finance_dashboard' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Financeiro</a>
                 {% endif %}
                 
                 {% if user.is_staff %}

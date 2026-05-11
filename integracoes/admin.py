@@ -10,11 +10,19 @@ class SystemConfigAdmin(admin.ModelAdmin):
             'fields': ('company_name', 'company_cnpj', 'company_address', 'company_phone', 'company_website', 'company_logo')
         }),
         ('Integração Chatwoot (WhatsApp)', {
-            'fields': ('chatwoot_base_url', 'chatwoot_account_id', 'chatwoot_inbox_id', 'chatwoot_api_token', 'chatwoot_budget_template')
+            'fields': (
+                'chatwoot_base_url', 'chatwoot_account_id', 'chatwoot_inbox_id', 
+                'chatwoot_api_token', 'chatwoot_budget_template', 
+                'chatwoot_pix_template', 'chatwoot_pix_label'
+            )
         }),
         ('Integração Direta Meta (Fallback Templates)', {
             'fields': ('meta_waba_id', 'meta_access_token'),
             'description': 'Opcional: Use estes campos se o Chatwoot não conseguir listar seus templates automaticamente.'
+        }),
+        ('Dados Financeiros para PIX', {
+            'fields': ('pix_key', 'pix_bank', 'pix_recipient'),
+            'description': 'Estes dados serão enviados aos clientes nos templates de cobrança.'
         }),
     )
 

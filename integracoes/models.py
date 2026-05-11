@@ -43,6 +43,13 @@ class SystemConfig(models.Model):
     chatwoot_inbox_id = models.CharField('Inbox ID (WhatsApp)', max_length=50, blank=True, null=True, help_text='ID da caixa de entrada do WhatsApp')
     chatwoot_api_token = models.CharField('User API Access Token', max_length=255, blank=True, null=True, help_text='Token de acesso à API (do usuário/bot)')
     chatwoot_budget_template = models.CharField('Nome do Template de Orçamento', max_length=100, blank=True, null=True, help_text='Ex: enviar_orcamento_v1')
+    chatwoot_pix_template = models.CharField('Nome do Template de Cobrança/PIX', max_length=100, blank=True, null=True, help_text='Ex: enviar_pix_v1')
+    chatwoot_pix_label = models.CharField('Etiqueta para PIX Enviado', max_length=50, default='pix-enviado', help_text='Etiqueta que será aplicada na conversa ao enviar o PIX')
+
+    # Dados Financeiros para PIX
+    pix_key = models.CharField('Chave PIX', max_length=100, default='41426314000138')
+    pix_bank = models.CharField('Banco', max_length=100, default='Bradesco')
+    pix_recipient = models.CharField('Destinatário (Nome/Razão Social)', max_length=255, default='Dourados Calhas')
 
     # Configurações Diretas da Meta (WhatsApp Cloud API)
     meta_waba_id = models.CharField('WhatsApp Business Account ID', max_length=100, blank=True, null=True, help_text='Necessário para buscar definições de templates diretamente na Meta')
