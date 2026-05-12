@@ -155,13 +155,17 @@ class ChatwootClient:
             return None
 
     def assign_label_to_conversation(self, conversation_id, label_title):
-        label_title = self.normalize_label_title(label_title)
-        if not label_title:
+        normalized_title = self.normalize_label_title(label_title)
+        if not normalized_title:
             return None
+
+        # Garante que a etiqueta existe no Chatwoot antes de atribuir
+        if not self.get_label_by_title(normalized_title):
+            self.create_label(label_title)
 
         # A API do Chatwoot sobrescreve as etiquetas da conversa.
         # Por regra de negócio, sempre mantemos apenas a etiqueta mais recente.
-        return self.assign_labels_to_conversation(conversation_id, [label_title])
+        return self.assign_labels_to_conversation(conversation_id, [normalized_title])
 
     def extract_message_tracking(self, response_payload):
         if not isinstance(response_payload, dict):
