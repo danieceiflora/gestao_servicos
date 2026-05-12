@@ -1274,6 +1274,14 @@ def order_item_add(request, order_id):
                 item_data['description'] = service.name
                 item_data['unit_price'] = service.base_price
 
+            # Tenta usar o valor unitário enviado pelo formulário (caso tenha sido editado)
+            unit_price_raw = request.POST.get('unit_price')
+            if unit_price_raw:
+                try:
+                    item_data['unit_price'] = Decimal(unit_price_raw.replace(',', '.'))
+                except (InvalidOperation, TypeError):
+                    pass # Mantém o preço padrão do catálogo se o valor for inválido
+
             quantity_raw = (request.POST.get('quantity') or '1').strip().replace(',', '.')
             try:
                 quantity_value = Decimal(quantity_raw)
