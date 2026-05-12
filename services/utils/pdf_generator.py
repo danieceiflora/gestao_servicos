@@ -101,17 +101,25 @@ class BasePDFGenerator:
             except Exception:
                 pass
 
+        # Simplificando a estrutura para uma lista de parágrafos
         company_info = [
-            [Paragraph(self.config.company_name or "---", self.styles['CompanyTitle'])],
-            [Paragraph(f"CNPJ: {self.config.company_cnpj or '---'}", self.styles['Normal'])],
-            [Paragraph(f"Endereço: {self.config.company_address or '---'}", self.styles['Normal'])],
-            [Paragraph(f"Telefone: {self.config.company_phone or '---'} | Site: {self.config.company_website or '---'}", self.styles['Normal'])]
+            Paragraph(self.config.company_name or "---", self.styles['CompanyTitle']),
+            Paragraph(f"CNPJ: {self.config.company_cnpj or '---'}", self.styles['Normal']),
+            Paragraph(f"Endereço: {self.config.company_address or '---'}", self.styles['Normal']),
+            Paragraph(f"Telefone: {self.config.company_phone or '---'} | Site: {self.config.company_website or '---'}", self.styles['Normal'])
         ]
 
         if logo_file:
-            img = self._get_processed_image(logo_file, width=3*cm, height=3*cm)
+            # Aumentando a logo para 4.5cm e removendo restrição de altura fixa (será proporcional)
+            img = self._get_processed_image(logo_file, width=4.5*cm)
             if img:
-                header_table = Table([[img, company_info]], colWidths=[4*cm, 14*cm])
+                # Ajustando colunas para aproximar a informação da logo
+                header_table = Table([[img, company_info]], colWidths=[5*cm, 13*cm])
+                header_table.setStyle(TableStyle([
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ('ALIGN', (0,0), (0,0), 'LEFT'),
+                    ('LEFTPADDING', (1,0), (1,0), 0), # Remove o recuo entre logo e texto
+                ]))
             else:
                 header_table = Table([[company_info]], colWidths=[18*cm])
         else:
@@ -119,11 +127,10 @@ class BasePDFGenerator:
 
         header_table.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('ALIGN', (0,0), (0,0), 'CENTER'),
         ]))
         
         elements.append(header_table)
-        elements.append(Spacer(1, 1*cm))
+        elements.append(Spacer(1, 0.8*cm))
         return elements
 
     def _get_client_info(self):
