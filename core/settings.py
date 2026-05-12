@@ -211,7 +211,7 @@ WEBHOOK_SHARED_SECRET = (
     or ''
 ).strip()
 if not WEBHOOK_SHARED_SECRET:
-    webhook_secret_file = BASE_DIR / 'segredowebhook.md'
+    webhook_secret_file = BASE_DIR / 'segredowebhook_producao.md'
     if webhook_secret_file.exists():
         WEBHOOK_SHARED_SECRET = webhook_secret_file.read_text(encoding='utf-8').strip()
 if not WEBHOOK_SHARED_SECRET:
