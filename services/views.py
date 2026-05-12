@@ -11,6 +11,7 @@ import django.utils.timezone
 import logging
 from .notifications import send_push_notification
 from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from .utils.pdf_generator import BudgetPDFGenerator, CompletionPDFGenerator
 from integracoes.chatwoot_client import ChatwootClient
 from .models import (
@@ -26,6 +27,7 @@ from .forms import (
     ServicePaymentForm, ServiceOrderDiscountForm,
 )
 from .utils import check_professional_availability, format_phone_e164
+from .workflow import trigger_payment_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -711,6 +713,23 @@ def service_order_detail(request, order_id):
         'services_data': services_data,
         'any_task_has_checklist': any_task_has_checklist,
     })
+
+@login_required
+@permission_required('services.change_serviceorder', raise_exception=True)
+def resend_billing(request, pk):
+    """
+    View para re-enviar manualmente a cobrança (Pix + PDF) de uma OS.
+    """
+    order = get_object_or_404(ServiceOrder, id=pk)
+    
+    # Forçar limpeza do campo para permitir reenvio pelo workflow
+    order.pix_sent_at = None
+    order.save(update_fields=['pix_sent_at'])
+    
+    trigger_payment_workflow(order)
+    
+    messages.success(request, f"Workflow de cobrança reiniciado para a OS #{order.number}. A mensagem será enviada em instantes.")
+    return redirect('service_order_detail', order_id=order.id)
 
 @login_required
 @permission_required('services.change_serviceorder', raise_exception=True)
@@ -1715,3 +1734,38 @@ def service_order_send_budget(request, order_id):
         messages.error(request, f"Erro ao enviar orçamento: {str(e)}")
         
     return redirect('service_order_detail', order_id=order.id)
+
+
+# --- UPPY TEST VIEWS ---
+
+@login_required
+def uppy_test_page(request):
+    return render(request, 'services/uppy_test.html')
+
+@csrf_exempt
+@login_required
+def uppy_upload(request):
+    if request.method == 'POST' and request.FILES:
+        import os
+        from django.conf import settings
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+
+        file = request.FILES.get('file') or request.FILES.get('files[]')
+        if not file:
+            file = next(iter(request.FILES.values()))
+            
+        # Define um caminho temporário para teste
+        path = os.path.join('temp_uppy', file.name)
+        actual_path = default_storage.save(path, ContentFile(file.read()))
+        full_url = os.path.join(settings.MEDIA_URL, actual_path)
+
+        logger.info(f"Uppy upload salvo: {actual_path} ({file.size} bytes)")
+        
+        return JsonResponse({
+            'status': 'success', 
+            'url': full_url,
+            'filename': file.name,
+            'size': file.size
+        })
+    return JsonResponse({'status': 'error', 'message': 'No files received'}, status=400)

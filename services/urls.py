@@ -78,5 +78,10 @@ urlpatterns = [
     # Ocorrências
     path('occurrences/', views.occurrence_list, name='occurrence_list'),
     path('occurrences/<int:occurrence_id>/resolve/', views.occurrence_resolve, name='occurrence_resolve'),
+    
+    # Uppy Test
+    path('uppy-test/', views.uppy_test_page, name='uppy_test_page'),
+    path('api/uppy-upload/', views.uppy_upload, name='uppy_upload'),
+    path('os/<uuid:pk>/resend-billing/', views.resend_billing, name='service_order_resend_billing'),
 ]
 

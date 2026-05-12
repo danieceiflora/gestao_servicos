@@ -94,11 +94,11 @@ class BasePDFGenerator:
 
     def _get_header(self):
         elements = []
-        logo_path = None
+        logo_file = None
         if self.config.company_logo:
             try:
-                logo_path = self.config.company_logo.path
-            except ValueError:
+                logo_file = self.config.company_logo
+            except Exception:
                 pass
 
         company_info = [
@@ -108,9 +108,12 @@ class BasePDFGenerator:
             [Paragraph(f"Telefone: {self.config.company_phone or '---'} | Site: {self.config.company_website or '---'}", self.styles['Normal'])]
         ]
 
-        if logo_path and os.path.exists(logo_path):
-            img = RLImage(logo_path, width=3*cm, height=3*cm, kind='proportional')
-            header_table = Table([[img, company_info]], colWidths=[4*cm, 14*cm])
+        if logo_file:
+            img = self._get_processed_image(logo_file, width=3*cm, height=3*cm)
+            if img:
+                header_table = Table([[img, company_info]], colWidths=[4*cm, 14*cm])
+            else:
+                header_table = Table([[company_info]], colWidths=[18*cm])
         else:
             header_table = Table([[company_info]], colWidths=[18*cm])
 
@@ -128,9 +131,14 @@ class BasePDFGenerator:
         elements.append(Paragraph("DADOS DO CLIENTE", self.styles['SectionHeader']))
         client = self.service_order.client_property.client
         prop = self.service_order.client_property
+        
+        phone_val = "---"
+        if client.phones.exists():
+            phone_val = client.phones.first().phone
+
         data = [
             [Paragraph("Cliente:", self.styles['Label']), Paragraph(str(client.name or "---"), self.styles['Value'])],
-            [Paragraph("Telefone:", self.styles['Label']), Paragraph(str(client.phones.first().phone if client.phones.exists() else "---"), self.styles['Value'])],
+            [Paragraph("Telefone:", self.styles['Label']), Paragraph(str(phone_val), self.styles['Value'])],
             [Paragraph("Endereço:", self.styles['Label']), Paragraph(str(prop.full_address or "---"), self.styles['Value'])],
         ]
         table = Table(data, colWidths=[3*cm, 15*cm])
@@ -146,38 +154,48 @@ class BasePDFGenerator:
         elements.append(Spacer(1, 0.5*cm))
         return elements
 
-    def _get_processed_image(self, img_path, max_width=18*cm, max_height=12*cm):
-        """Prepara imagem com Pillow para garantir orientação e proporções corretas"""
+    def _get_processed_image(self, file_field, width=None, height=None, max_width=18*cm, max_height=12*cm):
+        """Prepara imagem a partir de um FileField do Django para garantir orientação e proporções corretas"""
         try:
-            if not os.path.exists(img_path):
+            if not file_field:
                 return None
             
-            with PILImage.open(img_path) as img:
-                # Corrigir orientação EXIF
-                img = ImageOps.exif_transpose(img)
-                
-                # Calcular proporções
-                img_w, img_h = img.size
-                aspect = img_w / float(img_h)
-                
-                target_w = max_width
-                target_h = target_w / aspect
-                
-                if target_h > max_height:
-                    target_h = max_height
-                    target_w = target_h * aspect
-                
-                # Salvar em buffer temporário para o ReportLab
-                temp_buffer = BytesIO()
-                # Converter para RGB se necessário (ex: RGBA -> RGB) para JPEG
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
-                img.save(temp_buffer, format="JPEG", quality=85)
-                temp_buffer.seek(0)
-                
-                return RLImage(temp_buffer, width=target_w, height=target_h)
+            with file_field.open('rb') as f:
+                with PILImage.open(f) as img:
+                    # Corrigir orientação EXIF
+                    img = ImageOps.exif_transpose(img)
+                    
+                    # Calcular proporções
+                    img_w, img_h = img.size
+                    aspect = img_w / float(img_h)
+                    
+                    if width and not height:
+                        target_w = width
+                        target_h = target_w / aspect
+                    elif height and not width:
+                        target_h = height
+                        target_w = target_h * aspect
+                    elif width and height:
+                        target_w = width
+                        target_h = height
+                    else:
+                        target_w = max_width
+                        target_h = target_w / aspect
+                        if target_h > max_height:
+                            target_h = max_height
+                            target_w = target_h * aspect
+                    
+                    # Salvar em buffer temporário para o ReportLab
+                    temp_buffer = BytesIO()
+                    # Converter para RGB se necessário (ex: RGBA -> RGB) para JPEG
+                    if img.mode in ("RGBA", "P"):
+                        img = img.convert("RGB")
+                    img.save(temp_buffer, format="JPEG", quality=85)
+                    temp_buffer.seek(0)
+                    
+                    return RLImage(temp_buffer, width=target_w, height=target_h)
         except Exception as e:
-            print(f"Erro ao processar imagem {img_path}: {e}")
+            print(f"Erro ao processar imagem: {e}")
             return None
 
 class BudgetPDFGenerator(BasePDFGenerator):
@@ -248,17 +266,15 @@ class BudgetPDFGenerator(BasePDFGenerator):
         for task in self.service_order.tasks.all():
             for media in task.medias.all():
                 if not media.is_video() and media.file:
-                    try:
-                        if os.path.exists(media.file.path): photos.append(media.file.path)
-                    except ValueError: continue
+                    photos.append(media.file)
         if photos:
             elements.append(PageBreak())
             elements.append(Paragraph("REGISTROS FOTOGRÁFICOS", self.styles['SectionHeader']))
             elements.append(Spacer(1, 0.5*cm))
             img_data = []
             row = []
-            for i, photo_path in enumerate(photos):
-                img = self._get_processed_image(photo_path, max_width=8.5*cm, max_height=7*cm)
+            for i, photo_file in enumerate(photos):
+                img = self._get_processed_image(photo_file, max_width=8.5*cm, max_height=7*cm)
                 if img:
                     row.append(img)
                     if (i + 1) % 2 == 0:
@@ -436,8 +452,9 @@ class CompletionPDFGenerator(BasePDFGenerator):
                         url = f"{settings.SITE_URL}{media.file.url}" if hasattr(settings, 'SITE_URL') else media.file.url
                         item_elements.append(Paragraph(f'<link href="{url}"><font color="blue">🎬 Ver Vídeo</font></link>', self.styles['ChecklistResponse']))
                     elif media.file:
-                        img = self._get_processed_image(media.file.path, max_width=6*cm, max_height=5*cm)
+                        img = self._get_processed_image(media.file, max_width=6*cm, max_height=5*cm)
                         if img: item_elements.append(img)
+
                 checklist_data.append([item_elements])
             table = Table(checklist_data, colWidths=[18*cm])
             table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, self.grid_color), ('TOPPADDING', (0,0), (-1,-1), 6), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('LEFTPADDING', (0,0), (-1,-1), 6)]))
@@ -452,9 +469,7 @@ class CompletionPDFGenerator(BasePDFGenerator):
             for media in task.medias.all():
                 if media.is_video(): videos.append(media)
                 elif media.file:
-                    try:
-                        if os.path.exists(media.file.path): photos.append(media.file.path)
-                    except ValueError: continue
+                    photos.append(media.file)
         if photos or videos:
             elements.append(PageBreak())
             elements.append(Paragraph("EVIDÊNCIAS GERAIS", self.styles['SectionHeader']))
@@ -467,8 +482,8 @@ class CompletionPDFGenerator(BasePDFGenerator):
             if photos:
                 elements.append(Paragraph("REGISTROS FOTOGRÁFICOS:", self.styles['Label']))
                 img_data, row = [], []
-                for i, photo_path in enumerate(photos):
-                    img = self._get_processed_image(photo_path, max_width=8.5*cm, max_height=7*cm)
+                for i, photo_file in enumerate(photos):
+                    img = self._get_processed_image(photo_file, max_width=8.5*cm, max_height=7*cm)
                     if img:
                         row.append(img)
                         if (i + 1) % 2 == 0: img_data.append(row); row = []

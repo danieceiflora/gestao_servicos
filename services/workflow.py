@@ -59,7 +59,7 @@ def run_payment_request_workflow(service_order_id):
 
         conversation_id = conversation.get('id')
 
-        # 6. Enviar Template de PIX com PDF Anexo
+        # 6. Enviar Template de PIX com PDF Anexo (Header)
         # O attachment deve ser uma tupla (nome_arquivo, conteudo, tipo_mime)
         filename = f"Execucao_OS_{service_order.number}.pdf"
         attachment = (filename, pdf_content, 'application/pdf')
@@ -70,8 +70,8 @@ def run_payment_request_workflow(service_order_id):
         total_value_float = float(service_order.balance_due)
         total_value_str = f"{total_value_float:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
         
-        # Variáveis do Corpo (Dinâmicas via Configurações Globais)
-        # Ordem: 1.OS, 2.Valor, 3.Chave Pix, 4.Banco e Destinatário
+        # Variáveis do Corpo (4 variáveis conforme solicitado)
+        # 1. numero os, 2. valor do serviço, 3. chave pix, 4. Banco + Destinatario
         body_variables = [
             str(service_order.number),
             total_value_str,            # Valor formatado
@@ -79,21 +79,13 @@ def run_payment_request_workflow(service_order_id):
             f"{config.pix_bank} - {config.pix_recipient}" # Banco e Destinatário combinados
         ]
 
-        # Configurações do Botão (Tipo Order Details)
-        button_data = {
-            'type': 'order_details',
-            'reference_id': f"OS-{service_order.number}",
-            'total_amount': total_value_float,
-            'pix_key': config.pix_key,
-            'pix_code': config.pix_key # Idealmente o copia e cola completo
-        }
-
+        # Enviar Template com Header tipo PDF e sem botões
         response = client.send_template(
             conversation_id=conversation_id,
             template_name=config.chatwoot_pix_template,
             variables=body_variables,
-            button_data=button_data,
-            attachment=attachment
+            attachment=attachment,
+            button_data=None
         )
 
         if response:

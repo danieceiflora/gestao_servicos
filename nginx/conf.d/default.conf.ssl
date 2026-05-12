@@ -32,8 +32,8 @@ server {
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
     
-    # Aumentar limite de upload se necessário (ex: 20M)
-    client_max_body_size 50M;
+    # Aumentar limite de upload para 200MB
+    client_max_body_size 200M;
 
     location / {
         proxy_pass http://django_app;
