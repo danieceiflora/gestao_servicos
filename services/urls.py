@@ -28,6 +28,7 @@ urlpatterns = [
     path('equipe/pagamento/<int:payment_id>/editar/', views_equipe.equipe_payment_edit, name='equipe_payment_edit'),
     path('equipe/pagamento/<int:payment_id>/excluir/', views_equipe.equipe_payment_delete, name='equipe_payment_delete'),
     path('equipe/propriedade/<uuid:property_id>/atualizar-gps/', views_equipe.equipe_update_gps, name='equipe_update_gps'),
+    path('api/equipe/agenda-do-dia/', views_equipe.api_equipe_agenda_do_dia, name='api_equipe_agenda_do_dia'),
 
     # Clientes
     path('clients/', views.client_list, name='client_list'),

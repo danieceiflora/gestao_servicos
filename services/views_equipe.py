@@ -457,6 +457,95 @@ def equipe_payment_edit(request, payment_id):
     return render(request, 'services/equipe/payment_edit.html', context)
 
 @login_required
+def api_equipe_agenda_do_dia(request):
+    """
+    Endpoint que retorna todos os dados necessários para o funcionamento offline
+    das tarefas do técnico no dia atual.
+    """
+    try:
+        professional = request.user.professional_profile
+    except Professional.DoesNotExist:
+        return JsonResponse({'error': 'Usuário não vinculado a um perfil profissional.'}, status=400)
+
+    # Filtra as tarefas do dia atual (ou próximas 24h)
+    today = timezone.now().date()
+    tasks_qs = ServiceOrderTask.objects.filter(
+        team_members__professional=professional,
+        scheduled_at__date=today
+    ).select_related(
+        'service_order',
+        'service_order__client_property',
+        'service_order__client_property__client'
+    ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED).distinct()
+
+    data = {
+        'date': today.isoformat(),
+        'technician': professional.name,
+        'tasks': []
+    }
+
+    for task in tasks_qs:
+        order = task.service_order
+        prop = order.client_property
+        client = prop.client
+
+        # --- Coleta Itens do Checklist ---
+        # 1. Identifica todos os serviços incluídos nesta OS
+        order_services = Service.objects.filter(service_items__service_order=order).distinct()
+        
+        checklist_items_data = []
+        seen_ids = set()
+
+        # Coletar itens dos serviços e templates
+        for service in order_services:
+            items = list(service.checklist_items.filter(is_active=True))
+            if service.checklist_template:
+                items.extend(list(service.checklist_template.items.filter(is_active=True)))
+            
+            for item in items:
+                if item.id not in seen_ids:
+                    # Tenta pegar resposta existente
+                    resp, _ = TaskChecklistResponse.objects.get_or_create(task=task, item=item)
+                    checklist_items_data.append({
+                        'response_id': resp.id,
+                        'item_id': item.id,
+                        'name': item.name,
+                        'description': item.description,
+                        'evidence_type': item.evidence_type,
+                        'is_required': item.is_required,
+                        'completed': resp.completed,
+                        'text_response': resp.text_response or ''
+                    })
+                    seen_ids.add(item.id)
+
+        task_data = {
+            'id': str(task.id),
+            'type': task.get_task_type_display(),
+            'task_type': task.task_type,
+            'status': task.status,
+            'scheduled_at': task.scheduled_at.isoformat(),
+            'started_at': task.started_at.isoformat() if task.started_at else None,
+            'finished_at': task.finished_at.isoformat() if task.finished_at else None,
+            'notes': task.notes,
+            'order_details': {
+                'id': str(order.id),
+                'number': order.number,
+                'status_display': order.get_status_display(),
+                'client_name': client.display_name,
+                'client_phone': client.phones.filter(is_primary=True).first().phone if client.phones.filter(is_primary=True).exists() else '',
+                'address': prop.full_address,
+                'gps': {
+                    'lat': float(prop.latitude) if prop.latitude else None,
+                    'lng': float(prop.longitude) if prop.longitude else None
+                }
+            },
+            'checklist': checklist_items_data
+        }
+        data['tasks'].append(task_data)
+
+    return JsonResponse(data)
+
+@login_required
 def equipe_update_gps(request, property_id):
     if request.method == 'POST':
         try:

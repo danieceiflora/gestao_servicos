@@ -127,7 +127,7 @@
         <!-- BOTÃO INICIAR (Sempre visível se não iniciado) -->
         {% if not task.started_at and task.task_type != 'BUDGET' %}
             <div class="py-2">
-                <form action="{% url 'equipe_task_start' task.id %}" method="POST">
+                <form id="start-task-form" action="{% url 'equipe_task_start' task.id %}" method="POST">
                     {% csrf_token %}
                     <button type="submit" class="w-full relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white font-bold text-base shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 active:scale-[0.98] transition-all h-14 flex items-center justify-center">
                         <i data-lucide="play" class="w-5 h-5 mr-2"></i>
@@ -698,6 +698,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const checklistFiles = document.querySelectorAll('.js-checklist-file');
 
     function updateChecklistItem(responseId, data, isFile = false) {
+        // Se estiver offline e NÃO for arquivo, salva na fila
+        if (!navigator.onLine && !isFile) {
+            OfflineDB.enqueueSyncItem('CHECKLIST_UPDATE', {
+                task_id: '{{ task.id }}',
+                data: { response_id: responseId, ...data }
+            });
+            // Feedback visual imediato mesmo offline
+            const itemContainer = document.getElementById(`checklist-item-${responseId}`);
+            if (itemContainer) {
+                itemContainer.classList.add('ring-1', 'ring-orange-400');
+                setTimeout(() => itemContainer.classList.remove('ring-1', 'ring-orange-400'), 1500);
+            }
+            return Promise.resolve({ success: true, offline: true });
+        }
+
         const formData = new FormData();
         formData.append('response_id', responseId);
         formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
@@ -728,8 +743,26 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(err => {
+            if (!navigator.onLine) {
+                // Fallback silencioso se cair a net durante a requisição
+                return { success: true, offline: true };
+            }
             alert('Erro ao salvar item do check-list: ' + err.message);
             if (itemContainer) itemContainer.classList.remove('opacity-70');
+        });
+    }
+
+    // Interceptar Início de Tarefa Offline
+    const startTaskForm = document.getElementById('start-task-form');
+    if (startTaskForm) {
+        startTaskForm.addEventListener('submit', function(e) {
+            if (!navigator.onLine) {
+                e.preventDefault();
+                OfflineDB.enqueueSyncItem('TASK_START', { task_id: '{{ task.id }}' });
+                alert('Modo Offline: O início da tarefa foi registrado localmente e será sincronizado assim que houver internet.');
+                // Simula visualmente que iniciou (opcional, pode recarregar se houver shell offline)
+                window.location.reload(); 
+            }
         });
     }
 
