@@ -37,47 +37,40 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // 1. NÃO interceptar requisições que não sejam GET (POST de login, uploads, etc)
+    // 1. IGNORAR requisições que não sejam GET
     if (event.request.method !== 'GET') return;
 
     const url = new URL(event.request.url);
 
-    // 2. IGNORAR rotas administrativas e de autenticação do Django
-    // Isso permite que redirecionamentos de login funcionem sem interferência do SW
-    if (url.pathname.startsWith('/admin/') || 
-        url.pathname.startsWith('/accounts/') ||
-        url.pathname.startsWith('/login/')) {
-        return;
-    }
-
-    // 3. ESTRATÉGIA PARA APIs: Network First (com fallback para cache se existir)
-    if (url.pathname.startsWith('/api/')) {
-        event.respondWith(
-            fetch(event.request)
-                .catch(() => caches.match(event.request))
-        );
-        return;
-    }
-
-    // 4. ESTRATÉGIA PARA NAVEGAÇÃO (Páginas HTML):
-    // Se for uma navegação, tentamos a rede primeiro para evitar o erro de redirecionamento.
-    // Se falhar (offline), entregamos o cache.
+    // 2. BYPASS TOTAL para Navegação (Páginas HTML)
+    // Deixamos o navegador lidar com redirecionamentos (302) nativamente.
+    // Só intervimos se a rede falhar (offline).
     if (event.request.mode === 'navigate') {
         event.respondWith(
             fetch(event.request).catch(() => {
-                return caches.match('/') || caches.match(event.request);
+                return caches.match(event.request) || caches.match('/');
             })
         );
         return;
     }
 
-    // 5. ESTRATÉGIA PARA ASSETS (CSS, JS, Imagens): Cache First / Stale-While-Revalidate
+    // 3. IGNORAR rotas de admin/contas (redundante mas seguro)
+    if (url.pathname.startsWith('/admin/') || url.pathname.startsWith('/accounts/')) {
+        return;
+    }
+
+    // 4. APIs: Network First
+    if (url.pathname.startsWith('/api/')) {
+        event.respondWith(
+            fetch(event.request).catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
+    // 5. Assets (CSS, JS, Imagens): Cache First
     event.respondWith(
-        caches.match(event.request).then((cachedResponse) => {
-            if (cachedResponse) {
-                return cachedResponse;
-            }
-            return fetch(event.request);
+        caches.match(event.request).then((response) => {
+            return response || fetch(event.request);
         })
     );
 });
