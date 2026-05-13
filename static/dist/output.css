@@ -76,6 +76,7 @@
     --color-rose-500: oklch(64.5% 0.246 16.439);
     --color-rose-600: oklch(58.6% 0.253 17.585);
     --color-rose-700: oklch(51.4% 0.222 16.935);
+    --color-rose-800: oklch(45.5% 0.188 13.697);
     --color-rose-900: oklch(41% 0.159 10.272);
     --color-slate-50: oklch(98.4% 0.003 247.858);
     --color-slate-100: oklch(96.8% 0.007 247.896);
@@ -753,9 +754,6 @@
   .w-0 {
     width: calc(var(--spacing) * 0);
   }
-  .w-1 {
-    width: calc(var(--spacing) * 1);
-  }
   .w-1\.5 {
     width: calc(var(--spacing) * 1.5);
   }
@@ -1384,12 +1382,6 @@
   .bg-emerald-50 {
     background-color: var(--color-emerald-50);
   }
-  .bg-emerald-50\/30 {
-    background-color: color-mix(in srgb, oklch(97.9% 0.021 166.113) 30%, transparent);
-    @supports (color: color-mix(in lab, red, red)) {
-      background-color: color-mix(in oklab, var(--color-emerald-50) 30%, transparent);
-    }
-  }
   .bg-emerald-50\/50 {
     background-color: color-mix(in srgb, oklch(97.9% 0.021 166.113) 50%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
@@ -1458,12 +1450,6 @@
   }
   .bg-rose-50 {
     background-color: var(--color-rose-50);
-  }
-  .bg-rose-50\/50 {
-    background-color: color-mix(in srgb, oklch(96.9% 0.015 12.422) 50%, transparent);
-    @supports (color: color-mix(in lab, red, red)) {
-      background-color: color-mix(in oklab, var(--color-rose-50) 50%, transparent);
-    }
   }
   .bg-rose-100 {
     background-color: var(--color-rose-100);
@@ -2070,9 +2056,6 @@
   .text-blue-900 {
     color: var(--color-blue-900);
   }
-  .text-emerald-500 {
-    color: var(--color-emerald-500);
-  }
   .text-emerald-600 {
     color: var(--color-emerald-600);
   }
@@ -2150,6 +2133,9 @@
   }
   .text-rose-700 {
     color: var(--color-rose-700);
+  }
+  .text-rose-800 {
+    color: var(--color-rose-800);
   }
   .text-rose-900 {
     color: var(--color-rose-900);
@@ -3261,11 +3247,6 @@
   .active\:scale-\[0\.98\] {
     &:active {
       scale: 0.98;
-    }
-  }
-  .active\:bg-rose-100 {
-    &:active {
-      background-color: var(--color-rose-100);
     }
   }
   .active\:bg-slate-50 {
