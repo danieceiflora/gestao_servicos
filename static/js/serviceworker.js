@@ -37,7 +37,15 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+    // Não interceptar requisições que não sejam GET (ex: POST de login, uploads)
+    if (event.request.method !== 'GET') return;
+
     const url = new URL(event.request.url);
+
+    // Ignorar rotas de admin ou login do Django para evitar problemas de CSRF e Redirecionamento
+    if (url.pathname.startsWith('/admin/') || url.pathname.startsWith('/accounts/')) {
+        return;
+    }
 
     // Estratégia para APIs: Network First
     if (url.pathname.startsWith('/api/')) {
@@ -51,9 +59,20 @@ self.addEventListener('fetch', (event) => {
     // Estratégia para Assets/Páginas: Stale-While-Revalidate ou Cache First
     event.respondWith(
         caches.match(event.request).then((response) => {
-            return response || fetch(event.request).then((fetchResponse) => {
-                // Opcional: Adicionar novas páginas ao cache dinamicamente
+            if (response) {
+                return response;
+            }
+
+            return fetch(event.request).then((fetchResponse) => {
+                // Se a resposta for um redirecionamento, retornar ela diretamente sem cachear
+                // ou deixar o browser lidar se for um problema de segurança
+                if (fetchResponse.redirected) {
+                    return fetchResponse;
+                }
                 return fetchResponse;
+            }).catch(() => {
+                // Fallback offline se necessário
+                return caches.match('/');
             });
         })
     );
