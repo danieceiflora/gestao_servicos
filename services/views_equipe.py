@@ -377,6 +377,80 @@ def equipe_task_add_payment(request, task_id):
     return redirect('equipe_task_detail', task_id=task.id)
 
 @login_required
+def equipe_payment_delete(request, payment_id):
+    """Permite ao técnico excluir um pagamento que ele registrou, enquanto estiver PENDENTE."""
+    from .models import ServicePayment
+    payment = get_object_or_404(ServicePayment, id=payment_id)
+    
+    # Segurança: Apenas se estiver pendente e for o próprio técnico (ou admin)
+    if payment.status != ServicePayment.PaymentStatus.PENDING:
+        messages.error(request, "Este pagamento já foi processado e não pode ser excluído.")
+        return redirect('equipe_task_detail', task_id=request.GET.get('task_id', payment.order.tasks.first().id))
+
+    try:
+        professional = request.user.professional_profile
+        if not request.user.is_manager and payment.received_by != professional:
+            messages.error(request, "Você não tem permissão para excluir este pagamento.")
+            return redirect('equipe_task_detail', task_id=request.GET.get('task_id', payment.order.tasks.first().id))
+    except Professional.DoesNotExist:
+        if not request.user.is_manager:
+            messages.error(request, "Perfil profissional não encontrado.")
+            return redirect('home')
+
+    if request.method == 'POST':
+        payment.delete()
+        messages.success(request, "Registro de pagamento excluído.")
+        
+    task_id = request.GET.get('task_id')
+    if task_id:
+        return redirect('equipe_task_detail', task_id=task_id)
+    return redirect('home')
+
+@login_required
+def equipe_payment_edit(request, payment_id):
+    """Permite ao técnico editar um pagamento pendente."""
+    from .models import ServicePayment
+    payment = get_object_or_404(ServicePayment, id=payment_id)
+    task_id = request.GET.get('task_id')
+    
+    if payment.status != ServicePayment.PaymentStatus.PENDING:
+        messages.error(request, "Este pagamento já foi processado e não pode ser editado.")
+        return redirect('equipe_task_detail', task_id=task_id) if task_id else redirect('home')
+
+    if request.method == 'POST':
+        try:
+            amount = Decimal(request.POST.get('amount', '0').replace(',', '.'))
+            method = request.POST.get('payment_method')
+            notes = request.POST.get('notes', '').strip()
+            
+            if amount <= 0:
+                messages.error(request, 'O valor deve ser maior que zero.')
+            elif method not in ['CASH', 'CREDIT_CARD']:
+                messages.error(request, 'Método inválido.')
+            else:
+                payment.amount = amount
+                payment.payment_method = method
+                # Preserva o prefixo se existir, ou adiciona
+                clean_notes = notes.replace('[Registrado pelo Técnico]: ', '')
+                payment.notes = f"[Registrado pelo Técnico]: {clean_notes}" if clean_notes else "Registrado pelo técnico"
+                payment.save()
+                messages.success(request, "Pagamento atualizado com sucesso.")
+                if task_id:
+                    return redirect('equipe_task_detail', task_id=task_id)
+                return redirect('home')
+        except Exception as e:
+            messages.error(request, f"Erro: {str(e)}")
+
+    context = {
+        'payment': payment,
+        'clean_notes': payment.notes.replace('[Registrado pelo Técnico]: ', '') if payment.notes else '',
+        'task_id': task_id,
+        'title': 'Editar Pagamento',
+        'layout_base': 'base.html' if request.user.is_manager else 'base_equipe.html'
+    }
+    return render(request, 'services/equipe/payment_edit.html', context)
+
+@login_required
 def equipe_update_gps(request, property_id):
     if request.method == 'POST':
         try:

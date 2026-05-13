@@ -1,43 +1,62 @@
-{% extends "base.html" %}
+{% extends layout_base|default:"base.html" %}
 {% load static %}
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto py-8 px-4">
+<div class="max-w-7xl mx-auto py-4 md:py-8 px-4">
     <!-- Header -->
-    <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <h1 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                 <div class="h-10 w-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
                     <i data-lucide="banknote" class="h-6 w-6"></i>
                 </div>
-                Baixa de Pagamentos (Técnicos)
+                {{ title }}
             </h1>
-            <p class="text-slate-500 mt-1 font-medium">Confirme o recebimento de valores coletados pela equipe em campo.</p>
+            <p class="text-slate-500 mt-1 font-medium text-sm">
+                {% if is_manager %}
+                    Confirme o recebimento de valores coletados pela equipe em campo.
+                {% else %}
+                    Acompanhe os pagamentos que você recebeu em campo.
+                {% endif %}
+            </p>
         </div>
 
-        <!-- Professional Filter -->
-        <form method="GET" class="flex items-center gap-2">
-            <select name="professional" onchange="this.form.submit()" class="rounded-xl border-slate-200 text-sm focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm min-w-[200px]">
-                <option value="">Todos os Profissionais</option>
-                {% for prof in professionals %}
-                    <option value="{{ prof.id }}" {% if selected_professional == prof.id|stringformat:"s" %}selected{% endif %}>{{ prof.name }}</option>
-                {% endfor %}
-            </select>
-            {% if selected_professional %}
-                <a href="{% url 'finance_professional_payments' %}" class="p-2 text-slate-400 hover:text-rose-500 transition-colors" title="Limpar Filtro">
-                    <i data-lucide="x-circle" class="h-5 w-5"></i>
+        <!-- Filters -->
+        <div class="flex flex-wrap items-center gap-2">
+            <!-- Status Tabs Style -->
+            <div class="inline-flex p-1 bg-slate-100 rounded-xl">
+                <a href="?status=PENDING{% if selected_professional %}&professional={{ selected_professional }}{% endif %}" 
+                   class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all {% if status_filter == 'PENDING' %}bg-white text-emerald-600 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+                    Pendentes
                 </a>
+                <a href="?status=CONFIRMED{% if selected_professional %}&professional={{ selected_professional }}{% endif %}" 
+                   class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all {% if status_filter == 'CONFIRMED' %}bg-white text-emerald-600 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+                    Baixados
+                </a>
+            </div>
+
+            {% if is_manager %}
+            <form method="GET" class="flex items-center gap-2">
+                <input type="hidden" name="status" value="{{ status_filter }}">
+                <select name="professional" onchange="this.form.submit()" class="rounded-xl border-slate-200 text-xs font-bold focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm min-w-[180px]">
+                    <option value="">Todos os Profissionais</option>
+                    {% for prof in professionals %}
+                        <option value="{{ prof.id }}" {% if selected_professional == prof.id|stringformat:"s" %}selected{% endif %}>{{ prof.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
             {% endif %}
-        </form>
+        </div>
     </div>
 
-    <!-- Bulk Action Form -->
+    <!-- Bulk Action Form (Only for managers and PENDING status) -->
     <form action="{% url 'finance_bulk_confirm_payments' %}" method="POST" id="bulk-confirm-form">
         {% csrf_token %}
         
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <!-- Bulk Action Toolbar (Hidden until selection) -->
+            {% if is_manager and status_filter == 'PENDING' %}
+            <!-- Bulk Action Toolbar -->
             <div id="bulk-toolbar" class="hidden bg-emerald-50 border-b border-emerald-100 p-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300">
                 <div class="flex items-center gap-3">
                     <span class="text-emerald-800 font-bold text-sm" id="selection-counter">0 selecionados</span>
@@ -48,40 +67,51 @@
                     Dar Baixa em Lote
                 </button>
             </div>
+            {% endif %}
 
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-slate-50/50 border-b border-slate-100">
+                            {% if is_manager and status_filter == 'PENDING' %}
                             <th class="p-4 w-10">
                                 <input type="checkbox" id="master-checkbox" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
                             </th>
+                            {% endif %}
                             <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Data / OS</th>
+                            {% if is_manager %}
                             <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Profissional</th>
+                            {% endif %}
                             <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Cliente</th>
                             <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Método</th>
                             <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Valor</th>
+                            {% if status_filter == 'PENDING' or is_manager %}
                             <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Ações</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-50">
                         {% for payment in payments %}
                         <tr class="hover:bg-slate-50/50 transition-colors group">
+                            {% if is_manager and status_filter == 'PENDING' %}
                             <td class="p-4">
                                 <input type="checkbox" name="payment_ids" value="{{ payment.id }}" class="payment-checkbox rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
                             </td>
+                            {% endif %}
                             <td class="p-4">
                                 <div class="font-bold text-slate-900 text-sm">OS #{{ payment.order.number }}</div>
                                 <div class="text-[10px] text-slate-400 font-medium">{{ payment.paid_at|date:"d/m/Y H:i" }}</div>
                             </td>
+                            {% if is_manager %}
                             <td class="p-4">
                                 <div class="flex items-center gap-2">
-                                    <div class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200 overflow-hidden">
+                                    <div class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200 overflow-hidden shrink-0">
                                         <i data-lucide="user" class="h-4 w-4"></i>
                                     </div>
-                                    <span class="text-sm font-medium text-slate-700">{{ payment.received_by.name|default:"Administrador" }}</span>
+                                    <span class="text-sm font-medium text-slate-700 truncate max-w-[120px]">{{ payment.received_by.name|default:"Admin" }}</span>
                                 </div>
                             </td>
+                            {% endif %}
                             <td class="p-4">
                                 <div class="text-sm font-semibold text-slate-800">{{ payment.order.client_property.client.name }}</div>
                                 <div class="text-[10px] text-slate-400 truncate max-w-[200px]">{{ payment.order.client_property.address }}</div>
@@ -95,9 +125,32 @@
                                 <div class="text-sm font-black text-slate-900">R$ {{ payment.amount }}</div>
                             </td>
                             <td class="p-4 text-center">
-                                <button type="button" onclick="confirmPayment('{{ payment.id }}', '{{ payment.amount }}', '{{ payment.order.number }}')" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dar Baixa Individual">
-                                    <i data-lucide="check-circle" class="h-5 w-5"></i>
-                                </button>
+                                <div class="flex items-center justify-center gap-1">
+                                    {% if status_filter == 'PENDING' %}
+                                        {% if is_manager %}
+                                            <button type="button" onclick="confirmPayment('{{ payment.id }}', '{{ payment.amount }}', '{{ payment.order.number }}')" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dar Baixa Individual">
+                                                <i data-lucide="check-circle" class="h-5 w-5"></i>
+                                            </button>
+                                        {% else %}
+                                            <a href="{% url 'equipe_payment_edit' payment.id %}" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar">
+                                                <i data-lucide="edit-3" class="h-5 w-5"></i>
+                                            </a>
+                                            <form action="{% url 'equipe_payment_delete' payment.id %}" method="POST" onsubmit="return confirm('Excluir este registro?');" class="inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Excluir">
+                                                    <i data-lucide="trash-2" class="h-5 w-5"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    {% else %}
+                                        <div class="text-emerald-600 flex items-center gap-1" title="Baixa realizada em {{ payment.confirmed_at|date:'d/m/Y' }}">
+                                            <i data-lucide="shield-check" class="h-5 w-5"></i>
+                                            {% if is_manager %}
+                                            <span class="text-[10px] font-bold hidden md:inline">Baixado</span>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% empty %}
@@ -105,10 +158,12 @@
                             <td colspan="7" class="p-12 text-center">
                                 <div class="flex flex-col items-center justify-center">
                                     <div class="h-16 w-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-4">
-                                        <i data-lucide="check-check" class="h-8 w-8"></i>
+                                        <i data-lucide="{% if status_filter == 'PENDING' %}check-check{% else %}banknote{% endif %}" class="h-8 w-8"></i>
                                     </div>
-                                    <h3 class="text-lg font-bold text-slate-800">Tudo em dia!</h3>
-                                    <p class="text-slate-500">Não há pagamentos pendentes de baixa para os filtros selecionados.</p>
+                                    <h3 class="text-lg font-bold text-slate-800">
+                                        {% if status_filter == 'PENDING' %}Tudo em dia!{% else %}Nenhum recebimento baixado{% endif %}
+                                    </h3>
+                                    <p class="text-slate-500">Não há registros para os filtros selecionados.</p>
                                 </div>
                             </td>
                         </tr>
@@ -136,6 +191,7 @@
     const selectAllBtn = document.getElementById('select-all-btn');
 
     function updateToolbar() {
+        if (!bulkToolbar) return;
         const checkedCount = document.querySelectorAll('.payment-checkbox:checked').length;
         if (checkedCount > 0) {
             bulkToolbar.classList.remove('hidden');
@@ -143,7 +199,7 @@
         } else {
             bulkToolbar.classList.add('hidden');
         }
-        masterCheckbox.checked = checkedCount === checkboxes.length && checkboxes.length > 0;
+        if (masterCheckbox) masterCheckbox.checked = checkedCount === checkboxes.length && checkboxes.length > 0;
     }
 
     masterCheckbox?.addEventListener('change', function() {

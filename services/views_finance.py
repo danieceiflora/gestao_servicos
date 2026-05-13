@@ -280,26 +280,50 @@ def export_finance_pdf(grouped_data, month, year):
     return response
 
 @login_required
-@user_passes_test(is_manager)
 def finance_professional_payments(request):
     """
-    Lista pagamentos recebidos por técnicos que aguardam baixa (status PENDING).
-    Também permite filtrar por profissional.
+    Lista pagamentos recebidos por técnicos.
+    Se for gerente, vê todos (com filtro).
+    Se for técnico, vê apenas os seus.
     """
     professional_id = request.GET.get('professional')
+    status_filter = request.GET.get('status', 'PENDING')
     
-    payments = ServicePayment.objects.filter(status='PENDING').select_related(
+    payments = ServicePayment.objects.select_related(
         'order', 'order__client_property__client', 'received_by'
     ).order_by('-paid_at')
     
-    if professional_id:
-        payments = payments.filter(received_by_id=professional_id)
+    # Filtro de status
+    if status_filter in ['PENDING', 'CONFIRMED']:
+        payments = payments.filter(status=status_filter)
+    
+    # Filtro de permissão/profissional
+    if not is_manager(request.user):
+        try:
+            professional = request.user.professional_profile
+            payments = payments.filter(received_by=professional)
+            professionals = [professional]
+            selected_professional = str(professional.id)
+        except Professional.DoesNotExist:
+            payments = ServicePayment.objects.none()
+            professionals = []
+            selected_professional = None
+    else:
+        professionals = Professional.objects.filter(is_active=True)
+        if professional_id:
+            payments = payments.filter(received_by_id=professional_id)
+            selected_professional = professional_id
+        else:
+            selected_professional = None
         
     context = {
         'payments': payments,
-        'professionals': Professional.objects.filter(is_active=True),
-        'selected_professional': professional_id,
-        'title': 'Baixa de Pagamentos (Técnicos)'
+        'professionals': professionals,
+        'selected_professional': selected_professional,
+        'status_filter': status_filter,
+        'title': 'Gestão de Recebimentos',
+        'is_manager': is_manager(request.user),
+        'layout_base': 'base.html' if is_manager(request.user) else 'base_equipe.html'
     }
     return render(request, 'services/finance/professional_payments.html', context)
 

@@ -25,6 +25,8 @@ urlpatterns = [
     path('equipe/midia/<int:media_id>/excluir/', views_equipe.equipe_media_delete, name='equipe_media_delete'),
     path('equipe/etapa/<uuid:task_id>/ocorrencia/', views_equipe.equipe_task_add_occurrence, name='equipe_task_add_occurrence'),
     path('equipe/etapa/<uuid:task_id>/pagamento/', views_equipe.equipe_task_add_payment, name='equipe_task_add_payment'),
+    path('equipe/pagamento/<int:payment_id>/editar/', views_equipe.equipe_payment_edit, name='equipe_payment_edit'),
+    path('equipe/pagamento/<int:payment_id>/excluir/', views_equipe.equipe_payment_delete, name='equipe_payment_delete'),
     path('equipe/propriedade/<uuid:property_id>/atualizar-gps/', views_equipe.equipe_update_gps, name='equipe_update_gps'),
 
     # Clientes

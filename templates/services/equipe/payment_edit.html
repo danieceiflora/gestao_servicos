@@ -1,0 +1,57 @@
+{% extends layout_base|default:"base_equipe.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto py-8">
+    <div class="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+        <!-- Header -->
+        <div class="bg-slate-900 px-6 py-8 text-white relative overflow-hidden">
+            <div class="relative z-10">
+                <h1 class="text-2xl font-black tracking-tight">Editar Pagamento</h1>
+                <p class="text-slate-400 text-sm mt-1">OS #{{ payment.order.number }} • {{ payment.order.client_property.client.name }}</p>
+            </div>
+            <!-- Decorative icon -->
+            <i data-lucide="banknote" class="absolute -right-4 -bottom-4 h-32 w-32 text-white/5 -rotate-12"></i>
+        </div>
+
+        <form method="POST" class="p-6 space-y-6">
+            {% csrf_token %}
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Valor Recebido (R$)</label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
+                        <input type="number" step="0.01" name="amount" value="{{ payment.amount|stringformat:'.2f'|safe }}" required 
+                               class="w-full pl-12 pr-4 h-14 rounded-2xl border-slate-200 focus:ring-blue-500 focus:border-blue-500 font-bold text-lg">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Forma de Pagamento</label>
+                    <select name="payment_method" required class="w-full h-14 rounded-2xl border-slate-200 focus:ring-blue-500 focus:border-blue-500 font-medium">
+                        <option value="CASH" {% if payment.payment_method == 'CASH' %}selected{% endif %}>Dinheiro</option>
+                        <option value="CREDIT_CARD" {% if payment.payment_method == 'CREDIT_CARD' %}selected{% endif %}>Cartão de Crédito (Maquininha)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Observações</label>
+                    <textarea name="notes" rows="3" class="w-full rounded-2xl border-slate-200 focus:ring-blue-500 focus:border-blue-500 text-sm p-4" placeholder="Ex: Recebido pelo Sr. João...">{{ clean_notes }}</textarea>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3 pt-4">
+                <button type="submit" class="w-full h-14 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-[0.98]">
+                    Salvar Alterações
+                </button>
+                <a href="{% if task_id %}{% url 'equipe_task_detail' task_id %}{% else %}{% url 'home' %}{% endif %}" class="w-full h-14 flex items-center justify-center text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-all">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
