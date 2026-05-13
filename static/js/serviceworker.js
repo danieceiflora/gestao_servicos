@@ -37,17 +37,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // Não interceptar requisições que não sejam GET (ex: POST de login, uploads)
+    // 1. NÃO interceptar requisições que não sejam GET (POST de login, uploads, etc)
     if (event.request.method !== 'GET') return;
 
     const url = new URL(event.request.url);
 
-    // Ignorar rotas de admin ou login do Django para evitar problemas de CSRF e Redirecionamento
-    if (url.pathname.startsWith('/admin/') || url.pathname.startsWith('/accounts/')) {
+    // 2. IGNORAR rotas administrativas e de autenticação do Django
+    // Isso permite que redirecionamentos de login funcionem sem interferência do SW
+    if (url.pathname.startsWith('/admin/') || 
+        url.pathname.startsWith('/accounts/') ||
+        url.pathname.startsWith('/login/')) {
         return;
     }
 
-    // Estratégia para APIs: Network First
+    // 3. ESTRATÉGIA PARA APIs: Network First (com fallback para cache se existir)
     if (url.pathname.startsWith('/api/')) {
         event.respondWith(
             fetch(event.request)
@@ -56,24 +59,25 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Estratégia para Assets/Páginas: Stale-While-Revalidate ou Cache First
-    event.respondWith(
-        caches.match(event.request).then((response) => {
-            if (response) {
-                return response;
-            }
+    // 4. ESTRATÉGIA PARA NAVEGAÇÃO (Páginas HTML):
+    // Se for uma navegação, tentamos a rede primeiro para evitar o erro de redirecionamento.
+    // Se falhar (offline), entregamos o cache.
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request).catch(() => {
+                return caches.match('/') || caches.match(event.request);
+            })
+        );
+        return;
+    }
 
-            return fetch(event.request).then((fetchResponse) => {
-                // Se a resposta for um redirecionamento, retornar ela diretamente sem cachear
-                // ou deixar o browser lidar se for um problema de segurança
-                if (fetchResponse.redirected) {
-                    return fetchResponse;
-                }
-                return fetchResponse;
-            }).catch(() => {
-                // Fallback offline se necessário
-                return caches.match('/');
-            });
+    // 5. ESTRATÉGIA PARA ASSETS (CSS, JS, Imagens): Cache First / Stale-While-Revalidate
+    event.respondWith(
+        caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+                return cachedResponse;
+            }
+            return fetch(event.request);
         })
     );
 });
