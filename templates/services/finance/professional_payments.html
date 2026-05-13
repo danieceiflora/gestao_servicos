@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-8 px-4">
+    <!-- Header -->
+    <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                <div class="h-10 w-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
+                    <i data-lucide="banknote" class="h-6 w-6"></i>
+                </div>
+                Baixa de Pagamentos (Técnicos)
+            </h1>
+            <p class="text-slate-500 mt-1 font-medium">Confirme o recebimento de valores coletados pela equipe em campo.</p>
+        </div>
+
+        <!-- Professional Filter -->
+        <form method="GET" class="flex items-center gap-2">
+            <select name="professional" onchange="this.form.submit()" class="rounded-xl border-slate-200 text-sm focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm min-w-[200px]">
+                <option value="">Todos os Profissionais</option>
+                {% for prof in professionals %}
+                    <option value="{{ prof.id }}" {% if selected_professional == prof.id|stringformat:"s" %}selected{% endif %}>{{ prof.name }}</option>
+                {% endfor %}
+            </select>
+            {% if selected_professional %}
+                <a href="{% url 'finance_professional_payments' %}" class="p-2 text-slate-400 hover:text-rose-500 transition-colors" title="Limpar Filtro">
+                    <i data-lucide="x-circle" class="h-5 w-5"></i>
+                </a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Bulk Action Form -->
+    <form action="{% url 'finance_bulk_confirm_payments' %}" method="POST" id="bulk-confirm-form">
+        {% csrf_token %}
+        
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <!-- Bulk Action Toolbar (Hidden until selection) -->
+            <div id="bulk-toolbar" class="hidden bg-emerald-50 border-b border-emerald-100 p-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300">
+                <div class="flex items-center gap-3">
+                    <span class="text-emerald-800 font-bold text-sm" id="selection-counter">0 selecionados</span>
+                    <button type="button" id="select-all-btn" class="text-xs font-bold text-emerald-600 hover:underline">Selecionar Todos</button>
+                </div>
+                <button type="submit" class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-md active:scale-95">
+                    <i data-lucide="check-check" class="w-4 h-4 mr-2"></i>
+                    Dar Baixa em Lote
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/50 border-b border-slate-100">
+                            <th class="p-4 w-10">
+                                <input type="checkbox" id="master-checkbox" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                            </th>
+                            <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Data / OS</th>
+                            <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Profissional</th>
+                            <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Cliente</th>
+                            <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Método</th>
+                            <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Valor</th>
+                            <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-50">
+                        {% for payment in payments %}
+                        <tr class="hover:bg-slate-50/50 transition-colors group">
+                            <td class="p-4">
+                                <input type="checkbox" name="payment_ids" value="{{ payment.id }}" class="payment-checkbox rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                            </td>
+                            <td class="p-4">
+                                <div class="font-bold text-slate-900 text-sm">OS #{{ payment.order.number }}</div>
+                                <div class="text-[10px] text-slate-400 font-medium">{{ payment.paid_at|date:"d/m/Y H:i" }}</div>
+                            </td>
+                            <td class="p-4">
+                                <div class="flex items-center gap-2">
+                                    <div class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200 overflow-hidden">
+                                        <i data-lucide="user" class="h-4 w-4"></i>
+                                    </div>
+                                    <span class="text-sm font-medium text-slate-700">{{ payment.received_by.name|default:"Administrador" }}</span>
+                                </div>
+                            </td>
+                            <td class="p-4">
+                                <div class="text-sm font-semibold text-slate-800">{{ payment.order.client_property.client.name }}</div>
+                                <div class="text-[10px] text-slate-400 truncate max-w-[200px]">{{ payment.order.client_property.address }}</div>
+                            </td>
+                            <td class="p-4">
+                                <span class="inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider {% if payment.payment_method == 'CASH' %}bg-amber-100 text-amber-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                                    {{ payment.get_payment_method_display }}
+                                </span>
+                            </td>
+                            <td class="p-4 text-right">
+                                <div class="text-sm font-black text-slate-900">R$ {{ payment.amount }}</div>
+                            </td>
+                            <td class="p-4 text-center">
+                                <button type="button" onclick="confirmPayment('{{ payment.id }}', '{{ payment.amount }}', '{{ payment.order.number }}')" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dar Baixa Individual">
+                                    <i data-lucide="check-circle" class="h-5 w-5"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="p-12 text-center">
+                                <div class="flex flex-col items-center justify-center">
+                                    <div class="h-16 w-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-4">
+                                        <i data-lucide="check-check" class="h-8 w-8"></i>
+                                    </div>
+                                    <h3 class="text-lg font-bold text-slate-800">Tudo em dia!</h3>
+                                    <p class="text-slate-500">Não há pagamentos pendentes de baixa para os filtros selecionados.</p>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </form>
+
+    <!-- Hidden form for individual confirmation -->
+    <form id="individual-confirm-form" method="POST" class="hidden">
+        {% csrf_token %}
+    </form>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const masterCheckbox = document.getElementById('master-checkbox');
+    const checkboxes = document.querySelectorAll('.payment-checkbox');
+    const bulkToolbar = document.getElementById('bulk-toolbar');
+    const selectionCounter = document.getElementById('selection-counter');
+    const selectAllBtn = document.getElementById('select-all-btn');
+
+    function updateToolbar() {
+        const checkedCount = document.querySelectorAll('.payment-checkbox:checked').length;
+        if (checkedCount > 0) {
+            bulkToolbar.classList.remove('hidden');
+            selectionCounter.textContent = `${checkedCount} selecionado${checkedCount > 1 ? 's' : ''}`;
+        } else {
+            bulkToolbar.classList.add('hidden');
+        }
+        masterCheckbox.checked = checkedCount === checkboxes.length && checkboxes.length > 0;
+    }
+
+    masterCheckbox?.addEventListener('change', function() {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        updateToolbar();
+    });
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateToolbar);
+    });
+
+    selectAllBtn?.addEventListener('click', function() {
+        checkboxes.forEach(cb => cb.checked = true);
+        updateToolbar();
+    });
+
+    function confirmPayment(id, amount, os) {
+        if (confirm(`Deseja dar baixa no pagamento de R$ ${amount} da OS #${os}?`)) {
+            const form = document.getElementById('individual-confirm-form');
+            form.action = `/finance/professional-payments/${id}/confirm/`;
+            form.submit();
+        }
+    }
+</script>
+{% endblock %}

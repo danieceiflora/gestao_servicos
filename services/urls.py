@@ -7,6 +7,9 @@ from . import views_finance
 urlpatterns = [
     path('', views.home, name='home'),
     path('finance/', views_finance.finance_dashboard, name='finance_dashboard'),
+    path('finance/professional-payments/', views_finance.finance_professional_payments, name='finance_professional_payments'),
+    path('finance/professional-payments/<int:payment_id>/confirm/', views_finance.finance_confirm_payment, name='finance_confirm_payment'),
+    path('finance/professional-payments/bulk-confirm/', views_finance.finance_bulk_confirm_payments, name='finance_bulk_confirm_payments'),
     path('politica-de-privacidade/', views.privacy_policy, name='privacy_policy'),
     path('exclusao-de-dados/', views.data_deletion_policy, name='data_deletion_policy'),
     path('termos-de-servico/', views.terms_of_service, name='terms_of_service'),
@@ -21,6 +24,7 @@ urlpatterns = [
     path('equipe/etapa/<uuid:task_id>/midia/', views_equipe.equipe_task_add_media, name='equipe_task_add_media'),
     path('equipe/midia/<int:media_id>/excluir/', views_equipe.equipe_media_delete, name='equipe_media_delete'),
     path('equipe/etapa/<uuid:task_id>/ocorrencia/', views_equipe.equipe_task_add_occurrence, name='equipe_task_add_occurrence'),
+    path('equipe/etapa/<uuid:task_id>/pagamento/', views_equipe.equipe_task_add_payment, name='equipe_task_add_payment'),
     path('equipe/propriedade/<uuid:property_id>/atualizar-gps/', views_equipe.equipe_update_gps, name='equipe_update_gps'),
 
     # Clientes

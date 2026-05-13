@@ -32,7 +32,22 @@
                 <a href="{% url 'equipe_task_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'equipe_task_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Tarefas</a>
                 {% else %}
                 <a href="{% url 'service_order_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Ordens</a>
-                <a href="{% url 'finance_dashboard' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'finance_dashboard' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Financeiro</a>
+                
+                <div class="relative group">
+                    <button type="button" class="text-sm font-medium {% if 'finance' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
+                        Financeiro <i data-lucide="chevron-down" class="h-3 w-3"></i>
+                    </button>
+                    <div class="absolute left-0 top-full -mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
+                        <a href="{% url 'finance_dashboard' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                            <i data-lucide="line-chart" class="h-4 w-4 text-slate-400"></i>
+                            Comissões & Relatórios
+                        </a>
+                        <a href="{% url 'finance_professional_payments' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                            <i data-lucide="banknote" class="h-4 w-4 text-slate-400"></i>
+                            Pagamentos de Técnicos
+                        </a>
+                    </div>
+                </div>
                 {% endif %}
                 
                 {% if user.is_staff %}

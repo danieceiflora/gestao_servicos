@@ -558,8 +558,15 @@ class ServiceOrder(models.Model):
 
     @property
     def total_paid(self):
-        paid_total = sum((payment.amount for payment in self.payments.all()), Decimal('0'))
+        """Soma apenas pagamentos confirmados"""
+        paid_total = sum((payment.amount for payment in self.payments.filter(status='CONFIRMED')), Decimal('0'))
         return quantize_money(paid_total)
+
+    @property
+    def total_collected_pending(self):
+        """Soma pagamentos recebidos por técnicos mas ainda não baixados pelo financeiro"""
+        pending_total = sum((payment.amount for payment in self.payments.filter(status='PENDING')), Decimal('0'))
+        return quantize_money(pending_total)
 
     @property
     def balance_due(self):
@@ -764,11 +771,22 @@ class ServiceItem(models.Model):
 
 
 class ServicePayment(models.Model):
+    class PaymentStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pendente de Baixa'
+        CONFIRMED = 'CONFIRMED', 'Baixa Realizada'
+
     order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='payments', verbose_name="Ordem de Serviço")
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Pago")
     payment_method = models.CharField(max_length=20, choices=ServiceOrderTask.PAYMENT_METHODS, verbose_name="Método de Pagamento")
     paid_at = models.DateTimeField(verbose_name="Data do Pagamento")
     notes = models.CharField(max_length=255, blank=True, verbose_name="Observações")
+    
+    # Controle de Recebimento por Técnicos
+    received_by = models.ForeignKey(Professional, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_payments', verbose_name="Recebido por")
+    status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.CONFIRMED, verbose_name="Status")
+    confirmed_at = models.DateTimeField(null=True, blank=True, verbose_name="Confirmado em")
+    confirmed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='confirmed_payments', verbose_name="Confirmado por")
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):

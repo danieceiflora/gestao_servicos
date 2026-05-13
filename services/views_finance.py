@@ -1,9 +1,10 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum, Q, F
 from django.utils import timezone
 from decimal import Decimal
-from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User
+from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment
 from django.http import HttpResponse
 import csv
 from io import BytesIO
@@ -277,3 +278,65 @@ def export_finance_pdf(grouped_data, month, year):
     response['Content-Disposition'] = f'attachment; filename="servicos_por_colaborador_{month}_{year}.pdf"'
     response.write(pdf)
     return response
+
+@login_required
+@user_passes_test(is_manager)
+def finance_professional_payments(request):
+    """
+    Lista pagamentos recebidos por técnicos que aguardam baixa (status PENDING).
+    Também permite filtrar por profissional.
+    """
+    professional_id = request.GET.get('professional')
+    
+    payments = ServicePayment.objects.filter(status='PENDING').select_related(
+        'order', 'order__client_property__client', 'received_by'
+    ).order_by('-paid_at')
+    
+    if professional_id:
+        payments = payments.filter(received_by_id=professional_id)
+        
+    context = {
+        'payments': payments,
+        'professionals': Professional.objects.filter(is_active=True),
+        'selected_professional': professional_id,
+        'title': 'Baixa de Pagamentos (Técnicos)'
+    }
+    return render(request, 'services/finance/professional_payments.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def finance_confirm_payment(request, payment_id):
+    """Dá baixa em um pagamento individual."""
+    payment = get_object_or_404(ServicePayment, id=payment_id)
+    
+    if request.method == 'POST':
+        payment.status = 'CONFIRMED'
+        payment.confirmed_at = timezone.now()
+        payment.confirmed_by = request.user
+        payment.save()
+        messages.success(request, f'Pagamento de R$ {payment.amount} (OS #{payment.order.number}) baixado com sucesso.')
+        
+    return redirect('finance_professional_payments')
+
+@login_required
+@user_passes_test(is_manager)
+def finance_bulk_confirm_payments(request):
+    """Dá baixa em múltiplos pagamentos selecionados."""
+    if request.method == 'POST':
+        payment_ids = request.POST.getlist('payment_ids')
+        if payment_ids:
+            # We iterate to ensure order.update_status() is called via save() or explicitly
+            payments = ServicePayment.objects.filter(id__in=payment_ids, status='PENDING')
+            count = 0
+            for p in payments:
+                p.status = 'CONFIRMED'
+                p.confirmed_at = timezone.now()
+                p.confirmed_by = request.user
+                p.save()
+                count += 1
+                
+            messages.success(request, f'{count} pagamentos foram baixados com sucesso.')
+        else:
+            messages.warning(request, 'Nenhum pagamento selecionado.')
+            
+    return redirect('finance_professional_payments')

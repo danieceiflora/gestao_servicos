@@ -328,6 +328,54 @@ def equipe_task_add_occurrence(request, task_id):
 
 
 @login_required
+def equipe_task_add_payment(request, task_id):
+    """
+    Permite que o técnico registre um pagamento recebido no campo.
+    Apenas Dinheiro ou Cartão de Crédito.
+    """
+    from .models import ServicePayment
+    tasks_qs = get_collaborator_tasks(request.user)
+    task = get_object_or_404(tasks_qs, id=task_id)
+    order = task.service_order
+    
+    if request.method == 'POST':
+        try:
+            amount = Decimal(request.POST.get('amount', '0').replace(',', '.'))
+            method = request.POST.get('payment_method')
+            notes = request.POST.get('notes', '').strip()
+            
+            if amount <= 0:
+                messages.error(request, 'O valor do pagamento deve ser maior que zero.')
+                return redirect('equipe_task_detail', task_id=task.id)
+                
+            if method not in ['CASH', 'CREDIT_CARD']:
+                messages.error(request, 'Método de pagamento inválido para registro em campo.')
+                return redirect('equipe_task_detail', task_id=task.id)
+            
+            # Tenta pegar o perfil profissional do usuário logado
+            try:
+                professional = request.user.professional_profile
+            except Professional.DoesNotExist:
+                professional = None
+                
+            ServicePayment.objects.create(
+                order=order,
+                amount=amount,
+                payment_method=method,
+                paid_at=timezone.now(),
+                received_by=professional,
+                status=ServicePayment.PaymentStatus.PENDING,
+                notes=f"[Registrado pelo Técnico]: {notes}" if notes else "Registrado pelo técnico"
+            )
+            
+            messages.success(request, f'Pagamento de R$ {amount} registrado com sucesso! Aguarde a baixa pelo financeiro.')
+            
+        except Exception as e:
+            messages.error(request, f'Erro ao registrar pagamento: {str(e)}')
+            
+    return redirect('equipe_task_detail', task_id=task.id)
+
+@login_required
 def equipe_update_gps(request, property_id):
     if request.method == 'POST':
         try:
