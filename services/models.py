@@ -570,6 +570,9 @@ class ServiceOrder(models.Model):
         from datetime import timedelta
         import django.utils.timezone
 
+        # Sempre atualiza o valor estimado para bater com o total líquido (Total - Desconto)
+        self.estimated_value = self.total_value - self.discount
+
         tasks = self.tasks.all()
         
         # 1. Prioridade: Garantia
@@ -665,6 +668,11 @@ class ServiceOrderTask(models.Model):
     value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Valor do Serviço")
     
     notes = models.TextField(verbose_name="Observações Técnicas desta Etapa", blank=True)
+    
+    # Assinatura Digital do Cliente (Salva apenas o caminho do arquivo)
+    customer_signature = models.CharField(max_length=255, null=True, blank=True, verbose_name="Caminho da Assinatura")
+    customer_name = models.CharField(max_length=100, null=True, blank=True, verbose_name="Nome de quem assinou")
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -741,6 +749,15 @@ class ServiceItem(models.Model):
     def __str__(self):
         task_info = f" (Etapa: {self.task.get_task_type_display()})" if self.task else " (Orçamento Geral)"
         return f"{self.description} - Qtd: {self.quantity}{task_info}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.service_order.update_status()
+
+    def delete(self, *args, **kwargs):
+        order = self.service_order
+        super().delete(*args, **kwargs)
+        order.update_status()
 
     class Meta:
         verbose_name = "Item de Serviço"

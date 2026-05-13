@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.views.generic import ListView, CreateView, UpdateView
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.contrib.auth.decorators import login_required, permission_required, user_passes_test
 from django.urls import reverse_lazy
@@ -84,14 +84,64 @@ class ProfessionalScheduleBlockListView(LoginRequiredMixin, ListView):
     model = ProfessionalScheduleBlock
     template_name = 'services/professionals/schedule_block_list.html'
     context_object_name = 'blocks'
-    permission_required = 'services.view_scheduleblock'
+    permission_required = 'services.view_professionalscheduleblock'
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        professional_id = self.kwargs.get('professional_id')
+        professional_id = self.request.GET.get('professional')
         if professional_id:
             queryset = queryset.filter(professional_id=professional_id)
         return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['professionals'] = Professional.objects.filter(is_active=True)
+        context['selected_professional'] = self.request.GET.get('professional')
+        context['title'] = 'Bloqueios de Agenda'
+        return context
+
+class ProfessionalScheduleBlockCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+    model = ProfessionalScheduleBlock
+    form_class = ProfessionalScheduleBlockForm
+    template_name = 'services/professionals/schedule_block_form.html'
+    success_url = reverse_lazy('schedule_block_list')
+    permission_required = 'services.add_professionalscheduleblock'
+
+    def get_initial(self):
+        initial = super().get_initial()
+        prof_id = self.request.GET.get('professional')
+        if prof_id:
+            initial['professional'] = prof_id
+        return initial
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Novo Bloqueio de Agenda'
+        return context
+
+class ProfessionalScheduleBlockUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
+    model = ProfessionalScheduleBlock
+    form_class = ProfessionalScheduleBlockForm
+    template_name = 'services/professionals/schedule_block_form.html'
+    success_url = reverse_lazy('schedule_block_list')
+    permission_required = 'services.change_professionalscheduleblock'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Bloqueio de Agenda'
+        return context
+
+class ProfessionalScheduleBlockDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+    model = ProfessionalScheduleBlock
+    success_url = reverse_lazy('schedule_block_list')
+    permission_required = 'services.delete_professionalscheduleblock'
+    
+    def get(self, request, *args, **kwargs):
+        return self.post(request, *args, **kwargs)
+
+    def delete(self, request, *args, **kwargs):
+        messages.success(self.request, 'Bloqueio de agenda removido com sucesso.')
+        return super().delete(request, *args, **kwargs)
 
 @login_required
 def home(request):
@@ -1301,10 +1351,6 @@ def order_item_add(request, order_id):
                 unit_price=item_data['unit_price']
             )
 
-            estimated_total = _get_order_items_total(order)
-            order.estimated_value = estimated_total
-            order.save(update_fields=['estimated_value', 'updated_at'])
-
             if is_ajax:
                 try:
                     item_total = item.total_price
@@ -1324,7 +1370,7 @@ def order_item_add(request, order_id):
                         order_total = order.total_value
                         balance_due = order.balance_due
                         order_total_display = f'{order_total:.2f}'.replace('.', ',')
-                        estimated_value_display = f'{estimated_total:.2f}'.replace('.', ',')
+                        estimated_value_display = f'{order.estimated_value:.2f}'.replace('.', ',')
                         balance_due_display = f'{balance_due:.2f}'.replace('.', ',')
                     except Exception as e:
                         print(f"Erro ao calcular total da order: {e}")
@@ -1418,15 +1464,11 @@ def order_item_delete(request, item_id):
     
     if request.method == 'POST':
         item.delete()
-
-        estimated_total = _get_order_items_total(order)
-        order.estimated_value = estimated_total
-        order.save(update_fields=['estimated_value', 'updated_at'])
         
         if is_ajax:
             try:
                 order_total_display = f'{order.total_value:.2f}'.replace('.', ',')
-                estimated_value_display = f'{estimated_total:.2f}'.replace('.', ',')
+                estimated_value_display = f'{order.estimated_value:.2f}'.replace('.', ',')
                 balance_due_display = f'{order.balance_due:.2f}'.replace('.', ',')
             except Exception as e:
                 print(f"Erro ao calcular total da order: {e}")
@@ -1504,7 +1546,8 @@ def order_discount_update(request, order_id):
     if request.method == 'POST':
         form = ServiceOrderDiscountForm(request.POST, instance=order)
         if form.is_valid():
-            form.save()
+            order = form.save()
+            
             order.update_status()
             messages.success(request, 'Desconto atualizado com sucesso!')
             return redirect('service_order_detail', order_id=order.id)

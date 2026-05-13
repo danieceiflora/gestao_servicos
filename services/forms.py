@@ -281,8 +281,15 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
         self.fields['origin_date'].required = False
         self.fields['originator'].required = False
         
-        # Se está editando (já existe no banco), tornar origin_date e originator readonly
+        # Se está editando (já existe no banco), tornar campos não editáveis readonly/disabled
         if self.instance and not self.instance._state.adding:
+            self.fields['client'].required = False
+            self.fields['client'].disabled = True
+            self.fields['client_property'].required = False
+            self.fields['client_property'].disabled = True
+            self.fields['scheduled_at'].required = False
+            self.fields['scheduled_at'].disabled = True
+            
             self.fields['origin_date'].widget.attrs['readonly'] = True
             self.fields['origin_date'].widget.attrs['class'] += ' bg-slate-100 cursor-not-allowed'
             self.fields['originator'].disabled = True

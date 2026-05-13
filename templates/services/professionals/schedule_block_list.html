@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">{{ title }}</h1>
+            <p class="text-slate-500 text-sm">Gerencie folgas, férias e bloqueios de disponibilidade.</p>
+        </div>
+        <a href="{% url 'schedule_block_create' %}{% if selected_professional %}?professional={{ selected_professional }}{% endif %}" 
+           class="inline-flex items-center justify-center px-4 py-2 bg-slate-900 text-white rounded-lg font-semibold hover:bg-slate-800 transition-colors gap-2">
+            <i data-lucide="plus" class="h-5 w-5"></i>
+            Novo Bloqueio
+        </a>
+    </div>
+
+    <!-- Filtros -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <form method="get" class="flex flex-wrap items-end gap-4">
+            <div class="flex-1 min-w-[200px]">
+                <label for="professional" class="block text-xs font-bold text-slate-700 uppercase mb-1">Filtrar por Profissional</label>
+                <select name="professional" id="professional" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="">Todos os Profissionais</option>
+                    {% for prof in professionals %}
+                    <option value="{{ prof.id }}" {% if selected_professional == prof.id|stringformat:"s" %}selected{% endif %}>
+                        {{ prof.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition-colors">
+                Filtrar
+            </button>
+            {% if selected_professional %}
+            <a href="{% url 'schedule_block_list' %}" class="px-4 py-2 text-slate-500 hover:text-slate-700 text-sm">Limpar</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Lista de Bloqueios -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200">
+                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Profissional</th>
+                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Período</th>
+                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Motivo</th>
+                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for block in blocks %}
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs">
+                                    {{ block.professional.name|slice:":2"|upper }}
+                                </div>
+                                <span class="font-medium text-slate-900">{{ block.professional.name }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-col">
+                                <span class="text-sm text-slate-700">
+                                    {{ block.start_at|date:"d/m/Y H:i" }} 
+                                    {% if block.is_all_day %}(Dia Inteiro){% endif %}
+                                </span>
+                                <span class="text-xs text-slate-500">até {{ block.end_at|date:"d/m/Y H:i" }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-600">
+                            {{ block.reason }}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center justify-center gap-2">
+                                <a href="{% url 'schedule_block_edit' block.id %}" class="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Editar">
+                                    <i data-lucide="edit-2" class="h-4 w-4"></i>
+                                </a>
+                                <button type="button" 
+                                        onclick="confirmDelete('{{ block.id }}', '{{ block.professional.name }}')"
+                                        class="p-2 text-slate-400 hover:text-red-600 transition-colors" title="Excluir">
+                                    <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-12 text-center">
+                            <div class="flex flex-col items-center gap-2">
+                                <i data-lucide="calendar-off" class="h-12 w-12 text-slate-300"></i>
+                                <p class="text-slate-500">Nenhum bloqueio de agenda encontrado.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div id="deleteModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden">
+        <div class="p-6">
+            <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4 mx-auto">
+                <i data-lucide="alert-triangle" class="h-6 w-6"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 text-center mb-2">Excluir Bloqueio?</h3>
+            <p class="text-slate-500 text-center text-sm mb-6">
+                Tem certeza que deseja remover o bloqueio de agenda de <span id="profName" class="font-bold"></span>? Esta ação não pode ser desfeita.
+            </p>
+            <div class="flex gap-3">
+                <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-50 transition-colors">
+                    Cancelar
+                </button>
+                <form id="deleteForm" method="post" class="flex-1">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors">
+                        Sim, Excluir
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmDelete(id, name) {
+    const modal = document.getElementById('deleteModal');
+    const form = document.getElementById('deleteForm');
+    const profName = document.getElementById('profName');
+    
+    profName.textContent = name;
+    form.action = "{% url 'schedule_block_delete' 0 %}".replace('0', id);
+    modal.classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('deleteModal').classList.add('hidden');
+}
+</script>
+{% endblock %}

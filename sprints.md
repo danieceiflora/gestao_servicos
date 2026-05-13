@@ -54,31 +54,33 @@ Acompanhamento detalhado das tarefas para execução do projeto.
 - [x] **3.5.1 Regras de Negócio:** Documentação das regras de 1:30h e conflitos (`agenda.md`).
 - [x] **3.5.2 Estrutura de Dados:** Campos de agendamento em `ServiceOrder` e modelo `ProfessionalScheduleBlock`.
 - [x] **3.5.3 Motor de Validação:** API de checagem de disponibilidade com regra de buffer (`utils.py`).
-- [ ] **3.5.4 Dashboard de Calendário:** 
-    - [ ] Implementar FullCalendar.js para visualização de Orçamentos e Execuções.
-    - [ ] Filtro por Profissional no calendário.
-- [ ] **3.5.5 Interface de Bloqueios:** Tela para cadastrar folgas/férias de colaboradores.
+- [x] **3.5.4 Dashboard de Calendário:** 
+    - [x] Implementar FullCalendar.js para visualização de Orçamentos e Execuções.
+    - [x] Filtro por Profissional no calendário.
+- [x] **3.5.5 Interface de Bloqueios:** Tela para cadastrar folgas/férias de colaboradores.
 
 ---
 
-## 🚀 Sprint 4: Gestão de Equipes e Disponibilidade
+## ✅ Sprint 4: Gestão de Equipes e Disponibilidade (CONCLUÍDA)
 *Foco: Integração do agendamento com a alocação de pessoas.*
 
 - [x] **4.1 Cadastro de Profissionais:** CRUD de Instaladores e suas funções.
 - [x] **4.2 Disponibilidade Base:** Configuração de horários de trabalho semanais.
 - [x] **4.3 Designação Inteligente:** 
-    - [ ] Integrar avisos de conflito em tempo real na tela de designar equipe.
-    - [ ] Impedir salvamento de equipes em horários de conflito (Validação no Servidor).
-  - [] Interface visual para agendar orçamentos e execuções para colaboradores. 
+    - [x] Integrar avisos de conflito em tempo real na tela de designar equipe.
+    - [x] Impedir salvamento de equipes em horários de conflito (Validação no Servidor).
+- [x] **4.4 Agendamento Visual:** Interface visual para agendar orçamentos e execuções para colaboradores. 
 
 ---
 
 ## 🚀 Sprint 5: Execução e Finalização (EM ANDAMENTO)
 *Foco: Trabalho de campo e encerramento.*
 
-- [ ] **5.1 Visão de Campo:** Interface operacional para colaboradores (sem exibição de valores).
-- [ ] **5.2 Evidências Finais:** Upload de mídias pós-serviço (antes/depois) e mudança de status.
-- [ ] **5.3 Assinatura Digital:** Captura de assinatura do cliente no encerramento (opcional).
+- [x] **5.1 Visão de Campo:** Interface operacional para colaboradores (sem exibição de valores).
+- [x] **5.2 Evidências Finais:** Upload de mídias pós-serviço (antes/depois) e mudança de status.
+- [x] **5.3 Assinatura Digital:** Captura de assinatura do cliente no encerramento.
+- [ ] **5.4 Check-list Inteligente:** Itens dinâmicos por tipo de serviço (CONCLUÍDO).
+- [ ] **5.5 Relatório de Performance:** Tempo de execução e deslocamento.
 
 ---
 
@@ -89,16 +91,16 @@ Acompanhamento detalhado das tarefas para execução do projeto.
 
 ---
 
-## 🚀 Sprint 8: Consolidação da Arquitetura de Tasks (PLANEJADA)
+## ✅ Sprint 8: Consolidação da Arquitetura de Tasks (CONCLUÍDA)
 *Foco: Transição definitiva da gestão baseada em OS para gestão baseada em Etapas (Tasks).*
 
-- [ ] **8.1 Refatoração de Views Core:**
-  - [ ] Migrar execução de OS (`order_id`) para execução por Etapa (`task_id`).
-  - [ ] Implementar `task_add` para agendar novas fases em OS existentes.
-  - [ ] Criar views de edição (`task_edit`) e cancelamento (`task_cancel`) de etapas.
-- [ ] **8.2 Integridade e Validação:**
-  - [ ] Adicionar validação de disponibilidade (server-side) no salvamento de cada etapa.
-  - [ ] Garantir que mídias e notas sejam estritamente vinculadas à `Task` correta.
-- [ ] **8.3 Evolução UI/UX (Timeline):**
-  - [ ] Reformular `order_detail.html` para exibir o histórico cronológico de todas as etapas.
-  - [ ] Melhorar a visualização de equipes e fotos por etapa concluída.
+- [x] **8.1 Refatoração de Views Core:**
+  - [x] Migrar execução de OS (`order_id`) para execução por Etapa (`task_id`).
+  - [x] Implementar `task_add` para agendar novas fases em OS existentes.
+  - [x] Criar views de edição (`task_edit`) e cancelamento (`task_cancel`) de etapas.
+- [x] **8.2 Integridade e Validação:**
+  - [x] Adicionar validação de disponibilidade (server-side) no salvamento de cada etapa.
+  - [x] Garantir que mídias e notas sejam estritamente vinculadas à `Task` correta.
+- [x] **8.3 Evolução UI/UX (Timeline):**
+  - [x] Reformular `order_detail.html` para exibir o histórico cronológico de todas as etapas.
+  - [x] Melhorar a visualização de equipes e fotos por etapa concluída.

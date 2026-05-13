@@ -28,9 +28,58 @@
     </section>
     {% endif %}
 
+    <!-- Stats Section -->
+    {% if user.is_manager %}
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                    <i data-lucide="layers" class="h-5 w-5"></i>
+                </div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ativas</span>
+            </div>
+            <div class="text-2xl font-bold text-slate-900">{{ active_orders }}</div>
+            <p class="text-[10px] text-slate-500 mt-1">OS em andamento</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                    <i data-lucide="clock" class="h-5 w-5"></i>
+                </div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aguardando</span>
+            </div>
+            <div class="text-2xl font-bold text-slate-900">{{ pending_approval }}</div>
+            <p class="text-[10px] text-slate-500 mt-1">Aprovação de orçamento</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                    <i data-lucide="play-circle" class="h-5 w-5"></i>
+                </div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Execução</span>
+            </div>
+            <div class="text-2xl font-bold text-slate-900">{{ waiting_execution }}</div>
+            <p class="text-[10px] text-slate-500 mt-1">Prontas para iniciar</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="p-2 bg-rose-50 text-rose-600 rounded-lg">
+                    <i data-lucide="calendar-range" class="h-5 w-5"></i>
+                </div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Agenda</span>
+            </div>
+            <div class="text-2xl font-bold text-slate-900">{{ needs_scheduling }}</div>
+            <p class="text-[10px] text-slate-500 mt-1">Pendentes de agendamento</p>
+        </div>
+    </section>
+    {% endif %}
+
     <!-- Actions Section -->
     <section class="space-y-3">
-        <h3 class="text-lg font-semibold tracking-tight">Ações Rápidas</h3>
+        <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Ações Rápidas</h3>
         
         {% if not user.is_manager %}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -78,6 +127,37 @@
         </div>
         {% endif %}
     </section>
+
+    {% if user.is_manager and recent_orders %}
+    <section class="space-y-3">
+        <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Atividades Recentes</h3>
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="divide-y divide-slate-100">
+                {% for order in recent_orders %}
+                <a href="{% url 'service_order_detail' order.id %}" class="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors">
+                    <div class="flex flex-col">
+                        <span class="text-sm font-bold text-slate-900">OS #{{ order.number }}</span>
+                        <span class="text-xs text-slate-500">{{ order.client_property.client.name }} • {{ order.client_property.neighborhood }}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
+                            {% if order.status == 'FINISHED' %}bg-emerald-50 text-emerald-600
+                            {% elif order.status == 'CANCELLED' %}bg-slate-50 text-slate-400
+                            {% elif order.status == 'WAITING_APPROVAL' %}bg-amber-50 text-amber-600
+                            {% else %}bg-blue-50 text-blue-600{% endif %}">
+                            {{ order.get_status_display }}
+                        </span>
+                        <i data-lucide="chevron-right" class="h-4 w-4 text-slate-300"></i>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            <div class="p-3 bg-slate-50 border-t border-slate-100 text-center">
+                <a href="{% url 'service_order_list' %}" class="text-xs font-bold text-slate-500 hover:text-slate-900">Ver todas as Ordens de Serviço</a>
+            </div>
+        </div>
+    </section>
+    {% endif %}
 
 </div>
 {% endblock %}

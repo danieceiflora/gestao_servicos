@@ -34,6 +34,12 @@ urlpatterns = [
     path('professionals/new/', views.ProfessionalCreateView.as_view(), name='professional_create'),
     path('professionals/<uuid:pk>/edit/', views.ProfessionalUpdateView.as_view(), name='professional_edit'),
     
+    # Bloqueios de Agenda (Folgas/Férias)
+    path('professionals/blocks/', views.ProfessionalScheduleBlockListView.as_view(), name='schedule_block_list'),
+    path('professionals/blocks/new/', views.ProfessionalScheduleBlockCreateView.as_view(), name='schedule_block_create'),
+    path('professionals/blocks/<int:pk>/edit/', views.ProfessionalScheduleBlockUpdateView.as_view(), name='schedule_block_edit'),
+    path('professionals/blocks/<int:pk>/delete/', views.ProfessionalScheduleBlockDeleteView.as_view(), name='schedule_block_delete'),
+    
     # Ordens de Serviço
     path('orders/', views.service_order_list, name='service_order_list'),
     path('orders/new/', views.service_order_scheduling, name='service_order_scheduling'),

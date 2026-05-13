@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'schedule_block_list' %}" class="p-2 hover:bg-slate-100 rounded-full transition-colors">
+            <i data-lucide="arrow-left" class="h-6 w-6 text-slate-600"></i>
+        </a>
+        <h1 class="text-2xl font-bold text-slate-900">{{ title }}</h1>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <form method="post" class="p-6 space-y-6">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm">
+                {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Profissional -->
+            <div class="space-y-2">
+                <label class="text-sm font-bold text-slate-700 uppercase tracking-wide">Profissional *</label>
+                {{ form.professional }}
+                {% if form.professional.errors %}
+                <p class="text-xs text-red-600">{{ form.professional.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Início e Fim -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700 uppercase tracking-wide">Início do Bloqueio *</label>
+                    {{ form.start_at }}
+                    {% if form.start_at.errors %}
+                    <p class="text-xs text-red-600">{{ form.start_at.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700 uppercase tracking-wide">Fim do Bloqueio *</label>
+                    {{ form.end_at }}
+                    {% if form.end_at.errors %}
+                    <p class="text-xs text-red-600">{{ form.end_at.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Motivo -->
+            <div class="space-y-2">
+                <label class="text-sm font-bold text-slate-700 uppercase tracking-wide">Motivo (Ex: Férias, Folga, Manutenção) *</label>
+                {{ form.reason }}
+                {% if form.reason.errors %}
+                <p class="text-xs text-red-600">{{ form.reason.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Checkbox Dia Inteiro -->
+            <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div class="relative flex items-center h-5">
+                    <input type="checkbox" name="is_all_day" id="id_is_all_day" 
+                           class="w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                           {% if form.is_all_day.value %}checked{% endif %}>
+                </div>
+                <div class="text-sm">
+                    <label for="id_is_all_day" class="font-bold text-slate-700">Bloqueio de Dia Inteiro</label>
+                    <p class="text-slate-500 text-xs">Marque esta opção para folgas ou férias completas.</p>
+                </div>
+            </div>
+
+            <!-- Ações -->
+            <div class="flex flex-col md:flex-row gap-3 pt-4 border-t border-slate-100">
+                <button type="submit" class="flex-1 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="check" class="h-5 w-5"></i>
+                    Salvar Bloqueio
+                </button>
+                <a href="{% url 'schedule_block_list' %}" class="px-6 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-all text-center">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Se "Dia Inteiro" for marcado, ajustar as horas para 00:00 e 23:59
+    const isAllDayCheck = document.getElementById('id_is_all_day');
+    const startInput = document.getElementById('id_start_at');
+    const endInput = document.getElementById('id_end_at');
+
+    isAllDayCheck.addEventListener('change', function() {
+        if (this.checked && startInput.value) {
+            const dateStr = startInput.value.split('T')[0];
+            startInput.value = dateStr + 'T00:00';
+            if (endInput.value) {
+                const endDateStr = endInput.value.split('T')[0];
+                endInput.value = endDateStr + 'T23:59';
+            } else {
+                endInput.value = dateStr + 'T23:59';
+            }
+        }
+    });
+</script>
+{% endblock %}

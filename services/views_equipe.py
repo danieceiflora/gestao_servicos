@@ -30,7 +30,7 @@ def equipe_task_list(request):
         'service_order',
         'service_order__client_property',
         'service_order__client_property__client'
-    ).order_by('-service_order__created_at', 'scheduled_at')
+    ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED).order_by('scheduled_at')
     
     context = {
         'tasks': tasks_qs,
@@ -136,10 +136,38 @@ def equipe_task_finish(request, task_id):
             return redirect('equipe_task_detail', task_id=task.id)
 
         notes = request.POST.get('notes', '').strip()
-        
+        customer_name = request.POST.get('customer_name', '').strip()
+        signature_base64 = request.POST.get('signature_data', '')
+
         if notes:
             task.notes = f"{task.notes}\n\n[Notas de Execução]: {notes}" if task.notes else notes
             
+        if customer_name:
+            task.customer_name = customer_name
+
+        if signature_base64 and ',' in signature_base64:
+            from django.core.files.base import ContentFile
+            from django.core.files.storage import default_storage
+            import base64
+            import uuid
+            import os
+
+            format, imgstr = signature_base64.split(';base64,')
+            ext = format.split('/')[-1]
+            filename = f"sig_{task.id}_{uuid.uuid4().hex[:8]}.{ext}"
+            
+            # Caminho relativo para salvar no banco e no filesystem
+            now = timezone.now()
+            relative_path = os.path.join('signatures', now.strftime('%Y'), now.strftime('%m'), filename)
+            
+            data = ContentFile(base64.b64decode(imgstr))
+            
+            # Salva o arquivo fisicamente
+            actual_path = default_storage.save(relative_path, data)
+            
+            # Salva apenas o caminho (string) no banco de dados
+            task.customer_signature = actual_path
+
         task.finished_at = timezone.now()
         task.status = ServiceOrderTask.TaskStatus.COMPLETED
         task.save()
