@@ -267,6 +267,26 @@ class BasePDFGenerator:
         
         return elements
 
+    def _get_responsible_tech(self):
+        """Tenta encontrar o profissional responsável pela OS (Originador ou executor do orçamento)"""
+        if self.service_order.originator:
+            return self.service_order.originator.name
+        
+        budget_task = self.service_order.tasks.filter(task_type='BUDGET').first()
+        if budget_task:
+            first_member = budget_task.team_members.first()
+            if first_member:
+                return first_member.professional.name
+        
+        # Fallback para o primeiro executor se não houver orçamento
+        execution_task = self.service_order.tasks.filter(task_type='EXECUTION').first()
+        if execution_task:
+            first_member = execution_task.team_members.first()
+            if first_member:
+                return first_member.professional.name
+                
+        return "Não identificado"
+
     def _get_client_info(self):
         elements = []
         client = self.service_order.client_property.client
@@ -279,22 +299,34 @@ class BasePDFGenerator:
         elements.append(self._section_title("DADOS DO CLIENTE"))
         elements.append(Spacer(1, 0.1*cm))
 
+        # Endereço simplificado (Rua, Número, Complemento)
+        address_main = f"{prop.address or ''}"
+        if prop.number:
+            address_main += f", {prop.number}"
+        if prop.complement:
+            address_main += f" - {prop.complement}"
+        if not address_main:
+            address_main = "---"
+
+        tech_name = self._get_responsible_tech()
+
         # Grid de informações do cliente estilo modelopdf.jpg
         data = [
             # Linha 1
             [
                 [Paragraph("Cliente", self.styles['GridLabel']), Paragraph(str(client.name or "---"), self.styles['GridValue'])],
-                [Paragraph("CPF/CNPJ", self.styles['GridLabel']), Paragraph("---", self.styles['GridValue'])],
-                [Paragraph("Vendedor/Técnico", self.styles['GridLabel']), Paragraph("Dourados Calhas", self.styles['GridValue'])]
+                [Paragraph("CPF/CNPJ", self.styles['GridLabel']), Paragraph(str(client.document or "---"), self.styles['GridValue'])],
+                [Paragraph("Vendedor/Técnico", self.styles['GridLabel']), Paragraph(tech_name, self.styles['GridValue'])]
             ],
-            # Linha 2
+            # Linha 2 - Removido "Contato", mantido "Celular"
             [
-                [Paragraph("Contato", self.styles['GridLabel']), Paragraph(str(phone_val), self.styles['GridValue'])],
                 [Paragraph("Celular", self.styles['GridLabel']), Paragraph(str(phone_val), self.styles['GridValue'])],
+                '',
+                ''
             ],
             # Linha 3
             [
-                [Paragraph("Endereço", self.styles['GridLabel']), Paragraph(str(prop.full_address or "---"), self.styles['GridValue'])],
+                [Paragraph("Endereço", self.styles['GridLabel']), Paragraph(address_main, self.styles['GridValue'])],
                 '', # Span col
                 [Paragraph("Bairro", self.styles['GridLabel']), Paragraph(str(prop.neighborhood or "---"), self.styles['GridValue'])]
             ],
@@ -382,13 +414,11 @@ class BudgetPDFGenerator(BasePDFGenerator):
 
     def _get_order_info(self):
         elements = []
-        tech_name = "Não identificado"
+        tech_name = self._get_responsible_tech()
         inspection_date = "Não realizada"
         budget_task = self.service_order.tasks.filter(task_type='BUDGET').first()
-        if budget_task:
-            first_member = budget_task.team_members.first()
-            if first_member: tech_name = first_member.professional.name
-            if budget_task.scheduled_at: inspection_date = budget_task.scheduled_at.strftime('%d/%m/%Y')
+        if budget_task and budget_task.scheduled_at:
+            inspection_date = budget_task.scheduled_at.strftime('%d/%m/%Y')
 
         elements.append(self._section_title("DADOS DO ATENDIMENTO"))
         elements.append(Spacer(1, 0.1*cm))
@@ -416,27 +446,34 @@ class BudgetPDFGenerator(BasePDFGenerator):
         elements.append(self._section_title("DETALHAMENTO DOS ITENS"))
         elements.append(Spacer(1, 0.1*cm))
 
-        # Header da tabela em preto com texto branco
+        # Header da tabela
         data = [[
             Paragraph("CÓDIGO", self.styles['TableHeader']),
             Paragraph("DESCRIÇÃO", self.styles['TableHeader']),
             Paragraph("QTD", self.styles['TableHeader']),
-            Paragraph("PREÇO UNIT.", self.styles['TableHeader']),
+            Paragraph("UNID.", self.styles['TableHeader']),
             Paragraph("TOTAL", self.styles['TableHeader'])
         ]]
         
         for item in self.service_order.items.all():
             code = item.product.code if (item.product and item.product.code) else "---"
             description = item.description or (item.product.name if item.product else (item.service.name if item.service else "---"))
+            
+            # Unidade
+            unit = "un"
+            if item.product:
+                unit = "mt" if item.product.unit_type == 'METER' else "un"
+            elif item.service:
+                unit = item.service.unit_of_measure
+
             quantity = str(item.quantity).replace('.', ',')
-            unit_price = self._format_currency(item.unit_price)
             total = self._format_currency(item.total_price)
             
             data.append([
                 Paragraph(code, self.styles['TableItem']),
                 Paragraph(description, self.styles['TableItem']),
                 Paragraph(quantity, self.styles['TableItem']),
-                Paragraph(unit_price, self.styles['TableItem']),
+                Paragraph(unit, self.styles['TableItem']),
                 Paragraph(total, self.styles['TableItem'])
             ])
             
@@ -595,17 +632,26 @@ class CompletionPDFGenerator(BasePDFGenerator):
         elements.append(self._section_title("MATERIAIS E SERVIÇOS"))
         elements.append(Spacer(1, 0.1*cm))
 
-        # Header da tabela em preto com texto branco
+        # Header da tabela
         data = [[
             Paragraph("CÓDIGO", self.styles['TableHeader']),
             Paragraph("DESCRIÇÃO", self.styles['TableHeader']),
             Paragraph("QTD", self.styles['TableHeader']),
+            Paragraph("UNID.", self.styles['TableHeader']),
             Paragraph("TOTAL", self.styles['TableHeader'])
         ]]
         
         for item in self.service_order.items.all():
             code = item.product.code if (item.product and item.product.code) else "---"
             description = item.description or (item.product.name if item.product else (item.service.name if item.service else "---"))
+            
+            # Unidade
+            unit = "un"
+            if item.product:
+                unit = "mt" if item.product.unit_type == 'METER' else "un"
+            elif item.service:
+                unit = item.service.unit_of_measure
+
             quantity = str(item.quantity).replace('.', ',')
             total = self._format_currency(item.total_price)
             
@@ -613,18 +659,19 @@ class CompletionPDFGenerator(BasePDFGenerator):
                 Paragraph(code, self.styles['TableItem']),
                 Paragraph(description, self.styles['TableItem']),
                 Paragraph(quantity, self.styles['TableItem']),
+                Paragraph(unit, self.styles['TableItem']),
                 Paragraph(total, self.styles['TableItem'])
             ])
             
         if len(data) == 1:
-            data.append([Paragraph("---", self.styles['TableItem']), Paragraph("Nenhum item detalhado", self.styles['TableItem']), "", ""])
+            data.append([Paragraph("---", self.styles['TableItem']), Paragraph("Nenhum item detalhado", self.styles['TableItem']), "", "", ""])
             
-        table = Table(data, colWidths=[2.5*cm, 10.5*cm, 2.5*cm, 2.5*cm])
+        table = Table(data, colWidths=[2.5*cm, 8.5*cm, 2*cm, 2.5*cm, 2.5*cm])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), self.header_bg),
             ('GRID', (0,0), (-1,-1), 0.5, self.grid_color),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('ALIGN', (2,1), (3,-1), 'RIGHT'),
+            ('ALIGN', (2,1), (4,-1), 'RIGHT'),
             ('TOPPADDING', (0,0), (-1,-1), 4),
             ('BOTTOMPADDING', (0,0), (-1,-1), 4),
         ]))
