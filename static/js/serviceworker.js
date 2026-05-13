@@ -1,10 +1,10 @@
-// Service Worker Gestao Servicos
-const CACHE_NAME = 'gestao-servicos-v2';
+const CACHE_NAME = 'gestao-servicos-v3';
 const ASSETS_TO_CACHE = [
     '/',
     '/static/dist/output.css',
     '/static/js/offline-db.js',
     '/static/dourados-calhas.png',
+    '/manifest.json',
     'https://unpkg.com/lucide@latest',
     'https://unpkg.com/dexie@latest/dist/dexie.js',
     'https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js'
@@ -42,19 +42,13 @@ self.addEventListener('fetch', (event) => {
 
     const url = new URL(event.request.url);
 
-    // 2. BYPASS TOTAL para Navegação (Páginas HTML)
-    // Deixamos o navegador lidar com redirecionamentos (302) nativamente.
-    // Só intervimos se a rede falhar (offline).
-    if (event.request.mode === 'navigate') {
-        event.respondWith(
-            fetch(event.request).catch(() => {
-                return caches.match(event.request) || caches.match('/');
-            })
-        );
-        return;
+    // 2. BYPASS para Navegação e Manifest
+    // Deixamos o navegador lidar com manifest e páginas HTML para evitar erros de redirecionamento/segurança
+    if (event.request.mode === 'navigate' || url.pathname.endsWith('manifest.json')) {
+        return; 
     }
 
-    // 3. IGNORAR rotas de admin/contas (redundante mas seguro)
+    // 3. IGNORAR rotas de admin/contas
     if (url.pathname.startsWith('/admin/') || url.pathname.startsWith('/accounts/')) {
         return;
     }
@@ -62,15 +56,21 @@ self.addEventListener('fetch', (event) => {
     // 4. APIs: Network First
     if (url.pathname.startsWith('/api/')) {
         event.respondWith(
-            fetch(event.request).catch(() => caches.match(event.request))
+            fetch(event.request)
+                .catch(() => caches.match(event.request))
         );
         return;
     }
 
-    // 5. Assets (CSS, JS, Imagens): Cache First
+    // 5. Assets: Cache First
     event.respondWith(
         caches.match(event.request).then((response) => {
-            return response || fetch(event.request);
+            if (response) return response;
+            
+            return fetch(event.request).catch(() => {
+                // Fallback silencioso se o fetch falhar
+                return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+            });
         })
     );
 });
