@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.http import JsonResponse
 import json
+from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .notifications import send_push_notification
