@@ -94,5 +94,7 @@
             <p class="mt-1 text-sm text-slate-500">Você não tem tarefas agendadas no momento.</p>
         </div>
     {% endif %}
-</div>
-{% endblock %}
+
+    {% include 'services/components/pagination.html' %}
+    </div>
+    {% endblock %}

@@ -5,6 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMix
 from django.contrib.auth.decorators import login_required, permission_required, user_passes_test
 from django.urls import reverse_lazy
 from django.db.models import Q
+from django.core.paginator import Paginator
 from datetime import timedelta, datetime
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import django.utils.timezone
@@ -63,6 +64,7 @@ class ProfessionalListView(LoginRequiredMixin, PermissionRequiredMixin, ListView
     template_name = 'services/professionals/professional_list.html'
     context_object_name = 'professionals'
     permission_required = 'services.view_professional'
+    paginate_by = 10
 
 class ProfessionalCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
     model = Professional
@@ -85,6 +87,7 @@ class ProfessionalScheduleBlockListView(LoginRequiredMixin, ListView):
     template_name = 'services/professionals/schedule_block_list.html'
     context_object_name = 'blocks'
     permission_required = 'services.view_professionalscheduleblock'
+    paginate_by = 10
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -176,10 +179,10 @@ def home(request):
 @login_required
 @permission_required('services.view_client', raise_exception=True)
 def client_list(request):
-    clients = Client.objects.all().order_by('name')
+    clients_qs = Client.objects.all().order_by('name')
     search = request.GET.get('search')
     if search:
-        clients = clients.filter(
+        clients_qs = clients_qs.filter(
             Q(name__icontains=search) |
             Q(cpf__icontains=search) |
             Q(cnpj__icontains=search) |
@@ -189,8 +192,13 @@ def client_list(request):
             Q(properties__city__icontains=search)
         ).distinct()
     
+    paginator = Paginator(clients_qs, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
     return render(request, 'services/clients/client_list.html', {
-        'clients': clients,
+        'clients': page_obj,  # Antigamente era 'clients': clients
+        'page_obj': page_obj,
         'search': search
     })
 
@@ -324,8 +332,13 @@ def service_order_list(request):
             Q(tasks__status=ServiceOrderTask.TaskStatus.NOT_EXECUTED)
         ).distinct()
 
+    paginator = Paginator(orders, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     return render(request, 'services/orders/order_list.html', {
-        'orders': orders,
+        'orders': page_obj,  # Antigamente era 'orders': orders
+        'page_obj': page_obj,
         'query': query,
         'status_filter': status_filter,
         'custom_filter': custom_filter,
@@ -1596,8 +1609,13 @@ def occurrence_list(request):
     if status_filter and status_filter != 'ALL':
         occurrences = occurrences.filter(status=status_filter)
         
+    paginator = Paginator(occurrences, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     return render(request, 'services/occurrences/list.html', {
-        'occurrences': occurrences,
+        'occurrences': page_obj,  # Antigamente era 'occurrences': occurrences
+        'page_obj': page_obj,
         'current_status': status_filter,
         'status_choices': Occurrence.OccurrenceStatus.choices,
         'resolved_count': Occurrence.objects.filter(status=Occurrence.OccurrenceStatus.RESOLVED).count(),

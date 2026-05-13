@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.http import JsonResponse
+from django.core.paginator import Paginator
 import json
 from decimal import Decimal
 from django.contrib.auth import get_user_model
@@ -33,8 +34,13 @@ def equipe_task_list(request):
         'service_order__client_property__client'
     ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED).order_by('scheduled_at')
     
+    paginator = Paginator(tasks_qs, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     context = {
-        'tasks': tasks_qs,
+        'tasks': page_obj,  # Antigamente era 'tasks': tasks_qs
+        'page_obj': page_obj,
         'title': 'Minhas Tarefas',
         'layout_base': 'base.html' if request.user.is_manager else 'base_equipe.html'
     }

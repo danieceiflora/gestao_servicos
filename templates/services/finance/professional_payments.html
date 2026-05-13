@@ -178,6 +178,8 @@
     <form id="individual-confirm-form" method="POST" class="hidden">
         {% csrf_token %}
     </form>
+
+    {% include 'services/components/pagination.html' %}
 </div>
 
 {% endblock %}

@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum, Q, F
 from django.utils import timezone
+from django.core.paginator import Paginator
 from decimal import Decimal
 from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment
 from django.http import HttpResponse
@@ -316,8 +317,13 @@ def finance_professional_payments(request):
         else:
             selected_professional = None
         
+    paginator = Paginator(payments, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     context = {
-        'payments': payments,
+        'payments': page_obj,  # Antigamente era 'payments': payments
+        'page_obj': page_obj,
         'professionals': professionals,
         'selected_professional': selected_professional,
         'status_filter': status_filter,
