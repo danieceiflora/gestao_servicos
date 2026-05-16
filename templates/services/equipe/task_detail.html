@@ -620,17 +620,11 @@ document.addEventListener('DOMContentLoaded', function() {
             finishForm.addEventListener("submit", function(e) {
                 e.preventDefault();
                 
-                // Validações antes de enviar
-                if (signaturePad.isEmpty()) {
-                    alert("Por favor, peça ao cliente para assinar a etapa.");
-                    // Abre a seção caso esteja fechada
-                    document.querySelector("#details-signature").open = true;
-                    setTimeout(resizeCanvas, 50);
-                    return;
-                }
-
+                // Assinatura agora é opcional
                 const customerName = document.querySelector("#customer_name").value.trim();
-                if (!customerName) {
+                
+                // Se foi feita uma assinatura, exigir o nome do cliente
+                if (!signaturePad.isEmpty() && !customerName) {
                     alert("Por favor, informe o nome de quem está assinando.");
                     document.querySelector("#details-signature").open = true;
                     document.querySelector("#customer_name").focus();
@@ -641,8 +635,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
-                // Captura os dados da assinatura
-                document.querySelector("#signature_data").value = signaturePad.toDataURL();
+                // Captura os dados da assinatura se não estiver vazia
+                if (!signaturePad.isEmpty()) {
+                    document.querySelector("#signature_data").value = signaturePad.toDataURL();
+                } else {
+                    document.querySelector("#signature_data").value = "";
+                }
                 this.submit();
             });
         }

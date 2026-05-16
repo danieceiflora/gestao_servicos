@@ -24,7 +24,7 @@ const PushManager = (function() {
         }
 
         try {
-            swRegistration = await navigator.serviceWorker.register('/static/js/serviceworker.js');
+            swRegistration = await navigator.serviceWorker.register('/service-worker.js');
             
             if (Notification.permission === 'default') {
                 showPermissionBanner(vapidPublicKey);

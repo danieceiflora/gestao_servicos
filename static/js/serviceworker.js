@@ -1,4 +1,6 @@
-const CACHE_NAME = 'gestao-servicos-v3';
+const CACHE_NAME = 'gestao-servicos-v4'; // Subimos a versão para aplicar as correções
+
+// 🔓 Adicione aqui os caminhos das telas/menus principais que o técnico acessa
 const ASSETS_TO_CACHE = [
     '/',
     '/static/dist/output.css',
@@ -7,9 +9,16 @@ const ASSETS_TO_CACHE = [
     '/manifest.json',
     'https://unpkg.com/lucide@latest',
     'https://unpkg.com/dexie@latest/dist/dexie.js',
-    'https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js'
+    'https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js',
+    
+    // Deixamos pré-cacheado os esqueletos dos menus mais comuns:
+    '/equipe/tarefas/',
+    '/equipe/etapa/d5965a00-b0ca-4cee-9d68-09481ffe7b95',
+    '/orders/calendar/',
+
 ];
 
+// Instalação do Service Worker
 self.addEventListener('install', (event) => {
     console.log('[Service Worker] Install');
     event.waitUntil(
@@ -20,6 +29,7 @@ self.addEventListener('install', (event) => {
     self.skipWaiting();
 });
 
+// Ativação e limpeza de caches antigos
 self.addEventListener('activate', (event) => {
     console.log('[Service Worker] Activate');
     event.waitUntil(
@@ -36,24 +46,24 @@ self.addEventListener('activate', (event) => {
     return self.clients.claim();
 });
 
+// Interceptação de requisições (Onde a mágica offline acontece)
 self.addEventListener('fetch', (event) => {
     // 1. IGNORAR requisições que não sejam GET
     if (event.request.method !== 'GET') return;
 
     const url = new URL(event.request.url);
 
-    // 2. BYPASS para Navegação e Manifest
-    // Deixamos o navegador lidar com manifest e páginas HTML para evitar erros de redirecionamento/segurança
-    if (event.request.mode === 'navigate' || url.pathname.endsWith('manifest.json')) {
+    // 2. BYPASS apenas para o manifest.json
+    if (url.pathname.endsWith('manifest.json')) {
         return; 
     }
 
-    // 3. IGNORAR rotas de admin/contas
+    // 3. IGNORAR rotas administrativas internas do Django
     if (url.pathname.startsWith('/admin/') || url.pathname.startsWith('/accounts/')) {
         return;
     }
 
-    // 4. APIs: Network First
+    // 4. APIs de Dados: Network First (Tenta internet, se falhar devolve cache)
     if (url.pathname.startsWith('/api/')) {
         event.respondWith(
             fetch(event.request)
@@ -62,16 +72,34 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // 5. Assets: Cache First
+    // 5. CORREÇÃO DE NAVEGAÇÃO E ASSETS: Network-First com salvamento em Cache Dinâmico
+    // Isso garante que mudanças de menu não quebrem e que o layout seja atualizado online
     event.respondWith(
-        caches.match(event.request).then((response) => {
-            if (response) return response;
-            
-            return fetch(event.request).catch(() => {
-                // Fallback silencioso se o fetch falhar
-                return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
-            });
-        })
+        fetch(event.request)
+            .then((response) => {
+                // Se a página retornou com sucesso, salvamos uma cópia atualizada no cache
+                if (response.status === 200) {
+                    const responseClone = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseClone);
+                    });
+                }
+                return response;
+            })
+            .catch(() => {
+                // Se o fetch falhar (Sem Internet), tenta entregar o layout guardado
+                return caches.match(event.request).then((cachedResponse) => {
+                    if (cachedResponse) return cachedResponse;
+                    
+                    // Se o técnico tentar acessar um menu que nunca abriu antes estando offline,
+                    // redirecionamos ele de forma amigável para a página principal
+                    if (event.request.mode === 'navigate') {
+                        return caches.match('/');
+                    }
+                    
+                    return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+                });
+            })
     );
 });
 
