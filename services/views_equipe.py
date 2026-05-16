@@ -139,6 +139,9 @@ def equipe_task_finish(request, task_id):
         # Validar checklist obrigatório
         pending_required = task.checklist_responses.filter(item__is_required=True, completed=False).exists()
         if pending_required:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                from django.http import JsonResponse
+                return JsonResponse({'success': False, 'error': 'Existem itens obrigatórios no check-list que ainda não foram preenchidos.'}, status=400)
             messages.error(request, 'Existem itens obrigatórios no check-list que ainda não foram preenchidos.')
             return redirect('equipe_task_detail', task_id=task.id)
 
@@ -157,23 +160,28 @@ def equipe_task_finish(request, task_id):
             from django.core.files.storage import default_storage
             import base64
             import uuid
-            import os
 
-            format, imgstr = signature_base64.split(';base64,')
-            ext = format.split('/')[-1]
-            filename = f"sig_{task.id}_{uuid.uuid4().hex[:8]}.{ext}"
-            
-            # Caminho relativo para salvar no banco e no filesystem
-            now = timezone.now()
-            relative_path = os.path.join('signatures', now.strftime('%Y'), now.strftime('%m'), filename)
-            
-            data = ContentFile(base64.b64decode(imgstr))
-            
-            # Salva o arquivo fisicamente
-            actual_path = default_storage.save(relative_path, data)
-            
-            # Salva apenas o caminho (string) no banco de dados
-            task.customer_signature = actual_path
+            try:
+                format, imgstr = signature_base64.split(';base64,')
+                ext = format.split('/')[-1]
+                filename = f"sig_{task.id}_{uuid.uuid4().hex[:8]}.{ext}"
+                
+                now = timezone.now()
+                # Usa "/" explicitamente para ser compatível com S3/R2 independente do SO (evitando o os.path.join do Windows)
+                relative_path = f"signatures/{now.strftime('%Y')}/{now.strftime('%m')}/{filename}"
+                
+                data = ContentFile(base64.b64decode(imgstr))
+                
+                # Salva o arquivo fisicamente
+                actual_path = default_storage.save(relative_path, data)
+                task.customer_signature = actual_path
+            except Exception as e:
+                import logging
+                logging.error(f"Erro ao salvar assinatura offline/online: {e}")
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                    from django.http import JsonResponse
+                    return JsonResponse({'success': False, 'error': str(e)}, status=500)
+                pass
 
         task.finished_at = timezone.now()
         task.status = ServiceOrderTask.TaskStatus.COMPLETED
@@ -181,6 +189,10 @@ def equipe_task_finish(request, task_id):
         
         if hasattr(task.service_order, 'update_status'):
             task.service_order.update_status()
+            
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            from django.http import JsonResponse
+            return JsonResponse({'success': True, 'message': 'Etapa finalizada com sucesso!'})
             
         messages.success(request, 'Etapa finalizada com sucesso!')
         return redirect('equipe_task_list')
@@ -207,10 +219,17 @@ def equipe_task_checklist_update(request, task_id):
         if item.evidence_type in [ServiceChecklistItem.EvidenceType.PHOTO, ServiceChecklistItem.EvidenceType.VIDEO]:
             file_key = 'photo' if item.evidence_type == ServiceChecklistItem.EvidenceType.PHOTO else 'video'
             if file_key in request.FILES:
-                ChecklistResponseMedia.objects.create(
-                    response=response,
-                    file=request.FILES[file_key]
-                )
+                try:
+                    ChecklistResponseMedia.objects.create(
+                        response=response,
+                        file=request.FILES[file_key]
+                    )
+                except Exception as e:
+                    import logging
+                    logging.error(f"Erro ao salvar midia do checklist no Cloud/R2: {e}")
+                    # Retorna 500 para acionar o modo fallback no JS caso esteja online mas sem cloud
+                    from django.http import JsonResponse
+                    return JsonResponse({'success': False, 'error': str(e)}, status=500)
                 
         response.completed = completed
         response.save()
@@ -256,12 +275,26 @@ def equipe_task_add_media(request, task_id):
     if request.method == 'POST':
         files = request.FILES.getlist('files')
         if files:
-            for file in files:
-                ServiceMedia.objects.create(task=task, file=file)
-            messages.success(request, f'{len(files)} arquivo(s) anexado(s) com sucesso!')
+            try:
+                for file in files:
+                    ServiceMedia.objects.create(task=task, file=file)
+                messages.success(request, f'{len(files)} arquivo(s) anexado(s) com sucesso!')
+            except Exception as e:
+                import logging
+                logging.error(f"Erro ao salvar midia no Cloud/R2: {e}")
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                    from django.http import JsonResponse
+                    return JsonResponse({'success': False, 'error': str(e)}, status=500)
+                messages.error(request, 'Falha ao salvar mídia na nuvem. Tente novamente mais tarde.')
         else:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                from django.http import JsonResponse
+                return JsonResponse({'success': False, 'error': 'Nenhum arquivo providenciado.'}, status=400)
             messages.error(request, 'Nenhum arquivo providenciado.')
             
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        from django.http import JsonResponse
+        return JsonResponse({'success': True})
     return redirect('equipe_task_detail', task_id=task.id)
 
 @login_required
@@ -296,15 +329,25 @@ def equipe_task_add_occurrence(request, task_id):
         occurrence_type = request.POST.get('occurrence_type')
         description = request.POST.get('description')
         if category and occurrence_type and description:
-            occurrence = Occurrence.objects.create(
-                task=task,
-                category=category,
-                occurrence_type=occurrence_type,
-                description=description
-            )
-            files = request.FILES.getlist('files')
-            for file in files:
-                ServiceMedia.objects.create(task=task, occurrence=occurrence, file=file)
+            try:
+                occurrence = Occurrence.objects.create(
+                    task=task,
+                    category=category,
+                    occurrence_type=occurrence_type,
+                    description=description
+                )
+                files = request.FILES.getlist('files')
+                if files:
+                    for file in files:
+                        ServiceMedia.objects.create(task=task, occurrence=occurrence, file=file)
+            except Exception as e:
+                import logging
+                logging.error(f"Erro ao salvar ocorrencia ou midia no Cloud/R2: {e}")
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                    from django.http import JsonResponse
+                    return JsonResponse({'success': False, 'error': str(e)}, status=500)
+                messages.error(request, 'Falha ao salvar a ocorrência. Tente novamente.')
+                return redirect('equipe_task_detail', task_id=task.id)
 
             try:
                 from django.contrib.auth import get_user_model
@@ -326,11 +369,24 @@ def equipe_task_add_occurrence(request, task_id):
             if category == Occurrence.OccurrenceCategory.BLOCKING:
                 task.status = ServiceOrderTask.TaskStatus.NOT_EXECUTED
                 task.save()
+                
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                    from django.http import JsonResponse
+                    return JsonResponse({'success': True, 'message': 'Ocorrência impeditiva registrada.'})
+                    
                 messages.warning(request, 'Ocorrência impeditiva registrada. Etapa marcada como não executada e aguardando reagendamento.')
             else:
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                    from django.http import JsonResponse
+                    return JsonResponse({'success': True, 'message': 'Ocorrência registrada com sucesso!'})
+                    
                 messages.success(request, 'Ocorrência registrada com sucesso!')
         else:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                from django.http import JsonResponse
+                return JsonResponse({'success': False, 'error': 'Campos obrigatórios.'}, status=400)
             messages.error(request, 'Categoria, Tipo e Descrição são obrigatórios.')
+            
     return redirect('equipe_task_detail', task_id=task.id)
 
 

@@ -99,7 +99,9 @@ const OfflineDB = {
                 
                 await db[tableName].clear();
                 if (itemList.length > 0) {
-                    await db[tableName].bulkAdd(itemList);
+                    // Usar bulkPut no lugar de bulkAdd previne o ConstraintError, 
+                    // pois ele fará update (upsert) se houverem chaves/IDs duplicados na lista do servidor.
+                    await db[tableName].bulkPut(itemList);
                 }
                 return itemList;
             }
@@ -175,6 +177,9 @@ const OfflineDB = {
                     case 'CHECKLIST_UPDATE':
                         success = await this.sendToServer(`/equipe/etapa/${item.payload.task_id}/checklist/atualizar/`, 'POST', item.payload.data);
                         break;
+                    case 'GENERIC_FORM_UPLOAD':
+                        success = await this.sendToServer(item.payload.url, 'POST', item.payload.data);
+                        break;
                 }
 
                 if (success) {
@@ -204,8 +209,15 @@ const OfflineDB = {
             if (data instanceof FormData) {
                 body = data;
             } else {
-                body = JSON.stringify(data);
-                headers['Content-Type'] = 'application/json';
+                // Converte o objeto plano para FormData para manter compatibilidade com request.POST do Django
+                body = new FormData();
+                for (const key in data) {
+                    if (Array.isArray(data[key])) {
+                        data[key].forEach(val => body.append(key, val));
+                    } else {
+                        body.append(key, data[key]);
+                    }
+                }
             }
         }
 
@@ -269,6 +281,7 @@ const OfflineDB = {
 
 // Event Listeners para Conectividade
 window.addEventListener('online', () => {
+    console.log('🌐 Conexão restabelecida! Técnico online. Iniciando sincronização dos dados locais com o servidor...');
     OfflineDB.updateUIStatus();
     OfflineDB.processSyncQueue();
 });
@@ -288,6 +301,9 @@ document.addEventListener('DOMContentLoaded', () => {
 // Inicialização automática ao abrir o app
 document.addEventListener('DOMContentLoaded', async () => {
     OfflineDB.updateUIStatus();
+    
+    // Sempre tenta limpar a fila pendente quando a tela carrega (pode ser que a internet tenha voltado enquanto o app estava fechado)
+    OfflineDB.processSyncQueue();
     
     if (navigator.onLine) {
         console.log('🔄 Técnico Online: Iniciando sincronização diária obrigatória...');

@@ -291,7 +291,7 @@
                     {% endif %}
 
                     {% if not task.finished_at %}
-                        <form action="{% url 'equipe_task_add_media' task.id %}" method="POST" enctype="multipart/form-data" class="space-y-3">
+                        <form action="{% url 'equipe_task_add_media' task.id %}" method="POST" enctype="multipart/form-data" class="space-y-3 js-offline-form">
                             {% csrf_token %}
                             {% include "services/components/media_dropzone.html" with is_subform=True dropzone_name="files" dropzone_id="service_files" %}
                             <button type="submit" class="w-full rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 border border-slate-300 active:scale-[0.98] transition-all h-11 flex items-center justify-center text-sm">
@@ -367,7 +367,7 @@
                                 <i data-lucide="plus-circle" class="w-4 h-4"></i>
                                 Registrar Novo Problema
                             </h4>
-                            <form action="{% url 'equipe_task_add_occurrence' task.id %}" method="POST" enctype="multipart/form-data" class="space-y-3">
+                            <form action="{% url 'equipe_task_add_occurrence' task.id %}" method="POST" enctype="multipart/form-data" class="space-y-3 js-offline-form">
                                 {% csrf_token %}
                                 <div>
                                     <label class="block text-xs font-bold text-slate-600 mb-1">Categoria</label>
@@ -581,6 +581,143 @@ function confirmFinishTask(taskType) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    
+    // --- RESTAURAR VISUALMENTE DADOS OFFLINE NA TELA ---
+    // Mesmo que o servidor não tenha os dados (erro 500 no cloudflare) ou estejamos offline,
+    // garantimos que o técnico veja na tela tudo o que ele já digitou e está na fila.
+    async function applyOfflineState() {
+        if (!window.OfflineDB || !window.db) return;
+        
+        const taskId = '{{ task.id }}';
+        try {
+            const pendingItems = await db.sync_queue.filter(item => 
+                item.status !== 'success' && 
+                (
+                    (item.payload && item.payload.task_id === taskId) ||
+                    (item.payload && item.payload.url && item.payload.url.includes(taskId))
+                )
+            ).toArray();
+
+            pendingItems.forEach(item => {
+                if (item.type === 'CHECKLIST_UPDATE') {
+                    const data = item.payload.data;
+                    const responseId = data.response_id;
+                    
+                    const cb = document.querySelector(`.js-checklist-checkbox[data-response-id="${responseId}"]`);
+                    if (cb && data.completed !== undefined) {
+                        cb.checked = data.completed;
+                        const evidence = cb.closest('.group\\/item').querySelector('.js-evidence-container');
+                        if (evidence && data.completed) evidence.classList.remove('hidden');
+                    }
+                    
+                    const txt = document.querySelector(`.js-checklist-text[data-response-id="${responseId}"]`);
+                    if (txt && data.text_response) {
+                        txt.value = data.text_response;
+                    }
+                    
+                    const container = document.getElementById(`checklist-item-${responseId}`);
+                    if (container) {
+                        container.classList.add('border-orange-300', 'bg-orange-50');
+                        if (!container.querySelector('.offline-badge')) {
+                            const badge = document.createElement('div');
+                            badge.className = 'offline-badge mt-2 text-[10px] font-bold text-orange-600 flex items-center gap-1';
+                            badge.innerHTML = '<i data-lucide="cloud-off" class="w-3 h-3"></i> Salvo na Fila do Aparelho (Aguardando Internet)';
+                            container.querySelector('.flex-1').appendChild(badge);
+                        }
+                    }
+                } 
+                else if (item.type === 'GENERIC_FORM_UPLOAD') {
+                    if (item.payload.url.includes('midia') || item.payload.url.includes('media')) {
+                        let mediaGrid = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-2.gap-3.mb-4');
+                        if (!mediaGrid) {
+                            mediaGrid = document.createElement('div');
+                            mediaGrid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 mt-4';
+                            const form = document.querySelector('form[action*="midia"], form[action*="media"]');
+                            if(form && form.parentNode) form.parentNode.insertBefore(mediaGrid, form);
+                        }
+                        if (mediaGrid) {
+                            const card = document.createElement('div');
+                            card.className = "flex items-center justify-between p-2 rounded-xl bg-orange-50 border border-orange-200 border-dashed opacity-90";
+                            card.innerHTML = `
+                                <div class="flex items-center gap-3">
+                                    <div class="w-14 h-14 rounded-lg bg-orange-200 flex items-center justify-center shrink-0">
+                                        <i data-lucide="image" class="h-6 w-6 text-orange-500"></i>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-orange-800 tracking-tight">Mídia na Fila Local</span>
+                                        <span class="text-[10px] text-orange-600 font-medium">Aguardando internet...</span>
+                                    </div>
+                                </div>
+                            `;
+                            mediaGrid.appendChild(card);
+                        }
+                    } 
+                    else if (item.payload.url.includes('ocorrencia')) {
+                        const formContainer = document.querySelector('form[action*="ocorrencia"]').closest('.p-4.bg-rose-50');
+                        if (formContainer && formContainer.parentNode) {
+                            const card = document.createElement('div');
+                            card.className = "p-3 rounded-xl border bg-orange-50 border-orange-300 border-dashed mb-3 opacity-90";
+                            let desc = item.payload.data.description || 'Ocorrência salva e trancada no dispositivo via modo offline...';
+                            card.innerHTML = `
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="text-[10px] font-black px-2 py-1 rounded-md text-orange-800 bg-orange-200 uppercase tracking-wider items-center flex gap-1">
+                                        <i data-lucide="clock" class="w-3 h-3"></i> Fila Aparelho
+                                    </span>
+                                </div>
+                                <p class="text-sm border-l-2 border-orange-400 pl-2 text-orange-900">${desc}</p>
+                            `;
+                            formContainer.parentNode.insertBefore(card, formContainer);
+                        }
+                    }
+                }
+                else if (item.type === 'TASK_FINISH') {
+                    
+                    // Mostra as tags de Conclusão e Textos na View de Finalizados no TOPO do site
+                    const topCardsContainer = document.querySelector('.px-4.mb-4.space-y-3');
+                    if (topCardsContainer && !document.getElementById('offline-finished-card')) {
+                        const cardText = document.createElement('div');
+                        cardText.id = "offline-finished-card";
+                        cardText.className = "bg-orange-50 border border-orange-200 border-dashed rounded-2xl p-4 flex flex-col gap-3 shadow-sm";
+                        cardText.innerHTML = `
+                            <div class="flex items-center gap-4">
+                                <div class="h-10 w-10 rounded-full bg-orange-200 text-orange-600 flex items-center justify-center shrink-0">
+                                    <i data-lucide="check-check" class="h-5 w-5"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-black text-orange-900 leading-none">Concluído (Offline)</h4>
+                                    <p class="text-[10px] text-orange-600 mt-1 uppercase font-bold tracking-widest"><i data-lucide="cloud-off" class="w-2.5 h-2.5 inline align-baseline"></i> Sincronismo Pendente</p>
+                                </div>
+                            </div>
+                            <div class="p-3 bg-white/50 border border-orange-200/50 rounded-xl mt-1">
+                                <span class="text-[10px] font-bold text-orange-800 uppercase">Anotações do Relatório</span>
+                                <p class="text-xs text-orange-900 mt-1 whitespace-pre-line">${item.payload.data.notes || 'Nenhuma nota...'}</p>
+                            </div>
+                        `;
+                        // Remove o card 'Em Execução' (se existir)
+                        const inProgress = topCardsContainer.querySelector('.bg-blue-50');
+                        if (inProgress) inProgress.remove();
+
+                        topCardsContainer.insertBefore(cardText, topCardsContainer.firstChild);
+                    }
+
+                    // Oculta o formulário de finalização já que ele registrou finalização no Banco Local
+                    const finishForm = document.getElementById('finish-task-form');
+                    if (finishForm) {
+                        finishForm.style.display = 'none';
+                        const msg = document.createElement('div');
+                        msg.className = "p-4 bg-orange-50 border-2 border-orange-300 border-dashed rounded-2xl text-orange-800 text-sm font-bold mt-4 flex items-center shadow-sm";
+                        msg.innerHTML = '<i data-lucide="check-square" class="mr-2 w-5 h-5 text-orange-600"></i> Relatório arquivado localmente. O envio para a nuvem será feito em breve!';
+                        finishForm.parentNode.appendChild(msg);
+                    }
+                }
+            });
+            if (window.lucide) lucide.createIcons();
+        } catch (e) {
+            console.warn("Nenhum estado offline para restaurar ou banco carregando.");
+        }
+    }
+    applyOfflineState();
+
     // --- SIGNATURE PAD LOGIC ---
     const canvas = document.querySelector("#signature-pad");
     const signaturePad = canvas ? new SignaturePad(canvas, {
@@ -636,12 +773,55 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 // Captura os dados da assinatura se não estiver vazia
-                if (!signaturePad.isEmpty()) {
-                    document.querySelector("#signature_data").value = signaturePad.toDataURL();
-                } else {
-                    document.querySelector("#signature_data").value = "";
-                }
-                this.submit();
+                const signatureData = !signaturePad.isEmpty() ? signaturePad.toDataURL() : "";
+                
+                // Em vez de submeter o form quebrando a página (this.submit()),
+                // usamos fetch para fazer a requisição de forma invisível.
+                const formData = new FormData(this);
+                formData.set("signature_data", signatureData);
+                
+                // Exibe loading
+                const btnSubmit = this.querySelector('button[type="submit"]');
+                const originalBtnHtml = btnSubmit.innerHTML;
+                btnSubmit.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 mr-2 animate-spin"></i> ENVIANDO...';
+                btnSubmit.disabled = true;
+                if (window.lucide) lucide.createIcons();
+
+                fetch(this.action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Sucesso total
+                        window.location.href = "{% url 'equipe_task_list' %}";
+                    } else {
+                        // Erro 500 (Falha de servidor / R2) joga pro catch
+                        throw new Error("Erro do Servidor");
+                    }
+                })
+                .catch(error => {
+                    // Cai aqui se estiver Offline (Celular sem base) 
+                    // OU se o Servidor Django der crash (S3/R2 fora do ar)
+                    console.log("Tentativa padrão falhou. Salvando na fila OfflineDB...");
+                    OfflineDB.enqueueSyncItem('TASK_FINISH', { 
+                        task_id: '{{ task.id }}',
+                        data: {
+                            notes: document.querySelector("#notes").value,
+                            customer_name: customerName,
+                            signature_data: signatureData
+                        }
+                    });
+                    
+                    // Atualiza a tabela tasks local para status concluído, assim se a tela carregar offline ela exibe certa
+                    if (window.db) {
+                        db.tasks.update('{{ task.id }}', { status: 'COMPLETED' }).catch(() => {});
+                    }
+
+                    alert('Atenção: Você está sem conexão ou o servidor de arquivos na nuvem da empresa está fora do ar. Seu relatório e assinatura foram SALVOS NO DISPOSITIVO COM SUCESSO (Nada foi perdido!). Eles ficarão na fila e enviarão sozinhos.');
+                    window.location.href = "{% url 'equipe_task_list' %}";
+                });
             });
         }
     }
@@ -696,13 +876,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const checklistFiles = document.querySelectorAll('.js-checklist-file');
 
     function updateChecklistItem(responseId, data, isFile = false) {
-        // Se estiver offline e NÃO for arquivo, salva na fila
-        if (!navigator.onLine && !isFile) {
+        const payloadData = { response_id: responseId, ...data };
+
+        // Agora offline joga na fila, independentemente se é arquivo (foto/video) ou não
+        if (!navigator.onLine) {
             OfflineDB.enqueueSyncItem('CHECKLIST_UPDATE', {
                 task_id: '{{ task.id }}',
-                data: { response_id: responseId, ...data }
+                data: payloadData
             });
-            // Feedback visual imediato mesmo offline
             const itemContainer = document.getElementById(`checklist-item-${responseId}`);
             if (itemContainer) {
                 itemContainer.classList.add('ring-1', 'ring-orange-400');
@@ -728,25 +909,31 @@ document.addEventListener('DOMContentLoaded', function() {
             body: formData
         })
         .then(r => r.json())
-        .then(data => {
-            if (data.success) {
+        .then(resData => {
+            if (resData.success) {
                 if (itemContainer) {
                     itemContainer.classList.remove('opacity-70');
                     itemContainer.classList.add('ring-1', 'ring-emerald-500');
                     setTimeout(() => itemContainer.classList.remove('ring-1', 'ring-emerald-500'), 1500);
                 }
-                return data;
+                return resData;
             } else {
-                throw new Error(data.message || 'Erro ao atualizar item');
+                throw new Error(resData.message || 'Erro ao atualizar item');
             }
         })
         .catch(err => {
-            if (!navigator.onLine) {
-                // Fallback silencioso se cair a net durante a requisição
-                return { success: true, offline: true };
+            // Se falhou (Cloudflare caiu, Timeout), salva na fila silenciosamente!
+            console.warn("Falha no envio checklist, jogando pra fila: ", err);
+            OfflineDB.enqueueSyncItem('CHECKLIST_UPDATE', {
+                task_id: '{{ task.id }}',
+                data: payloadData
+            });
+            if (itemContainer) {
+                itemContainer.classList.remove('opacity-70');
+                itemContainer.classList.add('ring-1', 'ring-orange-400');
+                setTimeout(() => itemContainer.classList.remove('ring-1', 'ring-orange-400'), 1500);
             }
-            alert('Erro ao salvar item do check-list: ' + err.message);
-            if (itemContainer) itemContainer.classList.remove('opacity-70');
+            return { success: true, offline: true };
         });
     }
 
@@ -821,6 +1008,56 @@ document.addEventListener('DOMContentLoaded', function() {
             .finally(() => {
                 label.innerHTML = originalHTML;
                 if (window.lucide) lucide.createIcons();
+            });
+        });
+    });
+
+    // --- OFFLINE FORMS INTERCEPTOR (EVIDÊNCIAS E OCORRÊNCIAS) ---
+    document.querySelectorAll('.js-offline-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const btnSubmit = this.querySelector('button[type="submit"]');
+            const originalHtml = btnSubmit.innerHTML;
+            btnSubmit.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 mr-2 animate-spin"></i> Salvando...';
+            btnSubmit.disabled = true;
+            if (window.lucide) lucide.createIcons();
+
+            const formData = new FormData(this);
+            const payloadData = {};
+            for (let [k, v] of formData.entries()) {
+                payloadData[k] = v;
+            }
+
+            if (!navigator.onLine) {
+                OfflineDB.enqueueSyncItem('GENERIC_FORM_UPLOAD', {
+                    url: this.action,
+                    data: payloadData
+                });
+                alert('Modo Offline: O envio da mídia foi guardado localmente e continuará enviando invisivelmente assim que a internet voltar!');
+                // Como anexou a foto sem atualizar o servidor em tempo real, recarregamos a página
+                window.location.reload();
+                return;
+            }
+
+            // Tenta enviar Real. Se falhar por causa da Nuvem (R2/S3 fora), o catch assume o arquivamento.
+            fetch(this.action, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("Erro de infraestrutura (Cloudflare, DB, etc)");
+                window.location.reload();
+            })
+            .catch(err => {
+                console.warn(err);
+                OfflineDB.enqueueSyncItem('GENERIC_FORM_UPLOAD', {
+                    url: this.action,
+                    data: payloadData
+                });
+                alert('O provedor de mídia da nuvem parece indisponível. Arquivo salvo na Fila Local com sucesso!');
+                window.location.reload();
             });
         });
     });

@@ -13,17 +13,26 @@ const ASSETS_TO_CACHE = [
     
     // Deixamos pré-cacheado os esqueletos dos menus mais comuns:
     '/equipe/tarefas/',
-    '/equipe/etapa/d5965a00-b0ca-4cee-9d68-09481ffe7b95',
     '/orders/calendar/',
-
 ];
 
 // Instalação do Service Worker
 self.addEventListener('install', (event) => {
     console.log('[Service Worker] Install');
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(ASSETS_TO_CACHE);
+        caches.open(CACHE_NAME).then(async (cache) => {
+            // Em vez de cache.addAll() que aborta tudo se um único arquivo der erro (404),
+            // tentamos adicionar um por um de forma segura.
+            for (const asset of ASSETS_TO_CACHE) {
+                try {
+                    // Para CDNs externos lidamos com no-cors para evitar falha de CORS estrito no cacheamento
+                    const request = new Request(asset, { mode: asset.startsWith('http') ? 'no-cors' : 'cors' });
+                    const response = await fetch(request);
+                    await cache.put(request, response);
+                } catch (e) {
+                    console.warn(`[Service Worker] Falha ao fazer pré-cache de: ${asset}`, e);
+                }
+            }
         })
     );
     self.skipWaiting();
