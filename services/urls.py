@@ -15,6 +15,7 @@ urlpatterns = [
     path('termos-de-servico/', views.terms_of_service, name='terms_of_service'),
     
     # --- VISÃO EQUIPE / COLABORADORES ---
+    path('equipe/inicio/', views_equipe.equipe_dashboard, name='equipe_dashboard'),
     path('equipe/tarefas/', views_equipe.equipe_task_list, name='equipe_task_list'),
     path('equipe/etapa/<uuid:task_id>/', views_equipe.equipe_task_detail, name='equipe_task_detail'),
     path('equipe/etapa/<uuid:task_id>/iniciar/', views_equipe.equipe_task_start, name='equipe_task_start'),
@@ -97,4 +98,3 @@ urlpatterns = [
     path('api/uppy-upload/', views.uppy_upload, name='uppy_upload'),
     path('os/<uuid:pk>/resend-billing/', views.resend_billing, name='service_order_resend_billing'),
 ]
-

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-servicos-v4'; // Subimos a versão para aplicar as correções
+const CACHE_NAME = 'gestao-servicos-v5'; // Subimos a versão para aplicar as correções
 
 // 🔓 Adicione aqui os caminhos das telas/menus principais que o técnico acessa
 const ASSETS_TO_CACHE = [
@@ -12,6 +12,7 @@ const ASSETS_TO_CACHE = [
     'https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js',
     
     // Deixamos pré-cacheado os esqueletos dos menus mais comuns:
+    '/equipe/inicio/',
     '/equipe/tarefas/',
     '/orders/calendar/',
 ];
@@ -176,4 +177,3 @@ self.addEventListener('notificationclick', (event) => {
             })
     );
 });
-

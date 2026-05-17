@@ -24,7 +24,7 @@
         <div class="flex items-center gap-3 md:gap-4">
             <!-- Menus Desktop -->
             <nav class="hidden md:flex items-center gap-6 mr-2 pr-6 border-r border-slate-200">
-                <a href="{% url 'home' %}" class="text-sm font-medium flex items-center gap-2 {% if request.resolver_match.url_name == 'home' %}text-blue-600{% else %}text-slate-500{% endif %} hover:text-blue-600 transition-colors">
+                <a href="{% url 'equipe_dashboard' %}" class="text-sm font-medium flex items-center gap-2 {% if request.resolver_match.url_name == 'equipe_dashboard' %}text-blue-600{% else %}text-slate-500{% endif %} hover:text-blue-600 transition-colors">
                     <i data-lucide="layout-dashboard" class="h-4 w-4"></i> Início
                 </a>
                 <a href="{% url 'equipe_task_list' %}" class="text-sm font-medium flex items-center gap-2 {% if 'equipe_task' in request.resolver_match.url_name %}text-blue-600{% else %}text-slate-500{% endif %} hover:text-blue-600 transition-colors">
@@ -68,8 +68,8 @@
                 <span class="text-[10px] font-bold tracking-wide uppercase">Serviços</span>
             </a>
 
-            <a href="{% url 'home' %}" class="flex flex-col items-center justify-center gap-1.5 h-full {% if request.resolver_match.url_name == 'home' %}text-blue-600{% else %}text-slate-400{% endif %} hover:text-blue-600 transition-colors">
-                <i data-lucide="layout-dashboard" class="h-5 w-5 {% if request.resolver_match.url_name == 'home' %}fill-blue-50/50{% endif %}"></i>
+            <a href="{% url 'equipe_dashboard' %}" class="flex flex-col items-center justify-center gap-1.5 h-full {% if request.resolver_match.url_name == 'equipe_dashboard' %}text-blue-600{% else %}text-slate-400{% endif %} hover:text-blue-600 transition-colors">
+                <i data-lucide="layout-dashboard" class="h-5 w-5 {% if request.resolver_match.url_name == 'equipe_dashboard' %}fill-blue-50/50{% endif %}"></i>
                 <span class="text-[10px] font-bold tracking-wide uppercase">Início</span>
             </a>
             

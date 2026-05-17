@@ -149,7 +149,7 @@ class ProfessionalScheduleBlockDeleteView(LoginRequiredMixin, PermissionRequired
 @login_required
 def home(request):
     if not request.user.is_manager:
-        return redirect('equipe_task_list')
+        return redirect('equipe_dashboard')
 
     orders_qs = get_orders_queryset(request)
     active_orders = orders_qs.exclude(status__in=[ServiceOrder.Status.FINISHED, ServiceOrder.Status.CANCELLED]).count()

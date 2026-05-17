@@ -3,7 +3,6 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.http import JsonResponse
-from django.core.paginator import Paginator
 import json
 from decimal import Decimal
 from django.contrib.auth import get_user_model
@@ -23,24 +22,123 @@ def get_collaborator_tasks(user):
         return ServiceOrderTask.objects.none()
 
 @login_required
-def equipe_task_list(request):
-    """
-    Lista apenas as etapas alocadas para este colaborador.
-    Ordenadas pela Ordem de Serviço mais recente, e então pela data agendada.
-    """
+def equipe_dashboard(request):
+    today = timezone.localdate()
+    now = timezone.now()
+
     tasks_qs = get_collaborator_tasks(request.user).select_related(
         'service_order',
         'service_order__client_property',
         'service_order__client_property__client'
-    ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED).order_by('scheduled_at')
-    
-    paginator = Paginator(tasks_qs, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    ).exclude(
+        status=ServiceOrderTask.TaskStatus.CANCELLED
+    ).filter(
+        scheduled_at__date=today
+    ).order_by('scheduled_at')
+
+    total_today = tasks_qs.count()
+    completed_today = tasks_qs.filter(
+        Q(status=ServiceOrderTask.TaskStatus.COMPLETED) | Q(finished_at__isnull=False)
+    ).count()
+    in_progress_today = tasks_qs.filter(
+        Q(status=ServiceOrderTask.TaskStatus.IN_PROGRESS) |
+        Q(started_at__isnull=False, finished_at__isnull=True)
+    ).count()
+    scheduled_today = tasks_qs.filter(
+        status=ServiceOrderTask.TaskStatus.SCHEDULED,
+        started_at__isnull=True
+    ).count()
+    overdue_today = tasks_qs.filter(
+        scheduled_at__lt=now
+    ).exclude(
+        Q(status=ServiceOrderTask.TaskStatus.COMPLETED) | Q(finished_at__isnull=False)
+    ).count()
+
+    open_tasks = tasks_qs.exclude(
+        Q(status=ServiceOrderTask.TaskStatus.COMPLETED) | Q(finished_at__isnull=False)
+    )
+    next_task = open_tasks.filter(scheduled_at__gte=now).first() or open_tasks.first()
+
+    completion_rate = int(round((completed_today / total_today) * 100)) if total_today else 0
 
     context = {
-        'tasks': page_obj,  # Antigamente era 'tasks': tasks_qs
-        'page_obj': page_obj,
+        'title': 'Início',
+        'today': today,
+        'total_today': total_today,
+        'completed_today': completed_today,
+        'in_progress_today': in_progress_today,
+        'scheduled_today': scheduled_today,
+        'overdue_today': overdue_today,
+        'completion_rate': completion_rate,
+        'next_task': next_task,
+        'today_tasks_preview': tasks_qs[:5],
+    }
+    return render(request, 'services/equipe/dashboard.html', context)
+
+@login_required
+def equipe_task_list(request):
+    """
+    Lista etapas alocadas para o colaborador com organização por prioridade:
+    em execução -> agendadas -> concluídas.
+    """
+    base_qs = get_collaborator_tasks(request.user).select_related(
+        'service_order',
+        'service_order__client_property',
+        'service_order__client_property__client'
+    ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED)
+
+    in_progress_filter = (
+        Q(status=ServiceOrderTask.TaskStatus.IN_PROGRESS) |
+        Q(started_at__isnull=False, finished_at__isnull=True)
+    )
+    completed_filter = (
+        Q(status=ServiceOrderTask.TaskStatus.COMPLETED) |
+        Q(finished_at__isnull=False)
+    )
+    scheduled_filter = (
+        Q(status=ServiceOrderTask.TaskStatus.SCHEDULED) &
+        Q(started_at__isnull=True) &
+        Q(finished_at__isnull=True)
+    )
+
+    search_query = (request.GET.get('q') or '').strip()
+    status_filter = (request.GET.get('status') or 'all').strip().lower()
+    hide_completed = (request.GET.get('hide_completed') or '').strip().lower() in ('1', 'true', 'on', 'yes')
+
+    if search_query:
+        base_qs = base_qs.filter(
+            Q(service_order__client_property__client__name__icontains=search_query) |
+            Q(service_order__client_property__address__icontains=search_query) |
+            Q(service_order__client_property__neighborhood__icontains=search_query) |
+            Q(service_order__client_property__number__icontains=search_query) |
+            Q(service_order__number__icontains=search_query)
+        )
+
+    if status_filter == 'in_progress':
+        base_qs = base_qs.filter(in_progress_filter)
+    elif status_filter == 'scheduled':
+        base_qs = base_qs.filter(scheduled_filter)
+    elif status_filter == 'completed':
+        base_qs = base_qs.filter(completed_filter)
+
+    if hide_completed:
+        base_qs = base_qs.exclude(completed_filter)
+
+    in_progress_tasks = base_qs.filter(in_progress_filter).order_by('-scheduled_at', '-id')
+    scheduled_tasks = base_qs.filter(scheduled_filter).order_by('-scheduled_at', '-id')
+    completed_tasks = base_qs.filter(completed_filter).order_by('-scheduled_at', '-id')
+    other_tasks = base_qs.exclude(
+        in_progress_filter | scheduled_filter | completed_filter
+    ).order_by('-scheduled_at', '-id')
+
+    context = {
+        'in_progress_tasks': in_progress_tasks,
+        'scheduled_tasks': scheduled_tasks,
+        'completed_tasks': completed_tasks,
+        'other_tasks': other_tasks,
+        'search_query': search_query,
+        'status_filter': status_filter,
+        'hide_completed': hide_completed,
         'title': 'Minhas Tarefas',
         'layout_base': 'base.html' if request.user.is_manager else 'base_equipe.html'
     }

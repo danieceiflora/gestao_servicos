@@ -13,7 +13,7 @@
             </h1>
         </div>
         
-        <div>
+        <div id="task-status-chip-container">
             {% if task.status == 'SCHEDULED' %}
                 <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 ring-1 ring-blue-600/20">
                     Agendada
@@ -36,7 +36,7 @@
     </div>
 
     <!-- STATUS CARDS AT TOP -->
-    <div class="px-4 mb-4 space-y-3">
+    <div id="task-status-cards" class="px-4 mb-4 space-y-3">
         {% if task.finished_at %}
             <div class="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center gap-4">
                 <div class="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
@@ -126,7 +126,7 @@
 
         <!-- BOTÃO INICIAR (Sempre visível se não iniciado) -->
         {% if not task.started_at and task.task_type != 'BUDGET' %}
-            <div class="py-2">
+            <div id="start-task-container" class="py-2">
                 <form id="start-task-form" action="{% url 'equipe_task_start' task.id %}" method="POST">
                     {% csrf_token %}
                     <button type="submit" class="w-full relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white font-bold text-base shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 active:scale-[0.98] transition-all h-14 flex items-center justify-center">
@@ -244,8 +244,7 @@
         {% endif %}
 
         <!-- 4. ADICIONAR EVIDENCIAS -->
-        {% if task.started_at or task.finished_at or task.task_type == 'BUDGET' %}
-        <details class="bg-white rounded-2xl shadow-sm border border-slate-200 group overflow-hidden">
+        <details id="task-evidence-section" class="bg-white rounded-2xl shadow-sm border border-slate-200 group overflow-hidden {% if not task.started_at and not task.finished_at and task.task_type != 'BUDGET' %}hidden{% endif %}">
             <summary class="p-4 flex items-center justify-between cursor-pointer font-semibold text-slate-800 select-none">
                 <div class="flex items-center gap-3">
                     <div class="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
@@ -302,7 +301,6 @@
                 </div>
             </div>
         </details>
-        {% endif %}
 
         <!-- 5. ADICIONAR OCORRÊNCIAS -->
         <details class="bg-white rounded-2xl shadow-sm border border-slate-200 group overflow-hidden">
@@ -406,8 +404,7 @@
         </details>
 
         <!-- 6. REGISTRAR PAGAMENTO -->
-        {% if task.started_at or task.task_type == 'BUDGET' %}
-        <details class="bg-white rounded-2xl shadow-sm border border-slate-200 group overflow-hidden">
+        <details id="task-payment-section" class="bg-white rounded-2xl shadow-sm border border-slate-200 group overflow-hidden {% if not task.started_at and task.task_type != 'BUDGET' %}hidden{% endif %}">
             <summary class="p-4 flex items-center justify-between cursor-pointer font-semibold text-slate-800 select-none">
                 <div class="flex items-center gap-3">
                     <div class="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
@@ -488,12 +485,10 @@
                 </div>
             </div>
         </details>
-        {% endif %}
 
         <!-- FORMULÁRIO FINAL -->
         {% if not task.finished_at %}
-            {% if task.started_at or task.task_type == 'BUDGET' %}
-            <form id="finish-task-form" action="{% url 'equipe_task_finish' task.id %}" method="POST" class="space-y-4 pt-4">
+            <form id="finish-task-form" action="{% url 'equipe_task_finish' task.id %}" method="POST" class="space-y-4 pt-4 {% if not task.started_at and task.task_type != 'BUDGET' %}hidden{% endif %}">
                 {% csrf_token %}
                 
                 <!-- 7. RELATÓRIO DE EXECUÇÃO -->
@@ -553,7 +548,6 @@
                     {% if task.task_type == 'BUDGET' %}SALVAR ORÇAMENTO{% else %}FINALIZAR SERVIÇO{% endif %}
                 </button>
             </form>
-            {% endif %}
         {% endif %}
 
     </div>
@@ -581,6 +575,71 @@ function confirmFinishTask(taskType) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    const taskId = '{{ task.id }}';
+
+    function showOfflineStartedState(startedAtIso = null) {
+        const startTaskContainer = document.getElementById('start-task-container');
+        if (startTaskContainer) startTaskContainer.classList.add('hidden');
+
+        ['task-evidence-section', 'task-payment-section', 'finish-task-form'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('hidden');
+        });
+
+        const chipContainer = document.getElementById('task-status-chip-container');
+        if (chipContainer) {
+            chipContainer.innerHTML = `
+                <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 ring-1 ring-amber-600/20">
+                    <svg class="animate-pulse mr-1.5 h-2.5 w-2.5 text-amber-500" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
+                    Em Execução (Offline)
+                </span>
+            `;
+        }
+
+        const topCardsContainer = document.getElementById('task-status-cards');
+        if (topCardsContainer && !document.getElementById('offline-in-progress-card')) {
+            const startedAtLabel = startedAtIso
+                ? new Date(startedAtIso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                : 'agora';
+            const card = document.createElement('div');
+            card.id = 'offline-in-progress-card';
+            card.className = 'bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-center gap-4';
+            card.innerHTML = `
+                <div class="h-10 w-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="timer" class="h-5 w-5 animate-pulse"></i>
+                </div>
+                <div>
+                    <h4 class="text-sm font-black text-blue-900 leading-none">Em Execução (Offline)</h4>
+                    <p class="text-xs text-blue-600 mt-1">Iniciado em ${startedAtLabel}</p>
+                </div>
+            `;
+            topCardsContainer.prepend(card);
+        }
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function appendOfflineMediaPreview(targetContainer, itemId, fileLike, type = 'image') {
+        if (!targetContainer || !fileLike) return;
+        const marker = `offline-preview-${itemId}`;
+        if (targetContainer.querySelector(`[data-offline-marker="${marker}"]`)) return;
+
+        const isVideo = type === 'video';
+        const wrapper = document.createElement('div');
+        wrapper.dataset.offlineMarker = marker;
+        wrapper.className = 'relative aspect-square rounded-xl overflow-hidden border border-orange-300 bg-orange-50/80 border-dashed';
+
+        const mediaUrl = URL.createObjectURL(fileLike);
+        wrapper.innerHTML = isVideo
+            ? `<video src="${mediaUrl}" controls class="w-full h-full object-cover"></video>`
+            : `<img src="${mediaUrl}" class="w-full h-full object-cover" alt="Mídia offline pendente">`;
+
+        const badge = document.createElement('div');
+        badge.className = 'absolute inset-x-1 bottom-1 px-2 py-1 rounded-md bg-orange-100/95 text-[10px] font-bold text-orange-700 text-center';
+        badge.textContent = 'Mídia salva offline';
+        wrapper.appendChild(badge);
+        targetContainer.appendChild(wrapper);
+    }
     
     // --- RESTAURAR VISUALMENTE DADOS OFFLINE NA TELA ---
     // Mesmo que o servidor não tenha os dados (erro 500 no cloudflare) ou estejamos offline,
@@ -588,7 +647,6 @@ document.addEventListener('DOMContentLoaded', function() {
     async function applyOfflineState() {
         if (!window.OfflineDB || !window.db) return;
         
-        const taskId = '{{ task.id }}';
         try {
             const pendingItems = await db.sync_queue.filter(item => 
                 item.status !== 'success' && 
@@ -599,7 +657,10 @@ document.addEventListener('DOMContentLoaded', function() {
             ).toArray();
 
             pendingItems.forEach(item => {
-                if (item.type === 'CHECKLIST_UPDATE') {
+                if (item.type === 'TASK_START') {
+                    showOfflineStartedState(item.payload.started_at || item.timestamp);
+                }
+                else if (item.type === 'CHECKLIST_UPDATE') {
                     const data = item.payload.data;
                     const responseId = data.response_id;
                     
@@ -613,6 +674,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     const txt = document.querySelector(`.js-checklist-text[data-response-id="${responseId}"]`);
                     if (txt && data.text_response) {
                         txt.value = data.text_response;
+                    }
+
+                    if (data.photo || data.video) {
+                        const evidenceContainer = document.querySelector(`#checklist-item-${responseId} .js-evidence-container .grid`);
+                        if (evidenceContainer) {
+                            if (data.photo) appendOfflineMediaPreview(evidenceContainer, item.id, data.photo, 'image');
+                            if (data.video) appendOfflineMediaPreview(evidenceContainer, item.id, data.video, 'video');
+                        }
                     }
                     
                     const container = document.getElementById(`checklist-item-${responseId}`);
@@ -636,20 +705,31 @@ document.addEventListener('DOMContentLoaded', function() {
                             if(form && form.parentNode) form.parentNode.insertBefore(mediaGrid, form);
                         }
                         if (mediaGrid) {
-                            const card = document.createElement('div');
-                            card.className = "flex items-center justify-between p-2 rounded-xl bg-orange-50 border border-orange-200 border-dashed opacity-90";
-                            card.innerHTML = `
-                                <div class="flex items-center gap-3">
-                                    <div class="w-14 h-14 rounded-lg bg-orange-200 flex items-center justify-center shrink-0">
-                                        <i data-lucide="image" class="h-6 w-6 text-orange-500"></i>
+                            const filesRaw = item.payload?.data?.files;
+                            const queuedFiles = Array.isArray(filesRaw) ? filesRaw : (filesRaw ? [filesRaw] : []);
+                            if (queuedFiles.length > 0) {
+                                queuedFiles.forEach((file, idx) => {
+                                    const markerId = `${item.id}-${idx}`;
+                                    const mediaType = file.type && file.type.startsWith('video/') ? 'video' : 'image';
+                                    appendOfflineMediaPreview(mediaGrid, markerId, file, mediaType);
+                                });
+                            } else if (!mediaGrid.querySelector(`[data-offline-marker="offline-preview-${item.id}"]`)) {
+                                const card = document.createElement('div');
+                                card.dataset.offlineMarker = `offline-preview-${item.id}`;
+                                card.className = "flex items-center justify-between p-2 rounded-xl bg-orange-50 border border-orange-200 border-dashed opacity-90";
+                                card.innerHTML = `
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-14 h-14 rounded-lg bg-orange-200 flex items-center justify-center shrink-0">
+                                            <i data-lucide="image" class="h-6 w-6 text-orange-500"></i>
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="text-xs font-bold text-orange-800 tracking-tight">Mídia na Fila Local</span>
+                                            <span class="text-[10px] text-orange-600 font-medium">Aguardando internet...</span>
+                                        </div>
                                     </div>
-                                    <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-orange-800 tracking-tight">Mídia na Fila Local</span>
-                                        <span class="text-[10px] text-orange-600 font-medium">Aguardando internet...</span>
-                                    </div>
-                                </div>
-                            `;
-                            mediaGrid.appendChild(card);
+                                `;
+                                mediaGrid.appendChild(card);
+                            }
                         }
                     } 
                     else if (item.payload.url.includes('ocorrencia')) {
@@ -671,6 +751,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 else if (item.type === 'TASK_FINISH') {
+                    const chipContainer = document.getElementById('task-status-chip-container');
+                    if (chipContainer) {
+                        chipContainer.innerHTML = `
+                            <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-orange-50 text-orange-700 ring-1 ring-orange-600/20">
+                                <svg class="mr-1.5 h-2.5 w-2.5 text-orange-500" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
+                                Concluída (Offline)
+                            </span>
+                        `;
+                    }
                     
                     // Mostra as tags de Conclusão e Textos na View de Finalizados no TOPO do site
                     const topCardsContainer = document.querySelector('.px-4.mb-4.space-y-3');
@@ -708,6 +797,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         msg.className = "p-4 bg-orange-50 border-2 border-orange-300 border-dashed rounded-2xl text-orange-800 text-sm font-bold mt-4 flex items-center shadow-sm";
                         msg.innerHTML = '<i data-lucide="check-square" class="mr-2 w-5 h-5 text-orange-600"></i> Relatório arquivado localmente. O envio para a nuvem será feito em breve!';
                         finishForm.parentNode.appendChild(msg);
+                    }
+
+                    const notesField = document.querySelector('#notes');
+                    const queuedNotes = item.payload?.data?.notes;
+                    if (notesField && queuedNotes) {
+                        notesField.value = queuedNotes;
                     }
                 }
             });
@@ -807,6 +902,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log("Tentativa padrão falhou. Salvando na fila OfflineDB...");
                     OfflineDB.enqueueSyncItem('TASK_FINISH', { 
                         task_id: '{{ task.id }}',
+                        finished_at: new Date().toISOString(),
                         data: {
                             notes: document.querySelector("#notes").value,
                             customer_name: customerName,
@@ -816,11 +912,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Atualiza a tabela tasks local para status concluído, assim se a tela carregar offline ela exibe certa
                     if (window.db) {
-                        db.tasks.update('{{ task.id }}', { status: 'COMPLETED' }).catch(() => {});
+                        db.tasks.update('{{ task.id }}', {
+                            status: 'COMPLETED',
+                            finished_at: new Date().toISOString(),
+                            notes: document.querySelector("#notes").value
+                        }).catch(() => {});
                     }
 
                     alert('Atenção: Você está sem conexão ou o servidor de arquivos na nuvem da empresa está fora do ar. Seu relatório e assinatura foram SALVOS NO DISPOSITIVO COM SUCESSO (Nada foi perdido!). Eles ficarão na fila e enviarão sozinhos.');
-                    window.location.href = "{% url 'equipe_task_list' %}";
+                    window.location.href = "{% url 'equipe_task_detail' task.id %}";
                 });
             });
         }
@@ -937,16 +1037,55 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Interceptar Início de Tarefa Offline
+    // Interceptar Início de Tarefa (online com fallback offline resiliente)
     const startTaskForm = document.getElementById('start-task-form');
     if (startTaskForm) {
-        startTaskForm.addEventListener('submit', function(e) {
-            if (!navigator.onLine) {
-                e.preventDefault();
-                OfflineDB.enqueueSyncItem('TASK_START', { task_id: '{{ task.id }}' });
-                alert('Modo Offline: O início da tarefa foi registrado localmente e será sincronizado assim que houver internet.');
-                // Simula visualmente que iniciou (opcional, pode recarregar se houver shell offline)
-                window.location.reload(); 
+        startTaskForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const btnSubmit = this.querySelector('button[type="submit"]');
+            const originalBtnHtml = btnSubmit ? btnSubmit.innerHTML : null;
+            if (btnSubmit) {
+                btnSubmit.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 mr-2 animate-spin"></i> Iniciando...';
+                btnSubmit.disabled = true;
+                if (window.lucide) lucide.createIcons();
+            }
+
+            const formData = new FormData(this);
+            try {
+                const response = await fetch(this.action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Falha ao iniciar serviço no servidor');
+                }
+
+                // Mesmo que o backend ainda retorne HTML/redirect, seguimos para a tela da etapa.
+                window.location.href = '{% url "equipe_task_detail" task.id %}';
+            } catch (err) {
+                const localStartedAt = new Date().toISOString();
+                await OfflineDB.enqueueSyncItem('TASK_START', { task_id: '{{ task.id }}', started_at: localStartedAt });
+
+                if (window.db) {
+                    db.tasks.update('{{ task.id }}', {
+                        status: 'IN_PROGRESS',
+                        started_at: localStartedAt
+                    }).catch(() => {});
+                }
+
+                showOfflineStartedState(localStartedAt);
+                if (window.OfflineDB && typeof OfflineDB.updateUIStatus === 'function') {
+                    OfflineDB.updateUIStatus();
+                }
+            } finally {
+                if (btnSubmit) {
+                    btnSubmit.innerHTML = originalBtnHtml;
+                    btnSubmit.disabled = false;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         });
     }
@@ -1026,7 +1165,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData(this);
             const payloadData = {};
             for (let [k, v] of formData.entries()) {
-                payloadData[k] = v;
+                if (Object.prototype.hasOwnProperty.call(payloadData, k)) {
+                    if (!Array.isArray(payloadData[k])) {
+                        payloadData[k] = [payloadData[k]];
+                    }
+                    payloadData[k].push(v);
+                } else {
+                    payloadData[k] = v;
+                }
             }
 
             if (!navigator.onLine) {

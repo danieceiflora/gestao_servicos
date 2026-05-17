@@ -16,6 +16,44 @@ db.version(1).stores({
 });
 
 const OfflineDB = {
+    normalizeTaskIdFromItem(item) {
+        if (!item || !item.payload) return null;
+        if (item.payload.task_id) return String(item.payload.task_id);
+        if (item.payload.url) {
+            const match = item.payload.url.match(/\/equipe\/etapa\/([0-9a-fA-F-]{36})\//);
+            if (match && match[1]) return String(match[1]);
+        }
+        return null;
+    },
+
+    applyPendingStateToTask(serverTask, localTask, pendingItems) {
+        const mergedTask = { ...(serverTask || {}) };
+
+        // Prioriza informações já salvas localmente para não "voltar" status ao recarregar do servidor.
+        if (localTask) {
+            mergedTask.started_at = localTask.started_at || mergedTask.started_at || null;
+            mergedTask.finished_at = localTask.finished_at || mergedTask.finished_at || null;
+            mergedTask.notes = localTask.notes || mergedTask.notes || '';
+        }
+
+        pendingItems
+            .slice()
+            .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+            .forEach((item) => {
+                if (item.type === 'TASK_START') {
+                    mergedTask.status = 'IN_PROGRESS';
+                    mergedTask.started_at = item.payload?.started_at || mergedTask.started_at || new Date(item.timestamp || Date.now()).toISOString();
+                } else if (item.type === 'TASK_FINISH') {
+                    mergedTask.status = 'COMPLETED';
+                    mergedTask.finished_at = item.payload?.finished_at || mergedTask.finished_at || new Date(item.timestamp || Date.now()).toISOString();
+                    const queuedNotes = item.payload?.data?.notes;
+                    if (queuedNotes) mergedTask.notes = queuedNotes;
+                }
+            });
+
+        return mergedTask;
+    },
+
     /**
      * Varre as tarefas do dia e faz o download preventivo do HTML de cada etapa
      * para que fiquem 100% disponíveis offline.
@@ -27,7 +65,7 @@ const OfflineDB = {
         console.log(`Iniciando pré-carregamento de layout para ${tasks.length} etapas...`);
 
         // Abre o cache do Service Worker diretamente pelo JavaScript da página
-        const cache = await caches.open('gestao-servicos-v4');
+        const cache = await caches.open('gestao-servicos-v5');
 
         for (const tarefa of tasks) {
             // Monte a URL exata da página que o técnico vai precisar acessar em campo
@@ -96,12 +134,36 @@ const OfflineDB = {
             if (response.ok) {
                 const data = await response.json();
                 const itemList = data[stateKey] || [];
-                
+
+                let finalList = itemList;
+
+                if (tableName === 'tasks') {
+                    const [localTasks, pendingItems] = await Promise.all([
+                        db.tasks.toArray(),
+                        db.sync_queue.where('status').anyOf(['pending', 'error']).toArray()
+                    ]);
+
+                    const localById = new Map(localTasks.map((task) => [String(task.id), task]));
+                    const pendingByTaskId = new Map();
+
+                    pendingItems.forEach((item) => {
+                        const taskId = this.normalizeTaskIdFromItem(item);
+                        if (!taskId) return;
+                        if (!pendingByTaskId.has(taskId)) pendingByTaskId.set(taskId, []);
+                        pendingByTaskId.get(taskId).push(item);
+                    });
+
+                    finalList = itemList.map((serverTask) => {
+                        const taskId = String(serverTask.id);
+                        const localTask = localById.get(taskId);
+                        const taskPendingItems = pendingByTaskId.get(taskId) || [];
+                        return this.applyPendingStateToTask(serverTask, localTask, taskPendingItems);
+                    });
+                }
+
                 await db[tableName].clear();
-                if (itemList.length > 0) {
-                    // Usar bulkPut no lugar de bulkAdd previne o ConstraintError, 
-                    // pois ele fará update (upsert) se houverem chaves/IDs duplicados na lista do servidor.
-                    await db[tableName].bulkPut(itemList);
+                if (finalList.length > 0) {
+                    await db[tableName].bulkPut(finalList);
                 }
                 return itemList;
             }

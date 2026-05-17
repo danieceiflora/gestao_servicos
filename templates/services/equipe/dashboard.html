@@ -1,0 +1,94 @@
+{% extends "base_equipe.html" %}
+
+{% block title %}Início{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900">Início do Técnico</h1>
+            <p class="text-sm text-slate-500">Resumo do dia {{ today|date:"d/m/Y" }}</p>
+        </div>
+        <a href="{% url 'equipe_task_list' %}" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <i data-lucide="hammer" class="h-4 w-4"></i>
+            Ver serviços
+        </a>
+    </div>
+
+    <section class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">OS hoje</p>
+            <p class="mt-1 text-2xl font-bold text-slate-900">{{ total_today }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Concluídas</p>
+            <p class="mt-1 text-2xl font-bold text-emerald-600">{{ completed_today }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Em execução</p>
+            <p class="mt-1 text-2xl font-bold text-amber-600">{{ in_progress_today }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">A iniciar</p>
+            <p class="mt-1 text-2xl font-bold text-blue-600">{{ scheduled_today }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Atrasadas</p>
+            <p class="mt-1 text-2xl font-bold {% if overdue_today > 0 %}text-rose-600{% else %}text-slate-900{% endif %}">{{ overdue_today }}</p>
+        </div>
+    </section>
+
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div class="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-bold text-slate-900">Próximas tarefas de hoje</h2>
+                <a href="{% url 'equipe_task_list' %}" class="text-xs font-semibold text-blue-600 hover:text-blue-700">Ver todas</a>
+            </div>
+
+            {% if today_tasks_preview %}
+                <div class="space-y-2">
+                    {% for task in today_tasks_preview %}
+                        <a href="{% url 'equipe_task_detail' task.id %}" class="block rounded-lg border border-slate-100 p-3 hover:bg-slate-50">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-900">{{ task.get_task_type_display }} - OS #{{ task.service_order.number }}</p>
+                                    <p class="text-xs text-slate-500 mt-1">{{ task.service_order.client_property.client.display_name }}</p>
+                                    <p class="text-xs text-slate-500">{{ task.scheduled_at|date:"H:i" }} - {{ task.service_order.client_property.address }}, {{ task.service_order.client_property.number }}</p>
+                                </div>
+                                <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{{ task.get_status_display }}</span>
+                            </div>
+                        </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-sm text-slate-500">Nenhuma OS agendada para hoje.</p>
+            {% endif %}
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+            <div>
+                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Progresso do dia</p>
+                <p class="mt-1 text-3xl font-bold text-slate-900">{{ completion_rate }}%</p>
+            </div>
+
+            {% if next_task %}
+                <div>
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Próxima OS</p>
+                    <a href="{% url 'equipe_task_detail' next_task.id %}" class="mt-2 block rounded-lg border border-slate-100 p-3 hover:bg-slate-50">
+                        <p class="text-sm font-semibold text-slate-900">OS #{{ next_task.service_order.number }}</p>
+                        <p class="text-xs text-slate-500 mt-1">{{ next_task.get_task_type_display }}</p>
+                        <p class="text-xs text-slate-500">{{ next_task.scheduled_at|date:"d/m H:i" }}</p>
+                    </a>
+                </div>
+            {% else %}
+                <p class="text-sm text-slate-500">Sem próxima OS pendente hoje.</p>
+            {% endif %}
+
+            <a href="{% url 'service_order_calendar' %}" class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                <i data-lucide="calendar" class="h-4 w-4"></i>
+                Abrir agenda
+            </a>
+        </div>
+    </section>
+</div>
+{% endblock %}

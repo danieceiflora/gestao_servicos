@@ -4,97 +4,167 @@
 {% block title %}Minhas Tarefas{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-    <div class="flex items-center justify-between mb-6">
+<div class="max-w-6xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-6">
+    <div class="flex items-center justify-between">
         <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Minhas Tarefas</h1>
     </div>
 
-    <!-- Regrouping tasks by ServiceOrder -->
-    {% regroup tasks by service_order as grouped_tasks %}
+    <form method="get" class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-5">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+            <div class="md:col-span-6">
+                <label for="q" class="text-xs font-semibold text-slate-600">Buscar por cliente ou endereço</label>
+                <input
+                    id="q"
+                    type="text"
+                    name="q"
+                    value="{{ search_query }}"
+                    placeholder="Ex.: João, Rua das Flores, Centro..."
+                    class="mt-1 w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                >
+            </div>
+            <div class="md:col-span-3">
+                <label for="status" class="text-xs font-semibold text-slate-600">Filtrar por status</label>
+                <select
+                    id="status"
+                    name="status"
+                    class="mt-1 w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                >
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>Todos</option>
+                    <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>Em execução</option>
+                    <option value="scheduled" {% if status_filter == 'scheduled' %}selected{% endif %}>Agendadas</option>
+                    <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Concluídas</option>
+                </select>
+            </div>
+            <div class="md:col-span-3 flex items-end">
+                <button
+                    type="submit"
+                    class="w-full inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition-colors"
+                >
+                    Aplicar filtros
+                </button>
+            </div>
+        </div>
 
-    {% if grouped_tasks %}
-        <div class="space-y-6">
-            {% for group in grouped_tasks %}
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <!-- CABEÇALHO DA OS -->
-                    <div class="px-5 py-4 border-b bg-slate-50 flex items-center justify-between">
-                        <div>
-                            <h2 class="text-sm font-bold text-slate-800 tracking-wide">
-                                <span class="uppercase">{{ group.grouper.client_property.client.name }}</span>
-                            </h2>
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                <input
+                    type="checkbox"
+                    name="hide_completed"
+                    value="1"
+                    class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    {% if hide_completed %}checked{% endif %}
+                >
+                Esconder OS concluídas
+            </label>
+            <a href="{% url 'equipe_task_list' %}" class="text-sm font-semibold text-slate-600 hover:text-slate-900">
+                Limpar filtros
+            </a>
+        </div>
+    </form>
+
+    <div class="space-y-8">
+        <section class="space-y-3">
+            <div class="flex items-center justify-between border-b border-amber-200 pb-2">
+                <h2 class="text-sm font-bold uppercase tracking-wide text-amber-700">Em execução</h2>
+                <span class="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded-md">{{ in_progress_tasks|length }}</span>
+            </div>
+            {% for task in in_progress_tasks %}
+                <a href="{% url 'equipe_task_detail' task.id %}" class="block rounded-xl border border-amber-200 bg-amber-50/40 hover:bg-amber-50 transition-colors shadow-sm">
+                    <div class="p-4 sm:p-5 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-slate-900">{{ task.service_order.client_property.client.name }}</p>
                             <p class="text-xs text-slate-500 mt-0.5">
-                                OS #{{ group.grouper.number }} &bull; {{ group.grouper.client_property.address }}, {{ group.grouper.client_property.number }} - {{ group.grouper.client_property.neighborhood }}
+                                OS #{{ task.service_order.number }} &bull; {{ task.service_order.client_property.address }}, {{ task.service_order.client_property.number }} - {{ task.service_order.client_property.neighborhood }}
                             </p>
+                            <p class="mt-2 text-sm font-semibold text-slate-800">{{ task.get_task_type_display }}</p>
+                            <p class="mt-1 text-xs text-slate-600">Agendado para {{ task.scheduled_at|date:"d/m/Y \\à\\s H:i" }}</p>
                         </div>
-                        <div class="hidden sm:block">
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-200 text-slate-700">
-                                {{ group.list|length }} etapa(s)
-                            </span>
-                        </div>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 whitespace-nowrap">Em execução</span>
                     </div>
-
-                    <!-- LISTA DE ETAPAS DESTA OS -->
-                    <ul class="divide-y divide-slate-100">
-                        {% for task in group.list %}
-                            <li>
-                                <a href="{% url 'equipe_task_detail' task.id %}" class="block hover:bg-slate-50 transition-colors">
-                                    <div class="px-5 py-4 sm:px-6 flex items-center justify-between group">
-                                        
-                                        <!-- Info Etapa -->
-                                        <div class="flex-1 min-w-0 pr-4">
-                                            <div class="flex items-center justify-between mb-1">
-                                                <p class="text-sm font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">
-                                                    {{ task.get_task_type_display }}
-                                                </p>
-                                                
-                                                <!-- Status Badge -->
-                                                <div class="ml-2 flex-shrink-0">
-                                                    {% if task.status == 'SCHEDULED' %}
-                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                            Agendada
-                                                        </span>
-                                                    {% elif task.status == 'IN_PROGRESS' or task.started_at and not task.finished_at %}
-                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                                                            Em Execução
-                                                        </span>
-                                                    {% elif task.status == 'COMPLETED' or task.finished_at %}
-                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                                                            Concluída
-                                                        </span>
-                                                    {% else %}
-                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-                                                            {{ task.get_status_display }}
-                                                        </span>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-
-                                            <div class="flex items-center text-xs text-slate-500">
-                                                <i data-lucide="calendar" class="flex-shrink-0 mr-1.5 h-3.5 w-3.5 text-slate-400"></i>
-                                                <span>Agendado para {{ task.scheduled_at|date:"d/m/Y às H:i" }}</span>
-                                            </div>
-                                        </div>
-
-                                        <!-- Ícone Seta -->
-                                        <div>
-                                            <svg class="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                                        </div>
-                                    </div>
-                                </a>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                </div>
+                </a>
+            {% empty %}
+                <div class="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">Nenhuma tarefa em execução.</div>
             {% endfor %}
-        </div>
-    {% else %}
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-center py-12 px-4">
-            <i data-lucide="inbox" class="mx-auto h-12 w-12 text-slate-300"></i>
-            <h3 class="mt-2 text-sm font-medium text-slate-900">Nenhuma tarefa</h3>
-            <p class="mt-1 text-sm text-slate-500">Você não tem tarefas agendadas no momento.</p>
-        </div>
-    {% endif %}
+        </section>
 
-    {% include 'services/components/pagination.html' %}
+        <section class="space-y-3">
+            <div class="flex items-center justify-between border-b border-blue-200 pb-2">
+                <h2 class="text-sm font-bold uppercase tracking-wide text-blue-700">Agendadas</h2>
+                <span class="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-md">{{ scheduled_tasks|length }}</span>
+            </div>
+            {% for task in scheduled_tasks %}
+                <a href="{% url 'equipe_task_detail' task.id %}" class="block rounded-xl border border-blue-200 bg-blue-50/30 hover:bg-blue-50 transition-colors shadow-sm">
+                    <div class="p-4 sm:p-5 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-slate-900">{{ task.service_order.client_property.client.name }}</p>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                OS #{{ task.service_order.number }} &bull; {{ task.service_order.client_property.address }}, {{ task.service_order.client_property.number }} - {{ task.service_order.client_property.neighborhood }}
+                            </p>
+                            <p class="mt-2 text-sm font-semibold text-slate-800">{{ task.get_task_type_display }}</p>
+                            <p class="mt-1 text-xs text-slate-600">Agendado para {{ task.scheduled_at|date:"d/m/Y \\à\\s H:i" }}</p>
+                        </div>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 whitespace-nowrap">Agendada</span>
+                    </div>
+                </a>
+            {% empty %}
+                <div class="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">Nenhuma tarefa agendada.</div>
+            {% endfor %}
+        </section>
+
+        {% if other_tasks %}
+        <section class="space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-300 pb-2">
+                <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700">Outros status</h2>
+                <span class="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded-md">{{ other_tasks|length }}</span>
+            </div>
+            {% for task in other_tasks %}
+                <a href="{% url 'equipe_task_detail' task.id %}" class="block rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors shadow-sm">
+                    <div class="p-4 sm:p-5 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-slate-900">{{ task.service_order.client_property.client.name }}</p>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                OS #{{ task.service_order.number }} &bull; {{ task.service_order.client_property.address }}, {{ task.service_order.client_property.number }} - {{ task.service_order.client_property.neighborhood }}
+                            </p>
+                            <p class="mt-2 text-sm font-semibold text-slate-800">{{ task.get_task_type_display }}</p>
+                            <p class="mt-1 text-xs text-slate-600">Agendado para {{ task.scheduled_at|date:"d/m/Y \\à\\s H:i" }}</p>
+                        </div>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-700 whitespace-nowrap">{{ task.get_status_display }}</span>
+                    </div>
+                </a>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        <section class="space-y-3">
+            <div class="flex items-center justify-between border-b border-emerald-200 pb-2">
+                <h2 class="text-sm font-bold uppercase tracking-wide text-emerald-700">Concluídas</h2>
+                <span class="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-md">{{ completed_tasks|length }}</span>
+            </div>
+            {% for task in completed_tasks %}
+                <a href="{% url 'equipe_task_detail' task.id %}" class="block rounded-xl border border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50 transition-colors shadow-sm">
+                    <div class="p-4 sm:p-5 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-slate-900">{{ task.service_order.client_property.client.name }}</p>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                OS #{{ task.service_order.number }} &bull; {{ task.service_order.client_property.address }}, {{ task.service_order.client_property.number }} - {{ task.service_order.client_property.neighborhood }}
+                            </p>
+                            <p class="mt-2 text-sm font-semibold text-slate-800">{{ task.get_task_type_display }}</p>
+                            <p class="mt-1 text-xs text-slate-600">Agendado para {{ task.scheduled_at|date:"d/m/Y \\à\\s H:i" }}</p>
+                        </div>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 whitespace-nowrap">Concluída</span>
+                    </div>
+                </a>
+            {% empty %}
+                <div class="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">Nenhuma tarefa concluída no filtro atual.</div>
+            {% endfor %}
+        </section>
     </div>
-    {% endblock %}
+    {% if not in_progress_tasks and not scheduled_tasks and not completed_tasks and not other_tasks %}
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-center py-12 px-4">
+        <i data-lucide="inbox" class="mx-auto h-12 w-12 text-slate-300"></i>
+        <h3 class="mt-2 text-sm font-medium text-slate-900">Nenhuma tarefa</h3>
+        <p class="mt-1 text-sm text-slate-500">Nenhuma OS encontrada para os filtros aplicados.</p>
+    </div>
+    {% endif %}
+    </div>
+{% endblock %}
