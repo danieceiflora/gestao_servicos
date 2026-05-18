@@ -7,16 +7,17 @@
 const db = new Dexie("GestaoServicosDB");
 
 // Definição do Schema
-db.version(3).stores({
+db.version(5).stores({
     tasks: 'id, service_order_id, status, scheduled_at',
     orders: 'id, number, status, client_property_id',
     properties: 'id, client_id',
     clients: 'id, name',
     checklist_items: 'id, service_id, template_id',
-    checklist_responses: 'id, task_id, item_id',
+    checklist_responses: 'id, task_id, item_id, status',
+    occurrences: '++id, task_id, category, occurrence_type',
     services: 'id',
     products: 'id',
-    media: '++id, task_id, response_id, status', // Tabela para fotos/vídeos offline
+    media: '++id, task_id, response_id, occurrence_id, status',
     sync_queue: '++id, type, status, timestamp',
     settings: 'key'
 });
@@ -44,9 +45,19 @@ const OfflineDB = {
         try {
             console.log('🚀 Iniciando Bootstrap Offline-First...');
             const response = await fetch('/api/tecnico/bootstrap/');
-            if (!response.ok) throw new Error('Falha ao baixar bootstrap');
+            
+            if (!response.ok) {
+                let errorMsg = 'Falha ao baixar bootstrap';
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) errorMsg += `: ${errorData.error}`;
+                } catch (e) {}
+                await db.settings.put({ key: 'bootstrap_error', value: errorMsg });
+                throw new Error(errorMsg);
+            }
             
             const data = await response.json();
+            await db.settings.put({ key: 'bootstrap_error', value: null });
 
             // Busca alterações pendentes para não perdê-las ao sobrescrever do servidor
             const pendingItems = await db.sync_queue
@@ -112,6 +123,7 @@ const OfflineDB = {
             return data.tasks;
         } catch (error) {
             console.error('❌ Erro no bootstrap:', error);
+            await db.settings.put({ key: 'bootstrap_error', value: error.message || 'Falha ao baixar bootstrap' });
             return false;
         } finally {
             if (syncBanner) {
@@ -351,6 +363,7 @@ const OfflineDB = {
      */
     async updateUIStatus() {
         const syncBadge = document.getElementById('sync-pending-badge');
+        const btnSyncNow = document.getElementById('btn-sync-now');
         const onlineIndicator = document.getElementById('online-status-indicator');
         
         if (onlineIndicator) {
@@ -363,19 +376,35 @@ const OfflineDB = {
             }
         }
 
-        if (syncBadge) {
-            const count = await db.sync_queue
-                .where('status')
-                .anyOf(['pending', 'error'])
-                .count();
+        const pendingCount = await db.sync_queue
+            .where('status')
+            .equals('pending')
+            .count();
+        
+        const errorCount = await db.sync_queue
+            .where('status')
+            .equals('error')
+            .count();
 
-            if (count > 0) {
-                syncBadge.textContent = count;
+        if (syncBadge) {
+            if (pendingCount > 0) {
+                syncBadge.querySelector('.count').textContent = pendingCount;
                 syncBadge.classList.remove('hidden');
                 syncBadge.style.display = 'inline-flex';
             } else {
                 syncBadge.classList.add('hidden');
                 syncBadge.style.display = 'none';
+            }
+        }
+
+        if (btnSyncNow) {
+            if (errorCount > 0 && navigator.onLine) {
+                btnSyncNow.classList.remove('hidden');
+                btnSyncNow.style.display = 'inline-flex';
+                btnSyncNow.onclick = () => this.processSyncQueue();
+            } else {
+                btnSyncNow.classList.add('hidden');
+                btnSyncNow.style.display = 'none';
             }
         }
     }

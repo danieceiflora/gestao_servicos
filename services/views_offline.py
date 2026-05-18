@@ -28,149 +28,165 @@ def api_tecnico_bootstrap(request):
     Retorna a carga inicial de dados para o funcionamento offline do app do técnico.
     """
     try:
-        professional = request.user.professional_profile
-    except Professional.DoesNotExist:
-        return JsonResponse({'error': 'Usuário não vinculado a um perfil profissional.'}, status=400)
+        try:
+            professional = request.user.professional_profile
+        except (Professional.DoesNotExist, AttributeError):
+            return JsonResponse({'error': 'Usuário não vinculado a um perfil profissional.'}, status=400)
 
-    now = timezone.now()
-    # Pega tarefas de hoje e próximas, e talvez as concluídas recentemente (ex: últimas 24h)
-    # para garantir que o técnico veja o que acabou de fazer.
-    tasks_qs = ServiceOrderTask.objects.filter(
-        team_members__professional=professional,
-        scheduled_at__date__gte=now.date() - timezone.timedelta(days=1)
-    ).select_related(
-        'service_order',
-        'service_order__client_property',
-        'service_order__client_property__client'
-    ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED).distinct()
+        now = timezone.now()
+        # Pega tarefas de hoje e próximas, e talvez as concluídas recentemente (ex: últimas 24h)
+        # para garantir que o técnico veja o que acabou de fazer.
+        tasks_qs = ServiceOrderTask.objects.filter(
+            team_members__professional=professional,
+            scheduled_at__date__gte=now.date() - timezone.timedelta(days=1)
+        ).select_related(
+            'service_order',
+            'service_order__client_property',
+            'service_order__client_property__client'
+        ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED).distinct()
 
-    # Coletar IDs relacionados para buscar outras entidades
-    order_ids = tasks_qs.values_list('service_order_id', flat=True)
-    property_ids = tasks_qs.values_list('service_order__client_property_id', flat=True)
-    client_ids = tasks_qs.values_list('service_order__client_property__client_id', flat=True)
+        # Coletar IDs relacionados para buscar outras entidades
+        order_ids = tasks_qs.values_list('service_order_id', flat=True)
+        property_ids = tasks_qs.values_list('service_order__client_property_id', flat=True)
+        client_ids = tasks_qs.values_list('service_order__client_property__client_id', flat=True)
 
-    # Entidades relacionadas
-    orders = ServiceOrder.objects.filter(id__in=order_ids)
-    properties = Property.objects.filter(id__in=property_ids)
-    clients = Client.objects.filter(id__in=client_ids)
-    
-    # Serviços e Produtos para permitir adicionar itens offline
-    services = Service.objects.filter(is_active=True)
-    products = Product.objects.filter(is_active=True)
-    
-    # Checklists
-    checklist_templates = ChecklistTemplate.objects.filter(is_active=True)
-    # Coletar itens de checklist vinculados aos serviços das OSs ou templates ativos
-    checklist_items = ServiceChecklistItem.objects.filter(is_active=True)
+        # Entidades relacionadas
+        orders = ServiceOrder.objects.filter(id__in=order_ids)
+        properties = Property.objects.filter(id__in=property_ids)
+        clients = Client.objects.filter(id__in=client_ids)
+        
+        # Serviços e Produtos para permitir adicionar itens offline
+        services = Service.objects.filter(is_active=True)
+        products = Product.objects.filter(is_active=True)
+        
+        # Checklists
+        checklist_templates = ChecklistTemplate.objects.filter(is_active=True)
+        # Coletar itens de checklist vinculados aos serviços das OSs ou templates ativos
+        checklist_items = ServiceChecklistItem.objects.filter(is_active=True)
 
-    # Respostas de checklist já existentes para estas tasks
-    responses = TaskChecklistResponse.objects.filter(task__in=tasks_qs)
+        # Respostas de Check-list (Estava faltando!)
+        responses = TaskChecklistResponse.objects.filter(task__in=tasks_qs)
 
-    # Configurações do Sistema
-    sys_config = SystemConfig.load()
+        # Ocorrências
+        occurrences = Occurrence.objects.filter(task__in=tasks_qs)
 
-    data = {
-        'sync_token': now.isoformat(),
-        'technician': {
-            'id': str(professional.id),
-            'name': professional.name,
-            'role': request.user.role,
-        },
-        'tasks': [
-            {
-                'id': str(t.id),
-                'service_order_id': str(t.service_order_id),
-                'task_type': t.task_type,
-                'status': t.status,
-                'scheduled_at': t.scheduled_at.isoformat(),
-                'scheduled_end_at': t.scheduled_end_at.isoformat() if t.scheduled_end_at else None,
-                'started_at': t.started_at.isoformat() if t.started_at else None,
-                'finished_at': t.finished_at.isoformat() if t.finished_at else None,
-                'notes': t.notes,
-                'value': str(t.value) if t.value else None,
-                'customer_name': t.customer_name,
-                'customer_signature': t.customer_signature,
-            } for t in tasks_qs
-        ],
-        'orders': [
-            {
-                'id': str(o.id),
-                'number': o.number,
-                'status': o.status,
-                'client_property_id': str(o.client_property_id),
-                'description': o.description,
-                'technical_notes': o.technical_notes,
-                'total_value': str(o.total_value),
-                'total_paid': str(o.total_paid),
-                'balance_due': str(o.balance_due),
-            } for o in orders
-        ],
-        'properties': [
-            {
-                'id': str(p.id),
-                'client_id': str(p.client_id),
-                'address': p.address,
-                'number': p.number,
-                'neighborhood': p.neighborhood,
-                'city': p.city,
-                'state': p.state,
-                'full_address': p.full_address,
-                'latitude': str(p.latitude) if p.latitude else None,
-                'longitude': str(p.longitude) if p.longitude else None,
-            } for p in properties
-        ],
-        'clients': [
-            {
-                'id': str(c.id),
-                'name': c.display_name,
-                'phones': [p.phone for p in c.phones.all()],
-            } for c in clients
-        ],
-        'checklist_items': [
-            {
-                'id': item.id,
-                'service_id': item.service_id,
-                'template_id': item.template_id,
-                'name': item.name,
-                'description': item.description,
-                'evidence_type': item.evidence_type,
-                'is_required': item.is_required,
-                'order': item.order,
-            } for item in checklist_items
-        ],
-        'checklist_responses': [
-            {
-                'id': r.id,
-                'task_id': str(r.task_id),
-                'item_id': r.item_id,
-                'completed': r.completed,
-                'text_response': r.text_response,
-            } for r in responses
-        ],
-        'services': [
-            {
-                'id': s.id,
-                'name': s.name,
-                'base_price': str(s.base_price),
-                'unit': s.unit_of_measure,
-            } for s in services
-        ],
-        'products': [
-            {
-                'id': prod.id,
-                'name': prod.name,
-                'price': str(prod.default_unit_price),
-                'unit': prod.unit_type,
-            } for prod in products
-        ],
-        'config': {
-            'company_name': sys_config.company_name,
-            'pix_key': sys_config.pix_key,
-            'pix_bank': sys_config.pix_bank,
+        # Configurações do Sistema
+        sys_config = SystemConfig.load()
+
+        data = {
+            'sync_token': now.isoformat(),
+            'technician': {
+                'id': str(professional.id),
+                'name': professional.name,
+                'role': request.user.role,
+            },
+            'tasks': [
+                {
+                    'id': str(t.id),
+                    'service_order_id': str(t.service_order_id),
+                    'task_type': t.task_type,
+                    'status': t.status,
+                    'scheduled_at': t.scheduled_at.isoformat(),
+                    'scheduled_end_at': t.scheduled_end_at.isoformat() if t.scheduled_end_at else None,
+                    'started_at': t.started_at.isoformat() if t.started_at else None,
+                    'finished_at': t.finished_at.isoformat() if t.finished_at else None,
+                    'notes': t.notes,
+                    'value': str(t.value) if t.value else None,
+                    'customer_name': t.customer_name,
+                    'customer_signature': t.customer_signature,
+                } for t in tasks_qs
+            ],
+            'orders': [
+                {
+                    'id': str(o.id),
+                    'number': o.number,
+                    'status': o.status,
+                    'client_property_id': str(o.client_property_id),
+                    'description': o.description,
+                    'technical_notes': o.technical_notes,
+                    'total_value': str(o.total_value),
+                    'total_paid': str(o.total_paid),
+                    'balance_due': str(o.balance_due),
+                } for o in orders
+            ],
+            'properties': [
+                {
+                    'id': str(p.id),
+                    'client_id': str(p.client_id),
+                    'address': p.address,
+                    'number': p.number,
+                    'neighborhood': p.neighborhood,
+                    'city': p.city,
+                    'state': p.state,
+                    'full_address': p.full_address,
+                    'latitude': str(p.latitude) if p.latitude else None,
+                    'longitude': str(p.longitude) if p.longitude else None,
+                } for p in properties
+            ],
+            'clients': [
+                {
+                    'id': str(c.id),
+                    'name': c.display_name,
+                    'phones': [p.phone for p in c.phones.all()],
+                } for c in clients
+            ],
+            'checklist_items': [
+                {
+                    'id': item.id,
+                    'service_id': item.service_id,
+                    'template_id': item.template_id,
+                    'name': item.name,
+                    'description': item.description,
+                    'evidence_type': item.evidence_type,
+                    'is_required': item.is_required,
+                    'order': item.order,
+                } for item in checklist_items
+            ],
+            'checklist_responses': [
+                {
+                    'id': r.id,
+                    'task_id': str(r.task_id),
+                    'item_id': r.item_id,
+                    'completed': r.completed,
+                    'text_response': r.text_response,
+                } for r in responses
+            ],
+            'occurrences': [
+                {
+                    'id': occ.id,
+                    'task_id': str(occ.task_id),
+                    'category': occ.category,
+                    'occurrence_type': occ.occurrence_type,
+                    'description': occ.description,
+                    'status': occ.status,
+                } for occ in occurrences
+            ],
+            'services': [
+                {
+                    'id': s.id,
+                    'name': s.name,
+                    'base_price': str(s.base_price),
+                    'unit': s.unit_of_measure,
+                } for s in services
+            ],
+            'products': [
+                {
+                    'id': prod.id,
+                    'name': prod.name,
+                    'price': str(prod.default_unit_price),
+                    'unit': prod.unit_type,
+                } for prod in products
+            ],
+            'config': {
+                'company_name': sys_config.company_name,
+                'pix_key': sys_config.pix_key,
+                'pix_bank': sys_config.pix_bank,
+            }
         }
-    }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'error': f'Erro interno no bootstrap: {str(e)}'}, status=400)
 
-    return JsonResponse(data)
 
 @login_required
 def api_tecnico_sync_pull(request):
@@ -271,7 +287,22 @@ def api_tecnico_sync_push(request):
                         response.save()
                         processed_count += 1
                 
-                # 4. Outros tipos podem ser adicionados aqui
+                # 4. Criação de Ocorrência
+                elif change_type == 'OCCURRENCE_CREATE':
+                    occ_data = payload.get('data', {})
+                    occ = Occurrence.objects.create(
+                        task=task,
+                        category=occ_data.get('category', Occurrence.OccurrenceCategory.GENERAL),
+                        occurrence_type=occ_data.get('occurrence_type', Occurrence.OccurrenceType.OTHER),
+                        description=occ_data.get('description', ''),
+                        status=Occurrence.OccurrenceStatus.REGISTERED
+                    )
+                    # Se houver um ID temporário local, podemos retornar para o cliente se necessário
+                    # Mas o importante é que mídias vinculadas a esta ocorrência usem o ID real depois.
+                    # Para simplificar, o upload de mídia de ocorrência pode ser tratado separadamente.
+                    processed_count += 1
+                
+                # 5. Outros tipos podem ser adicionados aqui
                 
             except Exception as item_err:
                 error_msg = f"Erro no item {index} ({change.get('type')}): {str(item_err)}"

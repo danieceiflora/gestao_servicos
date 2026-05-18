@@ -1,11 +1,10 @@
-const CACHE_NAME = 'gestao-servicos-v6'; // Subimos a versão para o offline-app
+const CACHE_NAME = 'gestao-servicos-v5'; // Subimos a versão para aplicar as correções
 
 // 🔓 Adicione aqui os caminhos das telas/menus principais que o técnico acessa
 const ASSETS_TO_CACHE = [
     '/',
     '/static/dist/output.css',
     '/static/js/offline-db.js',
-    '/static/js/offline-app.js',
     '/static/dourados-calhas.png',
     '/manifest.json',
     'https://unpkg.com/lucide@latest',
@@ -13,10 +12,8 @@ const ASSETS_TO_CACHE = [
     'https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js',
     
     // Deixamos pré-cacheado os esqueletos dos menus mais comuns:
-    '/equipe/inicio/',
     '/equipe/tarefas/',
     '/orders/calendar/',
-    '/equipe/app/', // NOVO: App Shell Offline
 ];
 
 // Instalação do Service Worker
@@ -31,7 +28,9 @@ self.addEventListener('install', (event) => {
                     // Para CDNs externos lidamos com no-cors para evitar falha de CORS estrito no cacheamento
                     const request = new Request(asset, { mode: asset.startsWith('http') ? 'no-cors' : 'cors' });
                     const response = await fetch(request);
-                    await cache.put(request, response);
+                    if (response && (response.ok || response.type === 'opaque')) {
+                        await cache.put(request, response);
+                    }
                 } catch (e) {
                     console.warn(`[Service Worker] Falha ao fazer pré-cache de: ${asset}`, e);
                 }
@@ -79,7 +78,16 @@ self.addEventListener('fetch', (event) => {
     if (url.pathname.startsWith('/api/')) {
         event.respondWith(
             fetch(event.request)
-                .catch(() => caches.match(event.request))
+                .catch(() =>
+                    caches.match(event.request).then((cachedResponse) => {
+                        if (cachedResponse) return cachedResponse;
+                        return new Response(JSON.stringify({ offline: true }), {
+                            status: 503,
+                            statusText: 'Service Unavailable',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    })
+                )
         );
         return;
     }
@@ -90,10 +98,14 @@ self.addEventListener('fetch', (event) => {
         fetch(event.request)
             .then((response) => {
                 // Se a página retornou com sucesso, salvamos uma cópia atualizada no cache
-                if (response.status === 200) {
+                if (response && (response.ok || response.type === 'opaque')) {
                     const responseClone = response.clone();
                     caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseClone);
+                        try {
+                            cache.put(event.request, responseClone);
+                        } catch (e) {
+                            console.warn('[Service Worker] Falha ao salvar cache dinamico:', e);
+                        }
                     });
                 }
                 return response;
@@ -106,7 +118,10 @@ self.addEventListener('fetch', (event) => {
                     // Se o técnico tentar acessar um menu que nunca abriu antes estando offline,
                     // redirecionamos ele de forma amigável para a página principal
                     if (event.request.mode === 'navigate') {
-                        return caches.match('/');
+                        return caches.match('/').then((fallback) => {
+                            if (fallback) return fallback;
+                            return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+                        });
                     }
                     
                     return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
@@ -179,3 +194,4 @@ self.addEventListener('notificationclick', (event) => {
             })
     );
 });
+

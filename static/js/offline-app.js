@@ -7,6 +7,16 @@ const OfflineApp = {
     state: {
         currentView: 'list', // 'list', 'detail'
         currentTaskId: null,
+        camera: {
+            stream: null,
+            facingMode: 'environment',
+            capturedBlobs: [],
+            context: null // taskId, responseId, etc.
+        },
+        payment: {
+            method: null,
+            amount: 0
+        }
     },
 
     // Inicialização
@@ -32,8 +42,33 @@ const OfflineApp = {
         if (loadingEl) loadingEl.classList.add('hidden');
         if (mainEl) mainEl.classList.remove('hidden');
 
+        await this.renderBootstrapError();
+
         // 4. Renderiza a view inicial com o que tivermos no IndexedDB
         await this.render();
+    },
+
+    async renderBootstrapError() {
+        const banner = document.getElementById('offline-error-banner');
+        const messageEl = document.getElementById('offline-error-message');
+        if (!banner || !messageEl) return;
+
+        let errorMessage = null;
+        try {
+            const errorSetting = await db.settings.get('bootstrap_error');
+            errorMessage = errorSetting ? errorSetting.value : null;
+        } catch (e) {
+            errorMessage = null;
+        }
+
+        if (errorMessage) {
+            messageEl.textContent = errorMessage;
+            banner.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        } else {
+            banner.classList.add('hidden');
+            messageEl.textContent = '';
+        }
     },
 
     // Roteamento simples
@@ -44,18 +79,35 @@ const OfflineApp = {
     },
 
     // Renderização principal
+    _renderId: 0,
     async render() {
+        const currentRenderId = ++this._renderId;
         const container = document.getElementById('view-container');
         const titleEl = document.getElementById('view-title');
-        container.innerHTML = '';
+        
+        // Efeito de fade out
+        container.style.opacity = '0';
+        
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        if (this._renderId !== currentRenderId) return; // Cancela se uma nova renderização foi solicitada
 
+        container.innerHTML = '';
         if (this.state.currentView === 'list') {
             titleEl.textContent = 'Minha Agenda';
             await this.renderTaskList(container);
         } else if (this.state.currentView === 'detail') {
-            titleEl.textContent = 'Detalhes da Etapa';
+            titleEl.textContent = 'Workspace';
             await this.renderTaskDetail(container, this.state.currentTaskId);
         }
+        
+        if (this._renderId !== currentRenderId) return;
+
+        // Efeito de fade in
+        container.style.opacity = '1';
+        
+        // Re-inicializa ícones do Lucide
+        if (window.lucide) lucide.createIcons();
     },
 
     // Renderiza a lista de tarefas
@@ -67,7 +119,15 @@ const OfflineApp = {
         const tasks = await db.tasks.orderBy('scheduled_at').toArray();
         
         if (tasks.length === 0) {
-            listContainer.innerHTML = '<div class="text-center py-10 text-slate-500">Nenhuma tarefa encontrada.</div>';
+            listContainer.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-20 px-6 text-center">
+                    <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                        <i data-lucide="calendar-x" class="h-8 w-8 text-slate-300"></i>
+                    </div>
+                    <h3 class="text-slate-900 font-bold">Tudo limpo!</h3>
+                    <p class="text-slate-500 text-sm mt-1">Nenhum serviço agendado para o momento.</p>
+                </div>
+            `;
         } else {
             for (const task of tasks) {
                 const itemEl = this.createTaskItem(task);
@@ -83,11 +143,7 @@ const OfflineApp = {
         const tplItem = document.getElementById('tpl-task-item').content.cloneNode(true);
         const card = tplItem.querySelector('.task-card');
         
-        // Busca dados relacionados (Order e Property)
-        // Nota: Em uma app real, poderíamos fazer um join ou carregar tudo no início
         card.dataset.id = task.id;
-        
-        // Tenta preencher dados básicos (mesmo que assíncronos)
         this.fillTaskItemData(card, task);
 
         card.addEventListener('click', () => {
@@ -105,63 +161,59 @@ const OfflineApp = {
         if (client) card.querySelector('.client-name').textContent = client.name;
         if (prop) card.querySelector('.property-address').textContent = `${prop.address}, ${prop.number}`;
         
-        card.querySelector('.task-type').textContent = task.task_type; // Pode usar um map de tradução aqui
+        card.querySelector('.task-type').textContent = task.task_type;
         
         const date = new Date(task.scheduled_at);
         card.querySelector('.task-time').textContent = date.toLocaleString('pt-BR', {
-            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+            hour: '2-digit', minute: '2-digit'
         });
 
         const statusBadge = card.querySelector('.task-status-badge');
-        statusBadge.textContent = task.status;
+        statusBadge.textContent = this.translateStatus(task.status);
         
         // Estilização do badge baseada no status
         if (task.status === 'SCHEDULED') {
-            statusBadge.classList.add('bg-blue-100', 'text-blue-800');
+            statusBadge.classList.add('bg-blue-50', 'text-blue-600', 'border', 'border-blue-100');
         } else if (task.status === 'IN_PROGRESS') {
-            statusBadge.classList.add('bg-amber-100', 'text-amber-800');
+            statusBadge.classList.add('bg-amber-50', 'text-amber-600', 'border', 'border-amber-100');
         } else if (task.status === 'COMPLETED') {
-            statusBadge.classList.add('bg-emerald-100', 'text-emerald-800');
+            statusBadge.classList.add('bg-emerald-50', 'text-emerald-600', 'border', 'border-emerald-100');
         } else {
-            statusBadge.classList.add('bg-slate-100', 'text-slate-800');
+            statusBadge.classList.add('bg-slate-50', 'text-slate-600', 'border', 'border-slate-100');
         }
     },
 
-    // Renderiza o detalhe da tarefa
+    translateStatus(status) {
+        const map = {
+            'SCHEDULED': 'Agendado',
+            'IN_PROGRESS': 'Em Execução',
+            'COMPLETED': 'Finalizado',
+            'CANCELLED': 'Cancelado'
+        };
+        return map[status] || status;
+    },
+
+    // Renderiza o detalhe da tarefa (Workspace)
     async renderTaskDetail(container, taskId) {
-        console.log(`🔍 Buscando detalhes da tarefa: ${taskId}`);
-        
-        // Tenta buscar pelo ID direto
         let task = await db.tasks.get(taskId);
         
-        // Fallback: busca manual caso o índice esteja estranho
         if (!task) {
             const allTasks = await db.tasks.toArray();
             task = allTasks.find(t => String(t.id) === String(taskId));
         }
 
         if (!task) {
-            console.error(`❌ Tarefa ${taskId} não encontrada no IndexedDB.`);
-            container.innerHTML = `
-                <div class="text-center py-10 px-4">
-                    <div class="bg-red-50 text-red-800 p-4 rounded-xl border border-red-100">
-                        <p class="font-bold">Tarefa não encontrada</p>
-                        <p class="text-xs mt-1">ID: ${taskId}</p>
-                    </div>
-                    <button onclick="OfflineApp.navigate('list')" class="mt-4 text-blue-600 font-bold text-sm">← Voltar para a lista</button>
-                </div>
-            `;
+            container.innerHTML = '<div class="p-10 text-center">Tarefa não encontrada.</div>';
             return;
         }
 
-        console.log('✅ Tarefa encontrada:', task);
         const order = await db.orders.get(task.service_order_id);
         const prop = order ? await db.properties.get(order.client_property_id) : null;
         const client = prop ? await db.clients.get(prop.client_id) : null;
 
         const tplDetail = document.getElementById('tpl-task-detail').content.cloneNode(true);
         
-        // Preenche dados do cliente e endereço
+        // 1. Dados Básicos
         if (client) {
             tplDetail.querySelector('.client-name').textContent = client.name;
             const phone = client.phones && client.phones.length > 0 ? client.phones[0] : null;
@@ -180,10 +232,10 @@ const OfflineApp = {
 
         // Status Badge
         const statusBadge = tplDetail.querySelector('.task-status-badge');
-        statusBadge.textContent = task.status;
-        if (task.status === 'SCHEDULED') statusBadge.classList.add('bg-blue-100', 'text-blue-800');
-        else if (task.status === 'IN_PROGRESS') statusBadge.classList.add('bg-amber-100', 'text-amber-800');
-        else if (task.status === 'COMPLETED') statusBadge.classList.add('bg-emerald-100', 'text-emerald-800');
+        statusBadge.textContent = this.translateStatus(task.status);
+        if (task.status === 'SCHEDULED') statusBadge.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-100');
+        else if (task.status === 'IN_PROGRESS') statusBadge.classList.add('bg-amber-50', 'text-amber-600', 'border-amber-100');
+        else if (task.status === 'COMPLETED') statusBadge.classList.add('bg-emerald-50', 'text-emerald-600', 'border-emerald-100');
 
         // Dados da Task
         tplDetail.querySelector('.task-type').textContent = task.task_type;
@@ -197,67 +249,89 @@ const OfflineApp = {
             tplDetail.querySelector('.task-notes').textContent = task.notes;
         }
 
-        // Checklist
-        const responses = await db.checklist_responses.where('task_id').equals(taskId).toArray();
-        if (responses.length > 0) {
-            tplDetail.querySelector('#checklist-section').classList.remove('hidden');
-            const checklistContainer = tplDetail.querySelector('#checklist-container');
-            await this.renderChecklist(checklistContainer, responses);
-        }
-
-        // Botões de Ação
+        // --- CONTROLE DE ESTADOS DO WORKFLOW ---
+        const startSection = tplDetail.querySelector('#workflow-start-section');
+        const activeSection = tplDetail.querySelector('#workflow-active-section');
         const btnStart = tplDetail.querySelector('#btn-start-task');
         const btnFinish = tplDetail.querySelector('#btn-finish-task');
         const btnAddMedia = tplDetail.querySelector('#btn-add-media');
+        const btnAddVideo = tplDetail.querySelector('#btn-add-video');
         const mediaContainer = tplDetail.querySelector('#task-media-container');
+        const btnAddOccurrence = tplDetail.querySelector('#btn-add-occurrence');
+        const occurrenceList = tplDetail.querySelector('#occurrence-list');
 
-        // Renderiza mídias já capturadas para a task (sem response_id)
-        await this.renderOfflineMedia(mediaContainer, taskId, null);
+        if (task.status === 'SCHEDULED') {
+            startSection.classList.remove('hidden');
+            activeSection.classList.add('hidden');
+            btnStart.onclick = () => this.startTask(taskId);
+        } else if (task.status === 'IN_PROGRESS' || task.status === 'COMPLETED') {
+            const isCompleted = task.status === 'COMPLETED';
+            startSection.classList.add('hidden');
+            activeSection.classList.remove('hidden');
+            
+            // Checklist
+            const responses = await db.checklist_responses.where('task_id').equals(taskId).toArray();
+            if (responses.length > 0) {
+                tplDetail.querySelector('#checklist-section').classList.remove('hidden');
+                const checklistContainer = tplDetail.querySelector('#checklist-container');
+                await this.renderChecklist(checklistContainer, responses, isCompleted);
+            }
 
-        if (btnAddMedia) {
-            btnAddMedia.onclick = () => this.captureMedia(taskId, null, mediaContainer);
+            // Mídias
+            await this.renderOfflineMedia(mediaContainer, taskId, null);
+            if (!isCompleted) {
+                btnAddMedia.onclick = () => this.captureMedia(taskId, null, mediaContainer);
+                btnAddVideo.onclick = () => this.captureVideo(taskId, null, mediaContainer);
+            } else {
+                btnAddMedia.classList.add('hidden');
+                btnAddVideo.classList.add('hidden');
+            }
+            
+            // Ocorrências
+            await this.renderOccurrences(occurrenceList, taskId);
+            if (!isCompleted) btnAddOccurrence.onclick = () => this.openOccurrenceModal(taskId);
+            else btnAddOccurrence.classList.add('hidden');
+
+            // Finalização
+            if (!isCompleted) btnFinish.onclick = () => this.openFinishModal(taskId);
+            else btnFinish.classList.add('hidden');
         }
 
-        if (task.status === 'IN_PROGRESS') {
-            btnStart.classList.add('hidden');
-            btnFinish.classList.remove('opacity-50', 'cursor-not-allowed');
-            btnFinish.removeAttribute('disabled');
-            btnFinish.addEventListener('click', () => this.openFinishModal(taskId));
-        } else if (task.status === 'COMPLETED') {
-            btnStart.classList.add('hidden');
-            btnFinish.classList.add('hidden');
-            if (btnAddMedia) btnAddMedia.classList.add('hidden');
-        }
-
-        // Eventos
         tplDetail.querySelector('#btn-back').addEventListener('click', () => this.navigate('list'));
         
-        if (btnStart && task.status === 'SCHEDULED') {
-            btnStart.addEventListener('click', () => this.startTask(taskId));
-        }
-
         container.appendChild(tplDetail);
-        
-        // Re-inicializa ícones do Lucide
-        if (window.lucide) lucide.createIcons();
     },
 
     // --- Lógica de Finalização ---
     signaturePad: null,
 
-    openFinishModal(taskId) {
+    async openFinishModal(taskId) {
         const modal = document.getElementById('modal-finish');
         modal.classList.remove('hidden');
         modal.classList.add('flex');
 
+        const task = await db.tasks.get(taskId);
+        const order = await db.orders.get(task.service_order_id);
+
         // Limpar campos
         document.getElementById('finish-customer-name').value = '';
         document.getElementById('finish-notes').value = '';
+        
+        // Pagamento (Sprint 7)
+        const paymentSection = document.getElementById('finish-payment-section');
+        const balanceDue = order ? parseFloat(order.balance_due || 0) : 0;
+        
+        if (balanceDue > 0) {
+            paymentSection.classList.remove('hidden');
+            document.getElementById('finish-balance-due').textContent = `R$ ${balanceDue.toFixed(2)}`;
+            document.getElementById('finish-payment-amount').value = balanceDue.toFixed(2);
+            this.initPaymentLogic();
+        } else {
+            paymentSection.classList.add('hidden');
+        }
 
         // Inicializar Signature Pad
         const canvas = document.getElementById('signature-pad');
-        
-        // Ajustar tamanho do canvas para o container
         const ratio = Math.max(window.devicePixelRatio || 1, 1);
         canvas.width = canvas.offsetWidth * ratio;
         canvas.height = canvas.offsetHeight * ratio;
@@ -265,19 +339,52 @@ const OfflineApp = {
 
         if (this.signaturePad) this.signaturePad.clear();
         this.signaturePad = new SignaturePad(canvas, {
-            backgroundColor: 'rgb(248, 250, 252)' // slate-50
+            backgroundColor: 'rgb(248, 250, 252)'
         });
 
         // Eventos do Modal
         document.getElementById('btn-close-finish').onclick = () => modal.classList.add('hidden');
         document.getElementById('btn-clear-signature').onclick = () => this.signaturePad.clear();
-        
         document.getElementById('btn-confirm-finish').onclick = () => this.confirmFinish(taskId);
         
         if (window.lucide) lucide.createIcons();
     },
 
+    initPaymentLogic() {
+        const buttons = document.querySelectorAll('.btn-payment-method');
+        const details = document.getElementById('payment-details');
+        
+        this.state.payment.method = null;
+
+        buttons.forEach(btn => {
+            btn.onclick = () => {
+                buttons.forEach(b => b.classList.remove('bg-blue-50', 'border-blue-500', 'text-blue-600'));
+                btn.classList.add('bg-blue-50', 'border-blue-500', 'text-blue-600');
+                this.state.payment.method = btn.dataset.method;
+                details.classList.remove('hidden');
+            };
+        });
+    },
+
     async confirmFinish(taskId) {
+        // Sprint 8: Validação de Itens Obrigatórios
+        const responses = await db.checklist_responses.where('task_id').equals(taskId).toArray();
+        const items = await db.checklist_items.toArray();
+        
+        let pendingRequired = [];
+        for (const resp of responses) {
+            const item = items.find(i => i.id === resp.item_id);
+            if (item && item.is_required && !resp.status) {
+                pendingRequired.push(item.name);
+            }
+        }
+
+        if (pendingRequired.length > 0) {
+            alert(`Atenção: Os seguintes itens obrigatórios não foram preenchidos:\n\n- ${pendingRequired.join('\n- ')}`);
+            document.getElementById('modal-finish').classList.add('hidden');
+            return;
+        }
+
         if (this.signaturePad.isEmpty()) {
             alert('Por favor, peça ao cliente para assinar.');
             return;
@@ -289,7 +396,24 @@ const OfflineApp = {
             return;
         }
 
-        const signatureBase64 = this.signaturePad.toDataURL(); // Salva como PNG base64
+        // Validação de pagamento se visível
+        const paymentSection = document.getElementById('finish-payment-section');
+        let paymentData = null;
+        if (!paymentSection.classList.contains('hidden')) {
+            const method = this.state.payment.method;
+            const amount = parseFloat(document.getElementById('finish-payment-amount').value || 0);
+            if (!method) {
+                alert('Por favor, selecione a forma de pagamento.');
+                return;
+            }
+            if (amount <= 0) {
+                alert('Por favor, informe o valor recebido.');
+                return;
+            }
+            paymentData = { method, amount };
+        }
+
+        const signatureBase64 = this.signaturePad.toDataURL();
         const notes = document.getElementById('finish-notes').value;
         const now = new Date().toISOString();
 
@@ -301,7 +425,7 @@ const OfflineApp = {
             finished_at: now,
             customer_name: customerName,
             customer_signature: signatureBase64,
-            technical_notes: notes // Salva notas se houver campo
+            technical_notes: notes
         });
 
         // 2. Enfileira Sincronização
@@ -311,7 +435,8 @@ const OfflineApp = {
             data: {
                 customer_name: customerName,
                 customer_signature: signatureBase64,
-                notes: notes
+                notes: notes,
+                payment: paymentData
             }
         });
 
@@ -320,51 +445,243 @@ const OfflineApp = {
         await this.navigate('list');
     },
 
-    // --- Lógica de Mídias Offline ---
+    // --- Lógica de Ocorrências ---
+
+    async renderOccurrences(container, taskId) {
+        const occurrences = await db.occurrences.where('task_id').equals(taskId).toArray();
+        container.innerHTML = '';
+        
+        if (occurrences.length === 0) {
+            container.innerHTML = '<p class="text-[10px] text-slate-400 text-center py-2">Nenhuma ocorrência registrada.</p>';
+            return;
+        }
+
+        for (const occ of occurrences) {
+            const tpl = document.getElementById('tpl-occurrence-item').content.cloneNode(true);
+            tpl.querySelector('.occ-category').textContent = occ.category;
+            tpl.querySelector('.occ-type').textContent = this.translateOccType(occ.occurrence_type);
+            tpl.querySelector('.occ-description').textContent = occ.description;
+            
+            const mediaContainer = tpl.querySelector('.occ-media-container');
+            await this.renderOfflineMedia(mediaContainer, taskId, null, occ.id);
+            
+            container.appendChild(tpl);
+        }
+        if (window.lucide) lucide.createIcons();
+    },
+
+    translateOccType(type) {
+        const map = {
+            'DELAY': 'Atraso',
+            'MATERIAL_MISSING': 'Falta de Material',
+            'CUSTOMER_ABSENT': 'Cliente Ausente',
+            'IMPEDIMENT': 'Impedimento no Local',
+            'WARRANTY_ISSUE': 'Garantia',
+            'OTHER': 'Outro'
+        };
+        return map[type] || type;
+    },
+
+    openOccurrenceModal(taskId) {
+        const modal = document.getElementById('modal-occurrence');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        document.getElementById('occ-description').value = '';
+        
+        document.getElementById('btn-close-occurrence').onclick = () => modal.classList.add('hidden');
+        document.getElementById('btn-confirm-occurrence').onclick = () => this.confirmOccurrence(taskId);
+        
+        if (window.lucide) lucide.createIcons();
+    },
+
+    async confirmOccurrence(taskId) {
+        const category = document.getElementById('occ-category').value;
+        const type = document.getElementById('occ-type').value;
+        const description = document.getElementById('occ-description').value;
+
+        if (!description) {
+            alert('Por favor, descreva a ocorrência.');
+            return;
+        }
+
+        const occId = await db.occurrences.add({
+            task_id: taskId,
+            category,
+            occurrence_type: type,
+            description,
+            status: 'REGISTERED'
+        });
+
+        await OfflineDB.enqueueSyncItem('OCCURRENCE_CREATE', {
+            task_id: taskId,
+            data: { category, occurrence_type: type, description }
+        });
+
+        document.getElementById('modal-occurrence').classList.add('hidden');
+        
+        // Re-renderiza a seção de ocorrências
+        const occurrenceList = document.getElementById('occurrence-list');
+        if (occurrenceList) await this.renderOccurrences(occurrenceList, taskId);
+    },
+
+    // --- Lógica de Mídias Offline & Câmera ---
     
-    async captureMedia(taskId, responseId, previewContainer) {
+    async captureMedia(taskId, responseId, previewContainer, occurrenceId = null) {
+        // Sprint 5: Tenta abrir a câmera customizada primeiro
+        try {
+            this.openCamera(taskId, responseId, previewContainer, occurrenceId);
+        } catch (err) {
+            console.warn('Câmera customizada falhou, usando fallback:', err);
+            this.captureMediaFallback(taskId, responseId, previewContainer, occurrenceId, 'image/*');
+        }
+    },
+
+    // Sprint 6: Captura de Vídeo via Câmera do Sistema
+    async captureVideo(taskId, responseId, previewContainer, occurrenceId = null) {
+        this.captureMediaFallback(taskId, responseId, previewContainer, occurrenceId, 'video/*');
+    },
+
+    captureMediaFallback(taskId, responseId, previewContainer, occurrenceId, accept = 'image/*,video/*') {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = 'image/*,video/*'; // Aceita vídeos também
-        // input.capture = 'environment'; // Comentado para permitir escolher da galeria no PC
+        input.accept = accept;
+        if (accept.includes('video')) input.capture = 'environment';
         
         input.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            console.log(`📸 Capturando mídia para task ${taskId} (resp: ${responseId})...`);
-            
-            // 1. Salva o Blob no IndexedDB
+            // Salva o Blob
             const mediaId = await db.media.add({
                 task_id: taskId,
                 response_id: responseId || null,
+                occurrence_id: occurrenceId || null,
                 type: file.type,
                 blob: file,
                 status: 'pending'
             });
 
-            // 2. Enfileira sincronização
             await OfflineDB.enqueueSyncItem('MEDIA_UPLOAD', {
                 task_id: taskId,
                 media_id: mediaId,
-                response_id: responseId || null
+                response_id: responseId || null,
+                occurrence_id: occurrenceId || null
             });
 
-            // 3. Atualiza miniaturas
-            this.renderOfflineMedia(previewContainer, taskId, responseId);
+            this.renderOfflineMedia(previewContainer, taskId, responseId, occurrenceId);
         };
-
         input.click();
     },
 
-    async renderOfflineMedia(container, taskId, responseId) {
+    // Sprint 5: Câmera Customizada com getUserMedia
+    async openCamera(taskId, responseId, previewContainer, occurrenceId) {
+        const modal = document.getElementById('modal-camera');
+        const video = document.getElementById('camera-video');
+        
+        this.state.camera.capturedBlobs = [];
+        this.state.camera.context = { taskId, responseId, previewContainer, occurrenceId };
+        
+        modal.classList.remove('hidden');
+        document.getElementById('camera-preview-grid').innerHTML = '';
+        this.updateCameraCount();
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: this.state.camera.facingMode },
+                audio: false
+            });
+            video.srcObject = stream;
+            this.state.camera.stream = stream;
+        } catch (err) {
+            console.error('getUserMedia error:', err);
+            throw err;
+        }
+
+        // Eventos
+        document.getElementById('btn-close-camera').onclick = () => this.closeCamera();
+        document.getElementById('btn-capture-shot').onclick = () => this.captureShot();
+        document.getElementById('btn-toggle-camera').onclick = () => this.toggleCamera();
+        document.getElementById('btn-confirm-camera').onclick = () => this.confirmCamera();
+        
+        if (window.lucide) lucide.createIcons();
+    },
+
+    async captureShot() {
+        const video = document.getElementById('camera-video');
+        const canvas = document.getElementById('camera-canvas');
+        const context = canvas.getContext('2d');
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(async (blob) => {
+            this.state.camera.capturedBlobs.push(blob);
+            this.updateCameraCount();
+            
+            // Adiciona miniatura no grid live
+            const url = URL.createObjectURL(blob);
+            const img = document.createElement('img');
+            img.src = url;
+            img.className = 'w-12 h-12 rounded-lg object-cover border-2 border-white shadow-md animate-in zoom-in duration-200';
+            document.getElementById('camera-preview-grid').prepend(img);
+        }, 'image/jpeg', 0.8);
+    },
+
+    updateCameraCount() {
+        document.getElementById('camera-count').textContent = `${this.state.camera.capturedBlobs.length} fotos`;
+    },
+
+    async toggleCamera() {
+        this.state.camera.facingMode = this.state.camera.facingMode === 'user' ? 'environment' : 'user';
+        if (this.state.camera.stream) {
+            this.state.camera.stream.getTracks().forEach(t => t.stop());
+        }
+        const ctx = this.state.camera.context;
+        await this.openCamera(ctx.taskId, ctx.responseId, ctx.previewContainer, ctx.occurrenceId);
+    },
+
+    async confirmCamera() {
+        const { taskId, responseId, previewContainer, occurrenceId } = this.state.camera.context;
+        
+        for (const blob of this.state.camera.capturedBlobs) {
+            const mediaId = await db.media.add({
+                task_id: taskId,
+                response_id: responseId || null,
+                occurrence_id: occurrenceId || null,
+                type: 'image/jpeg',
+                blob: blob,
+                status: 'pending'
+            });
+
+            await OfflineDB.enqueueSyncItem('MEDIA_UPLOAD', {
+                task_id: taskId,
+                media_id: mediaId,
+                response_id: responseId || null,
+                occurrence_id: occurrenceId || null
+            });
+        }
+
+        this.renderOfflineMedia(previewContainer, taskId, responseId, occurrenceId);
+        this.closeCamera();
+    },
+
+    closeCamera() {
+        if (this.state.camera.stream) {
+            this.state.camera.stream.getTracks().forEach(t => t.stop());
+        }
+        document.getElementById('modal-camera').classList.add('hidden');
+    },
+
+    async renderOfflineMedia(container, taskId, responseId, occurrenceId = null) {
         let query = db.media.where('task_id').equals(taskId);
         
         const mediaItems = await query.toArray();
-        // Filtra manualmente pelo response_id para evitar problemas de índice nulo no Dexie
         const filteredItems = mediaItems.filter(item => {
-            if (responseId === null) return !item.response_id;
-            return String(item.response_id) === String(responseId);
+            if (occurrenceId) return String(item.occurrence_id) === String(occurrenceId);
+            if (responseId) return String(item.response_id) === String(responseId);
+            return !item.response_id && !item.occurrence_id;
         });
         
         container.innerHTML = '';
@@ -372,13 +689,16 @@ const OfflineApp = {
             const url = URL.createObjectURL(item.blob);
             const isVideo = item.type.startsWith('video/');
             const div = document.createElement('div');
-            div.className = 'relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 group';
+            
+            // Ajusta tamanho se for em ocorrência
+            const sizeClass = occurrenceId ? 'w-12 h-12' : 'w-full aspect-square';
+            div.className = `relative ${sizeClass} rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group`;
             
             if (isVideo) {
                 div.innerHTML = `
                     <video src="${url}" class="w-full h-full object-cover"></video>
                     <div class="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <i data-lucide="play" class="h-6 w-6 text-white"></i>
+                        <i data-lucide="play" class="h-4 w-4 text-white"></i>
                     </div>
                 `;
             } else {
@@ -389,8 +709,8 @@ const OfflineApp = {
 
             // Badge de status
             div.innerHTML += `
-                <div class="absolute top-1 right-1">
-                    <span class="flex h-4 w-4 items-center justify-center rounded-full ${item.status === 'pending' ? 'bg-amber-500' : 'bg-emerald-500'} shadow-sm">
+                <div class="absolute top-0.5 right-0.5">
+                    <span class="flex h-3 w-3 items-center justify-center rounded-full ${item.status === 'pending' ? 'bg-amber-500' : 'bg-emerald-500'} shadow-sm">
                         <i data-lucide="${item.status === 'pending' ? 'clock' : 'check'}" class="h-2.5 w-2.5 text-white"></i>
                     </span>
                 </div>
@@ -423,61 +743,101 @@ const OfflineApp = {
         await this.render();
     },
 
-    // Renderiza o checklist
-    async renderChecklist(container, responses) {
-        const taskId = this.state.currentTaskId; // Garante que temos o taskId
+    // Renderiza o checklist (Sprint 3: 3-state toggle)
+    async renderChecklist(container, responses, disabled = false) {
+        const taskId = this.state.currentTaskId;
         for (const resp of responses) {
             const item = await db.checklist_items.get(resp.item_id);
             if (!item) continue;
 
             const tplItem = document.getElementById('tpl-checklist-item').content.cloneNode(true);
-            const card = tplItem.querySelector('.checklist-card');
+            const itemEl = tplItem.querySelector('.checklist-item');
             
-            card.querySelector('.item-name').textContent = item.name;
-            card.querySelector('.item-description').textContent = item.description;
+            tplItem.querySelector('.item-name').textContent = item.name;
+            tplItem.querySelector('.item-description').textContent = item.description;
             
-            const checkbox = tplItem.querySelector('.check-completed');
-            checkbox.checked = resp.completed;
+            const btnOk = tplItem.querySelector('.btn-check-ok');
+            const btnNa = tplItem.querySelector('.btn-check-na');
+            const btnProblem = tplItem.querySelector('.btn-check-problem');
+            const evidenceDiv = tplItem.querySelector('.item-evidence');
             
-            // Evento de completar item
-            checkbox.addEventListener('change', (e) => {
-                this.updateChecklist(resp.id, { completed: e.target.checked });
+            // Set initial state
+            this.updateChecklistUI(itemEl, resp.status || (resp.completed ? 'OK' : null));
+
+            const buttons = [btnOk, btnNa, btnProblem];
+            buttons.forEach(btn => {
+                if (disabled) {
+                    btn.disabled = true;
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                } else {
+                    btn.onclick = () => {
+                        const status = btn.dataset.status;
+                        this.updateChecklist(resp.id, { status, completed: status === 'OK' });
+                        this.updateChecklistUI(itemEl, status);
+                    };
+                }
             });
 
             // Se tiver evidência
             if (item.evidence_type !== 'NONE') {
-                const evidenceDiv = tplItem.querySelector('.item-evidence');
-                evidenceDiv.classList.remove('hidden');
-                
                 if (item.evidence_type === 'TEXT') {
-                    const textarea = evidenceDiv.querySelector('.type-text');
-                    textarea.classList.remove('hidden');
-                    const input = textarea.querySelector('.text-response');
+                    const textSection = evidenceDiv.querySelector('.type-text');
+                    textSection.classList.remove('hidden');
+                    const input = textSection.querySelector('.text-response');
                     input.value = resp.text_response || '';
-                    
-                    // Evento de atualizar texto (com debounce seria melhor, mas vamos direto por enquanto)
+                    if (disabled) input.disabled = true;
                     input.addEventListener('blur', (e) => {
                         this.updateChecklist(resp.id, { text_response: e.target.value });
                     });
                 } else if (item.evidence_type === 'PHOTO' || item.evidence_type === 'VIDEO') {
-                    const photoDiv = evidenceDiv.querySelector('.type-photo-video');
-                    photoDiv.classList.remove('hidden');
+                    const photoSection = evidenceDiv.querySelector('.type-photo-video');
+                    photoSection.classList.remove('hidden');
+                    const btnCapture = photoSection.querySelector('.btn-capture');
+                    const previewContainer = photoSection.querySelector('.preview-container');
                     
-                    const btnCapture = photoDiv.querySelector('.btn-capture');
-                    
-                    // Container para miniaturas
-                    const previewContainer = document.createElement('div');
-                    previewContainer.className = 'flex flex-wrap gap-2 mt-2';
-                    photoDiv.appendChild(previewContainer);
-                    
-                    // Renderiza fotos já salvas localmente
                     this.renderOfflineMedia(previewContainer, taskId, resp.id);
-
-                    btnCapture.onclick = () => this.captureMedia(taskId, resp.id, previewContainer);
+                    
+                    if (disabled) btnCapture.classList.add('hidden');
+                    else {
+                        btnCapture.onclick = () => {
+                            if (item.evidence_type === 'VIDEO') this.captureVideo(taskId, resp.id, previewContainer);
+                            else this.captureMedia(taskId, resp.id, previewContainer);
+                        };
+                    }
                 }
             }
 
             container.appendChild(tplItem);
+        }
+    },
+
+    updateChecklistUI(itemEl, status) {
+        const btnOk = itemEl.querySelector('.btn-check-ok');
+        const btnNa = itemEl.querySelector('.btn-check-na');
+        const btnProblem = itemEl.querySelector('.btn-check-problem');
+        const evidenceDiv = itemEl.querySelector('.item-evidence');
+        const indicator = itemEl.querySelector('.checklist-status-indicator');
+        const indicatorDot = indicator.querySelector('span');
+
+        // Reset
+        [btnOk, btnNa, btnProblem].forEach(b => b.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'text-slate-400', 'text-red-600'));
+        evidenceDiv.classList.add('hidden');
+        indicator.classList.add('hidden');
+
+        if (!status) return;
+
+        indicator.classList.remove('hidden');
+
+        if (status === 'OK') {
+            btnOk.classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+            indicatorDot.className = 'flex h-2 w-2 rounded-full bg-emerald-500';
+        } else if (status === 'NA') {
+            btnNa.classList.add('bg-white', 'shadow-sm', 'text-slate-400');
+            indicatorDot.className = 'flex h-2 w-2 rounded-full bg-slate-300';
+        } else if (status === 'PROBLEM') {
+            btnProblem.classList.add('bg-white', 'shadow-sm', 'text-red-600');
+            indicatorDot.className = 'flex h-2 w-2 rounded-full bg-red-500 animate-pulse';
+            evidenceDiv.classList.remove('hidden');
         }
     },
 
