@@ -374,7 +374,9 @@ const OfflineApp = {
         let pendingRequired = [];
         for (const resp of responses) {
             const item = items.find(i => i.id === resp.item_id);
-            if (item && item.is_required && !resp.status) {
+            // Considera preenchido se tiver um status (nova ação) ou completed (veio salvo do backend)
+            const isFilled = resp.status || resp.completed;
+            if (item && item.is_required && !isFilled) {
                 pendingRequired.push(item.name);
             }
         }
@@ -675,6 +677,10 @@ const OfflineApp = {
     },
 
     async renderOfflineMedia(container, taskId, responseId, occurrenceId = null) {
+        // Pega se a task já foi concluída, a fim de bloquear exclusões em tarefas finalizadas
+        const task = await db.tasks.get(taskId);
+        const isCompleted = task ? task.status === 'COMPLETED' : false;
+
         let query = db.media.where('task_id').equals(taskId);
         
         const mediaItems = await query.toArray();
@@ -692,7 +698,8 @@ const OfflineApp = {
             
             // Ajusta tamanho se for em ocorrência
             const sizeClass = occurrenceId ? 'w-12 h-12' : 'w-full aspect-square';
-            div.className = `relative ${sizeClass} rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group`;
+            // Sprint UX: adicionado hover, scale effect e cursor pointer pra incentivar clique na visualização
+            div.className = `relative ${sizeClass} rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group cursor-pointer hover:shadow-md hover:ring-2 hover:ring-blue-400 transition-all active:scale-[0.98]`;
             
             if (isVideo) {
                 div.innerHTML = `
@@ -707,18 +714,77 @@ const OfflineApp = {
                 `;
             }
 
-            // Badge de status
-            div.innerHTML += `
-                <div class="absolute top-0.5 right-0.5">
-                    <span class="flex h-3 w-3 items-center justify-center rounded-full ${item.status === 'pending' ? 'bg-amber-500' : 'bg-emerald-500'} shadow-sm">
-                        <i data-lucide="${item.status === 'pending' ? 'clock' : 'check'}" class="h-2.5 w-2.5 text-white"></i>
-                    </span>
-                </div>
+            // Excluir mídia (UX/IHC: Controle do usuário) - Exibe apenas se a OS não estiver finalizada
+            if (!isCompleted) {
+                const btnDelete = document.createElement('button');
+                btnDelete.className = 'absolute bottom-1 left-1 h-6 w-6 bg-red-600/90 rounded-full flex items-center justify-center shadow-sm hover:bg-red-700 active:scale-95 transition-all text-white backdrop-blur-sm z-10';
+                btnDelete.innerHTML = '<i data-lucide="trash-2" class="h-3 w-3"></i>';
+                btnDelete.onclick = (e) => {
+                    e.stopPropagation(); // Evita abrir o visualizador da foto ao assinar o botao
+                    this.deleteMedia(item.id, taskId, container, responseId, occurrenceId);
+                };
+                div.appendChild(btnDelete);
+            }
+
+            // Badge de status da sincronização
+            const badgeWrapper = document.createElement('div');
+            badgeWrapper.className = 'absolute top-0.5 right-0.5 z-10 pointer-events-none';
+            badgeWrapper.innerHTML = `
+                <span class="flex h-3 w-3 items-center justify-center rounded-full ${item.status === 'pending' ? 'bg-amber-500' : 'bg-emerald-500'} shadow-sm">
+                    <i data-lucide="${item.status === 'pending' ? 'clock' : 'check'}" class="h-2.5 w-2.5 text-white"></i>
+                </span>
             `;
+            div.appendChild(badgeWrapper);
+
+            // Abre o visualizador ao clicar
+            div.onclick = () => this.openMediaViewer(url, isVideo);
 
             container.appendChild(div);
         });
 
+        if (window.lucide) lucide.createIcons();
+    },
+
+    // Sprint UX: Lógica de exclusão que permite liberdade antes de finalizar as coisas
+    async deleteMedia(mediaId, taskId, container, responseId, occurrenceId) {
+        if (!confirm('Deseja remover esta mídia antes de enviar?')) return;
+        
+        // Remove DB
+        await db.media.delete(mediaId);
+        
+        // Remove Fila (Se ainda pendente)
+        const pendingQueue = await db.sync_queue.where('type').equals('MEDIA_UPLOAD').toArray();
+        const pendingItem = pendingQueue.find(i => String(i.payload.media_id) === String(mediaId));
+        if (pendingItem) {
+            await db.sync_queue.delete(pendingItem.id);
+            if (typeof OfflineDB !== 'undefined') OfflineDB.updateUIStatus();
+        }
+
+        // Re-render
+        this.renderOfflineMedia(container, taskId, responseId, occurrenceId);
+    },
+
+    // Sprint UX: Visualizador tela cheia pra validar qualidade de imagem tirada e evitar frustrações
+    openMediaViewer(url, isVideo) {
+        const modal = document.getElementById('modal-media-viewer');
+        const content = document.getElementById('media-viewer-content');
+        
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        
+        content.innerHTML = '';
+        if (isVideo) {
+            content.innerHTML = `<video src="${url}" controls autoplay playsinline class="max-w-full max-h-full rounded-xl shadow-2xl object-contain"></video>`;
+        } else {
+            content.innerHTML = `<img src="${url}" class="max-w-full max-h-full rounded-xl shadow-2xl object-contain">`;
+        }
+
+        document.getElementById('btn-close-viewer').onclick = () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            content.innerHTML = ''; // Limpa pra não ficar segurando mémória
+        };
+        
         if (window.lucide) lucide.createIcons();
     },
 
@@ -789,7 +855,7 @@ const OfflineApp = {
                     input.addEventListener('blur', (e) => {
                         this.updateChecklist(resp.id, { text_response: e.target.value });
                     });
-                } else if (item.evidence_type === 'PHOTO' || item.evidence_type === 'VIDEO') {
+                } else if (item.evidence_type === 'PHOTO' || item.evidence_type === 'VIDEO' || item.evidence_type === 'PHOTO_VIDEO') {
                     const photoSection = evidenceDiv.querySelector('.type-photo-video');
                     photoSection.classList.remove('hidden');
                     const btnCapture = photoSection.querySelector('.btn-capture');
@@ -798,12 +864,7 @@ const OfflineApp = {
                     this.renderOfflineMedia(previewContainer, taskId, resp.id);
                     
                     if (disabled) btnCapture.classList.add('hidden');
-                    else {
-                        btnCapture.onclick = () => {
-                            if (item.evidence_type === 'VIDEO') this.captureVideo(taskId, resp.id, previewContainer);
-                            else this.captureMedia(taskId, resp.id, previewContainer);
-                        };
-                    }
+                    else btnCapture.onclick = () => this.captureMedia(taskId, resp.id, previewContainer);
                 }
             }
 
@@ -827,6 +888,9 @@ const OfflineApp = {
         if (!status) return;
 
         indicator.classList.remove('hidden');
+        // A área de evidência aparece assim que qualquer estado for selecionado,
+        // garantindo a "Revelação Progressiva". O conteúdo interno já é condicionado pelo evidence_type.
+        evidenceDiv.classList.remove('hidden');
 
         if (status === 'OK') {
             btnOk.classList.add('bg-white', 'shadow-sm', 'text-blue-600');
@@ -837,7 +901,6 @@ const OfflineApp = {
         } else if (status === 'PROBLEM') {
             btnProblem.classList.add('bg-white', 'shadow-sm', 'text-red-600');
             indicatorDot.className = 'flex h-2 w-2 rounded-full bg-red-500 animate-pulse';
-            evidenceDiv.classList.remove('hidden');
         }
     },
 
