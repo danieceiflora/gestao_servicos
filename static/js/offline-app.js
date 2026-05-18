@@ -208,6 +208,15 @@ const OfflineApp = {
         // Botões de Ação
         const btnStart = tplDetail.querySelector('#btn-start-task');
         const btnFinish = tplDetail.querySelector('#btn-finish-task');
+        const btnAddMedia = tplDetail.querySelector('#btn-add-media');
+        const mediaContainer = tplDetail.querySelector('#task-media-container');
+
+        // Renderiza mídias já capturadas para a task (sem response_id)
+        await this.renderOfflineMedia(mediaContainer, taskId, null);
+
+        if (btnAddMedia) {
+            btnAddMedia.onclick = () => this.captureMedia(taskId, null, mediaContainer);
+        }
 
         if (task.status === 'IN_PROGRESS') {
             btnStart.classList.add('hidden');
@@ -217,6 +226,7 @@ const OfflineApp = {
         } else if (task.status === 'COMPLETED') {
             btnStart.classList.add('hidden');
             btnFinish.classList.add('hidden');
+            if (btnAddMedia) btnAddMedia.classList.add('hidden');
         }
 
         // Eventos
@@ -312,24 +322,22 @@ const OfflineApp = {
 
     // --- Lógica de Mídias Offline ---
     
-    async captureEvidence(taskId, responseId, previewContainer) {
-        // Criar um input de arquivo dinâmico ou usar a câmera global
-        // Para PWAs, o mais confiável é o input com capture="environment"
+    async captureMedia(taskId, responseId, previewContainer) {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = 'image/*';
-        input.capture = 'environment';
+        input.accept = 'image/*,video/*'; // Aceita vídeos também
+        // input.capture = 'environment'; // Comentado para permitir escolher da galeria no PC
         
         input.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            console.log(`📸 Capturando foto para checklist ${responseId}...`);
+            console.log(`📸 Capturando mídia para task ${taskId} (resp: ${responseId})...`);
             
             // 1. Salva o Blob no IndexedDB
             const mediaId = await db.media.add({
                 task_id: taskId,
-                response_id: responseId,
+                response_id: responseId || null,
                 type: file.type,
                 blob: file,
                 status: 'pending'
@@ -339,7 +347,7 @@ const OfflineApp = {
             await OfflineDB.enqueueSyncItem('MEDIA_UPLOAD', {
                 task_id: taskId,
                 media_id: mediaId,
-                response_id: responseId
+                response_id: responseId || null
             });
 
             // 3. Atualiza miniaturas
@@ -350,21 +358,44 @@ const OfflineApp = {
     },
 
     async renderOfflineMedia(container, taskId, responseId) {
-        const mediaItems = await db.media
-            .where('response_id').equals(responseId)
-            .toArray();
+        let query = db.media.where('task_id').equals(taskId);
+        
+        const mediaItems = await query.toArray();
+        // Filtra manualmente pelo response_id para evitar problemas de índice nulo no Dexie
+        const filteredItems = mediaItems.filter(item => {
+            if (responseId === null) return !item.response_id;
+            return String(item.response_id) === String(responseId);
+        });
         
         container.innerHTML = '';
-        mediaItems.forEach(item => {
+        filteredItems.forEach(item => {
             const url = URL.createObjectURL(item.blob);
+            const isVideo = item.type.startsWith('video/');
             const div = document.createElement('div');
-            div.className = 'relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200';
-            div.innerHTML = `
-                <img src="${url}" class="w-full h-full object-cover">
-                <div class="absolute inset-0 bg-black/20 flex items-center justify-center">
-                    <i data-lucide="${item.status === 'pending' ? 'clock' : 'check'}" class="h-4 w-4 text-white"></i>
+            div.className = 'relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 group';
+            
+            if (isVideo) {
+                div.innerHTML = `
+                    <video src="${url}" class="w-full h-full object-cover"></video>
+                    <div class="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <i data-lucide="play" class="h-6 w-6 text-white"></i>
+                    </div>
+                `;
+            } else {
+                div.innerHTML = `
+                    <img src="${url}" class="w-full h-full object-cover">
+                `;
+            }
+
+            // Badge de status
+            div.innerHTML += `
+                <div class="absolute top-1 right-1">
+                    <span class="flex h-4 w-4 items-center justify-center rounded-full ${item.status === 'pending' ? 'bg-amber-500' : 'bg-emerald-500'} shadow-sm">
+                        <i data-lucide="${item.status === 'pending' ? 'clock' : 'check'}" class="h-2.5 w-2.5 text-white"></i>
+                    </span>
                 </div>
             `;
+
             container.appendChild(div);
         });
 
@@ -394,6 +425,7 @@ const OfflineApp = {
 
     // Renderiza o checklist
     async renderChecklist(container, responses) {
+        const taskId = this.state.currentTaskId; // Garante que temos o taskId
         for (const resp of responses) {
             const item = await db.checklist_items.get(resp.item_id);
             if (!item) continue;
@@ -441,7 +473,7 @@ const OfflineApp = {
                     // Renderiza fotos já salvas localmente
                     this.renderOfflineMedia(previewContainer, taskId, resp.id);
 
-                    btnCapture.onclick = () => this.captureEvidence(taskId, resp.id, previewContainer);
+                    btnCapture.onclick = () => this.captureMedia(taskId, resp.id, previewContainer);
                 }
             }
 

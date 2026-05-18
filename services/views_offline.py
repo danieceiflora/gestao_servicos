@@ -304,16 +304,24 @@ def api_tecnico_upload_media(request, task_id):
         if not file:
             return JsonResponse({'error': 'Nenhum arquivo enviado'}, status=400)
             
-        # Cria a mídia vinculada à task ou resposta
+        # Se houver uma resposta de checklist, salva na tabela de checklist
+        if response_id and response_id != 'null':
+            from .models import ChecklistResponseMedia, TaskChecklistResponse
+            response = get_object_or_404(TaskChecklistResponse, id=response_id)
+            media = ChecklistResponseMedia.objects.create(
+                response=response,
+                file=file
+            )
+            return JsonResponse({'success': True, 'media_id': media.id, 'type': 'checklist'})
+        
+        # Caso contrário, salva como mídia geral da task
         media = ServiceMedia.objects.create(
             task=task,
-            file=file,
-            description=f"Evidência Offline - {timezone.now()}"
+            file=file
         )
         
-        # Se houver uma resposta de checklist, podemos vincular aqui se o modelo suportar
-        # (Depende de como sua ServiceMedia está estruturada)
-        
-        return JsonResponse({'success': True, 'media_id': media.id})
+        return JsonResponse({'success': True, 'media_id': media.id, 'type': 'task'})
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return JsonResponse({'error': str(e)}, status=400)

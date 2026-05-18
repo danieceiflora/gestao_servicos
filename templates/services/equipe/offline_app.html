@@ -145,6 +145,17 @@
                     <p class="task-notes text-sm text-slate-700 mt-1 whitespace-pre-wrap italic"></p>
                 </div>
 
+                <!-- Seção de Mídias da Etapa -->
+                <div id="task-media-section" class="pt-4 border-t border-slate-100">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Evidências (Fotos/Vídeos)</p>
+                    <div id="task-media-container" class="flex flex-wrap gap-2 mb-3">
+                        <!-- Mídias serão injetadas aqui -->
+                    </div>
+                    <button id="btn-add-media" class="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 p-4 text-xs font-bold text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all">
+                        <i data-lucide="camera" class="h-4 w-4"></i> Adicionar Foto ou Vídeo
+                    </button>
+                </div>
+
                 <div class="task-actions pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button id="btn-start-task" class="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3.5 text-sm font-bold text-white hover:bg-slate-800 transition-all shadow-md active:scale-95">
                         <i data-lucide="play" class="h-4 w-4"></i> Iniciar Etapa
