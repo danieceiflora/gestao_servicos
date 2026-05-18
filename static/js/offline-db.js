@@ -31,8 +31,15 @@ const OfflineDB = {
         
         const syncBanner = document.getElementById('banner-sincronizando');
         const syncBadge = document.getElementById('sync-badge');
-        if (syncBanner) syncBanner.classList.remove('hidden');
-        if (syncBadge) syncBadge.classList.remove('hidden');
+        
+        if (syncBanner) {
+            syncBanner.classList.remove('hidden');
+            syncBanner.style.display = 'flex';
+        }
+        if (syncBadge) {
+            syncBadge.classList.remove('hidden');
+            syncBadge.style.display = 'inline-flex';
+        }
         
         try {
             console.log('🚀 Iniciando Bootstrap Offline-First...');
@@ -63,7 +70,7 @@ const OfflineDB = {
                 db.services, db.products, db.settings
             ], async () => {
                 // Aplica estado pendente às tarefas que vieram do servidor
-                const finalizedTasks = data.tasks.map(serverTask => {
+                const finalizedTasks = (data.tasks || []).map(serverTask => {
                     const taskId = String(serverTask.id);
                     const taskPending = pendingByTaskId.get(taskId) || [];
                     if (taskPending.length > 0) {
@@ -76,25 +83,25 @@ const OfflineDB = {
                 await db.tasks.bulkPut(finalizedTasks);
                 
                 await db.orders.clear();
-                await db.orders.bulkPut(data.orders);
+                await db.orders.bulkPut(data.orders || []);
                 
                 await db.properties.clear();
-                await db.properties.bulkPut(data.properties);
+                await db.properties.bulkPut(data.properties || []);
                 
                 await db.clients.clear();
-                await db.clients.bulkPut(data.clients);
+                await db.clients.bulkPut(data.clients || []);
                 
                 await db.checklist_items.clear();
-                await db.checklist_items.bulkPut(data.checklist_items);
+                await db.checklist_items.bulkPut(data.checklist_items || []);
                 
                 await db.checklist_responses.clear();
-                await db.checklist_responses.bulkPut(data.checklist_responses);
+                await db.checklist_responses.bulkPut(data.checklist_responses || []);
                 
                 await db.services.clear();
-                await db.services.bulkPut(data.services);
+                await db.services.bulkPut(data.services || []);
                 
                 await db.products.clear();
-                await db.products.bulkPut(data.products);
+                await db.products.bulkPut(data.products || []);
                 
                 await db.settings.put({ key: 'last_sync', value: data.sync_token });
                 await db.settings.put({ key: 'technician', value: data.technician });
@@ -107,8 +114,14 @@ const OfflineDB = {
             console.error('❌ Erro no bootstrap:', error);
             return false;
         } finally {
-            if (syncBanner) syncBanner.classList.add('hidden');
-            if (syncBadge) syncBadge.classList.add('hidden');
+            if (syncBanner) {
+                syncBanner.classList.add('hidden');
+                syncBanner.style.display = 'none';
+            }
+            if (syncBadge) {
+                syncBadge.classList.add('hidden');
+                syncBadge.style.display = 'none';
+            }
         }
     },
 
@@ -229,82 +242,93 @@ const OfflineDB = {
             .anyOf(['pending', 'error'])
             .toArray();
 
-        if (pendingItems.length === 0) return;
+        if (pendingItems.length === 0) {
+            this.updateUIStatus();
+            return;
+        }
 
         const syncBadge = document.getElementById('sync-badge');
-        if (syncBadge) syncBadge.classList.remove('hidden');
+        if (syncBadge) {
+            syncBadge.classList.remove('hidden');
+            syncBadge.style.display = 'inline-flex';
+        }
 
         console.log(`🔄 Sincronizando ${pendingItems.length} pendências...`);
 
-        const textChanges = pendingItems.filter(i => i.type !== 'MEDIA_UPLOAD');
-        const mediaChanges = pendingItems.filter(i => i.type === 'MEDIA_UPLOAD');
+        try {
+            const textChanges = pendingItems.filter(i => i.type !== 'MEDIA_UPLOAD');
+            const mediaChanges = pendingItems.filter(i => i.type === 'MEDIA_UPLOAD');
 
-        // 1. Envia mudanças de texto em lote
-        if (textChanges.length > 0) {
-            try {
-                const response = await fetch('/api/tecnico/sync/push/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': this.getCookie('csrftoken'),
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: JSON.stringify({ changes: textChanges })
-                });
+            // 1. Envia mudanças de texto em lote
+            if (textChanges.length > 0) {
+                try {
+                    const response = await fetch('/api/tecnico/sync/push/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': this.getCookie('csrftoken'),
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({ changes: textChanges })
+                    });
 
-                if (response.ok) {
-                    const ids = textChanges.map(i => i.id);
-                    await db.sync_queue.bulkDelete(ids);
-                    console.log(`✅ ${textChanges.length} mudanças de texto sincronizadas.`);
-                } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    console.error('❌ Erro na sincronização de texto:', errorData);
-                    
-                    // Marca como erro para não ficar tentando em loop infinito se for erro de validação
-                    const ids = textChanges.map(i => i.id);
-                    await db.sync_queue.where('id').anyOf(ids).modify({ status: 'error' });
+                    if (response.ok) {
+                        const ids = textChanges.map(i => i.id);
+                        await db.sync_queue.bulkDelete(ids);
+                        console.log(`✅ ${textChanges.length} mudanças de texto sincronizadas.`);
+                    } else {
+                        const errorData = await response.json().catch(() => ({}));
+                        console.error('❌ Erro na sincronização de texto:', errorData);
+                        
+                        // Marca como erro para não ficar tentando em loop infinito se for erro de validação
+                        const ids = textChanges.map(i => i.id);
+                        await db.sync_queue.where('id').anyOf(ids).modify({ status: 'error' });
+                    }
+                } catch (err) {
+                    console.error('💥 Falha crítica ao enviar lote de texto:', err);
                 }
-            } catch (err) {
-                console.error('💥 Falha crítica ao enviar lote de texto:', err);
             }
-        }
 
-        // 2. Envia mídias uma a uma
-        for (const item of mediaChanges) {
-            try {
-                const mediaRecord = await db.media.get(item.payload.media_id);
-                if (!mediaRecord) {
-                    await db.sync_queue.delete(item.id);
-                    continue;
+            // 2. Envia mídias uma a uma
+            for (const item of mediaChanges) {
+                try {
+                    const mediaRecord = await db.media.get(item.payload.media_id);
+                    if (!mediaRecord) {
+                        await db.sync_queue.delete(item.id);
+                        continue;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('file', mediaRecord.blob);
+                    formData.append('response_id', item.payload.response_id || '');
+
+                    const response = await fetch(`/api/tecnico/etapa/${item.payload.task_id}/upload-media/`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': this.getCookie('csrftoken'),
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        await db.media.update(mediaRecord.id, { status: 'synced' });
+                        await db.sync_queue.delete(item.id);
+                        console.log(`📸 Foto ${mediaRecord.id} enviada com sucesso.`);
+                    } else {
+                        await db.sync_queue.update(item.id, { status: 'error' });
+                    }
+                } catch (err) {
+                    console.error(`Falha ao subir mídia ${item.payload.media_id}:`, err);
                 }
-
-                const formData = new FormData();
-                formData.append('file', mediaRecord.blob);
-                formData.append('response_id', item.payload.response_id || '');
-
-                const response = await fetch(`/api/tecnico/etapa/${item.payload.task_id}/upload-media/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': this.getCookie('csrftoken'),
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: formData
-                });
-
-                if (response.ok) {
-                    await db.media.update(mediaRecord.id, { status: 'synced' });
-                    await db.sync_queue.delete(item.id);
-                    console.log(`📸 Foto ${mediaRecord.id} enviada com sucesso.`);
-                } else {
-                    await db.sync_queue.update(item.id, { status: 'error' });
-                }
-            } catch (err) {
-                console.error(`Falha ao subir mídia ${item.payload.media_id}:`, err);
             }
+        } finally {
+            if (syncBadge) {
+                syncBadge.classList.add('hidden');
+                syncBadge.style.display = 'none';
+            }
+            this.updateUIStatus();
         }
-
-        if (syncBadge) syncBadge.classList.add('hidden');
-        this.updateUIStatus();
     },
 
     getCookie(name) {
@@ -348,8 +372,10 @@ const OfflineDB = {
             if (count > 0) {
                 syncBadge.textContent = count;
                 syncBadge.classList.remove('hidden');
+                syncBadge.style.display = 'inline-flex';
             } else {
                 syncBadge.classList.add('hidden');
+                syncBadge.style.display = 'none';
             }
         }
     }
