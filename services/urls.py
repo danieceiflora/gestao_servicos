@@ -3,6 +3,7 @@ from . import views
 from . import notifications
 from . import views_equipe
 from . import views_finance
+from . import views_offline
 
 urlpatterns = [
     path('', views.home, name='home'),
@@ -30,6 +31,13 @@ urlpatterns = [
     path('equipe/pagamento/<int:payment_id>/excluir/', views_equipe.equipe_payment_delete, name='equipe_payment_delete'),
     path('equipe/propriedade/<uuid:property_id>/atualizar-gps/', views_equipe.equipe_update_gps, name='equipe_update_gps'),
     path('api/equipe/agenda-do-dia/', views_equipe.api_equipe_agenda_do_dia, name='api_equipe_agenda_do_dia'),
+    
+    # --- API OFFLINE-FIRST ---
+    path('equipe/app/', views_offline.equipe_offline_app, name='equipe_offline_app'),
+    path('api/tecnico/bootstrap/', views_offline.api_tecnico_bootstrap, name='api_tecnico_bootstrap'),
+    path('api/tecnico/sync/pull/', views_offline.api_tecnico_sync_pull, name='api_tecnico_sync_pull'),
+    path('api/tecnico/sync/push/', views_offline.api_tecnico_sync_push, name='api_tecnico_sync_push'),
+    path('api/tecnico/etapa/<uuid:task_id>/upload-media/', views_offline.api_tecnico_upload_media, name='api_tecnico_upload_media'),
 
     # Clientes
     path('clients/', views.client_list, name='client_list'),

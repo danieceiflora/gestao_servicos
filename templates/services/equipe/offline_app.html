@@ -1,0 +1,197 @@
+{% extends layout_base|default:'base_equipe.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="offline-app-root" class="max-w-4xl mx-auto">
+    <!-- Loading State -->
+    <div id="app-loading" class="flex flex-col items-center justify-center py-20">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <p class="text-slate-600 font-medium">Carregando painel offline...</p>
+    </div>
+
+    <!-- App Content (Hidden initially) -->
+    <div id="app-main" class="hidden space-y-6">
+        <!-- Header / Navigation -->
+        <div class="flex items-center justify-between">
+            <div class="flex flex-col">
+                <h1 id="view-title" class="text-2xl font-bold text-slate-900 tracking-tight">Minha Agenda</h1>
+                <div id="online-status-indicator" class="text-[10px] font-medium text-slate-400 flex items-center gap-1.5">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+            <div id="sync-status" class="flex items-center gap-2">
+                <span id="sync-pending-badge" class="hidden inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-600 text-white shadow-sm">
+                    0
+                </span>
+                <span id="sync-badge" class="hidden inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 animate-pulse">
+                    Sincronizando...
+                </span>
+            </div>
+        </div>
+
+        <!-- Dynamic View Container -->
+        <div id="view-container">
+            <!-- Content will be injected here -->
+        </div>
+    </div>
+
+    <!-- Modal de Finalização -->
+    <div id="modal-finish" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[95vh]">
+            <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <h3 class="font-bold text-slate-900">Finalizar Atendimento</h3>
+                <button id="btn-close-finish" class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+                    <i data-lucide="x" class="h-5 w-5 text-slate-500"></i>
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-5 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nome de quem recebeu</label>
+                    <input type="text" id="finish-customer-name" class="w-full rounded-xl border-slate-200 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Ex: Maria Silva">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Observações Finais</label>
+                    <textarea id="finish-notes" rows="3" class="w-full rounded-xl border-slate-200 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Alguma observação importante?"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Assinatura do Cliente</label>
+                    <div class="border-2 border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+                        <canvas id="signature-pad" class="w-full h-40"></canvas>
+                    </div>
+                    <button id="btn-clear-signature" class="mt-2 text-xs font-bold text-red-500 hover:text-red-700">Limpar Assinatura</button>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-50 border-t border-slate-100">
+                <button id="btn-confirm-finish" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition-all">
+                    Confirmar e Finalizar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Templates for JS (dentro do content para garantir renderização) -->
+<template id="tpl-task-list">
+    <div class="space-y-4">
+        <div id="task-list-container" class="grid gap-4">
+            <!-- Tasks will be injected here -->
+        </div>
+    </div>
+</template>
+
+<template id="tpl-task-item">
+    <div class="task-card block rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors shadow-sm cursor-pointer p-4">
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+                <p class="client-name text-sm font-bold text-slate-900"></p>
+                <p class="property-address text-xs text-slate-500 mt-0.5"></p>
+                <p class="task-type mt-2 text-sm font-semibold text-slate-800"></p>
+                <p class="task-time mt-1 text-xs text-slate-600"></p>
+            </div>
+            <span class="task-status-badge inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"></span>
+        </div>
+    </div>
+</template>
+
+<template id="tpl-task-detail">
+    <div class="space-y-6">
+        <button id="btn-back" class="flex items-center gap-2 text-sm font-semibold text-blue-600 mb-2">
+            <i data-lucide="arrow-left" class="h-4 w-4"></i> Voltar para a lista
+        </button>
+
+        <!-- Card do Cliente/Endereço -->
+        <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <div class="flex items-start justify-between">
+                <div>
+                    <h2 class="client-name text-lg font-bold text-slate-900"></h2>
+                    <p class="property-address text-sm text-slate-500 mt-1"></p>
+                    <div class="flex flex-wrap gap-2 mt-3">
+                        <a href="" class="link-phone inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
+                            <i data-lucide="phone" class="h-3.5 w-3.5"></i> Ligar
+                        </a>
+                        <a href="" class="link-maps" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
+                            <i data-lucide="map-pin" class="h-3.5 w-3.5"></i> Ver Mapa
+                        </a>
+                    </div>
+                </div>
+                <span class="task-status-badge inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"></span>
+            </div>
+        </div>
+
+        <!-- Card da Etapa -->
+        <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="bg-slate-50 px-5 py-3 border-b border-slate-200">
+                <h3 class="task-type text-sm font-bold text-slate-700 uppercase tracking-wide"></h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="flex items-center gap-3 text-sm text-slate-600">
+                    <i data-lucide="calendar" class="h-4 w-4"></i>
+                    <span class="task-time"></span>
+                </div>
+
+                <div class="task-notes-container hidden">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Descrição/Notas</p>
+                    <p class="task-notes text-sm text-slate-700 mt-1 whitespace-pre-wrap italic"></p>
+                </div>
+
+                <div class="task-actions pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button id="btn-start-task" class="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3.5 text-sm font-bold text-white hover:bg-slate-800 transition-all shadow-md active:scale-95">
+                        <i data-lucide="play" class="h-4 w-4"></i> Iniciar Etapa
+                    </button>
+                    <button id="btn-finish-task" class="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-bold text-white hover:bg-emerald-700 transition-all shadow-md active:scale-95 opacity-50 cursor-not-allowed" disabled>
+                        <i data-lucide="check-circle" class="h-4 w-4"></i> Finalizar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Checklist Section -->
+        <div id="checklist-section" class="space-y-3 hidden">
+            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wide px-1">Check-list de Execução</h3>
+            <div id="checklist-container" class="space-y-3">
+                <!-- Checklist items will be injected here -->
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="tpl-checklist-item">
+    <div class="checklist-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex items-start gap-4 transition-all">
+        <div class="mt-0.5">
+            <input type="checkbox" class="check-completed w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+        </div>
+        <div class="flex-1 min-w-0">
+            <p class="item-name text-sm font-bold text-slate-900"></p>
+            <p class="item-description text-xs text-slate-500 mt-0.5"></p>
+
+            <div class="item-evidence mt-3 hidden">
+                <!-- Evidence fields based on type -->
+                <div class="type-text hidden">
+                    <textarea class="text-response w-full rounded-lg border-slate-300 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Sua resposta..."></textarea>
+                </div>
+                <div class="type-photo-video hidden">
+                    <button class="btn-capture w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 p-3 text-xs font-bold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                        <i data-lucide="camera" class="h-4 w-4"></i> Adicionar Evidência
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'js/offline-app.js' %}"></script>
+{% endblock %}

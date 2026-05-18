@@ -7,15 +7,111 @@
 const db = new Dexie("GestaoServicosDB");
 
 // Definição do Schema
-// Caso adicione mais menus (ex: historico), basta acrescentar a tabela aqui separada por vírgula.
-db.version(1).stores({
-    tasks: 'id, status, scheduled_at',            // Cache de tarefas (Agenda)
-    history: 'id, status, finished_at',          // Cache para a tela de histórico (Exemplo)
-    sync_queue: '++id, type, status, timestamp', // Fila de sincronização (Outbox)
-    settings: 'key'                              // Configurações locais e timestamps de sincronia
+db.version(3).stores({
+    tasks: 'id, service_order_id, status, scheduled_at',
+    orders: 'id, number, status, client_property_id',
+    properties: 'id, client_id',
+    clients: 'id, name',
+    checklist_items: 'id, service_id, template_id',
+    checklist_responses: 'id, task_id, item_id',
+    services: 'id',
+    products: 'id',
+    media: '++id, task_id, response_id, status', // Tabela para fotos/vídeos offline
+    sync_queue: '++id, type, status, timestamp',
+    settings: 'key'
 });
 
 const OfflineDB = {
+    /**
+     * Realiza o bootstrap completo do app do técnico (Nova API)
+     * Agora retorna as tarefas para permitir prefetch opcional.
+     */
+    async bootstrap() {
+        if (!navigator.onLine) return false;
+        
+        const syncBanner = document.getElementById('banner-sincronizando');
+        const syncBadge = document.getElementById('sync-badge');
+        if (syncBanner) syncBanner.classList.remove('hidden');
+        if (syncBadge) syncBadge.classList.remove('hidden');
+        
+        try {
+            console.log('🚀 Iniciando Bootstrap Offline-First...');
+            const response = await fetch('/api/tecnico/bootstrap/');
+            if (!response.ok) throw new Error('Falha ao baixar bootstrap');
+            
+            const data = await response.json();
+
+            // Busca alterações pendentes para não perdê-las ao sobrescrever do servidor
+            const pendingItems = await db.sync_queue
+                .where('status')
+                .anyOf(['pending', 'error'])
+                .toArray();
+
+            const pendingByTaskId = new Map();
+            pendingItems.forEach((item) => {
+                const taskId = this.normalizeTaskIdFromItem(item);
+                if (taskId) {
+                    if (!pendingByTaskId.has(taskId)) pendingByTaskId.set(taskId, []);
+                    pendingByTaskId.get(taskId).push(item);
+                }
+            });
+            
+            // Salva tudo no IndexedDB de uma vez
+            await db.transaction('rw', [
+                db.tasks, db.orders, db.properties, db.clients, 
+                db.checklist_items, db.checklist_responses, 
+                db.services, db.products, db.settings
+            ], async () => {
+                // Aplica estado pendente às tarefas que vieram do servidor
+                const finalizedTasks = data.tasks.map(serverTask => {
+                    const taskId = String(serverTask.id);
+                    const taskPending = pendingByTaskId.get(taskId) || [];
+                    if (taskPending.length > 0) {
+                        return this.applyPendingStateToTask(serverTask, null, taskPending);
+                    }
+                    return serverTask;
+                });
+
+                await db.tasks.clear();
+                await db.tasks.bulkPut(finalizedTasks);
+                
+                await db.orders.clear();
+                await db.orders.bulkPut(data.orders);
+                
+                await db.properties.clear();
+                await db.properties.bulkPut(data.properties);
+                
+                await db.clients.clear();
+                await db.clients.bulkPut(data.clients);
+                
+                await db.checklist_items.clear();
+                await db.checklist_items.bulkPut(data.checklist_items);
+                
+                await db.checklist_responses.clear();
+                await db.checklist_responses.bulkPut(data.checklist_responses);
+                
+                await db.services.clear();
+                await db.services.bulkPut(data.services);
+                
+                await db.products.clear();
+                await db.products.bulkPut(data.products);
+                
+                await db.settings.put({ key: 'last_sync', value: data.sync_token });
+                await db.settings.put({ key: 'technician', value: data.technician });
+                await db.settings.put({ key: 'config', value: data.config });
+            });
+            
+            console.log('✅ Bootstrap concluído com sucesso.');
+            return data.tasks;
+        } catch (error) {
+            console.error('❌ Erro no bootstrap:', error);
+            return false;
+        } finally {
+            if (syncBanner) syncBanner.classList.add('hidden');
+            if (syncBadge) syncBadge.classList.add('hidden');
+        }
+    },
+
     normalizeTaskIdFromItem(item) {
         if (!item || !item.payload) return null;
         if (item.payload.task_id) return String(item.payload.task_id);
@@ -57,27 +153,19 @@ const OfflineDB = {
     /**
      * Varre as tarefas do dia e faz o download preventivo do HTML de cada etapa
      * para que fiquem 100% disponíveis offline.
-     * @param {Array} tasks - Lista de tarefas que veio da API da agenda
      */
     async prefetchEtapasHTML(tasks) {
         if (!tasks || !Array.isArray(tasks) || !navigator.onLine) return;
 
         console.log(`Iniciando pré-carregamento de layout para ${tasks.length} etapas...`);
 
-        // Abre o cache do Service Worker diretamente pelo JavaScript da página
         const cache = await caches.open('gestao-servicos-v5');
 
         for (const tarefa of tasks) {
-            // Monte a URL exata da página que o técnico vai precisar acessar em campo
-            // Ajuste o padrão da URL conforme o seu urls.py do Django (ex: /equipe/etapa/1/)
             const urlPagina = `/equipe/etapa/${tarefa.id}/`;
-
             try {
-                // Faz o disparo silencioso em background para baixar o HTML da tela
                 const response = await fetch(urlPagina);
-                
                 if (response.status === 200) {
-                    // Guarda o esqueleto/HTML da página no cache do Service Worker
                     await cache.put(urlPagina, response);
                     console.log(`Layout da Etapa ${tarefa.id} guardado com sucesso para uso offline.`);
                 }
@@ -88,107 +176,29 @@ const OfflineDB = {
     },
 
     /**
-     * Abordagem de Check-in: Baixa todos os dados de texto e telas necessários 
-     * para o dia de trabalho do técnico de uma só vez.
+     * Abordagem de Check-in: Baixa todos os dados de texto e telas necessários.
+     * Agora utiliza o bootstrap unificado.
      */
     async realizarCheckInDiario() {
-        const syncBanner = document.getElementById('banner-sincronizando');
         try {
-            if (syncBanner) syncBanner.classList.remove('hidden');
+            console.log('⬇️ Iniciando Check-in Diário...');
+            const tasks = await this.bootstrap();
             
-            // 1. Baixa os dados textuais de todos os menus importantes e salva no Dexie
-            // Usamos a nossa função genérica que criamos antes
-            console.log('⬇️ Baixando dados dos menus...');
-            const tarefas = await this.syncDataFromServer('/api/equipe/agenda-do-dia/', 'tasks', 'tasks');
-            
-            // Exemplo: se tiver menu de histórico, já atualiza também
-            // await this.syncDataFromServer('/api/equipe/historico-servicos/', 'history', 'history_list');
-
-            // 2. Com as tarefas em mãos, faz o pré-carregamento (prefetch) dos HTMLs das etapas
-            if (tarefas && tarefas.length > 0) {
-                console.log(`📋 ${tarefas.length} tarefas encontradas. Iniciando download das telas...`);
-                await this.prefetchEtapasHTML(tarefas);
+            if (tasks && tasks.length > 0) {
+                console.log(`📋 ${tasks.length} tarefas encontradas. Iniciando prefetch das telas...`);
+                await this.prefetchEtapasHTML(tasks);
             }
 
             console.log('✅ Check-in diário concluído! Aplicativo pronto para uso 100% offline.');
             
-            // 3. Atualiza a tela do usuário com os dados novos
-            if (typeof carregarTelaAgenda === 'function') {
-                carregarTelaAgenda();
+            // Tenta atualizar a UI do App se ele estiver carregado
+            if (typeof OfflineApp !== 'undefined' && OfflineApp.render) {
+                await OfflineApp.render();
             }
 
         } catch (error) {
             console.error('Falha ao realizar o check-in diário:', error);
-        } finally {
-            if (syncBanner) syncBanner.classList.add('hidden');
         }
-    },
-
-    /**
-     * Função genérica para baixar dados de uma API e salvar em uma tabela no Dexie
-     */
-    async syncDataFromServer(url, tableName, stateKey) {
-        if (!navigator.onLine) return null;
-        try {
-            const response = await fetch(url);
-            if (response.ok) {
-                const data = await response.json();
-                const itemList = data[stateKey] || [];
-
-                let finalList = itemList;
-
-                if (tableName === 'tasks') {
-                    const [localTasks, pendingItems] = await Promise.all([
-                        db.tasks.toArray(),
-                        db.sync_queue.where('status').anyOf(['pending', 'error']).toArray()
-                    ]);
-
-                    const localById = new Map(localTasks.map((task) => [String(task.id), task]));
-                    const pendingByTaskId = new Map();
-
-                    pendingItems.forEach((item) => {
-                        const taskId = this.normalizeTaskIdFromItem(item);
-                        if (!taskId) return;
-                        if (!pendingByTaskId.has(taskId)) pendingByTaskId.set(taskId, []);
-                        pendingByTaskId.get(taskId).push(item);
-                    });
-
-                    finalList = itemList.map((serverTask) => {
-                        const taskId = String(serverTask.id);
-                        const localTask = localById.get(taskId);
-                        const taskPendingItems = pendingByTaskId.get(taskId) || [];
-                        return this.applyPendingStateToTask(serverTask, localTask, taskPendingItems);
-                    });
-                }
-
-                await db[tableName].clear();
-                if (finalList.length > 0) {
-                    await db[tableName].bulkPut(finalList);
-                }
-                return itemList;
-            }
-        } catch (error) {
-            console.error(`Erro ao sincronizar ${tableName}:`, error);
-        }
-        return null;
-    },
-    /**
-     * Retorna a Agenda de forma inteligente (Online -> API + Cache / Offline -> Dexie)
-     */
-    async getAgenda() {
-        if (navigator.onLine) {
-            const dadosAtualizados = await this.syncDataFromServer('/api/equipe/agenda-do-dia/', 'tasks', 'tasks');
-            if (dadosAtualizados) return dadosAtualizados;
-        }
-        console.log('Buscando Agenda do armazenamento local offline...');
-        return await db.tasks.toArray();
-    },
-
-    /**
-     * Mantido por compatibilidade com suas chamadas legadas
-     */
-    async syncAgendaFromServer() {
-        return await this.syncDataFromServer('/api/equipe/agenda-do-dia/', 'tasks', 'tasks');
     },
 
     /**
@@ -214,7 +224,6 @@ const OfflineDB = {
     async processSyncQueue() {
         if (!navigator.onLine) return;
 
-        // CORREÇÃO: Busca tanto os itens 'pending' quanto os marcados com 'error' para re-tentar o envio automático
         const pendingItems = await db.sync_queue
             .where('status')
             .anyOf(['pending', 'error'])
@@ -222,73 +231,80 @@ const OfflineDB = {
 
         if (pendingItems.length === 0) return;
 
-        console.log(`Processando fila de sincronização: ${pendingItems.length} itens pendentes/com erro`);
+        const syncBadge = document.getElementById('sync-badge');
+        if (syncBadge) syncBadge.classList.remove('hidden');
 
-        for (const item of pendingItems) {
+        console.log(`🔄 Sincronizando ${pendingItems.length} pendências...`);
+
+        const textChanges = pendingItems.filter(i => i.type !== 'MEDIA_UPLOAD');
+        const mediaChanges = pendingItems.filter(i => i.type === 'MEDIA_UPLOAD');
+
+        // 1. Envia mudanças de texto em lote
+        if (textChanges.length > 0) {
             try {
-                let success = false;
-                
-                // Lógica de envio baseada no tipo de ação
-                switch (item.type) {
-                    case 'TASK_START':
-                        success = await this.sendToServer(`/equipe/etapa/${item.payload.task_id}/iniciar/`, 'POST');
-                        break;
-                    case 'TASK_FINISH':
-                        success = await this.sendToServer(`/equipe/etapa/${item.payload.task_id}/finalizar/`, 'POST', item.payload.data);
-                        break;
-                    case 'CHECKLIST_UPDATE':
-                        success = await this.sendToServer(`/equipe/etapa/${item.payload.task_id}/checklist/atualizar/`, 'POST', item.payload.data);
-                        break;
-                    case 'GENERIC_FORM_UPLOAD':
-                        success = await this.sendToServer(item.payload.url, 'POST', item.payload.data);
-                        break;
+                const response = await fetch('/api/tecnico/sync/push/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ changes: textChanges })
+                });
+
+                if (response.ok) {
+                    const ids = textChanges.map(i => i.id);
+                    await db.sync_queue.bulkDelete(ids);
+                    console.log(`✅ ${textChanges.length} mudanças de texto sincronizadas.`);
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error('❌ Erro na sincronização de texto:', errorData);
+                    
+                    // Marca como erro para não ficar tentando em loop infinito se for erro de validação
+                    const ids = textChanges.map(i => i.id);
+                    await db.sync_queue.where('id').anyOf(ids).modify({ status: 'error' });
+                }
+            } catch (err) {
+                console.error('💥 Falha crítica ao enviar lote de texto:', err);
+            }
+        }
+
+        // 2. Envia mídias uma a uma
+        for (const item of mediaChanges) {
+            try {
+                const mediaRecord = await db.media.get(item.payload.media_id);
+                if (!mediaRecord) {
+                    await db.sync_queue.delete(item.id);
+                    continue;
                 }
 
-                if (success) {
+                const formData = new FormData();
+                formData.append('file', mediaRecord.blob);
+                formData.append('response_id', item.payload.response_id || '');
+
+                const response = await fetch(`/api/tecnico/etapa/${item.payload.task_id}/upload-media/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': this.getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                if (response.ok) {
+                    await db.media.update(mediaRecord.id, { status: 'synced' });
                     await db.sync_queue.delete(item.id);
+                    console.log(`📸 Foto ${mediaRecord.id} enviada com sucesso.`);
                 } else {
-                    // Atualiza para 'error' para evitar travar o loop atual, mas será processado no próximo ciclo de internet
                     await db.sync_queue.update(item.id, { status: 'error' });
                 }
-            } catch (error) {
-                console.error('Erro ao processar item da fila:', error);
+            } catch (err) {
+                console.error(`Falha ao subir mídia ${item.payload.media_id}:`, err);
             }
         }
+
+        if (syncBadge) syncBadge.classList.add('hidden');
         this.updateUIStatus();
-    },
-
-    /**
-     * Helper para requisições fetch com CSRF token
-     */
-    async sendToServer(url, method, data = null) {
-        const headers = {
-            'X-CSRFToken': this.getCookie('csrftoken'),
-            'X-Requested-With': 'XMLHttpRequest'
-        };
-
-        let body = null;
-        if (data) {
-            if (data instanceof FormData) {
-                body = data;
-            } else {
-                // Converte o objeto plano para FormData para manter compatibilidade com request.POST do Django
-                body = new FormData();
-                for (const key in data) {
-                    if (Array.isArray(data[key])) {
-                        data[key].forEach(val => body.append(key, val));
-                    } else {
-                        body.append(key, data[key]);
-                    }
-                }
-            }
-        }
-
-        try {
-            const response = await fetch(url, { method, headers, body });
-            return response.ok;
-        } catch (e) {
-            return false;
-        }
     },
 
     getCookie(name) {
@@ -313,7 +329,6 @@ const OfflineDB = {
         const syncBadge = document.getElementById('sync-pending-badge');
         const onlineIndicator = document.getElementById('online-status-indicator');
         
-        // Atualiza indicador online/offline
         if (onlineIndicator) {
             if (navigator.onLine) {
                 onlineIndicator.innerHTML = '<span class="flex h-2 w-2 rounded-full bg-green-500"></span> Online';
@@ -324,7 +339,6 @@ const OfflineDB = {
             }
         }
 
-        // Atualiza badge de itens pendentes (conta tanto novos quanto erros acumulados)
         if (syncBadge) {
             const count = await db.sync_queue
                 .where('status')
@@ -341,40 +355,13 @@ const OfflineDB = {
     }
 };
 
-// Event Listeners para Conectividade
+// Event Listeners Globais para Conectividade
 window.addEventListener('online', () => {
-    console.log('🌐 Conexão restabelecida! Técnico online. Iniciando sincronização dos dados locais com o servidor...');
+    console.log('🌐 Conexão restabelecida! Iniciando sincronização...');
     OfflineDB.updateUIStatus();
     OfflineDB.processSyncQueue();
 });
 
 window.addEventListener('offline', () => {
     OfflineDB.updateUIStatus();
-});
-
-// Inicialização ao carregar a página
-document.addEventListener('DOMContentLoaded', () => {
-    OfflineDB.updateUIStatus();
-    
-    // Roda a sincronização inteligente da agenda
-    OfflineDB.getAgenda();
-});
-
-// Inicialização automática ao abrir o app
-document.addEventListener('DOMContentLoaded', async () => {
-    OfflineDB.updateUIStatus();
-    
-    // Sempre tenta limpar a fila pendente quando a tela carrega (pode ser que a internet tenha voltado enquanto o app estava fechado)
-    OfflineDB.processSyncQueue();
-    
-    if (navigator.onLine) {
-        console.log('🔄 Técnico Online: Iniciando sincronização diária obrigatória...');
-        
-        // Executa a carga completa de dados e layouts em background
-        await OfflineDB.realizarCheckInDiario();
-    } else {
-        console.log('📴 Técnico Offline: Carregando dados salvos no dispositivo.');
-        // Se estiver sem rede, apenas garante a renderização com o que já tem no Dexie
-        if (typeof carregarTelaAgenda === 'function') carregarTelaAgenda();
-    }
 });

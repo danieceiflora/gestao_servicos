@@ -1,10 +1,11 @@
-const CACHE_NAME = 'gestao-servicos-v5'; // Subimos a versão para aplicar as correções
+const CACHE_NAME = 'gestao-servicos-v6'; // Subimos a versão para o offline-app
 
 // 🔓 Adicione aqui os caminhos das telas/menus principais que o técnico acessa
 const ASSETS_TO_CACHE = [
     '/',
     '/static/dist/output.css',
     '/static/js/offline-db.js',
+    '/static/js/offline-app.js',
     '/static/dourados-calhas.png',
     '/manifest.json',
     'https://unpkg.com/lucide@latest',
@@ -15,6 +16,7 @@ const ASSETS_TO_CACHE = [
     '/equipe/inicio/',
     '/equipe/tarefas/',
     '/orders/calendar/',
+    '/equipe/app/', // NOVO: App Shell Offline
 ];
 
 // Instalação do Service Worker
