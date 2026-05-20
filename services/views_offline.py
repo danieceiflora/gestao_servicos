@@ -34,16 +34,16 @@ def api_tecnico_bootstrap(request):
             return JsonResponse({'error': 'Usuário não vinculado a um perfil profissional.'}, status=400)
 
         now = timezone.now()
-        # Pega tarefas de hoje e próximas, e talvez as concluídas recentemente (ex: últimas 24h)
-        # para garantir que o técnico veja o que acabou de fazer.
+        # Pega tarefas dos últimos 7 dias e próximas
+        # para garantir que o técnico veja o histórico recente e agendamentos futuros.
         tasks_qs = ServiceOrderTask.objects.filter(
             team_members__professional=professional,
-            scheduled_at__date__gte=now.date() - timezone.timedelta(days=1)
+            scheduled_at__date__gte=now.date() - timezone.timedelta(days=7)
         ).select_related(
             'service_order',
             'service_order__client_property',
             'service_order__client_property__client'
-        ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED).distinct()
+        ).distinct()
 
         # Coletar IDs relacionados para buscar outras entidades
         order_ids = tasks_qs.values_list('service_order_id', flat=True)

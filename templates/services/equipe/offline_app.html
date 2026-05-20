@@ -63,7 +63,7 @@
             <div class="flex items-center gap-2">
                 <!-- Sync status pills -->
                 <div id="sync-status" class="flex items-center gap-2">
-                    <button id="btn-sync-now" class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 text-[10px] font-bold text-amber-700 animate-pulse">
+                    <button id="btn-sync-now" class="hidden items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-full bg-amber-50 border border-amber-100 text-xs font-bold text-amber-700 animate-pulse">
                         <i data-lucide="refresh-cw" class="h-3 w-3"></i>
                         Sincronizar
                     </button>
@@ -91,33 +91,77 @@
 <!-- 1. Task List View -->
 <template id="tpl-task-list">
     <div class="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <div id="task-list-container" class="grid gap-3">
-            <!-- Tasks will be injected here -->
+        <!-- Filtros -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mx-1">
+            <div class="grid grid-cols-1 gap-3">
+                <div>
+                    <label for="filter-status" class="text-xs font-semibold text-slate-600">Filtrar por status</label>
+                    <select id="filter-status" class="mt-1 w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500 bg-white">
+                        <option value="all">Todos</option>
+                        <option value="IN_PROGRESS">Em execução</option>
+                        <option value="SCHEDULED">Agendadas</option>
+                        <option value="COMPLETED">Concluídas</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="checkbox" id="filter-hide-completed" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <label for="filter-hide-completed" class="text-sm text-slate-700">Esconder OS concluídas</label>
+                </div>
+            </div>
+        </div>
+
+        <div id="task-list-container" class="space-y-6 px-1">
+            <section id="section-in-progress" class="space-y-3 hidden">
+                <div class="flex items-center justify-between border-b border-amber-200 pb-2">
+                    <h2 class="text-sm font-bold uppercase tracking-wide text-amber-700">Em execução</h2>
+                    <span class="count text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded-md">0</span>
+                </div>
+                <div class="task-list grid gap-3"></div>
+            </section>
+            
+            <section id="section-scheduled" class="space-y-3 hidden">
+                <div class="flex items-center justify-between border-b border-blue-200 pb-2">
+                    <h2 class="text-sm font-bold uppercase tracking-wide text-blue-700">Agendadas</h2>
+                    <span class="count text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-md">0</span>
+                </div>
+                <div class="task-list grid gap-3"></div>
+            </section>
+
+            <section id="section-completed" class="space-y-3 hidden">
+                <div class="flex items-center justify-between border-b border-emerald-200 pb-2">
+                    <h2 class="text-sm font-bold uppercase tracking-wide text-emerald-700">Concluídas</h2>
+                    <span class="count text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-md">0</span>
+                </div>
+                <div class="task-list grid gap-3"></div>
+            </section>
+            
+            <div id="empty-state-message" class="hidden rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">
+                Nenhuma tarefa encontrada para os filtros aplicados.
+            </div>
         </div>
     </div>
 </template>
 
 <!-- 2. Task Item Card -->
 <template id="tpl-task-item">
-    <div class="task-card group relative block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer active:scale-[0.98]">
-        <div class="flex items-start justify-between gap-4">
+    <div class="task-card group relative block rounded-xl border transition-colors shadow-sm cursor-pointer active:scale-[0.98]">
+        <div class="p-4 flex items-start justify-between gap-3">
             <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="task-status-badge text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"></span>
-                    <span class="task-time text-[10px] font-medium text-slate-400"></span>
+                <div class="flex items-center gap-2 mb-1 justify-between">
+                    <p class="client-name text-sm font-bold text-slate-900 truncate"></p>
+                    <span class="task-status-badge inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap"></span>
                 </div>
-                <p class="client-name text-sm font-bold text-slate-900 truncate"></p>
                 <p class="property-address text-xs text-slate-500 truncate mt-0.5"></p>
                 
-                <div class="mt-3 flex items-center gap-2">
-                    <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100">
-                        <i data-lucide="hammer" class="h-4 w-4 text-slate-400"></i>
+                <div class="mt-2 flex items-start gap-2">
+                    <div class="min-w-0 flex-1">
+                        <p class="task-type text-sm font-semibold text-slate-800 truncate"></p>
+                        <div class="task-dates mt-2 flex flex-wrap gap-2 hidden">
+                             <!-- badges injected via JS -->
+                        </div>
                     </div>
-                    <p class="task-type text-sm font-semibold text-slate-700 truncate"></p>
                 </div>
-            </div>
-            <div class="self-center">
-                <i data-lucide="chevron-right" class="h-5 w-5 text-slate-300 group-hover:text-blue-500 transition-colors"></i>
+                <span class="task-time hidden"></span>
             </div>
         </div>
     </div>
@@ -128,7 +172,7 @@
     <div class="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
         <!-- Navigation / Actions -->
         <div class="flex items-center justify-between px-1">
-            <button id="btn-back" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+            <button id="btn-back" class="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors">
                 <i data-lucide="arrow-left" class="h-4 w-4"></i> Voltar
             </button>
             <div class="flex items-center gap-2">
@@ -152,10 +196,10 @@
                 </div>
 
                 <div class="flex gap-3 mt-6">
-                    <a href="" class="link-phone flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold transition-all">
+                    <a href="" class="link-phone flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold transition-all">
                         <i data-lucide="phone" class="h-3.5 w-3.5"></i> Contato
                     </a>
-                    <a href="" class="link-maps" target="_blank" class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold transition-all shadow-lg shadow-blue-900/20">
+                    <a href="" class="link-maps" target="_blank" class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold transition-all shadow-lg shadow-blue-900/20">
                         <i data-lucide="map" class="h-3.5 w-3.5"></i> Ver Mapa
                     </a>
                 </div>
@@ -166,19 +210,25 @@
         <div class="space-y-4 px-1">
             <!-- Card de Notas/Descrição -->
             <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                <div class="flex items-center gap-2 mb-3">
+                <div class="flex items-center gap-2 mb-4">
                     <div class="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
                         <i data-lucide="sticky-note" class="h-4 w-4 text-amber-600"></i>
                     </div>
                     <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Serviço Programado</h3>
                 </div>
                 
-                <div class="space-y-3">
+                <div class="space-y-4">
                     <div>
-                        <p class="task-type text-base font-bold text-slate-900"></p>
-                        <div class="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                            <i data-lucide="calendar" class="h-3.5 w-3.5"></i>
-                            <span class="task-time"></span>
+                        <p class="task-type text-base font-bold text-slate-900 mb-3"></p>
+                        
+                        <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-white shadow-sm text-blue-500">
+                                <i data-lucide="calendar" class="h-5 w-5"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1">Agendamento</p>
+                                <p class="task-time text-sm font-bold text-slate-700"></p>
+                            </div>
                         </div>
                     </div>
                     
@@ -203,8 +253,8 @@
                 <div id="checklist-section" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <button class="w-full flex items-center justify-between p-5 text-left transition-colors hover:bg-slate-50" onclick="this.nextElementSibling.classList.toggle('hidden')">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center border border-emerald-100">
-                                <i data-lucide="check-square" class="h-4 w-4 text-emerald-600"></i>
+                            <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
+                                <i data-lucide="check-square" class="h-4 w-4 text-slate-600"></i>
                             </div>
                             <div>
                                 <h3 class="text-sm font-bold text-slate-800">Checklist</h3>
@@ -223,8 +273,8 @@
                     <div class="p-5 border-b border-slate-50">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100">
-                                    <i data-lucide="camera" class="h-4 w-4 text-blue-600"></i>
+                                <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
+                                    <i data-lucide="camera" class="h-4 w-4 text-slate-600"></i>
                                 </div>
                                 <div>
                                     <h3 class="text-sm font-bold text-slate-800">Evidências</h3>
@@ -252,8 +302,8 @@
                 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <button class="w-full flex items-center justify-between p-5 text-left transition-colors hover:bg-slate-50" onclick="this.nextElementSibling.classList.toggle('hidden')">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center border border-amber-100">
-                                <i data-lucide="alert-triangle" class="h-4 w-4 text-amber-600"></i>
+                            <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
+                                <i data-lucide="alert-triangle" class="h-4 w-4 text-slate-600"></i>
                             </div>
                             <div>
                                 <h3 class="text-sm font-bold text-slate-800">Ocorrências</h3>
@@ -265,7 +315,7 @@
                     <div id="occurrences-container" class="px-5 pb-5 space-y-3 hidden">
                         <!-- Lista de ocorrências -->
                         <div id="occurrence-list" class="space-y-2 mb-4"></div>
-                        <button id="btn-add-occurrence" class="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-50 border border-amber-100 p-4 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-all">
+                        <button id="btn-add-occurrence" class="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-50 border border-slate-100 p-4 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all">
                             <i data-lucide="plus-circle" class="h-4 w-4"></i> Registrar Ocorrência
                         </button>
                     </div>
@@ -297,13 +347,13 @@
 
         <!-- Three-state Toggle (OK, N/A, Problema) -->
         <div class="flex p-1 bg-slate-100 rounded-xl">
-            <button class="btn-check-ok flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold transition-all" data-status="OK">
+            <button class="btn-check-ok flex-1 flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-lg text-[10px] font-bold transition-all" data-status="OK">
                 <i data-lucide="check" class="h-3 w-3"></i> OK
             </button>
-            <button class="btn-check-na flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold transition-all" data-status="NA">
+            <button class="btn-check-na flex-1 flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-lg text-[10px] font-bold transition-all" data-status="NA">
                 <i data-lucide="minus-circle" class="h-3 w-3"></i> N/A
             </button>
-            <button class="btn-check-problem flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold transition-all" data-status="PROBLEM">
+            <button class="btn-check-problem flex-1 flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-lg text-[10px] font-bold transition-all" data-status="PROBLEM">
                 <i data-lucide="alert-circle" class="h-3 w-3"></i> ERRO
             </button>
         </div>
@@ -314,7 +364,7 @@
             </div>
             <div class="type-photo-video hidden">
                 <div class="preview-container flex flex-wrap gap-2 mb-2"></div>
-                <button class="btn-capture w-full flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white p-2 text-[10px] font-bold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                <button class="btn-capture w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 min-h-[44px] text-xs font-bold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
                     <i data-lucide="camera" class="h-3.5 w-3.5"></i> Anexar Foto de Evidência
                 </button>
             </div>

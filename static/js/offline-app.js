@@ -7,6 +7,10 @@ const OfflineApp = {
     state: {
         currentView: 'list', // 'list', 'detail'
         currentTaskId: null,
+        filters: {
+            status: 'all', // 'all', 'IN_PROGRESS', 'SCHEDULED', 'COMPLETED'
+            hideCompleted: false
+        },
         camera: {
             stream: null,
             facingMode: 'environment',
@@ -115,27 +119,102 @@ const OfflineApp = {
         const tplList = document.getElementById('tpl-task-list').content.cloneNode(true);
         const listContainer = tplList.getElementById('task-list-container');
         
-        // Busca tarefas no IndexedDB
-        const tasks = await db.tasks.orderBy('scheduled_at').toArray();
+        // Configura eventos dos filtros
+        const filterStatus = tplList.getElementById('filter-status');
+        const filterHideCompleted = tplList.getElementById('filter-hide-completed');
         
-        if (tasks.length === 0) {
-            listContainer.innerHTML = `
-                <div class="flex flex-col items-center justify-center py-20 px-6 text-center">
-                    <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                        <i data-lucide="calendar-x" class="h-8 w-8 text-slate-300"></i>
-                    </div>
-                    <h3 class="text-slate-900 font-bold">Tudo limpo!</h3>
-                    <p class="text-slate-500 text-sm mt-1">Nenhum serviço agendado para o momento.</p>
-                </div>
-            `;
-        } else {
-            for (const task of tasks) {
-                const itemEl = this.createTaskItem(task);
-                listContainer.appendChild(itemEl);
-            }
+        if (filterStatus) {
+            filterStatus.value = this.state.filters.status;
+            filterStatus.addEventListener('change', (e) => {
+                this.state.filters.status = e.target.value;
+                this.updateTaskListUI();
+            });
         }
-
+        
+        if (filterHideCompleted) {
+            filterHideCompleted.checked = this.state.filters.hideCompleted;
+            filterHideCompleted.addEventListener('change', (e) => {
+                this.state.filters.hideCompleted = e.target.checked;
+                this.updateTaskListUI();
+            });
+        }
+        
         container.appendChild(tplList);
+        await this.updateTaskListUI();
+    },
+
+    async updateTaskListUI() {
+        const listContainer = document.getElementById('task-list-container');
+        if (!listContainer) return;
+        
+        const secInProgress = listContainer.querySelector('#section-in-progress');
+        const listInProgress = secInProgress.querySelector('.task-list');
+        const countInProgress = secInProgress.querySelector('.count');
+        
+        const secScheduled = listContainer.querySelector('#section-scheduled');
+        const listScheduled = secScheduled.querySelector('.task-list');
+        const countScheduled = secScheduled.querySelector('.count');
+        
+        const secCompleted = listContainer.querySelector('#section-completed');
+        const listCompleted = secCompleted.querySelector('.task-list');
+        const countCompleted = secCompleted.querySelector('.count');
+        
+        const emptyState = listContainer.querySelector('#empty-state-message');
+        
+        // Limpar listas
+        listInProgress.innerHTML = '';
+        listScheduled.innerHTML = '';
+        listCompleted.innerHTML = '';
+        
+        // Busca tarefas
+        let tasks = await db.tasks.orderBy('scheduled_at').toArray();
+        
+        // Aplicar filtros
+        if (this.state.filters.hideCompleted) {
+            tasks = tasks.filter(t => t.status !== 'COMPLETED');
+        }
+        if (this.state.filters.status !== 'all') {
+            tasks = tasks.filter(t => t.status === this.state.filters.status);
+        }
+        
+        let inProgressCount = 0;
+        let scheduledCount = 0;
+        let completedCount = 0;
+
+        for (const task of tasks) {
+            const itemEl = this.createTaskItem(task);
+            
+            if (task.status === 'IN_PROGRESS') {
+                listInProgress.appendChild(itemEl);
+                inProgressCount++;
+            } else if (task.status === 'SCHEDULED') {
+                listScheduled.appendChild(itemEl);
+                scheduledCount++;
+            } else if (task.status === 'COMPLETED') {
+                listCompleted.appendChild(itemEl);
+                completedCount++;
+            }
+            // Outros status como CANCELLED não aparecem na listagem conforme o fluxo principal
+        }
+        
+        // Atualizar Contadores
+        countInProgress.textContent = inProgressCount;
+        countScheduled.textContent = scheduledCount;
+        countCompleted.textContent = completedCount;
+        
+        // Mostrar/Esconder seções
+        if (inProgressCount > 0) secInProgress.classList.remove('hidden'); else secInProgress.classList.add('hidden');
+        if (scheduledCount > 0) secScheduled.classList.remove('hidden'); else secScheduled.classList.add('hidden');
+        if (completedCount > 0) secCompleted.classList.remove('hidden'); else secCompleted.classList.add('hidden');
+        
+        if (inProgressCount === 0 && scheduledCount === 0 && completedCount === 0) {
+            emptyState.classList.remove('hidden');
+        } else {
+            emptyState.classList.add('hidden');
+        }
+        
+        // Update icons
+        if (window.lucide) lucide.createIcons();
     },
 
     // Cria um item da lista de tarefas
@@ -159,27 +238,63 @@ const OfflineApp = {
         const client = prop ? await db.clients.get(prop.client_id) : null;
 
         if (client) card.querySelector('.client-name').textContent = client.name;
-        if (prop) card.querySelector('.property-address').textContent = `${prop.address}, ${prop.number}`;
+        
+        let addressText = '';
+        if (order) addressText += `OS #${order.number} • `;
+        if (prop) addressText += `${prop.address}, ${prop.number} - ${prop.neighborhood}`;
+        card.querySelector('.property-address').textContent = addressText;
         
         card.querySelector('.task-type').textContent = task.task_type;
         
-        const date = new Date(task.scheduled_at);
-        card.querySelector('.task-time').textContent = date.toLocaleString('pt-BR', {
-            hour: '2-digit', minute: '2-digit'
-        });
+        const dateScheduled = new Date(task.scheduled_at);
 
         const statusBadge = card.querySelector('.task-status-badge');
         statusBadge.textContent = this.translateStatus(task.status);
         
-        // Estilização do badge baseada no status
+        // Reset classes
+        card.className = 'task-card group relative block rounded-xl border border-slate-200 bg-white transition-all shadow-sm cursor-pointer active:scale-[0.98] border-l-4';
+        statusBadge.className = 'task-status-badge inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap';
+
+        // Estilização consistente com a seção (Status)
         if (task.status === 'SCHEDULED') {
-            statusBadge.classList.add('bg-blue-50', 'text-blue-600', 'border', 'border-blue-100');
+            card.classList.add('border-l-blue-500', 'hover:border-blue-300');
+            statusBadge.classList.add('bg-blue-50', 'text-blue-700');
         } else if (task.status === 'IN_PROGRESS') {
-            statusBadge.classList.add('bg-amber-50', 'text-amber-600', 'border', 'border-amber-100');
+            card.classList.add('border-l-amber-500', 'hover:border-amber-300');
+            statusBadge.classList.add('bg-amber-50', 'text-amber-700');
         } else if (task.status === 'COMPLETED') {
-            statusBadge.classList.add('bg-emerald-50', 'text-emerald-600', 'border', 'border-emerald-100');
+            card.classList.add('border-l-emerald-500', 'hover:border-emerald-300');
+            statusBadge.classList.add('bg-emerald-50', 'text-emerald-700');
         } else {
-            statusBadge.classList.add('bg-slate-50', 'text-slate-600', 'border', 'border-slate-100');
+            card.classList.add('border-l-slate-400');
+            statusBadge.classList.add('bg-slate-100', 'text-slate-600');
+        }
+
+        // Datas - IHC: Neutralizadas para não misturar cores e focar no status principal
+        const taskDatesContainer = card.querySelector('.task-dates');
+        if (taskDatesContainer) {
+            let datesHtml = `<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-100" title="Agendado">
+                <i data-lucide="calendar" class="h-3 w-3"></i> 
+                <span>Agendado: ${dateScheduled.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>`;
+            
+            if (task.started_at) {
+                const dateStart = new Date(task.started_at);
+                datesHtml += `<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-100" title="Iniciou">
+                    <i data-lucide="play-circle" class="h-3 w-3"></i> 
+                    <span>Iniciado: ${dateStart.toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>`;
+            }
+            if (task.finished_at) {
+                const dateFinish = new Date(task.finished_at);
+                datesHtml += `<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-100" title="Finalizou">
+                    <i data-lucide="check-circle" class="h-3 w-3"></i> 
+                    <span>Finalizado: ${dateFinish.toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>`;
+            }
+            
+            taskDatesContainer.innerHTML = datesHtml;
+            taskDatesContainer.classList.remove('hidden');
         }
     },
 
@@ -240,9 +355,12 @@ const OfflineApp = {
         // Dados da Task
         tplDetail.querySelector('.task-type').textContent = task.task_type;
         const date = new Date(task.scheduled_at);
-        tplDetail.querySelector('.task-time').textContent = date.toLocaleString('pt-BR', {
-            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-        });
+        
+        // Formatação elegante: ex: "25 de Maio • 14:30"
+        const formattedDate = date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
+        const formattedTime = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        
+        tplDetail.querySelector('.task-time').textContent = `${formattedDate} • ${formattedTime}`;
 
         if (task.notes) {
             tplDetail.querySelector('.task-notes-container').classList.remove('hidden');
@@ -717,8 +835,8 @@ const OfflineApp = {
             // Excluir mídia (UX/IHC: Controle do usuário) - Exibe apenas se a OS não estiver finalizada
             if (!isCompleted) {
                 const btnDelete = document.createElement('button');
-                btnDelete.className = 'absolute bottom-1 left-1 h-6 w-6 bg-red-600/90 rounded-full flex items-center justify-center shadow-sm hover:bg-red-700 active:scale-95 transition-all text-white backdrop-blur-sm z-10';
-                btnDelete.innerHTML = '<i data-lucide="trash-2" class="h-3 w-3"></i>';
+                btnDelete.className = 'absolute bottom-1 left-1 h-10 w-10 bg-red-600/90 rounded-full flex items-center justify-center shadow-sm hover:bg-red-700 active:scale-95 transition-all text-white backdrop-blur-sm z-10';
+                btnDelete.innerHTML = '<i data-lucide="trash-2" class="h-4 w-4"></i>';
                 btnDelete.onclick = (e) => {
                     e.stopPropagation(); // Evita abrir o visualizador da foto ao assinar o botao
                     this.deleteMedia(item.id, taskId, container, responseId, occurrenceId);
