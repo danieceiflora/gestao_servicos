@@ -257,6 +257,7 @@ const OfflineDB = {
         this._syncInProgress = true;
 
         try {
+            await db.media.where('status').equals('synced').delete();
             const pendingItems = await db.sync_queue
                 .where('status')
                 .anyOf(['pending', 'error'])
@@ -384,9 +385,9 @@ const OfflineDB = {
                     });
 
                     if (response.ok) {
-                        await db.media.update(mediaRecord.id, { status: 'synced' });
+                        await db.media.delete(mediaRecord.id);
                         await db.sync_queue.delete(item.id);
-                        console.log(`📸 Foto ${mediaRecord.id} enviada com sucesso.`);
+                        console.log(`📸 Mídia ${mediaRecord.id} enviada e removida do dispositivo.`);
                     } else if (response.status === 429) {
                         totalSuccess = false;
                         await db.sync_queue.update(item.id, { status: 'pending' });
