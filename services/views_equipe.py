@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
@@ -80,127 +81,16 @@ def equipe_dashboard(request):
 @login_required
 def equipe_task_list(request):
     """
-    Lista etapas alocadas para o colaborador com organização por prioridade:
-    em execução -> agendadas -> concluídas.
+    Redirect para o novo app offline.
     """
-    base_qs = get_collaborator_tasks(request.user).select_related(
-        'service_order',
-        'service_order__client_property',
-        'service_order__client_property__client'
-    ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED)
-
-    in_progress_filter = (
-        Q(status=ServiceOrderTask.TaskStatus.IN_PROGRESS) |
-        Q(started_at__isnull=False, finished_at__isnull=True)
-    )
-    completed_filter = (
-        Q(status=ServiceOrderTask.TaskStatus.COMPLETED) |
-        Q(finished_at__isnull=False)
-    )
-    scheduled_filter = (
-        Q(status=ServiceOrderTask.TaskStatus.SCHEDULED) &
-        Q(started_at__isnull=True) &
-        Q(finished_at__isnull=True)
-    )
-
-    search_query = (request.GET.get('q') or '').strip()
-    status_filter = (request.GET.get('status') or 'all').strip().lower()
-    hide_completed = (request.GET.get('hide_completed') or '').strip().lower() in ('1', 'true', 'on', 'yes')
-
-    if search_query:
-        base_qs = base_qs.filter(
-            Q(service_order__client_property__client__name__icontains=search_query) |
-            Q(service_order__client_property__address__icontains=search_query) |
-            Q(service_order__client_property__neighborhood__icontains=search_query) |
-            Q(service_order__client_property__number__icontains=search_query) |
-            Q(service_order__number__icontains=search_query)
-        )
-
-    if status_filter == 'in_progress':
-        base_qs = base_qs.filter(in_progress_filter)
-    elif status_filter == 'scheduled':
-        base_qs = base_qs.filter(scheduled_filter)
-    elif status_filter == 'completed':
-        base_qs = base_qs.filter(completed_filter)
-
-    if hide_completed:
-        base_qs = base_qs.exclude(completed_filter)
-
-    in_progress_tasks = base_qs.filter(in_progress_filter).order_by('-scheduled_at', '-id')
-    scheduled_tasks = base_qs.filter(scheduled_filter).order_by('-scheduled_at', '-id')
-    completed_tasks = base_qs.filter(completed_filter).order_by('-scheduled_at', '-id')
-    other_tasks = base_qs.exclude(
-        in_progress_filter | scheduled_filter | completed_filter
-    ).order_by('-scheduled_at', '-id')
-
-    context = {
-        'in_progress_tasks': in_progress_tasks,
-        'scheduled_tasks': scheduled_tasks,
-        'completed_tasks': completed_tasks,
-        'other_tasks': other_tasks,
-        'search_query': search_query,
-        'status_filter': status_filter,
-        'hide_completed': hide_completed,
-        'title': 'Minhas Tarefas',
-        'layout_base': 'base.html' if request.user.is_manager else 'base_equipe.html'
-    }
-    return render(request, 'services/equipe/task_list.html', context)
+    return redirect('equipe_offline_app')
 
 @login_required
 def equipe_task_detail(request, task_id):
     """
-    Exibe os detalhes da etapa e da OS para o colaborador.
-    Carrega também o checklist caso existam serviços vinculados.
+    Redirect para o novo app offline com deep link para a tarefa.
     """
-    tasks_qs = get_collaborator_tasks(request.user)
-    task = get_object_or_404(tasks_qs, id=task_id)
-    order = task.service_order
-    
-    # --- LÓGICA DE CHECKLIST REFORMULADA ---
-    # 1. Identifica todos os serviços incluídos nesta OS
-    order_services = Service.objects.filter(service_items__service_order=order).distinct()
-    
-    # 2. Coleta itens específicos de cada serviço E itens de seus templates
-    checklist_items = []
-    
-    for service in order_services:
-        # Itens diretos do serviço
-        checklist_items.extend(list(service.checklist_items.filter(is_active=True)))
-        
-        # Itens do template vinculado ao serviço
-        if service.checklist_template:
-            checklist_items.extend(list(service.checklist_template.items.filter(is_active=True)))
-    
-    # Remove duplicados baseados em ID
-    seen_ids = set()
-    unique_items = []
-    for item in checklist_items:
-        if item.id not in seen_ids:
-            unique_items.append(item)
-            seen_ids.add(item.id)
-    
-    # 3. Inicializa as respostas caso não existam
-    if unique_items and task.task_type in [ServiceOrderTask.TaskType.EXECUTION, ServiceOrderTask.TaskType.WARRANTY]:
-        for item in unique_items:
-            TaskChecklistResponse.objects.get_or_create(task=task, item=item)
-            
-    checklist_responses = task.checklist_responses.select_related(
-        'item', 'item__service', 'item__template'
-    ).prefetch_related('medias').order_by('item__order', 'id')
-
-    context = {
-        'task': task,
-        'order': order,
-        'client': order.client_property.client,
-        'property': order.client_property,
-        'existing_medias': task.medias.filter(occurrence__isnull=True),
-        'occurrences': task.occurrences.all(),
-        'occurrence_types': Occurrence.OccurrenceType.choices,
-        'occurrence_categories': Occurrence.OccurrenceCategory.choices,
-        'checklist_responses': checklist_responses,
-        'title': f'Execução: {task.get_task_type_display()}'
-    }
-    return render(request, 'services/equipe/task_detail.html', context)
+    return redirect(f"{reverse('equipe_offline_app')}#task/{task_id}")
 
 
 @login_required

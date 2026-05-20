@@ -1109,7 +1109,7 @@ def api_calendar_events(request):
 
         url = reverse_lazy('service_order_detail', kwargs={'order_id': task.service_order.id})
         if not is_manager:
-            url = reverse_lazy('equipe_task_detail', kwargs={'task_id': task.id})
+            url = f"{reverse_lazy('equipe_offline_app')}#task/{task.id}"
 
         events.append({
             'id': f"task-{task.id}",

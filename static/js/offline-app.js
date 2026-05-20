@@ -31,6 +31,9 @@ const OfflineApp = {
     async init() {
         console.log('📱 OfflineApp inicializando...');
         
+        // Monitora mudanças na hash para navegação
+        window.addEventListener('hashchange', () => this.handleRouting());
+
         // 1. Atualiza UI de status (Online/Offline)
         if (typeof OfflineDB !== 'undefined') {
             await OfflineDB.updateUIStatus();
@@ -44,8 +47,8 @@ const OfflineApp = {
 
         await this.renderBootstrapError();
 
-        // 3. Renderiza a view inicial com o que tivermos no IndexedDB
-        await this.render();
+        // 3. Renderiza a view inicial baseada na rota ou padrão
+        await this.handleRouting();
 
         // 4. Sincroniza em background após a UI estar visível
         if (typeof OfflineDB !== 'undefined' && navigator.onLine) {
@@ -54,6 +57,25 @@ const OfflineApp = {
                     .catch(err => console.error('Falha na sincronização em background:', err))
                     .finally(() => OfflineDB.realizarCheckInDiario());
             }, 200);
+        }
+    },
+
+    /**
+     * Trata o roteamento baseado na hash da URL
+     */
+    async handleRouting() {
+        const hash = window.location.hash;
+        console.log('Navegando via hash:', hash);
+
+        if (hash.startsWith('#task/')) {
+            const taskId = hash.split('/')[1];
+            // Se já estamos no detalhe dessa task, não faz nada
+            if (this.state.currentView === 'detail' && this.state.currentTaskId === taskId) return;
+            await this.navigate('detail', { taskId: taskId }, false);
+        } else {
+            // Se já estamos na lista, não faz nada
+            if (this.state.currentView === 'list') return;
+            await this.navigate('list', {}, false);
         }
     },
 
@@ -81,9 +103,18 @@ const OfflineApp = {
     },
 
     // Roteamento simples
-    async navigate(view, params = {}) {
+    async navigate(view, params = {}, updateHash = true) {
         this.state.currentView = view;
         this.state.currentTaskId = params.taskId || null;
+        
+        if (updateHash) {
+            if (view === 'detail' && params.taskId) {
+                window.location.hash = `task/${params.taskId}`;
+            } else {
+                window.location.hash = '';
+            }
+        }
+
         await this.render();
     },
 
