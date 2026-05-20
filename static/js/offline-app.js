@@ -333,16 +333,81 @@ const OfflineApp = {
             tplDetail.querySelector('.client-name').textContent = client.name;
             const phone = client.phones && client.phones.length > 0 ? client.phones[0] : null;
             if (phone) {
-                tplDetail.querySelector('.link-phone').href = `tel:${phone}`;
+                const cleanPhone = phone.replace(/\D/g, '');
+                const waPhone = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
+                const linkWa = tplDetail.querySelector('.link-whatsapp');
+                if (linkWa) linkWa.href = `https://wa.me/${waPhone}`;
             } else {
-                tplDetail.querySelector('.link-phone').classList.add('hidden');
+                const linkWa = tplDetail.querySelector('.link-whatsapp');
+                if (linkWa) linkWa.classList.add('hidden', 'pointer-events-none');
             }
         }
         
         if (prop) {
             tplDetail.querySelector('.property-address').textContent = prop.full_address;
-            const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(prop.full_address)}`;
-            tplDetail.querySelector('.link-maps').href = mapUrl;
+            
+            const btnGps = tplDetail.querySelector('.btn-gps-trigger');
+            if (btnGps) {
+                btnGps.dataset.gpsLat = prop.latitude || '';
+                btnGps.dataset.gpsLng = prop.longitude || '';
+                btnGps.dataset.gpsAddress = prop.full_address;
+            }
+
+            const btnUpdateGps = tplDetail.querySelector('.btn-update-gps');
+            if (btnUpdateGps) {
+                btnUpdateGps.addEventListener('click', async () => {
+                    if (!confirm("Deseja atualizar as coordenadas de GPS com sua localização atual?")) return;
+                    if (!("geolocation" in navigator)) {
+                        alert("Geolocalização não suportada no seu navegador.");
+                        return;
+                    }
+
+                    const originalHtml = btnUpdateGps.innerHTML;
+                    btnUpdateGps.innerHTML = '<i data-lucide="loader-2" class="h-5 w-5 animate-spin text-slate-500"></i><span class="text-[10px] font-bold text-slate-600 uppercase text-center leading-tight">Aguarde</span>';
+                    if (window.lucide) lucide.createIcons();
+
+                    navigator.geolocation.getCurrentPosition(
+                        async (position) => {
+                            const lat = position.coords.latitude;
+                            const lng = position.coords.longitude;
+
+                            try {
+                                // 1. Atualiza no IndexedDB
+                                prop.latitude = lat;
+                                prop.longitude = lng;
+                                await db.properties.put(prop);
+
+                                // 2. Enfileira Sincronização (será processado pelo OfflineDB)
+                                await OfflineDB.enqueueSyncItem('PROPERTY_GPS_UPDATE', {
+                                    property_id: prop.id,
+                                    latitude: lat,
+                                    longitude: lng
+                                });
+
+                                // 3. Atualiza os atributos do botão Navegar, se existir
+                                if (btnGps) {
+                                    btnGps.dataset.gpsLat = lat;
+                                    btnGps.dataset.gpsLng = lng;
+                                }
+
+                                alert("Coordenadas atualizadas e salvas para sincronização!");
+                            } catch(e) {
+                                console.error('Erro ao atualizar coordenadas:', e);
+                                alert("Erro interno ao tentar salvar as coordenadas.");
+                            } finally {
+                                btnUpdateGps.innerHTML = originalHtml;
+                                if (window.lucide) lucide.createIcons();
+                            }
+                        },
+                        (error) => {
+                            alert("Erro ao obter localização. Verifique as permissões do navegador.");
+                            btnUpdateGps.innerHTML = originalHtml;
+                            if (window.lucide) lucide.createIcons();
+                        },
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    );
+                });
+            }
         }
 
         // Status Badge

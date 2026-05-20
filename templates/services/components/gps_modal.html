@@ -144,9 +144,11 @@
             });
         }
 
-        // Controles do Modal
-        triggers.forEach(button => {
-            button.addEventListener('click', () => {
+        // Controles do Modal (Delegados para funcionar com conteúdo dinâmico/SPA)
+        document.addEventListener('click', (e) => {
+            const button = e.target.closest('[data-gps-trigger="true"]');
+            if (button) {
+                e.preventDefault();
                 // Tenta pegar o endereço completo ou monta iterativamente a partir da rua, setor(bairro) e cidade
                 const street = button.dataset.gpsStreet;
                 const neighborhood = button.dataset.gpsNeighborhood;
@@ -160,7 +162,7 @@
                     lng: button.dataset.gpsLng,
                     address: finalAddress
                 });
-            });
+            }
         });
 
         if (overlay) overlay.addEventListener('click', closeModal);

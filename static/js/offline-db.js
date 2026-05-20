@@ -268,8 +268,9 @@ const OfflineDB = {
         console.log(`🔄 Sincronizando ${pendingItems.length} pendências...`);
 
         try {
-            const textChanges = pendingItems.filter(i => i.type !== 'MEDIA_UPLOAD');
+            const textChanges = pendingItems.filter(i => i.type !== 'MEDIA_UPLOAD' && i.type !== 'PROPERTY_GPS_UPDATE');
             const mediaChanges = pendingItems.filter(i => i.type === 'MEDIA_UPLOAD');
+            const gpsChanges = pendingItems.filter(i => i.type === 'PROPERTY_GPS_UPDATE');
 
             // 1. Envia mudanças de texto em lote
             if (textChanges.length > 0) {
@@ -301,7 +302,34 @@ const OfflineDB = {
                 }
             }
 
-            // 2. Envia mídias uma a uma
+            // 2. Envia atualizações de GPS separadamente
+            for (const item of gpsChanges) {
+                try {
+                    const response = await fetch(`/equipe/propriedade/${item.payload.property_id}/atualizar-gps/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': this.getCookie('csrftoken'),
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({
+                            latitude: item.payload.latitude,
+                            longitude: item.payload.longitude
+                        })
+                    });
+
+                    if (response.ok) {
+                        await db.sync_queue.delete(item.id);
+                        console.log(`📍 GPS da propriedade ${item.payload.property_id} sincronizado com sucesso.`);
+                    } else {
+                        await db.sync_queue.update(item.id, { status: 'error' });
+                    }
+                } catch (err) {
+                    console.error(`Falha ao sincronizar GPS ${item.payload.property_id}:`, err);
+                }
+            }
+
+            // 3. Envia mídias uma a uma
             for (const item of mediaChanges) {
                 try {
                     const mediaRecord = await db.media.get(item.payload.media_id);
