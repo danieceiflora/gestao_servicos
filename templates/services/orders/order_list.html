@@ -9,7 +9,7 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Ordens de Serviço</h2>
-            <p class="text-sm text-slate-500">Acompanhe o ciclo de vida dos serviços.</p>
+            <p class="text-sm text-slate-500 font-medium">Acompanhe o ciclo de vida dos serviços.</p>
         </div>
         <div class="flex flex-col sm:flex-row gap-3 items-center">
             <form method="GET" class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
@@ -23,12 +23,12 @@
                         name="q"
                         value="{{ query|default:'' }}"
                         placeholder="Buscar OS, cliente..."
-                        class="h-10 w-full sm:w-64 pl-10 pr-4 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all"
+                        class="flex h-9 w-full sm:w-64 rounded-md border border-slate-200 bg-white px-3 py-1 pl-9 text-sm shadow-sm transition-all placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 focus:border-slate-950"
                     >
                 </div>
                 
                 <div class="flex gap-2">
-                    <select name="status" onchange="this.form.submit()" class="h-10 bg-white border border-slate-200 rounded-lg text-sm px-3 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all text-slate-600 cursor-pointer">
+                    <select name="status" onchange="this.form.submit()" class="flex h-9 items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm ring-offset-white focus:outline-none focus:ring-1 focus:ring-slate-950 transition-all text-slate-600 cursor-pointer">
                         <option value="">Todos os status</option>
                         {% for value, label in status_choices %}
                             <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
@@ -38,14 +38,14 @@
                     <button type="submit" class="hidden">Pesquisar</button>
 
                     {% if query or status_filter or custom_filter %}
-                    <a href="{% url 'service_order_list' %}" class="h-10 w-10 shrink-0 inline-flex items-center justify-center text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors" title="Limpar Filtros">
+                    <a href="{% url 'service_order_list' %}" class="h-9 w-9 shrink-0 inline-flex items-center justify-center text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 rounded-md transition-colors shadow-sm" title="Limpar Filtros">
                         <i data-lucide="x" class="h-4 w-4"></i>
                     </a>
                     {% endif %}
                 </div>
             </form>
             {% if perms.services.add_serviceorder %}
-            <a href="{% url 'service_order_scheduling' %}" class="h-10 hidden md:inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+            <a href="{% url 'service_order_scheduling' %}" class="h-9 hidden md:inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-slate-50 shadow transition-colors hover:bg-slate-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
                 <i data-lucide="calendar-plus" class="h-4 w-4"></i>
                 Novo Agendamento
             </a>
@@ -53,14 +53,14 @@
         </div>
         <!-- Floating Action Button for Mobile -->
         {% if perms.services.add_serviceorder %}
-        <a href="{% url 'service_order_scheduling' %}" class="md:hidden fixed right-6 bottom-28 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl active:scale-90 transition-transform">
+        <a href="{% url 'service_order_scheduling' %}" class="md:hidden fixed right-6 bottom-24 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg shadow-slate-900/20 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950">
             <i data-lucide="calendar-plus" class="h-6 w-6"></i>
         </a>
         {% endif %}
     </div>
 
     {% if not orders %}
-    <div class="flex flex-col items-center justify-center py-12 bg-white border border-dashed border-slate-300 rounded-2xl">
+    <div class="flex flex-col items-center justify-center py-12 bg-white border border-dashed border-slate-300 rounded-lg shadow-sm">
         <div class="p-4 bg-slate-50 rounded-full mb-4">
             <i data-lucide="search-x" class="h-8 w-8 text-slate-400"></i>
         </div>
@@ -74,15 +74,15 @@
 
     <!-- Desktop Table -->
     {% if orders %}
-    <div class="hidden md:block rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div class="hidden md:block rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
-                <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium">
+                <thead class="bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-500 uppercase tracking-wider">
                     <tr>
                         <th class="px-6 py-3">OS ID</th>
-                        <th class="px-6 py-3">Criado em</th>
+                        <th class="px-6 py-3">Data/Hora</th>
                         <th class="px-6 py-3">Cliente / Imóvel</th>
-                        <th class="px-6 py-3">Navegação (GPS)</th>
+                        <th class="px-6 py-3">Localização</th>
                         <th class="px-6 py-3">Status</th>
                         {% if user.is_manager %}
                         <th class="px-6 py-3">Valor Total</th>
@@ -93,53 +93,61 @@
                 <tbody class="divide-y divide-slate-200">
                     {% for order in orders %}
                     <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="px-6 py-4 font-mono text-xs text-slate-500">
-                            #{{ order.number }}
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-mono font-medium text-slate-600">
+                                #{{ order.number }}
+                            </span>
                         </td>
                         <td class="px-6 py-4 text-sm text-slate-600">
-                            {{ order.created_at|date:"d/m/Y" }}<br>
-                            <span class="text-xs text-slate-400">{{ order.created_at|date:"H:i" }}</span>
+                            <div class="font-medium">{{ order.created_at|date:"d/m/Y" }}</div>
+                            <div class="text-xs text-slate-400">{{ order.created_at|date:"H:i" }}</div>
                         </td>
                         <td class="px-6 py-4">
                             <div>
-                                <div class="font-medium text-slate-900">{{ order.client_property.client.name }}</div>
-                                <div class="text-xs text-slate-500">{{ order.client_property.address }}, {{ order.client_property.number }}</div>
+                                <div class="font-semibold text-slate-900">{{ order.client_property.client.name }}</div>
+                                <div class="text-xs text-slate-500 truncate max-w-[200px]" title="{{ order.client_property.address }}, {{ order.client_property.number }}">{{ order.client_property.address }}, {{ order.client_property.number }}</div>
                             </div>
                         </td>
                         <td class="px-6 py-4">
                             <button type="button"
-                                    class="inline-flex items-center gap-1.5 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer text-sm font-medium" title="Abrir no GPS"
+                                    class="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer text-xs font-semibold border border-transparent hover:border-blue-100"
                                     data-gps-trigger="true"
                                     data-gps-lat="{{ order.client_property.latitude|default_if_none:''|unlocalize }}"
                                     data-gps-lng="{{ order.client_property.longitude|default_if_none:''|unlocalize }}"
                                     data-gps-address="{{ order.client_property.gps_address }}">
-                                <i data-lucide="navigation" class="h-4 w-4"></i>
+                                <i data-lucide="navigation" class="h-3.5 w-3.5"></i>
                                 GPS
                             </button>
                         </td>
                         <td class="px-6 py-4">
-                            {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
-                            {% if order.is_recurrent %}
-                                <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
-                                    Recorrente
-                                </span>
-                            {% endif %}
+                            <div class="flex items-center gap-2">
+                                {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
+                                {% if order.is_recurrent %}
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700 uppercase">
+                                        R
+                                    </span>
+                                {% endif %}
+                            </div>
                         </td>
                         {% if user.is_manager %}
-                        <td class="px-6 py-4 font-medium text-slate-900">
+                        <td class="px-6 py-4 font-bold text-slate-900">
                             R$ {{ order.total_value|floatformat:2 }}
                         </td>
                         {% endif %}
                         <td class="px-6 py-4 text-right">
-                            <div class="flex justify-end gap-2">
-                                <a href="{% url 'service_order_detail' order.id %}" class="p-2 text-slate-400 hover:text-slate-900"><i data-lucide="eye" class="h-4 w-4"></i></a>
+                            <div class="flex justify-end gap-1">
+                                <a href="{% url 'service_order_detail' order.id %}" class="inline-flex items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 h-8 w-8" title="Ver Detalhes">
+                                    <i data-lucide="eye" class="h-4 w-4"></i>
+                                </a>
                                 {% if order.status == 'WAITING_EXECUTION' %}
-                                    <a href="{% url 'service_order_execution' order.id %}" class="p-2 text-slate-400 hover:text-green-600" title="{% if order.is_warranty %}Execução de Garantia{% else %}Execução de Serviço{% endif %}">
+                                    <a href="{% url 'service_order_execution' order.id %}" class="inline-flex items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-green-50 hover:text-green-600 h-8 w-8" title="{% if order.is_warranty %}Execução de Garantia{% else %}Execução de Serviço{% endif %}">
                                         <i data-lucide="play-circle" class="h-4 w-4"></i>
                                     </a>
                                 {% endif %}
                                 {% if order.status != 'FINISHED' and order.status != 'CANCELLED' %}
-                                    <a href="{% url 'service_order_edit' order.id %}" class="p-2 text-slate-400 hover:text-blue-600" title="Editar OS"><i data-lucide="edit" class="h-4 w-4"></i></a>
+                                    <a href="{% url 'service_order_edit' order.id %}" class="inline-flex items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-600 h-8 w-8" title="Editar OS">
+                                        <i data-lucide="edit-3" class="h-4 w-4"></i>
+                                    </a>
                                 {% endif %}
                             </div>
                         </td>
@@ -153,37 +161,55 @@
     <!-- Mobile Cards -->
     <div class="md:hidden space-y-4">
         {% for order in orders %}
-        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+        <div class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm flex flex-col gap-3">
+            <!-- Card Header -->
             <div class="flex items-center justify-between">
-                <span class="text-[10px] font-mono font-bold text-slate-400 tracking-widest">#{{ order.number }}</span>
+                <span class="text-xs font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                    #{{ order.number }}
+                </span>
                 <div class="flex items-center gap-2">
                     {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
                     {% if order.is_recurrent %}
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
-                            Recorrente
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700 uppercase">
+                            R
                         </span>
                     {% endif %}
                 </div>
             </div>
             
+            <!-- Card Body -->
             <div class="space-y-1">
-                <h3 class="font-bold text-slate-900 leading-tight">{{ order.client_property.client.name }}</h3>
-                <p class="text-xs text-slate-500">{{ order.client_property.address }}, {{ order.client_property.number }}</p>
+                <h3 class="text-sm font-bold text-slate-900 leading-tight">{{ order.client_property.client.name }}</h3>
+                <p class="text-xs text-slate-500 line-clamp-2">{{ order.client_property.address }}, {{ order.client_property.number }}</p>
+                <p class="text-[10px] text-slate-400 font-medium">{{ order.created_at|date:"d/m/Y H:i" }}</p>
             </div>
 
-            <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+            <!-- Card GPS Action (Essential for Field Technicians) -->
+            <button type="button"
+                    class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold shadow-sm hover:bg-slate-50 text-slate-700 active:bg-slate-100 transition-colors"
+                    data-gps-trigger="true"
+                    data-gps-lat="{{ order.client_property.latitude|default_if_none:''|unlocalize }}"
+                    data-gps-lng="{{ order.client_property.longitude|default_if_none:''|unlocalize }}"
+                    data-gps-address="{{ order.client_property.gps_address }}">
+                <i data-lucide="navigation" class="h-3.5 w-3.5 text-blue-600"></i>
+                Abrir Navegação (GPS)
+            </button>
+
+            <!-- Card Actions Footer -->
+            <div class="flex items-center justify-between pt-3 border-t border-slate-100 gap-2">
                 {% if user.is_manager %}
                 <div class="text-sm font-bold text-slate-900">R$ {{ order.total_value|floatformat:2 }}</div>
                 {% else %}
-                <div></div>
+                <div class="flex-1"></div>
                 {% endif %}
-                <div class="flex gap-1">
-                    <a href="{% url 'service_order_detail' order.id %}" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-900 text-xs font-semibold">
-                        <i data-lucide="eye" class="h-3.5 w-3.5"></i> Ver
+                
+                <div class="flex gap-2 {% if not user.is_manager %}w-full{% endif %}">
+                    <a href="{% url 'service_order_detail' order.id %}" class="flex-1 inline-flex h-9 items-center justify-center rounded-md bg-slate-100 text-slate-900 text-xs font-semibold hover:bg-slate-200 transition-colors">
+                        <i data-lucide="eye" class="h-3.5 w-3.5 mr-1.5"></i> Ver OS
                     </a>
                     {% if order.status == 'WAITING_EXECUTION' %}
-                    <a href="{% url 'service_order_execution' order.id %}" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold">
-                        <i data-lucide="play" class="h-3.5 w-3.5 fill-current"></i> Iniciar
+                    <a href="{% url 'service_order_execution' order.id %}" class="flex-1 inline-flex h-9 items-center justify-center rounded-md bg-green-600 text-white text-xs font-semibold shadow hover:bg-green-700 active:scale-[0.98] transition-all">
+                        <i data-lucide="play" class="h-3.5 w-3.5 mr-1.5 fill-current"></i> Iniciar
                     </a>
                     {% endif %}
                 </div>
@@ -193,7 +219,9 @@
     </div>
     {% endif %}
 
-    {% include 'services/components/pagination.html' %}
+    <div class="pt-4">
+        {% include 'services/components/pagination.html' %}
+    </div>
 </div>
 
 {% include 'services/components/gps_modal.html' %}

@@ -454,6 +454,9 @@
   .bottom-10 {
     bottom: calc(var(--spacing) * 10);
   }
+  .bottom-24 {
+    bottom: calc(var(--spacing) * 24);
+  }
   .bottom-28 {
     bottom: calc(var(--spacing) * 28);
   }
@@ -700,6 +703,12 @@
   .ml-auto {
     margin-left: auto;
   }
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
   .block {
     display: block;
   }
@@ -885,6 +894,9 @@
   }
   .w-8 {
     width: calc(var(--spacing) * 8);
+  }
+  .w-9 {
+    width: calc(var(--spacing) * 9);
   }
   .w-10 {
     width: calc(var(--spacing) * 10);
@@ -1464,6 +1476,9 @@
   }
   .border-slate-900 {
     border-color: var(--color-slate-900);
+  }
+  .border-transparent {
+    border-color: transparent;
   }
   .border-white {
     border-color: var(--color-white);
@@ -2169,6 +2184,9 @@
   .pl-5 {
     padding-left: calc(var(--spacing) * 5);
   }
+  .pl-9 {
+    padding-left: calc(var(--spacing) * 9);
+  }
   .pl-10 {
     padding-left: calc(var(--spacing) * 10);
   }
@@ -2642,6 +2660,12 @@
     --tw-shadow-color: color-mix(in srgb, oklch(92.9% 0.013 255.508) 50%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
       --tw-shadow-color: color-mix(in oklab, color-mix(in oklab, var(--color-slate-200) 50%, transparent) var(--tw-shadow-alpha), transparent);
+    }
+  }
+  .shadow-slate-900\/20 {
+    --tw-shadow-color: color-mix(in srgb, oklch(20.8% 0.042 265.755) 20%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      --tw-shadow-color: color-mix(in oklab, color-mix(in oklab, var(--color-slate-900) 20%, transparent) var(--tw-shadow-alpha), transparent);
     }
   }
   .ring-amber-600\/20 {
@@ -3635,6 +3659,11 @@
       border-color: var(--color-slate-900);
     }
   }
+  .focus\:border-slate-950 {
+    &:focus {
+      border-color: var(--color-slate-950);
+    }
+  }
   .focus\:bg-white {
     &:focus {
       background-color: var(--color-white);
@@ -3707,6 +3736,11 @@
       @supports (color: color-mix(in lab, red, red)) {
         --tw-ring-color: color-mix(in oklab, var(--color-slate-900) 10%, transparent);
       }
+    }
+  }
+  .focus\:ring-slate-950 {
+    &:focus {
+      --tw-ring-color: var(--color-slate-950);
     }
   }
   .focus\:outline-offset-0 {
@@ -3805,6 +3839,11 @@
   .active\:bg-slate-50 {
     &:active {
       background-color: var(--color-slate-50);
+    }
+  }
+  .active\:bg-slate-100 {
+    &:active {
+      background-color: var(--color-slate-100);
     }
   }
   .active\:bg-white\/30 {
