@@ -740,6 +740,8 @@ def service_order_detail(request, order_id):
     # Verifica se existe algum checklist preenchido em qualquer etapa
     any_task_has_checklist = TaskChecklistResponse.objects.filter(task__service_order=order).exists()
 
+    tasks_with_signature = [t for t in tasks if t.customer_signature]
+
     products = Product.objects.filter(is_active=True).order_by('name')
     products_data = [
         {
@@ -775,6 +777,7 @@ def service_order_detail(request, order_id):
         'products_data': products_data,
         'services_data': services_data,
         'any_task_has_checklist': any_task_has_checklist,
+        'tasks_with_signature': tasks_with_signature,
     })
 
 @login_required

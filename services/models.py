@@ -680,6 +680,19 @@ class ServiceOrderTask(models.Model):
     customer_signature = models.CharField(max_length=255, null=True, blank=True, verbose_name="Caminho da Assinatura")
     customer_name = models.CharField(max_length=100, null=True, blank=True, verbose_name="Nome de quem assinou")
     
+    @property
+    def get_signature_url(self):
+        if self.customer_signature:
+            from django.core.files.storage import default_storage
+            try:
+                # Se já for uma URL completa (ex: de um cache ou base64 antigo), retorna direto
+                if self.customer_signature.startswith('http') or self.customer_signature.startswith('data:'):
+                    return self.customer_signature
+                return default_storage.url(self.customer_signature)
+            except Exception:
+                return None
+        return None
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
