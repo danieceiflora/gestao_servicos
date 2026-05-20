@@ -5,12 +5,12 @@
 {% block content %}
 <div class="max-w-3xl mx-auto space-y-6 md:pb-0">
     <!-- Header -->
-    <div class="flex items-center gap-4">
-        <a href="{% url 'service_order_detail' order.id %}" class="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
-            <i data-lucide="arrow-left" class="h-5 w-5"></i>
+    <div class="flex items-center gap-4 mb-2">
+        <a href="{% url 'service_order_detail' order.id %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-slate-100 hover:text-slate-900 h-10 w-10 border border-slate-200 bg-white shadow-sm">
+            <i data-lucide="arrow-left" class="h-4 w-4"></i>
         </a>
         <div>
-            <h2 class="text-2xl font-bold text-slate-900">{{ title }}</h2>
+            <h2 class="text-xl md:text-2xl font-bold tracking-tight text-slate-950">{{ title }}</h2>
             <p class="text-sm text-slate-500">OS #{{ order.number }} - {{ order.client_property.client.name }}</p>
         </div>
     </div>
@@ -21,31 +21,34 @@
         
         <!-- 1. CONTROLE DE EXECUÇÃO (Prioridade no Topo) -->
         {% if task %}
-        <div class="bg-white rounded-2xl border-2 border-blue-100 shadow-sm p-6 space-y-4">
-            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-                <h3 class="font-bold text-slate-900 flex items-center gap-2">
-                    <i data-lucide="play-circle" class="h-5 w-5 text-blue-600"></i>
-                    Controle de Execução
-                </h3>
-                <button type="button" id="btn-execution-control" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-all shadow-sm">
+        <div class="rounded-xl border border-blue-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 md:p-6 bg-blue-50/40 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-blue-100">
+                <div class="space-y-1">
+                    <h3 class="font-semibold leading-none tracking-tight flex items-center gap-2 text-slate-900">
+                        <i data-lucide="play-circle" class="h-5 w-5 text-blue-600"></i>
+                        Controle de Execução
+                    </h3>
+                    <p class="text-sm text-slate-500">Registre o tempo exato de início e término desta atividade.</p>
+                </div>
+                <button type="button" id="btn-execution-control" class="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors shadow h-11 md:h-10 px-6 w-full md:w-auto">
                     <i id="execution-icon" data-lucide="play" class="h-4 w-4"></i>
                     <span id="execution-text">Iniciar Execução</span>
                 </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora de Início</label>
+            <div class="p-5 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none text-slate-700">Início da Execução</label>
                     {{ form.started_at }}
                     {% if form.started_at.errors %}
-                        <p class="text-xs text-red-600 mt-1">{{ form.started_at.errors.0 }}</p>
+                        <p class="text-sm font-medium text-red-500">{{ form.started_at.errors.0 }}</p>
                     {% endif %}
                 </div>
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Data e Hora de Término</label>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none text-slate-700">Término da Execução</label>
                     {{ form.finished_at }}
                     {% if form.finished_at.errors %}
-                        <p class="text-xs text-red-600 mt-1">{{ form.finished_at.errors.0 }}</p>
+                        <p class="text-sm font-medium text-red-500">{{ form.finished_at.errors.0 }}</p>
                     {% endif %}
                 </div>
             </div>
@@ -53,295 +56,340 @@
         {% endif %}
 
         <!-- 2. INFORMAÇÕES DA ETAPA -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
-            <h3 class="font-bold text-slate-900 flex items-center gap-2 pb-2 border-b border-slate-100">
-                <i data-lucide="info" class="h-5 w-5 text-slate-400"></i>
-                Detalhes do Agendamento
-            </h3>
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
+                <h3 class="font-semibold leading-none tracking-tight flex items-center gap-2 text-slate-900">
+                    <i data-lucide="calendar-clock" class="h-5 w-5 text-slate-500"></i>
+                    Detalhes do Agendamento
+                </h3>
+            </div>
+            
+            <div class="p-5 md:p-6 space-y-6">
+                <div class="grid grid-cols-1 {% if user.is_manager %}md:grid-cols-2{% endif %} gap-6">
+                    <!-- Tipo de Etapa -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium leading-none text-slate-700">Tipo de Etapa</label>
+                        {% if not user.is_manager and task %}
+                            <div class="flex h-10 w-full items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 font-medium">
+                                {{ task.get_task_type_display }}
+                            </div>
+                            <div class="hidden">{{ form.task_type }}</div>
+                        {% else %}
+                            {{ form.task_type }}
+                        {% endif %}
+                        {% if form.task_type.errors %}
+                            <p class="text-sm font-medium text-red-500">{{ form.task_type.errors.0 }}</p>
+                        {% endif %}
+                    </div>
 
-            <div class="grid grid-cols-1 {% if user.is_manager %}md:grid-cols-2{% endif %} gap-6">
-                <!-- Tipo de Etapa -->
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Tipo de Etapa</label>
-                    {% if not user.is_manager and task %}
-                        <div class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700">
-                            {{ task.get_task_type_display }}
-                        </div>
-                        <div class="hidden">{{ form.task_type }}</div>
+                    <!-- Status (Apenas ADM altera livremente) -->
+                    {% if user.is_manager %}
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium leading-none text-slate-700">Status</label>
+                        {{ form.status }}
+                        {% if form.status.errors %}
+                            <p class="text-sm font-medium text-red-500">{{ form.status.errors.0 }}</p>
+                        {% endif %}
+                    </div>
                     {% else %}
-                        {{ form.task_type }}
-                    {% endif %}
-                    {% if form.task_type.errors %}
-                        <p class="text-xs text-red-600 mt-1">{{ form.task_type.errors.0 }}</p>
+                    <div class="hidden">
+                        {{ form.status }}
+                    </div>
                     {% endif %}
                 </div>
 
-                <!-- Status (Apenas ADM altera livremente) -->
+                <!-- Aprovação e Pagamento (Apenas para ADM/Gerente) -->
                 {% if user.is_manager %}
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Status</label>
-                    {{ form.status }}
-                    {% if form.status.errors %}
-                        <p class="text-xs text-red-600 mt-1">{{ form.status.errors.0 }}</p>
-                    {% endif %}
+                <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label for="{{ form.is_approved.id_for_label }}" class="text-sm font-medium leading-none text-slate-900">Aprovação do Cliente</label>
+                        {{ form.is_approved }}
+                        <p class="text-xs text-slate-500">Obrigatório para o técnico iniciar a execução.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium leading-none text-slate-900">Método de Pagamento</label>
+                        {{ form.payment_method }}
+                    </div>
                 </div>
                 {% else %}
                 <div class="hidden">
-                    {{ form.status }}
-                </div>
-                {% endif %}
-            </div>
-
-            <!-- Aprovação e Pagamento (Apenas para ADM/Gerente) -->
-            {% if user.is_manager %}
-            <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="{{ form.is_approved.id_for_label }}" class="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-2">Aprovado pelo Cliente</label>
                     {{ form.is_approved }}
-                    <p class="text-[10px] text-blue-700 mt-1">Selecione entre Aprovado ou Reprovado.</p>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-2">Método de Pagamento</label>
                     {{ form.payment_method }}
                 </div>
-            </div>
-            {% else %}
-            <div class="hidden">
-                {{ form.is_approved }}
-                {{ form.payment_method }}
-            </div>
-            {% endif %}
+                {% endif %}
 
-            {% if task and task.task_type == 'BUDGET' %}
-            <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100 space-y-3">
-                <h4 class="text-xs font-bold text-emerald-700 uppercase tracking-widest">Resposta do Cliente (WhatsApp)</h4>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                        <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Situação</p>
-                        <p class="text-sm font-semibold text-slate-800">
+                {% if task and task.task_type == 'BUDGET' %}
+                <div class="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 space-y-4">
+                    <h4 class="text-sm font-semibold text-emerald-900 flex items-center gap-2">
+                        <i data-lucide="message-circle" class="h-4 w-4"></i> Resposta do Cliente (WhatsApp)
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <p class="text-xs font-medium text-emerald-700">Situação</p>
+                            <p class="text-sm font-medium text-slate-900">
+                                {% if order.client_budget_response %}
+                                    {% if task.is_approved %}Aprovado{% else %}Reprovado{% endif %}
+                                {% else %}
+                                    Aguardando resposta
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-medium text-emerald-700">Data da resposta</p>
+                            <p class="text-sm font-medium text-slate-900">
+                                {% if order.client_budget_responded_at %}
+                                    {{ order.client_budget_responded_at|date:"d/m/Y H:i" }}
+                                {% else %}
+                                    ---
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-xs font-medium text-emerald-700">Mensagem recebida</p>
+                        <p class="text-sm text-slate-700 whitespace-pre-line bg-white p-3 rounded-md border border-emerald-100">
                             {% if order.client_budget_response %}
-                                {% if task.is_approved %}Aprovado{% else %}Reprovado{% endif %}
+                                {{ order.client_budget_response }}
                             {% else %}
-                                Aguardando resposta
-                            {% endif %}
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Data da resposta</p>
-                        <p class="text-sm font-semibold text-slate-800">
-                            {% if order.client_budget_responded_at %}
-                                {{ order.client_budget_responded_at|date:"d/m/Y H:i" }}
-                            {% else %}
-                                ---
+                                Sem resposta registrada.
                             {% endif %}
                         </p>
                     </div>
                 </div>
-                <div>
-                    <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Mensagem recebida</p>
-                    <p class="text-sm text-slate-700 mt-1 whitespace-pre-line">
-                        {% if order.client_budget_response %}
-                            {{ order.client_budget_response }}
+                {% endif %}
+
+                <!-- Seção: Agendamento -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium leading-none text-slate-700">Início do Agendamento</label>
+                        {% if not user.is_manager and task %}
+                            <div class="flex h-10 w-full items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 font-medium">
+                                <i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>
+                                {{ task.scheduled_at|date:"d/m/Y H:i" }}
+                            </div>
+                            <div class="hidden">{{ form.scheduled_at }}</div>
                         {% else %}
-                            Sem resposta registrada.
-                        {% endif %}
-                    </p>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Seção: Agendamento -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Início do Agendamento</label>
-                    {% if not user.is_manager and task %}
-                        <div class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center gap-2">
-                            <i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>
-                            {{ task.scheduled_at|date:"d/m/Y H:i" }}
-                        </div>
-                        <div class="hidden">{{ form.scheduled_at }}</div>
-                    {% else %}
-                        <div class="relative">
                             {{ form.scheduled_at }}
-                        </div>
-                    {% endif %}
-                    {% if form.scheduled_at.errors %}
-                        <p class="text-xs text-red-600 mt-1">{{ form.scheduled_at.errors.0 }}</p>
-                    {% endif %}
-                </div>
+                        {% endif %}
+                        {% if form.scheduled_at.errors %}
+                            <p class="text-sm font-medium text-red-500">{{ form.scheduled_at.errors.0 }}</p>
+                        {% endif %}
+                    </div>
 
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Fim do Agendamento</label>
-                    {% if not user.is_manager and task %}
-                        <div class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 flex items-center gap-2">
-                            <i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>
-                            {% if task.scheduled_end_at %}
-                                {{ task.scheduled_end_at|date:"d/m/Y H:i" }}
-                            {% else %}
-                                ---
-                            {% endif %}
-                        </div>
-                        <div class="hidden">{{ form.scheduled_end_at }}</div>
-                    {% else %}
-                        <div class="relative">
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium leading-none text-slate-700">Fim do Agendamento</label>
+                        {% if not user.is_manager and task %}
+                            <div class="flex h-10 w-full items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 font-medium">
+                                <i data-lucide="calendar" class="h-4 w-4 text-slate-400"></i>
+                                {% if task.scheduled_end_at %}
+                                    {{ task.scheduled_end_at|date:"d/m/Y H:i" }}
+                                {% else %}
+                                    ---
+                                {% endif %}
+                            </div>
+                            <div class="hidden">{{ form.scheduled_end_at }}</div>
+                        {% else %}
                             {{ form.scheduled_end_at }}
-                        </div>
+                        {% endif %}
+                        {% if form.scheduled_end_at.errors %}
+                            <p class="text-sm font-medium text-red-500">{{ form.scheduled_end_at.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Valor do Serviço (Escondido do Colaborador) -->
+                {% if user.is_manager %}
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none text-slate-700">Valor do Serviço (R$)</label>
+                    {{ form.value }}
+                    {% if form.value.errors %}
+                        <p class="text-sm font-medium text-red-500">{{ form.value.errors.0 }}</p>
                     {% endif %}
-                    {% if form.scheduled_end_at.errors %}
-                        <p class="text-xs text-red-600 mt-1">{{ form.scheduled_end_at.errors.0 }}</p>
+                    <p class="text-xs text-slate-500 mt-1">Valor interno destinado a esta etapa.</p>
+                </div>
+                {% else %}
+                <div class="hidden">
+                    {{ form.value }}
+                </div>
+                {% endif %}
+
+                <!-- Observações (Editável por todos) -->
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none text-slate-700">Notas Técnicas / Observações</label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}
+                        <p class="text-sm font-medium text-red-500">{{ form.notes.errors.0 }}</p>
                     {% endif %}
                 </div>
-            </div>
-
-            <!-- Valor do Serviço (Escondido do Colaborador) -->
-            {% if user.is_manager %}
-            <div>
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Valor do Serviço (R$)</label>
-                {{ form.value }}
-                {% if form.value.errors %}
-                    <p class="text-xs text-red-600 mt-1">{{ form.value.errors.0 }}</p>
-                {% endif %}
-                <p class="text-xs text-slate-500 mt-1 italic">Valor interno desta etapa/serviço.</p>
-            </div>
-            {% else %}
-            <div class="hidden">
-                {{ form.value }}
-            </div>
-            {% endif %}
-
-            <!-- Observações (Editável por todos) -->
-            <div>
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Notas Técnicas / Observações</label>
-                {{ form.notes }}
-                {% if form.notes.errors %}
-                    <p class="text-xs text-red-600 mt-1">{{ form.notes.errors.0 }}</p>
-                {% endif %}
             </div>
         </div>
 
         <!-- 3. EQUIPE -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
-            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-                <h3 class="font-bold text-slate-900 flex items-center gap-2">
-                    <i data-lucide="users" class="h-5 w-5 text-slate-400"></i>
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
+                <h3 class="font-semibold leading-none tracking-tight flex items-center gap-2 text-slate-900">
+                    <i data-lucide="users" class="h-5 w-5 text-slate-500"></i>
                     Equipe Alocada
                 </h3>
             </div>
 
-            {{ formset.management_form }}
-            
-            <div id="team-formset" class="space-y-4">
-                {% for team_form in formset %}
-                <div class="team-form-item p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
-                    {{ team_form.id }}
-                    {% if team_form.DELETE %}
-                        <div class="hidden">{{ team_form.DELETE }}</div>
-                    {% endif %}
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Profissional</label>
-                            {% if not user.is_manager %}
-                                <div class="text-sm font-semibold text-slate-700 py-1">
-                                    {% if team_form.instance.pk %}
-                                        {{ team_form.instance.professional.name }}
-                                    {% else %}
-                                        ---
-                                    {% endif %}
-                                </div>
-                                <div class="hidden">{{ team_form.professional }}</div>
-                            {% else %}
-                                {{ team_form.professional }}
-                            {% endif %}
-                        </div>
-                        
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Função</label>
-                            {% if not user.is_manager %}
-                                <div class="text-sm font-semibold text-slate-700 py-1">
-                                    {% if team_form.instance.pk %}
-                                        {{ team_form.instance.role.name }}
-                                    {% else %}
-                                        ---
-                                    {% endif %}
-                                </div>
-                                <div class="hidden">{{ team_form.role }}</div>
-                            {% else %}
-                                {{ team_form.role }}
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    {% if user.is_manager and not forloop.first %}
-                    <button type="button" class="text-xs text-red-600 hover:text-red-700 font-bold flex items-center gap-1" onclick="removeTeamMember(this)">
-                        <i data-lucide="trash-2" class="h-3 w-3"></i>
-                        Remover membro
-                    </button>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-
-            {% if user.is_manager %}
-            <button type="button" id="add-team-member" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-sm font-bold text-slate-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center gap-2">
-                <i data-lucide="plus-circle" class="h-4 w-4"></i>
-                Adicionar Membro
-            </button>
-            {% endif %}
-        </div>
-
-        <!-- 4. MÍDIAS (Fotos/Vídeos) -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-            <h3 class="font-bold text-slate-900 flex items-center gap-2 pb-2 border-b border-slate-100">
-                <i data-lucide="image" class="h-5 w-5 text-slate-400"></i>
-                Evidências (Fotos/Vídeos)
-            </h3>
-
-            <!-- Mídias Existentes -->
-            {% if existing_medias %}
-            <div class="space-y-2">
-                <p class="text-xs font-bold text-slate-600 uppercase">Arquivos registrados:</p>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {% for media in existing_medias %}
-                    <div class="relative group cursor-pointer" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="task-edit-medias" data-url="{{ media.file.url }}" data-is-video="{% if media.is_video %}true{% else %}false{% endif %}">
-                        {% if media.is_video %}
-                            <video class="w-full h-32 object-cover rounded-lg border border-slate-200">
-                                <source src="{{ media.file.url }}">
-                            </video>
-                            <div class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg pointer-events-none"><i data-lucide="play" class="text-white w-8 h-8 opacity-80"></i></div>
-                        {% else %}
-                            <img src="{{ media.file.url }}" alt="Evidência" class="w-full h-32 object-cover rounded-lg border border-slate-200">
+            <div class="p-5 md:p-6 space-y-6">
+                {{ formset.management_form }}
+                
+                <div id="team-formset" class="space-y-4">
+                    {% for team_form in formset %}
+                    <div class="team-form-item relative rounded-lg border border-slate-200 bg-slate-50/50 p-4 transition-colors hover:bg-slate-50">
+                        {{ team_form.id }}
+                        {% if team_form.DELETE %}
+                            <div class="hidden">{{ team_form.DELETE }}</div>
                         {% endif %}
-                        <a href="{% url 'task_media_delete' media.id %}" onclick="event.stopPropagation()" class="absolute top-2 right-2 p-1.5 bg-red-500 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10 hover:bg-red-600">
-                            <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
-                        </a>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium leading-none text-slate-700">Profissional</label>
+                                {% if not user.is_manager %}
+                                    <div class="flex h-10 w-full items-center rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                        {% if team_form.instance.pk %}
+                                            {{ team_form.instance.professional.name }}
+                                        {% else %}
+                                            ---
+                                        {% endif %}
+                                    </div>
+                                    <div class="hidden">{{ team_form.professional }}</div>
+                                {% else %}
+                                    {{ team_form.professional }}
+                                {% endif %}
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium leading-none text-slate-700">Função</label>
+                                {% if not user.is_manager %}
+                                    <div class="flex h-10 w-full items-center rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                        {% if team_form.instance.pk %}
+                                            {{ team_form.instance.role.name }}
+                                        {% else %}
+                                            ---
+                                        {% endif %}
+                                    </div>
+                                    <div class="hidden">{{ team_form.role }}</div>
+                                {% else %}
+                                    {{ team_form.role }}
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if user.is_manager and not forloop.first %}
+                        <button type="button" class="mt-4 inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 h-9 px-3 w-full sm:w-auto border border-transparent hover:border-red-100 transition-colors" onclick="removeTeamMember(this)">
+                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                            Remover membro
+                        </button>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
-            </div>
-            {% endif %}
 
-            <!-- Upload de Novos Arquivos -->
-            <div>
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">
-                    Adicionar Evidências
-                </label>
-                {% include 'services/components/media_dropzone.html' with dropzone_id="file-input" is_subform=True %}
-                <p class="text-xs text-slate-500 mt-1 italic">Tire fotos ou grave vídeos do local e da execução.</p>
+                {% if user.is_manager %}
+                <button type="button" id="add-team-member" class="inline-flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-transparent h-12 px-4 text-sm font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                    <i data-lucide="plus" class="h-4 w-4"></i>
+                    Adicionar Membro
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 4. MÍDIAS (Fotos/Vídeos) -->
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
+                <h3 class="font-semibold leading-none tracking-tight flex items-center gap-2 text-slate-900">
+                    <i data-lucide="image" class="h-5 w-5 text-slate-500"></i>
+                    Evidências (Fotos/Vídeos)
+                </h3>
+                <p class="text-sm text-slate-500 mt-1">Anexe fotos ou grave vídeos do local e da execução.</p>
+            </div>
+            
+            <div class="p-5 md:p-6 space-y-6">
+                <!-- Mídias Existentes -->
+                {% if existing_medias %}
+                <div class="space-y-3">
+                    <h4 class="text-sm font-medium text-slate-900">Arquivos registrados</h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                        {% for media in existing_medias %}
+                        <div class="relative group cursor-pointer aspect-square rounded-md overflow-hidden border border-slate-200 bg-slate-100" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="task-edit-medias" data-url="{{ media.file.url }}" data-is-video="{% if media.is_video %}true{% else %}false{% endif %}">
+                            {% if media.is_video %}
+                                <video class="w-full h-full object-cover">
+                                    <source src="{{ media.file.url }}">
+                                </video>
+                                <div class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors pointer-events-none">
+                                    <i data-lucide="play" class="text-white w-8 h-8 opacity-90 drop-shadow-md"></i>
+                                </div>
+                            {% else %}
+                                <img src="{{ media.file.url }}" alt="Evidência" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                            {% endif %}
+                            <button type="button" data-delete-url="{% url 'task_media_delete' media.id %}" onclick="deleteTaskMedia(event, this)" class="absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-md bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-700 focus:opacity-100">
+                                <i data-lucide="trash-2" class="h-4 w-4"></i>
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Upload de Novos Arquivos -->
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none text-slate-700">Novos Arquivos</label>
+                    {% include 'services/components/media_dropzone.html' with dropzone_id="file-input" is_subform=True %}
+                </div>
             </div>
         </div>
 
         <!-- Botões de Ação -->
-        <div class="flex gap-3 pb-24 md:pb-0">
-            <a href="{% url 'service_order_detail' order.id %}" class="flex-1 py-4 rounded-xl border border-slate-200 text-center font-bold text-slate-600 hover:bg-slate-50 transition-all">
+        <div class="flex flex-col-reverse sm:flex-row gap-3 pb-24 md:pb-6 pt-2">
+            <a href="{% url 'service_order_detail' order.id %}" class="inline-flex h-12 flex-1 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
                 Cancelar
             </a>
-            <button type="submit" class="flex-1 py-4 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-lg">
+            <button type="submit" class="inline-flex h-12 flex-1 items-center justify-center rounded-md bg-slate-900 text-sm font-medium text-slate-50 shadow transition-colors hover:bg-slate-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
                 {% if not user.is_manager %}Salvar Execução{% else %}{% if task %}Atualizar Etapa{% else %}Adicionar Etapa{% endif %}{% endif %}
             </button>
         </div>
     </form>
 </div>
+
+<!-- Estilização Automática Shadcn para os Campos de Formulário -->
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // Inputs, Selects
+        const inputs = document.querySelectorAll("form input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']), form select, form textarea");
+        inputs.forEach(input => {
+            input.classList.add(
+                "flex", "w-full", "rounded-md", "border", "border-slate-200", 
+                "bg-white", "px-3", "py-2", "text-sm", "placeholder:text-slate-500", 
+                "focus-visible:outline-none", "focus-visible:ring-2", "focus-visible:ring-slate-950", 
+                "focus-visible:ring-offset-2", "disabled:cursor-not-allowed", "disabled:opacity-50",
+                "transition-colors"
+            );
+            if(input.tagName !== 'TEXTAREA') {
+                input.classList.add("h-10");
+            }
+        });
+
+        // Textareas
+        const textareas = document.querySelectorAll("form textarea");
+        textareas.forEach(ta => {
+            ta.classList.add("min-h-[80px]");
+        });
+
+        // Checkboxes
+        const checkboxes = document.querySelectorAll("form input[type='checkbox']");
+        checkboxes.forEach(cb => {
+            cb.classList.add(
+                "h-4", "w-4", "shrink-0", "rounded-sm", "border", "border-slate-200",
+                "text-slate-900", "focus-visible:outline-none", "focus-visible:ring-2",
+                "focus-visible:ring-slate-950", "focus-visible:ring-offset-2",
+                "disabled:cursor-not-allowed", "disabled:opacity-50", "accent-slate-900"
+            );
+        });
+    });
+</script>
 
 <script>
     // Adicionar membro à equipe
@@ -352,10 +400,23 @@
         
         const emptyForm = formset.children[0].cloneNode(true);
         emptyForm.innerHTML = emptyForm.innerHTML.replace(/team_members-\d+/g, `team_members-${newFormIdx}`);
+        
+        // Limpar os valores
         emptyForm.querySelectorAll('input, select').forEach(input => {
-            input.value = '';
+            if (input.type !== 'hidden' || input.name.includes('DELETE') || input.name.includes('id')) {
+                input.value = '';
+            }
             if (input.type === 'checkbox') input.checked = false;
         });
+        
+        // Adicionar botão de remover se não existir
+        if (!emptyForm.querySelector('button[onclick="removeTeamMember(this)"]')) {
+            const btnHtml = `<button type="button" class="mt-4 inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 h-9 px-3 w-full sm:w-auto border border-transparent hover:border-red-100 transition-colors" onclick="removeTeamMember(this)">
+                <i data-lucide="trash-2" class="h-4 w-4"></i>
+                Remover membro
+            </button>`;
+            emptyForm.insertAdjacentHTML('beforeend', btnHtml);
+        }
         
         formset.appendChild(emptyForm);
         totalForms.value = newFormIdx + 1;
@@ -375,6 +436,73 @@
         } else {
             formItem.remove();
         }
+    }
+
+    // Remover Mídia (AJAX)
+    function deleteTaskMedia(event, button) {
+        event.stopPropagation();
+        event.preventDefault();
+
+        if (!confirm('Tem certeza que deseja remover esta mídia?')) {
+            return;
+        }
+
+        const url = button.getAttribute('data-delete-url');
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const mediaCard = button.closest('.relative.group');
+
+        // Estado de loading
+        const icon = button.querySelector('i');
+        if (icon) {
+            icon.setAttribute('data-lucide', 'loader-2');
+            icon.classList.add('animate-spin');
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons({root: button});
+            }
+        }
+        button.disabled = true;
+        button.classList.add('opacity-50', 'cursor-not-allowed');
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                // Sucesso, remove o card com transição
+                mediaCard.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                mediaCard.style.opacity = '0';
+                mediaCard.style.transform = 'scale(0.9)';
+                setTimeout(() => {
+                    mediaCard.remove();
+                    // Verificar se não sobrou nenhuma mídia e esconder a div se necessário
+                    const mediaGrid = document.querySelector('.grid.grid-cols-2.sm\\:grid-cols-3');
+                    if (mediaGrid && mediaGrid.children.length === 0) {
+                        const mediaSection = mediaGrid.closest('.space-y-3');
+                        if (mediaSection) mediaSection.remove();
+                    }
+                }, 300);
+            } else {
+                throw new Error('Network response was not ok.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Erro ao remover mídia.');
+            // Reverter estado do botão
+            if (icon) {
+                icon.setAttribute('data-lucide', 'trash-2');
+                icon.classList.remove('animate-spin');
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons({root: button});
+                }
+            }
+            button.disabled = false;
+            button.classList.remove('opacity-50', 'cursor-not-allowed');
+        });
     }
 
     // Lógica de Controle de Execução
@@ -400,26 +528,29 @@
         function updateButtonState() {
             // Trava: Só permite iniciar se estiver aprovado
             const isApproved = inputApproved
-                ? ['true', '1'].includes(String(inputApproved.value).toLowerCase())
+                ? ['true', '1', 'on'].includes(String(inputApproved.checked || inputApproved.value).toLowerCase())
                 : true; // Se o campo não existir (ex: colab), assume que o ADM já aprovou ou trata no backend
 
+            // As turmas de css Shadcn para botões
+            const baseBtnClasses = 'inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 shadow h-11 md:h-10 px-6 w-full md:w-auto';
+
             if (!inputStarted.value && !isApproved) {
-                btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-100 text-amber-700 font-bold text-xs cursor-not-allowed';
+                btnExecution.className = `${baseBtnClasses} bg-amber-100 text-amber-800 cursor-not-allowed opacity-80`;
                 executionText.innerText = 'Aguardando Aprovação';
                 executionIcon.setAttribute('data-lucide', 'pause-circle');
                 btnExecution.disabled = true;
             } else if (!inputStarted.value) {
-                btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-all shadow-sm';
+                btnExecution.className = `${baseBtnClasses} bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-600`;
                 executionText.innerText = 'Iniciar Execução';
                 executionIcon.setAttribute('data-lucide', 'play');
                 btnExecution.disabled = false;
             } else if (!inputFinished.value) {
-                btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white font-bold text-xs hover:bg-green-700 transition-all shadow-sm';
-                executionText.innerText = 'Finalizar';
+                btnExecution.className = `${baseBtnClasses} bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-600`;
+                executionText.innerText = 'Finalizar Execução';
                 executionIcon.setAttribute('data-lucide', 'check-circle');
                 btnExecution.disabled = false;
             } else {
-                btnExecution.className = 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-400 font-bold text-xs cursor-not-allowed';
+                btnExecution.className = `${baseBtnClasses} bg-slate-100 text-slate-500 cursor-not-allowed`;
                 executionText.innerText = 'Execução Concluída';
                 executionIcon.setAttribute('data-lucide', 'check-square');
                 btnExecution.disabled = true;
@@ -434,7 +565,7 @@
             const now = new Date();
             const formattedNow = formatDateTimeLocal(now);
             const isApproved = inputApproved
-                ? ['true', '1'].includes(String(inputApproved.value).toLowerCase())
+                ? ['true', '1', 'on'].includes(String(inputApproved.checked || inputApproved.value).toLowerCase())
                 : true;
 
             if (!inputStarted.value && !isApproved) {
@@ -465,7 +596,7 @@
 {% if show_force_schedule_modal %}
 <!-- Modal de força permanece igual -->
 <div id="force-schedule-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+    <div class="bg-white rounded-xl shadow-lg w-full max-w-md overflow-hidden border border-slate-200">
         <div class="p-6 space-y-4">
             <div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
                 <i data-lucide="alert-triangle" class="h-6 w-6 text-amber-600"></i>
@@ -473,11 +604,11 @@
             <h3 class="text-xl font-bold text-center text-slate-900">Atenção ao Agendamento</h3>
             <p class="text-slate-600 text-center text-sm">{{ force_message }}</p>
         </div>
-        <div class="bg-slate-50 px-6 py-4 flex gap-3">
-            <button type="button" onclick="document.getElementById('force-schedule-modal').remove()" class="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
+        <div class="bg-slate-50 px-6 py-4 flex flex-col-reverse sm:flex-row gap-3">
+            <button type="button" onclick="document.getElementById('force-schedule-modal').remove()" class="flex-1 inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
                 Revisar Horário
             </button>
-            <button type="button" onclick="confirmForceSchedule()" class="flex-1 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-sm">
+            <button type="button" onclick="confirmForceSchedule()" class="flex-1 inline-flex h-10 items-center justify-center rounded-md bg-amber-500 text-sm font-medium text-white shadow transition-colors hover:bg-amber-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500">
                 Confirmar Mesmo Assim
             </button>
         </div>
@@ -499,4 +630,3 @@
 {% endif %}
 
 {% endblock %}
-

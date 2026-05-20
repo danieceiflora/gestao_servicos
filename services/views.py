@@ -1582,13 +1582,16 @@ def task_media_delete(request, media_id):
     """View para remover mídia de uma etapa"""
     media = get_object_or_404(ServiceMedia, id=media_id)
     task = media.task
-    order_id = task.service_order.id
     
     if request.method == 'POST':
         # Deletar arquivo físico
         if media.file:
             media.file.delete()
         media.delete()
+        
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.GET.get('ajax') == 'true':
+            return JsonResponse({'success': True, 'message': 'Mídia removida com sucesso!'})
+            
         messages.success(request, 'Mídia removida com sucesso!')
         return redirect('task_edit', task_id=task.id)
     
