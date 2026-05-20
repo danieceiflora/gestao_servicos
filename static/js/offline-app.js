@@ -101,11 +101,15 @@ const OfflineApp = {
         if (this._renderId !== currentRenderId) return; // Cancela se uma nova renderização foi solicitada
 
         container.innerHTML = '';
+        const iconEl = document.getElementById('header-icon');
+        
         if (this.state.currentView === 'list') {
             titleEl.textContent = 'Minha Agenda';
+            if (iconEl) iconEl.setAttribute('data-lucide', 'calendar');
             await this.renderTaskList(container);
         } else if (this.state.currentView === 'detail') {
-            titleEl.textContent = 'Workspace';
+            titleEl.textContent = 'Detalhes do Serviço';
+            if (iconEl) iconEl.setAttribute('data-lucide', 'clipboard-list');
             await this.renderTaskDetail(container, this.state.currentTaskId);
         }
         
@@ -312,7 +316,7 @@ const OfflineApp = {
         return map[status] || status;
     },
 
-    // Renderiza o detalhe da tarefa (Workspace)
+    // Renderiza o detalhe da tarefa (Detalhes do Serviço)
     async renderTaskDetail(container, taskId) {
         let task = await db.tasks.get(taskId);
         
@@ -497,17 +501,19 @@ const OfflineApp = {
                         valueEl.textContent = `R$ ${parseFloat(task.payment_amount).toFixed(2)}`;
                     }
 
-                    // Status de Sincronismo
+                    // Status de Sincronismo (Opcional se o elemento existir)
                     const syncMsg = completedSection.querySelector('#detail-sync-status-msg');
-                    const pendingQueue = await db.sync_queue.where('type').equals('TASK_FINISH').toArray();
-                    const isPending = pendingQueue.some(i => String(i.payload.task_id) === String(taskId));
-                    
-                    if (isPending) {
-                        syncMsg.innerHTML = '<i data-lucide="cloud-off" class="h-3 w-3"></i> Aguardando conexão para enviar';
-                        syncMsg.className = 'mt-1 text-xs font-semibold text-amber-600 flex items-center justify-center gap-1.5';
-                    } else {
-                        syncMsg.innerHTML = '<i data-lucide="cloud-check" class="h-3 w-3"></i> Sincronizado com o servidor';
-                        syncMsg.className = 'mt-1 text-xs font-semibold text-emerald-600 flex items-center justify-center gap-1.5';
+                    if (syncMsg) {
+                        const pendingQueue = await db.sync_queue.where('type').equals('TASK_FINISH').toArray();
+                        const isPending = pendingQueue.some(i => String(i.payload.task_id) === String(taskId));
+                        
+                        if (isPending) {
+                            syncMsg.innerHTML = '<i data-lucide="cloud-off" class="h-3 w-3"></i> Aguardando conexão para enviar';
+                            syncMsg.className = 'mt-1 text-xs font-semibold text-amber-600 flex items-center justify-center gap-1.5';
+                        } else {
+                            syncMsg.innerHTML = '<i data-lucide="cloud-check" class="h-3 w-3"></i> Sincronizado com o servidor';
+                            syncMsg.className = 'mt-1 text-xs font-semibold text-emerald-600 flex items-center justify-center gap-1.5';
+                        }
                     }
                 }
             }

@@ -254,12 +254,30 @@ const OfflineDB = {
             .anyOf(['pending', 'error'])
             .toArray();
 
+        // Feedback visual no botão se ele existir
+        const btnSyncNow = document.getElementById('btn-sync-now');
+        if (btnSyncNow) {
+            const icon = btnSyncNow.querySelector('[data-lucide="refresh-cw"]') || btnSyncNow.querySelector('svg') || btnSyncNow.querySelector('i');
+            if (icon) icon.classList.add('animate-spin');
+            btnSyncNow.disabled = true;
+        }
+
         if (pendingItems.length === 0) {
+            // Se não há pendências, apenas marcamos que sincronizou com sucesso (nada a enviar)
+            localStorage.setItem('last_sync_timestamp', new Date().toISOString());
             this.updateUIStatus();
+            
+            if (btnSyncNow) {
+                setTimeout(() => {
+                    const icon = btnSyncNow.querySelector('[data-lucide="refresh-cw"]') || btnSyncNow.querySelector('svg') || btnSyncNow.querySelector('i');
+                    if (icon) icon.classList.remove('animate-spin');
+                    btnSyncNow.disabled = false;
+                }, 500);
+            }
             return;
         }
 
-        const syncBadge = document.getElementById('sync-badge');
+        const syncBadge = document.getElementById('sync-pending-badge');
         if (syncBadge) {
             syncBadge.classList.remove('hidden');
             syncBadge.style.display = 'inline-flex';
@@ -268,6 +286,7 @@ const OfflineDB = {
         console.log(`🔄 Sincronizando ${pendingItems.length} pendências...`);
 
         try {
+            let totalSuccess = true;
             const textChanges = pendingItems.filter(i => i.type !== 'MEDIA_UPLOAD' && i.type !== 'PROPERTY_GPS_UPDATE');
             const mediaChanges = pendingItems.filter(i => i.type === 'MEDIA_UPLOAD');
             const gpsChanges = pendingItems.filter(i => i.type === 'PROPERTY_GPS_UPDATE');
@@ -290,6 +309,7 @@ const OfflineDB = {
                         await db.sync_queue.bulkDelete(ids);
                         console.log(`✅ ${textChanges.length} mudanças de texto sincronizadas.`);
                     } else {
+                        totalSuccess = false;
                         const errorData = await response.json().catch(() => ({}));
                         console.error('❌ Erro na sincronização de texto:', errorData);
                         
@@ -298,6 +318,7 @@ const OfflineDB = {
                         await db.sync_queue.where('id').anyOf(ids).modify({ status: 'error' });
                     }
                 } catch (err) {
+                    totalSuccess = false;
                     console.error('💥 Falha crítica ao enviar lote de texto:', err);
                 }
             }
@@ -322,9 +343,11 @@ const OfflineDB = {
                         await db.sync_queue.delete(item.id);
                         console.log(`📍 GPS da propriedade ${item.payload.property_id} sincronizado com sucesso.`);
                     } else {
+                        totalSuccess = false;
                         await db.sync_queue.update(item.id, { status: 'error' });
                     }
                 } catch (err) {
+                    totalSuccess = false;
                     console.error(`Falha ao sincronizar GPS ${item.payload.property_id}:`, err);
                 }
             }
@@ -356,16 +379,28 @@ const OfflineDB = {
                         await db.sync_queue.delete(item.id);
                         console.log(`📸 Foto ${mediaRecord.id} enviada com sucesso.`);
                     } else {
+                        totalSuccess = false;
                         await db.sync_queue.update(item.id, { status: 'error' });
                     }
                 } catch (err) {
+                    totalSuccess = false;
                     console.error(`Falha ao subir mídia ${item.payload.media_id}:`, err);
                 }
             }
+
+            if (totalSuccess) {
+                localStorage.setItem('last_sync_timestamp', new Date().toISOString());
+            }
+
         } finally {
             if (syncBadge) {
                 syncBadge.classList.add('hidden');
                 syncBadge.style.display = 'none';
+            }
+            if (btnSyncNow) {
+                const icon = btnSyncNow.querySelector('[data-lucide="refresh-cw"]') || btnSyncNow.querySelector('svg') || btnSyncNow.querySelector('i');
+                if (icon) icon.classList.remove('animate-spin');
+                btnSyncNow.disabled = false;
             }
             this.updateUIStatus();
         }
@@ -393,14 +428,27 @@ const OfflineDB = {
         const syncBadge = document.getElementById('sync-pending-badge');
         const btnSyncNow = document.getElementById('btn-sync-now');
         const onlineIndicator = document.getElementById('online-status-indicator');
+        const lastSyncDisplay = document.getElementById('last-sync-time');
         
         if (onlineIndicator) {
             if (navigator.onLine) {
-                onlineIndicator.innerHTML = '<span class="flex h-2 w-2 rounded-full bg-green-500"></span> Online';
-                onlineIndicator.className = 'text-[10px] font-medium text-green-600 flex items-center gap-1.5';
+                onlineIndicator.innerHTML = '<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-[10px] font-bold text-emerald-600 border border-emerald-100 uppercase tracking-wider"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Online</div>';
             } else {
-                onlineIndicator.innerHTML = '<span class="flex h-2 w-2 rounded-full bg-orange-500 animate-pulse"></span> Offline';
-                onlineIndicator.className = 'text-[10px] font-medium text-orange-600 flex items-center gap-1.5';
+                onlineIndicator.innerHTML = '<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-[10px] font-bold text-amber-600 border border-amber-100 uppercase tracking-wider animate-pulse"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> Offline</div>';
+            }
+        }
+
+        // Atualiza horário da última sincronização
+        if (lastSyncDisplay) {
+            const lastSync = localStorage.getItem('last_sync_timestamp');
+            if (lastSync) {
+                const date = new Date(lastSync);
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                lastSyncDisplay.textContent = `Sinc: ${hours}:${minutes}`;
+                lastSyncDisplay.classList.remove('hidden');
+            } else {
+                lastSyncDisplay.classList.add('hidden');
             }
         }
 
@@ -426,13 +474,20 @@ const OfflineDB = {
         }
 
         if (btnSyncNow) {
-            if (errorCount > 0 && navigator.onLine) {
-                btnSyncNow.classList.remove('hidden');
-                btnSyncNow.style.display = 'inline-flex';
-                btnSyncNow.onclick = () => this.processSyncQueue();
+            btnSyncNow.onclick = () => this.processSyncQueue();
+            
+            if (!navigator.onLine) {
+                btnSyncNow.classList.add('opacity-50', 'pointer-events-none');
             } else {
-                btnSyncNow.classList.add('hidden');
-                btnSyncNow.style.display = 'none';
+                btnSyncNow.classList.remove('opacity-50', 'pointer-events-none');
+            }
+
+            if (errorCount > 0) {
+                btnSyncNow.classList.add('border-amber-200', 'bg-amber-50', 'text-amber-600');
+                btnSyncNow.classList.remove('border-slate-200', 'bg-white', 'text-slate-600');
+            } else {
+                btnSyncNow.classList.remove('border-amber-200', 'bg-amber-50', 'text-amber-600');
+                btnSyncNow.classList.add('border-slate-200', 'bg-white', 'text-slate-600');
             }
         }
     }
