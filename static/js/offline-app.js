@@ -20,6 +20,10 @@ const OfflineApp = {
         payment: {
             method: null,
             amount: 0
+        },
+        mediaViewer: {
+            items: [],
+            index: 0
         }
     },
 
@@ -450,18 +454,84 @@ const OfflineApp = {
         } else if (task.status === 'IN_PROGRESS' || task.status === 'COMPLETED') {
             const isCompleted = task.status === 'COMPLETED';
             startSection.classList.add('hidden');
+            
+            // A seção ativa contém Checklist, Mídias e Ocorrências, que devem ser visíveis para revisão
             activeSection.classList.remove('hidden');
+            
+            if (isCompleted) {
+                // --- Preenchimento do Resumo de Finalização ---
+                const completedSection = tplDetail.querySelector('#workflow-completed-section');
+                if (completedSection) {
+                    completedSection.classList.remove('hidden');
+                    
+                    completedSection.querySelector('#detail-customer-name').textContent = task.customer_name || 'Não informado';
+                    
+                    const notesContainer = completedSection.querySelector('#detail-completed-notes-container');
+                    const notesEl = completedSection.querySelector('#detail-completed-notes');
+                    if (task.technical_notes) {
+                        notesContainer.classList.remove('hidden');
+                        notesEl.textContent = task.technical_notes;
+                    }
+
+                    // Assinatura
+                    const sigImg = completedSection.querySelector('#detail-signature-img');
+                    const noSig = completedSection.querySelector('#detail-no-signature');
+                    if (task.customer_signature) {
+                        sigImg.src = task.customer_signature;
+                        sigImg.classList.remove('hidden');
+                        noSig.classList.add('hidden');
+                    } else {
+                        sigImg.classList.add('hidden');
+                        noSig.classList.remove('hidden');
+                    }
+
+                    // Pagamento
+                    const paymentSection = completedSection.querySelector('#detail-completed-payment');
+                    if (task.payment_method && task.payment_amount) {
+                        paymentSection.classList.remove('hidden');
+                        const badge = paymentSection.querySelector('#detail-payment-method-badge');
+                        const valueEl = paymentSection.querySelector('#detail-payment-value');
+                        
+                        const methodMap = { 'CASH': 'Dinheiro', 'CREDIT_CARD': 'Cartão', 'PIX': 'PIX' };
+                        badge.textContent = methodMap[task.payment_method] || task.payment_method;
+                        valueEl.textContent = `R$ ${parseFloat(task.payment_amount).toFixed(2)}`;
+                    }
+
+                    // Status de Sincronismo
+                    const syncMsg = completedSection.querySelector('#detail-sync-status-msg');
+                    const pendingQueue = await db.sync_queue.where('type').equals('TASK_FINISH').toArray();
+                    const isPending = pendingQueue.some(i => String(i.payload.task_id) === String(taskId));
+                    
+                    if (isPending) {
+                        syncMsg.innerHTML = '<i data-lucide="cloud-off" class="h-3 w-3"></i> Aguardando conexão para enviar';
+                        syncMsg.className = 'mt-1 text-xs font-semibold text-amber-600 flex items-center justify-center gap-1.5';
+                    } else {
+                        syncMsg.innerHTML = '<i data-lucide="cloud-check" class="h-3 w-3"></i> Sincronizado com o servidor';
+                        syncMsg.className = 'mt-1 text-xs font-semibold text-emerald-600 flex items-center justify-center gap-1.5';
+                    }
+                }
+            }
             
             // Checklist
             const responses = await db.checklist_responses.where('task_id').equals(taskId).toArray();
+            const checklistSection = tplDetail.querySelector('#checklist-section');
             if (responses.length > 0) {
-                tplDetail.querySelector('#checklist-section').classList.remove('hidden');
+                checklistSection.classList.remove('hidden');
                 const checklistContainer = tplDetail.querySelector('#checklist-container');
                 await this.renderChecklist(checklistContainer, responses, isCompleted);
+            } else if (isCompleted) {
+                checklistSection.classList.add('hidden');
             }
 
             // Mídias
-            await this.renderOfflineMedia(mediaContainer, taskId, null);
+            const mediaCount = await this.renderOfflineMedia(mediaContainer, taskId, null);
+            const mediaSection = tplDetail.querySelector('#media-section-card');
+            if (isCompleted && mediaCount === 0) {
+                mediaSection.classList.add('hidden');
+            } else {
+                mediaSection.classList.remove('hidden');
+            }
+
             if (!isCompleted) {
                 btnAddMedia.onclick = () => this.captureMedia(taskId, null, mediaContainer);
                 btnAddVideo.onclick = () => this.captureVideo(taskId, null, mediaContainer);
@@ -471,13 +541,25 @@ const OfflineApp = {
             }
             
             // Ocorrências
-            await this.renderOccurrences(occurrenceList, taskId);
+            const occCount = await this.renderOccurrences(occurrenceList, taskId);
+            const occSection = tplDetail.querySelector('#occurrences-section-card');
+            if (isCompleted && occCount === 0) {
+                occSection.classList.add('hidden');
+            } else {
+                occSection.classList.remove('hidden');
+            }
+
             if (!isCompleted) btnAddOccurrence.onclick = () => this.openOccurrenceModal(taskId);
             else btnAddOccurrence.classList.add('hidden');
 
             // Finalização
-            if (!isCompleted) btnFinish.onclick = () => this.openFinishModal(taskId);
-            else btnFinish.classList.add('hidden');
+            if (!isCompleted) {
+                btnFinish.onclick = () => this.openFinishModal(taskId);
+            } else {
+                btnFinish.classList.add('hidden');
+                // Esconde o container do botão de finalizar para não sobrar espaço em branco
+                if (btnFinish.parentElement) btnFinish.parentElement.classList.add('hidden');
+            }
         }
 
         tplDetail.querySelector('#btn-back').addEventListener('click', () => this.navigate('list'));
@@ -541,10 +623,21 @@ const OfflineApp = {
 
         buttons.forEach(btn => {
             btn.onclick = () => {
+                const isSelected = btn.classList.contains('bg-blue-50');
+                
+                // Limpar seleções
                 buttons.forEach(b => b.classList.remove('bg-blue-50', 'border-blue-500', 'text-blue-600'));
-                btn.classList.add('bg-blue-50', 'border-blue-500', 'text-blue-600');
-                this.state.payment.method = btn.dataset.method;
-                details.classList.remove('hidden');
+                
+                if (isSelected) {
+                    // Deselecionar
+                    this.state.payment.method = null;
+                    details.classList.add('hidden');
+                } else {
+                    // Selecionar
+                    btn.classList.add('bg-blue-50', 'border-blue-500', 'text-blue-600');
+                    this.state.payment.method = btn.dataset.method;
+                    details.classList.remove('hidden');
+                }
             };
         });
     },
@@ -581,21 +674,22 @@ const OfflineApp = {
             return;
         }
 
-        // Validação de pagamento se visível
+        // Validação de pagamento se visível (Opcional - Sprint UX)
         const paymentSection = document.getElementById('finish-payment-section');
         let paymentData = null;
         if (!paymentSection.classList.contains('hidden')) {
             const method = this.state.payment.method;
             const amount = parseFloat(document.getElementById('finish-payment-amount').value || 0);
-            if (!method) {
-                alert('Por favor, selecione a forma de pagamento.');
-                return;
+            
+            // Se um método foi selecionado, o valor passa a ser obrigatório
+            if (method) {
+                if (amount <= 0) {
+                    alert('Por favor, informe o valor recebido para o método selecionado ou desmarque o pagamento.');
+                    return;
+                }
+                paymentData = { method, amount };
             }
-            if (amount <= 0) {
-                alert('Por favor, informe o valor recebido.');
-                return;
-            }
-            paymentData = { method, amount };
+            // Se nenhum método foi selecionado, paymentData continua null e o fluxo segue
         }
 
         const signatureBase64 = this.signaturePad.toDataURL();
@@ -610,7 +704,9 @@ const OfflineApp = {
             finished_at: now,
             customer_name: customerName,
             customer_signature: signatureBase64,
-            technical_notes: notes
+            technical_notes: notes,
+            payment_method: paymentData ? paymentData.method : null,
+            payment_amount: paymentData ? paymentData.amount : null
         });
 
         // 2. Enfileira Sincronização
@@ -638,7 +734,7 @@ const OfflineApp = {
         
         if (occurrences.length === 0) {
             container.innerHTML = '<p class="text-[10px] text-slate-400 text-center py-2">Nenhuma ocorrência registrada.</p>';
-            return;
+            return 0;
         }
 
         for (const occ of occurrences) {
@@ -653,6 +749,7 @@ const OfflineApp = {
             container.appendChild(tpl);
         }
         if (window.lucide) lucide.createIcons();
+        return occurrences.length;
     },
 
     translateOccType(type) {
@@ -874,9 +971,13 @@ const OfflineApp = {
         });
         
         container.innerHTML = '';
-        filteredItems.forEach(item => {
-            const url = URL.createObjectURL(item.blob);
-            const isVideo = item.type.startsWith('video/');
+        const mediaList = filteredItems.map(item => ({
+            url: URL.createObjectURL(item.blob),
+            isVideo: item.type.startsWith('video/')
+        }));
+
+        filteredItems.forEach((item, index) => {
+            const media = mediaList[index];
             const div = document.createElement('div');
             
             // Ajusta tamanho se for em ocorrência
@@ -884,16 +985,16 @@ const OfflineApp = {
             // Sprint UX: adicionado hover, scale effect e cursor pointer pra incentivar clique na visualização
             div.className = `relative ${sizeClass} rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group cursor-pointer hover:shadow-md hover:ring-2 hover:ring-blue-400 transition-all active:scale-[0.98]`;
             
-            if (isVideo) {
+            if (media.isVideo) {
                 div.innerHTML = `
-                    <video src="${url}" class="w-full h-full object-cover"></video>
+                    <video src="${media.url}" class="w-full h-full object-cover"></video>
                     <div class="absolute inset-0 bg-black/40 flex items-center justify-center">
                         <i data-lucide="play" class="h-4 w-4 text-white"></i>
                     </div>
                 `;
             } else {
                 div.innerHTML = `
-                    <img src="${url}" class="w-full h-full object-cover">
+                    <img src="${media.url}" class="w-full h-full object-cover">
                 `;
             }
 
@@ -920,12 +1021,13 @@ const OfflineApp = {
             div.appendChild(badgeWrapper);
 
             // Abre o visualizador ao clicar
-            div.onclick = () => this.openMediaViewer(url, isVideo);
+            div.onclick = () => this.openMediaViewer(mediaList, index);
 
             container.appendChild(div);
         });
 
         if (window.lucide) lucide.createIcons();
+        return filteredItems.length;
     },
 
     // Sprint UX: Lógica de exclusão que permite liberdade antes de finalizar as coisas
@@ -948,26 +1050,86 @@ const OfflineApp = {
     },
 
     // Sprint UX: Visualizador tela cheia pra validar qualidade de imagem tirada e evitar frustrações
-    openMediaViewer(url, isVideo) {
+    openMediaViewer(mediaList, index) {
+        this.state.mediaViewer.items = mediaList;
+        this.state.mediaViewer.index = index;
+
         const modal = document.getElementById('modal-media-viewer');
-        const content = document.getElementById('media-viewer-content');
-        
         modal.classList.remove('hidden');
         modal.classList.add('flex');
         
-        content.innerHTML = '';
-        if (isVideo) {
-            content.innerHTML = `<video src="${url}" controls autoplay playsinline class="max-w-full max-h-full rounded-xl shadow-2xl object-contain"></video>`;
-        } else {
-            content.innerHTML = `<img src="${url}" class="max-w-full max-h-full rounded-xl shadow-2xl object-contain">`;
-        }
+        this.updateMediaViewerUI();
 
         document.getElementById('btn-close-viewer').onclick = () => {
             modal.classList.add('hidden');
             modal.classList.remove('flex');
-            content.innerHTML = ''; // Limpa pra não ficar segurando mémória
+            document.getElementById('media-viewer-display').innerHTML = ''; // Limpa pra não ficar segurando mémória
         };
-        
+
+        document.getElementById('btn-prev-media').onclick = (e) => {
+            e.stopPropagation();
+            this.navigateMedia(-1);
+        };
+        document.getElementById('btn-next-media').onclick = (e) => {
+            e.stopPropagation();
+            this.navigateMedia(1);
+        };
+
+        // Suporte a teclado
+        const keyHandler = (e) => {
+            if (e.key === 'ArrowLeft') this.navigateMedia(-1);
+            if (e.key === 'ArrowRight') this.navigateMedia(1);
+            if (e.key === 'Escape') closeModal();
+        };
+
+        const closeModal = () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.getElementById('media-viewer-display').innerHTML = '';
+            document.removeEventListener('keydown', keyHandler);
+        };
+
+        document.getElementById('btn-close-viewer').onclick = closeModal;
+        document.addEventListener('keydown', keyHandler);
+    },
+
+    navigateMedia(direction) {
+        const newIndex = this.state.mediaViewer.index + direction;
+        if (newIndex >= 0 && newIndex < this.state.mediaViewer.items.length) {
+            this.state.mediaViewer.index = newIndex;
+            this.updateMediaViewerUI();
+        }
+    },
+
+    updateMediaViewerUI() {
+        const { items, index } = this.state.mediaViewer;
+        const current = items[index];
+        const display = document.getElementById('media-viewer-display');
+        const counter = document.getElementById('media-viewer-counter');
+        const btnPrev = document.getElementById('btn-prev-media');
+        const btnNext = document.getElementById('btn-next-media');
+
+        if (!current) return;
+
+        display.innerHTML = '';
+        if (current.isVideo) {
+            display.innerHTML = `<video src="${current.url}" controls autoplay playsinline class="max-w-full max-h-full rounded-xl shadow-2xl object-contain animate-in fade-in duration-300"></video>`;
+        } else {
+            display.innerHTML = `<img src="${current.url}" class="max-w-full max-h-full rounded-xl shadow-2xl object-contain animate-in fade-in zoom-in-95 duration-300">`;
+        }
+
+        counter.textContent = `${index + 1} / ${items.length}`;
+
+        if (items.length > 1) {
+            btnPrev.classList.toggle('hidden', index === 0);
+            btnNext.classList.toggle('hidden', index === items.length - 1);
+            counter.classList.remove('hidden');
+        } else {
+            btnPrev.classList.add('hidden');
+            btnNext.classList.add('hidden');
+            counter.classList.add('hidden');
+        }
+
         if (window.lucide) lucide.createIcons();
     },
 

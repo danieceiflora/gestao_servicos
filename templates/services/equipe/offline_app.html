@@ -46,7 +46,7 @@
             <div class="flex items-start gap-2">
                 <i data-lucide="alert-triangle" class="h-4 w-4 mt-0.5 text-amber-700"></i>
                 <div>
-                    <p class="text-[10px] uppercase tracking-wider text-amber-700">Atencao</p>
+                    <p class="text-[10px] uppercase tracking-wider text-amber-700">Atenção</p>
                     <p id="offline-error-message" class="mt-1 leading-relaxed"></p>
                 </div>
             </div>
@@ -269,7 +269,7 @@
                 </div>
 
                 <!-- Evidências / Mídia -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div id="media-section-card" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div class="p-5 border-b border-slate-50">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-3">
@@ -299,7 +299,7 @@
                 </div>
 
                 <!-- Ocorrências / Impedimentos -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div id="occurrences-section-card" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <button class="w-full flex items-center justify-between p-5 text-left transition-colors hover:bg-slate-50" onclick="this.nextElementSibling.classList.toggle('hidden')">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
@@ -326,6 +326,58 @@
                     <button id="btn-finish-task" class="w-full flex items-center justify-center gap-3 rounded-2xl bg-emerald-600 p-5 text-base font-bold text-white hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 active:scale-95">
                         <i data-lucide="check-circle" class="h-5 w-5"></i> FINALIZAR ATENDIMENTO
                     </button>
+                </div>
+            </div>
+
+            <!-- Resumo da Finalização (Visível apenas se COMPLETED) -->
+            <div id="workflow-completed-section" class="hidden space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
+                            <i data-lucide="check-circle" class="h-4 w-4 text-emerald-600"></i>
+                        </div>
+                        <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Serviço Finalizado</h3>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Recebido por</p>
+                                <p id="detail-customer-name" class="text-sm font-bold text-slate-900"></p>
+                            </div>
+                            <div id="detail-completed-payment" class="hidden">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pagamento</p>
+                                <div class="flex items-center gap-1.5">
+                                    <span id="detail-payment-method-badge" class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600"></span>
+                                    <p id="detail-payment-value" class="text-sm font-bold text-slate-900"></p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="detail-completed-notes-container" class="hidden pt-3 border-t border-slate-50">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Relatório do Técnico</p>
+                            <p id="detail-completed-notes" class="text-sm text-slate-600 leading-relaxed italic"></p>
+                        </div>
+
+                        <div class="pt-3 border-t border-slate-50">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Assinatura do Cliente</p>
+                            <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 overflow-hidden flex items-center justify-center min-h-[120px]">
+                                <img id="detail-signature-img" src="" alt="Assinatura" class="max-h-32 w-auto object-contain filter grayscale contrast-125 mix-blend-multiply">
+                                <div id="detail-no-signature" class="hidden flex flex-col items-center gap-2 text-slate-300">
+                                    <i data-lucide="pen-tool" class="h-8 w-8"></i>
+                                    <p class="text-[10px] font-medium">Sem assinatura registrada</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botão de Reabrir (Opcional/Admin - Por enquanto apenas informativo) -->
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status do Sincronismo</p>
+                    <div id="detail-sync-status-msg" class="mt-1 text-xs font-semibold text-slate-600 flex items-center justify-center gap-1.5">
+                        <i data-lucide="cloud-off" class="h-3 w-3"></i> Aguardando conexão para enviar
+                    </div>
                 </div>
             </div>
         </div>

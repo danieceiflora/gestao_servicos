@@ -11,6 +11,7 @@ from .models import (
 from integracoes.models import SystemConfig
 import uuid
 import json
+from decimal import Decimal
 
 @login_required
 def equipe_offline_app(request):
@@ -271,6 +272,31 @@ def api_tecnico_sync_push(request):
                     if finish_data.get('notes'):
                         task.notes = (task.notes or "") + "\n\nNotas Offline:\n" + finish_data.get('notes')
                     
+                    # Processa Pagamento Opcional
+                    payment_data = finish_data.get('payment')
+                    if payment_data:
+                        try:
+                            amount = Decimal(str(payment_data.get('amount', 0)))
+                            method = payment_data.get('method')
+                            if amount > 0 and method:
+                                # Tenta pegar o perfil profissional do usuário logado
+                                try:
+                                    professional = request.user.professional_profile
+                                except (Professional.DoesNotExist, AttributeError):
+                                    professional = None
+                                    
+                                ServicePayment.objects.create(
+                                    order=task.service_order,
+                                    amount=amount,
+                                    payment_method=method,
+                                    paid_at=task.finished_at or timezone.now(),
+                                    received_by=professional,
+                                    status=ServicePayment.PaymentStatus.PENDING,
+                                    notes="[Sincronizado Offline]: Recebido na finalização da OS"
+                                )
+                        except Exception as pay_err:
+                            print(f"Erro ao salvar pagamento offline: {pay_err}")
+
                     task.save()
                     processed_count += 1
                     
