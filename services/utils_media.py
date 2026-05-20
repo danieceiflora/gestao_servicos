@@ -173,6 +173,7 @@ def _process_video(input_path: str) -> tuple[str, str]:
     crf = int(getattr(settings, 'MEDIA_VIDEO_CRF', DEFAULT_VIDEO_CRF))
     preset = getattr(settings, 'MEDIA_VIDEO_PRESET', DEFAULT_VIDEO_PRESET)
     audio_bitrate = getattr(settings, 'MEDIA_VIDEO_AUDIO_BITRATE', DEFAULT_VIDEO_AUDIO_BITRATE)
+    threads = int(getattr(settings, 'MEDIA_FFMPEG_THREADS', 1))
 
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
         output_path = tmp.name
@@ -182,6 +183,8 @@ def _process_video(input_path: str) -> tuple[str, str]:
         '-y',
         '-i',
         input_path,
+        '-threads',
+        str(max(1, threads)),
         '-vf',
         f"scale='min({max_width},iw)':-2",
         '-c:v',

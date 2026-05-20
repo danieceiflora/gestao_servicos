@@ -203,6 +203,7 @@ MEDIA_VIDEO_MAX_WIDTH = int(os.environ.get('MEDIA_VIDEO_MAX_WIDTH', '1280'))
 MEDIA_VIDEO_CRF = int(os.environ.get('MEDIA_VIDEO_CRF', '28'))
 MEDIA_VIDEO_PRESET = os.environ.get('MEDIA_VIDEO_PRESET', 'medium')
 MEDIA_VIDEO_AUDIO_BITRATE = os.environ.get('MEDIA_VIDEO_AUDIO_BITRATE', '128k')
+MEDIA_FFMPEG_THREADS = int(os.environ.get('MEDIA_FFMPEG_THREADS', '1'))
 
 # Bling Integration
 # O Client Secret pode ser encontrado nas configurações do seu aplicativo no Bling
