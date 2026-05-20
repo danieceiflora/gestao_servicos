@@ -21,6 +21,8 @@ DEFAULT_VIDEO_MAX_WIDTH = 1280
 DEFAULT_VIDEO_CRF = 28
 DEFAULT_VIDEO_PRESET = 'medium'
 DEFAULT_VIDEO_AUDIO_BITRATE = '128k'
+DEFAULT_FFMPEG_NICE = 10
+DEFAULT_FFMPEG_REALTIME = True
 
 
 @dataclass(frozen=True)
@@ -174,13 +176,16 @@ def _process_video(input_path: str) -> tuple[str, str]:
     preset = getattr(settings, 'MEDIA_VIDEO_PRESET', DEFAULT_VIDEO_PRESET)
     audio_bitrate = getattr(settings, 'MEDIA_VIDEO_AUDIO_BITRATE', DEFAULT_VIDEO_AUDIO_BITRATE)
     threads = int(getattr(settings, 'MEDIA_FFMPEG_THREADS', 1))
+    nice_level = int(getattr(settings, 'MEDIA_FFMPEG_NICE', DEFAULT_FFMPEG_NICE))
+    realtime = bool(getattr(settings, 'MEDIA_FFMPEG_REALTIME', DEFAULT_FFMPEG_REALTIME))
 
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp:
         output_path = tmp.name
 
-    command = [
-        'ffmpeg',
-        '-y',
+    command = ['ffmpeg', '-y']
+    if realtime:
+        command.append('-re')
+    command.extend([
         '-i',
         input_path,
         '-threads',
@@ -202,9 +207,15 @@ def _process_video(input_path: str) -> tuple[str, str]:
         '-movflags',
         '+faststart',
         output_path,
-    ]
+    ])
 
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    preexec_fn = None
+    if nice_level > 0 and hasattr(os, 'nice'):
+        def _set_nice():
+            os.nice(nice_level)
+        preexec_fn = _set_nice
+
+    result = subprocess.run(command, capture_output=True, text=True, check=False, preexec_fn=preexec_fn)
     if result.returncode != 0:
         _safe_unlink(output_path)
         error_message = (result.stderr or '').strip() or 'Falha ao processar o vídeo.'

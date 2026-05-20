@@ -34,17 +34,9 @@ const OfflineApp = {
         // 1. Atualiza UI de status (Online/Offline)
         if (typeof OfflineDB !== 'undefined') {
             await OfflineDB.updateUIStatus();
-            
-            // 2. Tenta sincronizar e fazer check-in completo se estiver online
-            if (navigator.onLine) {
-                // Tenta processar fila pendente antes de baixar novos dados
-                await OfflineDB.processSyncQueue();
-                // Faz o bootstrap e prefetch das telas
-                await OfflineDB.realizarCheckInDiario();
-            }
         }
 
-        // 3. Esconde o loading e mostra o app
+        // 2. Esconde o loading e mostra o app
         const loadingEl = document.getElementById('app-loading');
         const mainEl = document.getElementById('app-main');
         if (loadingEl) loadingEl.classList.add('hidden');
@@ -52,8 +44,17 @@ const OfflineApp = {
 
         await this.renderBootstrapError();
 
-        // 4. Renderiza a view inicial com o que tivermos no IndexedDB
+        // 3. Renderiza a view inicial com o que tivermos no IndexedDB
         await this.render();
+
+        // 4. Sincroniza em background após a UI estar visível
+        if (typeof OfflineDB !== 'undefined' && navigator.onLine) {
+            setTimeout(() => {
+                OfflineDB.processSyncQueue()
+                    .catch(err => console.error('Falha na sincronização em background:', err))
+                    .finally(() => OfflineDB.realizarCheckInDiario());
+            }, 200);
+        }
     },
 
     async renderBootstrapError() {

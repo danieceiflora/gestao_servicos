@@ -23,6 +23,8 @@ db.version(5).stores({
 });
 
 const OfflineDB = {
+    _syncInProgress: false,
+    _checkInInProgress: false,
     /**
      * Realiza o bootstrap completo do app do técnico (Nova API)
      * Agora retorna as tarefas para permitir prefetch opcional.
@@ -205,6 +207,8 @@ const OfflineDB = {
      * Agora utiliza o bootstrap unificado.
      */
     async realizarCheckInDiario() {
+        if (this._checkInInProgress) return;
+        this._checkInInProgress = true;
         try {
             console.log('⬇️ Iniciando Check-in Diário...');
             const tasks = await this.bootstrap();
@@ -223,6 +227,8 @@ const OfflineDB = {
 
         } catch (error) {
             console.error('Falha ao realizar o check-in diário:', error);
+        } finally {
+            this._checkInInProgress = false;
         }
     },
 
@@ -247,49 +253,51 @@ const OfflineDB = {
      * Processa a fila de sincronização enviando os itens para o servidor
      */
     async processSyncQueue() {
-        if (!navigator.onLine) return;
-
-        const pendingItems = await db.sync_queue
-            .where('status')
-            .anyOf(['pending', 'error'])
-            .toArray();
-
-        // Feedback visual no botão se ele existir
-        const btnSyncNow = document.getElementById('btn-sync-now');
-        if (btnSyncNow) {
-            const icon = btnSyncNow.querySelector('[data-lucide="refresh-cw"]') || btnSyncNow.querySelector('svg') || btnSyncNow.querySelector('i');
-            if (icon) icon.classList.add('animate-spin');
-            btnSyncNow.disabled = true;
-        }
-
-        if (pendingItems.length === 0) {
-            // Se não há pendências, apenas marcamos que sincronizou com sucesso (nada a enviar)
-            localStorage.setItem('last_sync_timestamp', new Date().toISOString());
-            this.updateUIStatus();
-            
-            if (btnSyncNow) {
-                setTimeout(() => {
-                    const icon = btnSyncNow.querySelector('[data-lucide="refresh-cw"]') || btnSyncNow.querySelector('svg') || btnSyncNow.querySelector('i');
-                    if (icon) icon.classList.remove('animate-spin');
-                    btnSyncNow.disabled = false;
-                }, 500);
-            }
-            return;
-        }
-
-        const syncBadge = document.getElementById('sync-pending-badge');
-        if (syncBadge) {
-            syncBadge.classList.remove('hidden');
-            syncBadge.style.display = 'inline-flex';
-        }
-
-        console.log(`🔄 Sincronizando ${pendingItems.length} pendências...`);
+        if (!navigator.onLine || this._syncInProgress) return;
+        this._syncInProgress = true;
 
         try {
-            let totalSuccess = true;
-            const textChanges = pendingItems.filter(i => i.type !== 'MEDIA_UPLOAD' && i.type !== 'PROPERTY_GPS_UPDATE');
-            const mediaChanges = pendingItems.filter(i => i.type === 'MEDIA_UPLOAD');
-            const gpsChanges = pendingItems.filter(i => i.type === 'PROPERTY_GPS_UPDATE');
+            const pendingItems = await db.sync_queue
+                .where('status')
+                .anyOf(['pending', 'error'])
+                .toArray();
+
+            // Feedback visual no botão se ele existir
+            const btnSyncNow = document.getElementById('btn-sync-now');
+            if (btnSyncNow) {
+                const icon = btnSyncNow.querySelector('[data-lucide="refresh-cw"]') || btnSyncNow.querySelector('svg') || btnSyncNow.querySelector('i');
+                if (icon) icon.classList.add('animate-spin');
+                btnSyncNow.disabled = true;
+            }
+
+            if (pendingItems.length === 0) {
+                // Se não há pendências, apenas marcamos que sincronizou com sucesso (nada a enviar)
+                localStorage.setItem('last_sync_timestamp', new Date().toISOString());
+                this.updateUIStatus();
+                
+                if (btnSyncNow) {
+                    setTimeout(() => {
+                        const icon = btnSyncNow.querySelector('[data-lucide="refresh-cw"]') || btnSyncNow.querySelector('svg') || btnSyncNow.querySelector('i');
+                        if (icon) icon.classList.remove('animate-spin');
+                        btnSyncNow.disabled = false;
+                    }, 500);
+                }
+                return;
+            }
+
+            const syncBadge = document.getElementById('sync-pending-badge');
+            if (syncBadge) {
+                syncBadge.classList.remove('hidden');
+                syncBadge.style.display = 'inline-flex';
+            }
+
+            console.log(`🔄 Sincronizando ${pendingItems.length} pendências...`);
+
+            try {
+                let totalSuccess = true;
+                const textChanges = pendingItems.filter(i => i.type !== 'MEDIA_UPLOAD' && i.type !== 'PROPERTY_GPS_UPDATE');
+                const mediaChanges = pendingItems.filter(i => i.type === 'MEDIA_UPLOAD');
+                const gpsChanges = pendingItems.filter(i => i.type === 'PROPERTY_GPS_UPDATE');
 
             // 1. Envia mudanças de texto em lote
             if (textChanges.length > 0) {
@@ -389,21 +397,24 @@ const OfflineDB = {
                 }
             }
 
-            if (totalSuccess) {
-                localStorage.setItem('last_sync_timestamp', new Date().toISOString());
-            }
+                if (totalSuccess) {
+                    localStorage.setItem('last_sync_timestamp', new Date().toISOString());
+                }
 
+            } finally {
+                if (syncBadge) {
+                    syncBadge.classList.add('hidden');
+                    syncBadge.style.display = 'none';
+                }
+                if (btnSyncNow) {
+                    const icon = btnSyncNow.querySelector('[data-lucide="refresh-cw"]') || btnSyncNow.querySelector('svg') || btnSyncNow.querySelector('i');
+                    if (icon) icon.classList.remove('animate-spin');
+                    btnSyncNow.disabled = false;
+                }
+                this.updateUIStatus();
+            }
         } finally {
-            if (syncBadge) {
-                syncBadge.classList.add('hidden');
-                syncBadge.style.display = 'none';
-            }
-            if (btnSyncNow) {
-                const icon = btnSyncNow.querySelector('[data-lucide="refresh-cw"]') || btnSyncNow.querySelector('svg') || btnSyncNow.querySelector('i');
-                if (icon) icon.classList.remove('animate-spin');
-                btnSyncNow.disabled = false;
-            }
-            this.updateUIStatus();
+            this._syncInProgress = false;
         }
     },
 
