@@ -1,5 +1,6 @@
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
+from django.core.files import File
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from .models import (
@@ -8,6 +9,7 @@ from .models import (
     TaskChecklistResponse, ServiceItem, ServicePayment, Occurrence,
     ServiceMedia
 )
+from .utils_media import process_uploaded_media, cleanup_processed_media
 from integracoes.models import SystemConfig
 import uuid
 import json
@@ -360,24 +362,33 @@ def api_tecnico_upload_media(request, task_id):
         
         if not file:
             return JsonResponse({'error': 'Nenhum arquivo enviado'}, status=400)
-            
-        # Se houver uma resposta de checklist, salva na tabela de checklist
-        if response_id and response_id != 'null':
-            from .models import ChecklistResponseMedia, TaskChecklistResponse
-            response = get_object_or_404(TaskChecklistResponse, id=response_id)
-            media = ChecklistResponseMedia.objects.create(
-                response=response,
-                file=file
-            )
-            return JsonResponse({'success': True, 'media_id': media.id, 'type': 'checklist'})
-        
-        # Caso contrário, salva como mídia geral da task
-        media = ServiceMedia.objects.create(
-            task=task,
-            file=file
-        )
-        
-        return JsonResponse({'success': True, 'media_id': media.id, 'type': 'task'})
+
+        processed = process_uploaded_media(file)
+        try:
+            with open(processed.output_path, 'rb') as processed_handle:
+                processed_file = File(processed_handle, name=processed.output_name)
+
+                # Se houver uma resposta de checklist, salva na tabela de checklist
+                if response_id and response_id != 'null':
+                    from .models import ChecklistResponseMedia, TaskChecklistResponse
+                    response = get_object_or_404(TaskChecklistResponse, id=response_id)
+                    media = ChecklistResponseMedia.objects.create(
+                        response=response,
+                        file=processed_file
+                    )
+                    return JsonResponse({'success': True, 'media_id': media.id, 'type': 'checklist'})
+
+                # Caso contrário, salva como mídia geral da task
+                media = ServiceMedia.objects.create(
+                    task=task,
+                    file=processed_file
+                )
+
+                return JsonResponse({'success': True, 'media_id': media.id, 'type': 'task'})
+        finally:
+            cleanup_processed_media(processed)
+    except (ValueError, RuntimeError) as e:
+        return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
         import traceback
         print(traceback.format_exc())

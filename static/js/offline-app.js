@@ -449,17 +449,36 @@ const OfflineApp = {
         const btnAddVideo = tplDetail.querySelector('#btn-add-video');
         const mediaContainer = tplDetail.querySelector('#task-media-container');
         const btnAddOccurrence = tplDetail.querySelector('#btn-add-occurrence');
+        const btnAddOccurrencePre = tplDetail.querySelector('#btn-add-occurrence-pre');
         const occurrenceList = tplDetail.querySelector('#occurrence-list');
+        const occurrencesSection = tplDetail.querySelector('#occurrences-section-card');
+
+        const isCompleted = task.status === 'COMPLETED';
+
+        // --- Ocorrências (Sempre processado) ---
+        const occCount = await this.renderOccurrences(occurrenceList, taskId);
+        if (isCompleted && occCount === 0) {
+            if (occurrencesSection) occurrencesSection.classList.add('hidden');
+        } else if (occurrencesSection) {
+            occurrencesSection.classList.remove('hidden');
+        }
+
+        if (!isCompleted) {
+            if (btnAddOccurrence) btnAddOccurrence.onclick = () => this.openOccurrenceModal(taskId);
+            if (btnAddOccurrencePre) btnAddOccurrencePre.onclick = () => this.openOccurrenceModal(taskId);
+        } else {
+            if (btnAddOccurrence) btnAddOccurrence.classList.add('hidden');
+            if (btnAddOccurrencePre) btnAddOccurrencePre.classList.add('hidden');
+        }
 
         if (task.status === 'SCHEDULED') {
             startSection.classList.remove('hidden');
             activeSection.classList.add('hidden');
             btnStart.onclick = () => this.startTask(taskId);
         } else if (task.status === 'IN_PROGRESS' || task.status === 'COMPLETED') {
-            const isCompleted = task.status === 'COMPLETED';
             startSection.classList.add('hidden');
             
-            // A seção ativa contém Checklist, Mídias e Ocorrências, que devem ser visíveis para revisão
+            // A seção ativa contém Checklist e Mídias
             activeSection.classList.remove('hidden');
             
             if (isCompleted) {
@@ -545,18 +564,6 @@ const OfflineApp = {
                 btnAddMedia.classList.add('hidden');
                 btnAddVideo.classList.add('hidden');
             }
-            
-            // Ocorrências
-            const occCount = await this.renderOccurrences(occurrenceList, taskId);
-            const occSection = tplDetail.querySelector('#occurrences-section-card');
-            if (isCompleted && occCount === 0) {
-                occSection.classList.add('hidden');
-            } else {
-                occSection.classList.remove('hidden');
-            }
-
-            if (!isCompleted) btnAddOccurrence.onclick = () => this.openOccurrenceModal(taskId);
-            else btnAddOccurrence.classList.add('hidden');
 
             // Finalização
             if (!isCompleted) {
@@ -770,16 +777,61 @@ const OfflineApp = {
         return map[type] || type;
     },
 
-    openOccurrenceModal(taskId) {
+    async openOccurrenceModal(taskId) {
         const modal = document.getElementById('modal-occurrence');
         modal.classList.remove('hidden');
         modal.classList.add('flex');
 
         document.getElementById('occ-description').value = '';
         
-        document.getElementById('btn-close-occurrence').onclick = () => modal.classList.add('hidden');
+        // --- Gestão de Mídias Temporárias para a nova Ocorrência ---
+        const tempId = `temp_${Date.now()}`;
+        this.state.currentOccurrenceId = tempId;
+        
+        await this.refreshOccurrenceMediaGrid(taskId, tempId);
+
+        document.getElementById('btn-close-occurrence').onclick = async () => {
+            await this.cleanupTempMedia(taskId, tempId);
+            modal.classList.add('hidden');
+        };
         document.getElementById('btn-confirm-occurrence').onclick = () => this.confirmOccurrence(taskId);
         
+        if (window.lucide) lucide.createIcons();
+    },
+
+    async cleanupTempMedia(taskId, tempId) {
+        const media = await db.media.where('task_id').equals(taskId).and(m => String(m.occurrence_id) === String(tempId)).toArray();
+        for (const m of media) {
+            await db.media.delete(m.id);
+            // Também remove da fila de sincronização
+            const pending = await db.sync_queue.where('type').equals('MEDIA_UPLOAD').and(q => q.payload.media_id === m.id).toArray();
+            for (const q of pending) await db.sync_queue.delete(q.id);
+        }
+        if (typeof OfflineDB !== 'undefined') OfflineDB.updateUIStatus();
+    },
+
+    async refreshOccurrenceMediaGrid(taskId, tempId) {
+        const grid = document.getElementById('occ-media-grid');
+        if (!grid) return;
+        
+        await this.renderOfflineMedia(grid, taskId, null, tempId);
+        
+        // Re-insere o botão de adicionar ao final do grid
+        const btn = document.createElement('button');
+        btn.id = 'btn-occ-add-media';
+        btn.className = 'aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50 transition-all group';
+        btn.innerHTML = `
+            <i data-lucide="plus" class="h-6 w-6 group-hover:scale-110 transition-transform"></i>
+            <span class="text-[10px] font-bold uppercase tracking-tighter">Adicionar</span>
+        `;
+        btn.onclick = () => this.captureMedia(taskId, null, grid, tempId);
+        grid.appendChild(btn);
+        
+        // Atualiza contador no cabeçalho da seção
+        const count = await db.media.where('task_id').equals(taskId).and(m => String(m.occurrence_id) === String(tempId)).count();
+        const countEl = document.getElementById('occ-media-count');
+        if (countEl) countEl.textContent = `${count} mídias`;
+
         if (window.lucide) lucide.createIcons();
     },
 
@@ -793,6 +845,8 @@ const OfflineApp = {
             return;
         }
 
+        const tempId = this.state.currentOccurrenceId;
+
         const occId = await db.occurrences.add({
             task_id: taskId,
             category,
@@ -801,12 +855,29 @@ const OfflineApp = {
             status: 'REGISTERED'
         });
 
+        // --- Vincula mídias temporárias à ocorrência real ---
+        if (tempId) {
+            const media = await db.media.where('occurrence_id').equals(tempId).toArray();
+            for (const m of media) {
+                await db.media.update(m.id, { occurrence_id: occId });
+                // Atualiza a fila de sincronização
+                const pending = await db.sync_queue.where('type').equals('MEDIA_UPLOAD').toArray();
+                for (const q of pending) {
+                    if (q.payload.media_id === m.id) {
+                        q.payload.occurrence_id = occId;
+                        await db.sync_queue.put(q);
+                    }
+                }
+            }
+        }
+
         await OfflineDB.enqueueSyncItem('OCCURRENCE_CREATE', {
             task_id: taskId,
-            data: { category, occurrence_type: type, description }
+            data: { category, occurrence_type: type, description, local_occurrence_id: occId }
         });
 
         document.getElementById('modal-occurrence').classList.add('hidden');
+        this.state.currentOccurrenceId = null;
         
         // Re-renderiza a seção de ocorrências
         const occurrenceList = document.getElementById('occurrence-list');
@@ -857,7 +928,11 @@ const OfflineApp = {
                 occurrence_id: occurrenceId || null
             });
 
-            this.renderOfflineMedia(previewContainer, taskId, responseId, occurrenceId);
+            if (occurrenceId && String(occurrenceId).startsWith('temp_')) {
+                await this.refreshOccurrenceMediaGrid(taskId, occurrenceId);
+            } else {
+                this.renderOfflineMedia(previewContainer, taskId, responseId, occurrenceId);
+            }
         };
         input.click();
     },
@@ -951,7 +1026,11 @@ const OfflineApp = {
             });
         }
 
-        this.renderOfflineMedia(previewContainer, taskId, responseId, occurrenceId);
+        if (occurrenceId && String(occurrenceId).startsWith('temp_')) {
+            await this.refreshOccurrenceMediaGrid(taskId, occurrenceId);
+        } else {
+            this.renderOfflineMedia(previewContainer, taskId, responseId, occurrenceId);
+        }
         this.closeCamera();
     },
 
@@ -1052,7 +1131,11 @@ const OfflineApp = {
         }
 
         // Re-render
-        this.renderOfflineMedia(container, taskId, responseId, occurrenceId);
+        if (occurrenceId && String(occurrenceId).startsWith('temp_')) {
+            await this.refreshOccurrenceMediaGrid(taskId, occurrenceId);
+        } else {
+            this.renderOfflineMedia(container, taskId, responseId, occurrenceId);
+        }
     },
 
     // Sprint UX: Visualizador tela cheia pra validar qualidade de imagem tirada e evitar frustrações

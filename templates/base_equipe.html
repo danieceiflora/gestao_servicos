@@ -14,9 +14,16 @@
                 </div>
             <div class="flex flex-col">
                 <span class="text-sm font-bold tracking-tight text-slate-900 leading-none">App do Técnico</span>
-                <!-- Indicador Online/Offline -->
-                <div id="online-status-indicator" class="text-[10px] font-medium text-slate-400 flex items-center gap-1.5 mt-0.5">
-                    <span class="flex h-1.5 w-1.5 rounded-full bg-slate-300"></span> Verificando...
+                <!-- Indicadores de Status e Sincronismo -->
+                <div class="flex items-center gap-2 mt-1">
+                    <div id="online-status-indicator" class="text-[10px] font-medium text-slate-400 flex items-center gap-1.5">
+                        <span class="flex h-1.5 w-1.5 rounded-full bg-slate-300"></span> Verificando...
+                    </div>
+                    <div id="last-sync-time" class="hidden text-[10px] font-bold text-slate-400 uppercase tracking-widest border-l border-slate-200 pl-2"></div>
+                    <div id="sync-pending-badge" class="hidden items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-[9px] font-black text-white shadow-sm shadow-blue-200 animate-in zoom-in duration-300">
+                        <i data-lucide="refresh-cw" class="h-2 w-2 animate-spin"></i>
+                        <span class="count">0</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -27,7 +34,7 @@
                 <a href="{% url 'equipe_dashboard' %}" class="text-sm font-medium flex items-center gap-2 {% if request.resolver_match.url_name == 'equipe_dashboard' %}text-blue-600{% else %}text-slate-500{% endif %} hover:text-blue-600 transition-colors">
                     <i data-lucide="layout-dashboard" class="h-4 w-4"></i> Início
                 </a>
-                <a href="{% url 'equipe_task_list' %}" class="text-sm font-medium flex items-center gap-2 {% if 'equipe_task' in request.resolver_match.url_name %}text-blue-600{% else %}text-slate-500{% endif %} hover:text-blue-600 transition-colors">
+                <a href="{% url 'equipe_offline_app' %}" class="text-sm font-medium flex items-center gap-2 {% if 'equipe_task' in request.resolver_match.url_name or 'equipe_offline_app' == request.resolver_match.url_name %}text-blue-600{% else %}text-slate-500{% endif %} hover:text-blue-600 transition-colors">
                     <i data-lucide="hammer" class="h-4 w-4"></i> Serviços
                 </a>
                 <a href="{% url 'service_order_calendar' %}" class="text-sm font-medium flex items-center gap-2 {% if 'calendar' in request.resolver_match.url_name %}text-blue-600{% else %}text-slate-500{% endif %} hover:text-blue-600 transition-colors">
@@ -63,8 +70,8 @@
     <nav class="md:hidden fixed bottom-0 left-0 z-50 w-full bg-white border-t border-slate-200 safe-area-bottom shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <div class="grid h-16 grid-cols-3 items-center justify-around relative divide-x divide-slate-100">
             
-            <a href="{% url 'equipe_task_list' %}" class="flex flex-col items-center justify-center gap-1.5 h-full {% if 'equipe_task' in request.resolver_match.url_name %}text-blue-600{% else %}text-slate-400{% endif %} hover:text-blue-600 transition-colors">
-                <i data-lucide="hammer" class="h-5 w-5 {% if 'equipe_task' in request.resolver_match.url_name %}fill-blue-50/50{% endif %}"></i>
+            <a href="{% url 'equipe_offline_app' %}" class="flex flex-col items-center justify-center gap-1.5 h-full {% if 'equipe_task' in request.resolver_match.url_name or 'equipe_offline_app' == request.resolver_match.url_name %}text-blue-600{% else %}text-slate-400{% endif %} hover:text-blue-600 transition-colors">
+                <i data-lucide="hammer" class="h-5 w-5 {% if 'equipe_task' in request.resolver_match.url_name or 'equipe_offline_app' == request.resolver_match.url_name %}fill-blue-50/50{% endif %}"></i>
                 <span class="text-[10px] font-bold tracking-wide uppercase">Serviços</span>
             </a>
 

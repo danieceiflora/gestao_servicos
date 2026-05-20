@@ -17,6 +17,7 @@ ENV PYTHONUNBUFFERED=1
 # Instala dependências do sistema
 RUN apt-get update && apt-get install -y \
     build-essential \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala dependências do Python

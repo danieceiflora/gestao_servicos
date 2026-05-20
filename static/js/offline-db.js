@@ -364,6 +364,7 @@ const OfflineDB = {
                     const formData = new FormData();
                     formData.append('file', mediaRecord.blob);
                     formData.append('response_id', item.payload.response_id || '');
+                    formData.append('occurrence_id', item.payload.occurrence_id || '');
 
                     const response = await fetch(`/api/tecnico/etapa/${item.payload.task_id}/upload-media/`, {
                         method: 'POST',
@@ -425,22 +426,24 @@ const OfflineDB = {
      * Atualiza elementos da interface sobre o status de sincronização
      */
     async updateUIStatus() {
-        const syncBadge = document.getElementById('sync-pending-badge');
-        const btnSyncNow = document.getElementById('btn-sync-now');
-        const onlineIndicator = document.getElementById('online-status-indicator');
-        const lastSyncDisplay = document.getElementById('last-sync-time');
+        const syncBadges = document.querySelectorAll('#sync-pending-badge');
+        const btnSyncNows = document.querySelectorAll('#btn-sync-now');
+        const onlineIndicators = document.querySelectorAll('#online-status-indicator');
+        const lastSyncDisplays = document.querySelectorAll('#last-sync-time');
         
-        if (onlineIndicator) {
-            if (navigator.onLine) {
+        const isOnline = navigator.onLine;
+
+        onlineIndicators.forEach(onlineIndicator => {
+            if (isOnline) {
                 onlineIndicator.innerHTML = '<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-[10px] font-bold text-emerald-600 border border-emerald-100 uppercase tracking-wider"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Online</div>';
             } else {
                 onlineIndicator.innerHTML = '<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-[10px] font-bold text-amber-600 border border-amber-100 uppercase tracking-wider animate-pulse"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> Offline</div>';
             }
-        }
+        });
 
         // Atualiza horário da última sincronização
-        if (lastSyncDisplay) {
-            const lastSync = localStorage.getItem('last_sync_timestamp');
+        const lastSync = localStorage.getItem('last_sync_timestamp');
+        lastSyncDisplays.forEach(lastSyncDisplay => {
             if (lastSync) {
                 const date = new Date(lastSync);
                 const hours = String(date.getHours()).padStart(2, '0');
@@ -450,7 +453,7 @@ const OfflineDB = {
             } else {
                 lastSyncDisplay.classList.add('hidden');
             }
-        }
+        });
 
         const pendingCount = await db.sync_queue
             .where('status')
@@ -462,21 +465,22 @@ const OfflineDB = {
             .equals('error')
             .count();
 
-        if (syncBadge) {
+        syncBadges.forEach(syncBadge => {
             if (pendingCount > 0) {
-                syncBadge.querySelector('.count').textContent = pendingCount;
+                const countEl = syncBadge.querySelector('.count');
+                if (countEl) countEl.textContent = pendingCount;
                 syncBadge.classList.remove('hidden');
                 syncBadge.style.display = 'inline-flex';
             } else {
                 syncBadge.classList.add('hidden');
                 syncBadge.style.display = 'none';
             }
-        }
+        });
 
-        if (btnSyncNow) {
+        btnSyncNows.forEach(btnSyncNow => {
             btnSyncNow.onclick = () => this.processSyncQueue();
             
-            if (!navigator.onLine) {
+            if (!isOnline) {
                 btnSyncNow.classList.add('opacity-50', 'pointer-events-none');
             } else {
                 btnSyncNow.classList.remove('opacity-50', 'pointer-events-none');
@@ -489,7 +493,7 @@ const OfflineDB = {
                 btnSyncNow.classList.remove('border-amber-200', 'bg-amber-50', 'text-amber-600');
                 btnSyncNow.classList.add('border-slate-200', 'bg-white', 'text-slate-600');
             }
-        }
+        });
     }
 };
 
@@ -501,5 +505,10 @@ window.addEventListener('online', () => {
 });
 
 window.addEventListener('offline', () => {
+    OfflineDB.updateUIStatus();
+});
+
+// Inicialização automática do status da interface
+document.addEventListener('DOMContentLoaded', () => {
     OfflineDB.updateUIStatus();
 });

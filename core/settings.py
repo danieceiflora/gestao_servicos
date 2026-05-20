@@ -196,6 +196,14 @@ VAPID_ADMIN_EMAIL = 'admin@douradoscalhas.com.br'
 DATA_UPLOAD_MAX_MEMORY_SIZE = 220200960
 FILE_UPLOAD_MAX_MEMORY_SIZE = 220200960
 
+# Configurações de compressão de mídia (upload offline)
+MEDIA_IMAGE_MAX_DIMENSION = int(os.environ.get('MEDIA_IMAGE_MAX_DIMENSION', '1920'))
+MEDIA_IMAGE_QUALITY = int(os.environ.get('MEDIA_IMAGE_QUALITY', '82'))
+MEDIA_VIDEO_MAX_WIDTH = int(os.environ.get('MEDIA_VIDEO_MAX_WIDTH', '1280'))
+MEDIA_VIDEO_CRF = int(os.environ.get('MEDIA_VIDEO_CRF', '28'))
+MEDIA_VIDEO_PRESET = os.environ.get('MEDIA_VIDEO_PRESET', 'medium')
+MEDIA_VIDEO_AUDIO_BITRATE = os.environ.get('MEDIA_VIDEO_AUDIO_BITRATE', '128k')
+
 # Bling Integration
 # O Client Secret pode ser encontrado nas configurações do seu aplicativo no Bling
 BLING_CLIENT_SECRET = None

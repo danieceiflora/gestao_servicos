@@ -33,7 +33,7 @@ urlpatterns = [
     path('api/equipe/agenda-do-dia/', views_equipe.api_equipe_agenda_do_dia, name='api_equipe_agenda_do_dia'),
     
     # --- API OFFLINE-FIRST ---
-    path('equipe/app/', views_offline.equipe_offline_app, name='equipe_offline_app'),
+    path('app/', views_offline.equipe_offline_app, name='equipe_offline_app'),
     path('api/tecnico/bootstrap/', views_offline.api_tecnico_bootstrap, name='api_tecnico_bootstrap'),
     path('api/tecnico/sync/pull/', views_offline.api_tecnico_sync_pull, name='api_tecnico_sync_pull'),
     path('api/tecnico/sync/push/', views_offline.api_tecnico_sync_push, name='api_tecnico_sync_push'),

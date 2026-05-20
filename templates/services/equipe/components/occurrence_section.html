@@ -1,0 +1,21 @@
+<div id="occurrences-section-card" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <button class="w-full flex items-center justify-between p-5 text-left transition-colors hover:bg-slate-50" onclick="this.nextElementSibling.classList.toggle('hidden')">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
+                <i data-lucide="alert-triangle" class="h-4 w-4 text-slate-600"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-bold text-slate-800">Ocorrências</h3>
+                <p class="text-[10px] text-slate-400 font-medium">Problemas ou avisos</p>
+            </div>
+        </div>
+        <i data-lucide="chevron-down" class="h-4 w-4 text-slate-400"></i>
+    </button>
+    <div id="occurrences-container" class="px-5 pb-5 space-y-3 hidden">
+        <!-- Lista de ocorrências -->
+        <div id="occurrence-list" class="space-y-2 mb-4"></div>
+        <button id="btn-add-occurrence" class="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-50 border border-slate-100 p-4 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all">
+            <i data-lucide="plus-circle" class="h-4 w-4"></i> Registrar Ocorrência
+        </button>
+    </div>
+</div>
