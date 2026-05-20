@@ -37,7 +37,7 @@ def equipe_dashboard(request):
         status=ServiceOrderTask.TaskStatus.CANCELLED
     ).filter(
         scheduled_at__date=today
-    ).order_by('scheduled_at')
+    ).order_by('-scheduled_at')
 
     total_today = tasks_qs.count()
     completed_today = tasks_qs.filter(
@@ -60,7 +60,8 @@ def equipe_dashboard(request):
     open_tasks = tasks_qs.exclude(
         Q(status=ServiceOrderTask.TaskStatus.COMPLETED) | Q(finished_at__isnull=False)
     )
-    next_task = open_tasks.filter(scheduled_at__gte=now).first() or open_tasks.first()
+    # Garantir que a próxima tarefa seja a mais próxima do horário atual (ordem crescente para este cálculo)
+    next_task = open_tasks.order_by('scheduled_at').filter(scheduled_at__gte=now).first() or open_tasks.order_by('scheduled_at').first()
 
     completion_rate = int(round((completed_today / total_today) * 100)) if total_today else 0
 
@@ -545,7 +546,7 @@ def api_equipe_agenda_do_dia(request):
         'service_order',
         'service_order__client_property',
         'service_order__client_property__client'
-    ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED).distinct()
+    ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED).distinct().order_by('-scheduled_at')
 
     data = {
         'date': today.isoformat(),

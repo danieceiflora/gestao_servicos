@@ -207,7 +207,7 @@ const OfflineApp = {
         listCompleted.innerHTML = '';
         
         // Busca tarefas
-        let tasks = await db.tasks.orderBy('scheduled_at').toArray();
+        let tasks = await db.tasks.orderBy('scheduled_at').reverse().toArray();
         
         // Aplicar filtros
         if (this.state.filters.hideCompleted) {

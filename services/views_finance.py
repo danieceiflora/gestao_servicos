@@ -5,6 +5,7 @@ from django.db.models import Sum, Q, F
 from django.utils import timezone
 from django.core.paginator import Paginator
 from decimal import Decimal
+from datetime import datetime
 from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment
 from django.http import HttpResponse
 import csv
@@ -28,12 +29,19 @@ def finance_dashboard(request):
     year = int(request.GET.get('year', now.year))
     professional_id = request.GET.get('professional')
 
+    tz = timezone.get_current_timezone()
+    start_of_month = timezone.make_aware(datetime(year, month, 1), tz)
+    if month == 12:
+        end_of_month = timezone.make_aware(datetime(year + 1, 1, 1), tz)
+    else:
+        end_of_month = timezone.make_aware(datetime(year, month + 1, 1), tz)
+
     # Query allocations for completed executions in the selected period
     allocations = ServiceOrderTeam.objects.filter(
         task__task_type=ServiceOrderTask.TaskType.EXECUTION,
         task__status=ServiceOrderTask.TaskStatus.COMPLETED,
-        task__finished_at__month=month,
-        task__finished_at__year=year
+        task__finished_at__gte=start_of_month,
+        task__finished_at__lt=end_of_month
     ).select_related('task__service_order', 'professional', 'role').order_by('professional__name', 'task__finished_at')
 
     if professional_id:
