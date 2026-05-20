@@ -387,6 +387,11 @@ const OfflineDB = {
                         await db.media.update(mediaRecord.id, { status: 'synced' });
                         await db.sync_queue.delete(item.id);
                         console.log(`📸 Foto ${mediaRecord.id} enviada com sucesso.`);
+                    } else if (response.status === 429) {
+                        totalSuccess = false;
+                        await db.sync_queue.update(item.id, { status: 'pending' });
+                        console.warn('Servidor ocupado processando mídia. Reagendando upload.');
+                        break;
                     } else {
                         totalSuccess = false;
                         await db.sync_queue.update(item.id, { status: 'error' });

@@ -1,15 +1,17 @@
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
-from django.core.files import File
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from .models import (
     Professional, ServiceOrderTask, ServiceOrder, Client, Property,
     Service, Product, ChecklistTemplate, ServiceChecklistItem,
     TaskChecklistResponse, ServiceItem, ServicePayment, Occurrence,
-    ServiceMedia
+    MediaProcessingJob
 )
-from .utils_media import process_uploaded_media, cleanup_processed_media
+from .utils_media import (
+    MediaProcessingBusyError,
+    save_upload_for_processing,
+)
 from integracoes.models import SystemConfig
 import uuid
 import json
@@ -363,30 +365,33 @@ def api_tecnico_upload_media(request, task_id):
         if not file:
             return JsonResponse({'error': 'Nenhum arquivo enviado'}, status=400)
 
-        processed = process_uploaded_media(file)
-        try:
-            with open(processed.output_path, 'rb') as processed_handle:
-                processed_file = File(processed_handle, name=processed.output_name)
+        response = None
+        if response_id and response_id != 'null':
+            response = get_object_or_404(TaskChecklistResponse, id=response_id)
 
-                # Se houver uma resposta de checklist, salva na tabela de checklist
-                if response_id and response_id != 'null':
-                    from .models import ChecklistResponseMedia, TaskChecklistResponse
-                    response = get_object_or_404(TaskChecklistResponse, id=response_id)
-                    media = ChecklistResponseMedia.objects.create(
-                        response=response,
-                        file=processed_file
-                    )
-                    return JsonResponse({'success': True, 'media_id': media.id, 'type': 'checklist'})
+        occurrence_id = request.POST.get('occurrence_id')
+        occurrence = None
+        if occurrence_id and occurrence_id != 'null':
+            occurrence = get_object_or_404(Occurrence, id=occurrence_id)
 
-                # Caso contrário, salva como mídia geral da task
-                media = ServiceMedia.objects.create(
-                    task=task,
-                    file=processed_file
-                )
+        raw_path, file_info = save_upload_for_processing(file)
 
-                return JsonResponse({'success': True, 'media_id': media.id, 'type': 'task'})
-        finally:
-            cleanup_processed_media(processed)
+        job = MediaProcessingJob.objects.create(
+            task=task,
+            response=response,
+            occurrence=occurrence,
+            raw_path=raw_path,
+            original_name=file_info.name,
+            content_type=file_info.content_type,
+            status=MediaProcessingJob.Status.PENDING,
+        )
+
+        return JsonResponse(
+            {'success': True, 'job_id': job.id, 'queued': True},
+            status=202
+        )
+    except MediaProcessingBusyError as e:
+        return JsonResponse({'error': str(e)}, status=429)
     except (ValueError, RuntimeError) as e:
         return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:

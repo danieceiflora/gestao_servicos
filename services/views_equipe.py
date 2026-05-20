@@ -9,9 +9,11 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .notifications import send_push_notification
 from .models import (
-    Service, ServiceOrder, ServiceOrderTask, ServiceMedia, Professional, 
-    Occurrence, Property, ServiceChecklistItem, TaskChecklistResponse
+    Service, ServiceOrder, ServiceOrderTask, ServiceMedia, Professional,
+    Occurrence, Property, ServiceChecklistItem, TaskChecklistResponse,
+    MediaProcessingJob
 )
+from .utils_media import save_upload_for_processing
 
 def get_collaborator_tasks(user):
     """Retorna apenas as etapas (tasks) em que o usuário logado está alocado."""
@@ -298,7 +300,6 @@ def equipe_task_finish(request, task_id):
 @login_required
 def equipe_task_checklist_update(request, task_id):
     """Atualiza um item específico do checklist via POST/AJAX. Agora suporta múltiplas mídias."""
-    from .models import ChecklistResponseMedia
     tasks_qs = get_collaborator_tasks(request.user)
     task = get_object_or_404(tasks_qs, id=task_id)
     
@@ -308,6 +309,7 @@ def equipe_task_checklist_update(request, task_id):
         item = response.item
         
         completed = request.POST.get('completed') == 'true' or request.POST.get('completed') == 'on'
+        queued = False
         
         # Atualiza texto se houver
         if item.evidence_type == ServiceChecklistItem.EvidenceType.TEXT:
@@ -318,10 +320,16 @@ def equipe_task_checklist_update(request, task_id):
             file_key = 'photo' if item.evidence_type == ServiceChecklistItem.EvidenceType.PHOTO else 'video'
             if file_key in request.FILES:
                 try:
-                    ChecklistResponseMedia.objects.create(
+                    raw_path, file_info = save_upload_for_processing(request.FILES[file_key])
+                    MediaProcessingJob.objects.create(
+                        task=task,
                         response=response,
-                        file=request.FILES[file_key]
+                        raw_path=raw_path,
+                        original_name=file_info.name,
+                        content_type=file_info.content_type,
+                        status=MediaProcessingJob.Status.PENDING,
                     )
+                    queued = True
                 except Exception as e:
                     import logging
                     logging.error(f"Erro ao salvar midia do checklist no Cloud/R2: {e}")
@@ -333,7 +341,7 @@ def equipe_task_checklist_update(request, task_id):
         response.save()
         
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-            return JsonResponse({'success': True, 'completed': response.completed})
+            return JsonResponse({'success': True, 'completed': response.completed, 'queued': queued})
             
         messages.success(request, 'Check-list atualizado!')
     
@@ -374,9 +382,18 @@ def equipe_task_add_media(request, task_id):
         files = request.FILES.getlist('files')
         if files:
             try:
+                queued_count = 0
                 for file in files:
-                    ServiceMedia.objects.create(task=task, file=file)
-                messages.success(request, f'{len(files)} arquivo(s) anexado(s) com sucesso!')
+                    raw_path, file_info = save_upload_for_processing(file)
+                    MediaProcessingJob.objects.create(
+                        task=task,
+                        raw_path=raw_path,
+                        original_name=file_info.name,
+                        content_type=file_info.content_type,
+                        status=MediaProcessingJob.Status.PENDING,
+                    )
+                    queued_count += 1
+                messages.success(request, f'{queued_count} arquivo(s) enviados para processamento.')
             except Exception as e:
                 import logging
                 logging.error(f"Erro ao salvar midia no Cloud/R2: {e}")
@@ -392,7 +409,7 @@ def equipe_task_add_media(request, task_id):
             
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
         from django.http import JsonResponse
-        return JsonResponse({'success': True})
+        return JsonResponse({'success': True, 'queued': True})
     return redirect('equipe_task_detail', task_id=task.id)
 
 @login_required
@@ -437,7 +454,15 @@ def equipe_task_add_occurrence(request, task_id):
                 files = request.FILES.getlist('files')
                 if files:
                     for file in files:
-                        ServiceMedia.objects.create(task=task, occurrence=occurrence, file=file)
+                        raw_path, file_info = save_upload_for_processing(file)
+                        MediaProcessingJob.objects.create(
+                            task=task,
+                            occurrence=occurrence,
+                            raw_path=raw_path,
+                            original_name=file_info.name,
+                            content_type=file_info.content_type,
+                            status=MediaProcessingJob.Status.PENDING,
+                        )
             except Exception as e:
                 import logging
                 logging.error(f"Erro ao salvar ocorrencia ou midia no Cloud/R2: {e}")

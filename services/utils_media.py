@@ -1,8 +1,10 @@
+import errno
 import logging
 import os
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +25,7 @@ DEFAULT_VIDEO_PRESET = 'medium'
 DEFAULT_VIDEO_AUDIO_BITRATE = '128k'
 DEFAULT_FFMPEG_NICE = 10
 DEFAULT_FFMPEG_REALTIME = True
+DEFAULT_MEDIA_LOCK_TIMEOUT = 0
 
 
 @dataclass(frozen=True)
@@ -35,21 +38,140 @@ class ProcessedMedia:
     output_size: int
 
 
+@dataclass(frozen=True)
+class MediaFileInfo:
+    name: str
+    content_type: str
+    size: int
+
+
+class MediaProcessingBusyError(RuntimeError):
+    pass
+
+
+class MediaProcessingLock:
+    def __init__(self, timeout_seconds: int) -> None:
+        self._timeout_seconds = max(0, int(timeout_seconds))
+        self._file_handle = None
+
+    def __enter__(self):
+        lock_path = getattr(settings, 'MEDIA_PROCESSING_LOCK_PATH', None)
+        if not lock_path:
+            lock_path = os.path.join(tempfile.gettempdir(), 'media_processing.lock')
+
+        lock_dir = os.path.dirname(lock_path)
+        if lock_dir:
+            os.makedirs(lock_dir, exist_ok=True)
+        self._file_handle = open(lock_path, 'a+')
+
+        start = time.time()
+        while True:
+            try:
+                self._acquire_lock(self._file_handle)
+                return self
+            except BlockingIOError:
+                if self._timeout_seconds == 0 or (time.time() - start) >= self._timeout_seconds:
+                    self._file_handle.close()
+                    self._file_handle = None
+                    raise MediaProcessingBusyError(
+                        'Servidor ocupado processando outra mídia. Tente novamente em instantes.'
+                    )
+                time.sleep(0.2)
+            except OSError as exc:
+                if exc.errno in (errno.EACCES, errno.EAGAIN):
+                    if self._timeout_seconds == 0 or (time.time() - start) >= self._timeout_seconds:
+                        self._file_handle.close()
+                        self._file_handle = None
+                        raise MediaProcessingBusyError(
+                            'Servidor ocupado processando outra mídia. Tente novamente em instantes.'
+                        )
+                    time.sleep(0.2)
+                else:
+                    self._file_handle.close()
+                    self._file_handle = None
+                    raise
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._file_handle:
+            self._release_lock(self._file_handle)
+            self._file_handle.close()
+            self._file_handle = None
+        return False
+
+    @staticmethod
+    def _acquire_lock(file_handle):
+        if os.name == 'nt':
+            import msvcrt
+            msvcrt.locking(file_handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(file_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    @staticmethod
+    def _release_lock(file_handle):
+        if os.name == 'nt':
+            import msvcrt
+            msvcrt.locking(file_handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(file_handle.fileno(), fcntl.LOCK_UN)
+
+
+def media_processing_lock() -> MediaProcessingLock:
+    timeout = int(getattr(settings, 'MEDIA_PROCESSING_LOCK_TIMEOUT', DEFAULT_MEDIA_LOCK_TIMEOUT))
+    return MediaProcessingLock(timeout)
+
+
 def process_uploaded_media(uploaded_file) -> ProcessedMedia:
     input_path = _write_upload_to_temp(uploaded_file)
+    file_info = _build_file_info(
+        name=getattr(uploaded_file, 'name', ''),
+        content_type=getattr(uploaded_file, 'content_type', ''),
+        size=getattr(uploaded_file, 'size', 0),
+    )
     try:
-        kind = _detect_media_kind(uploaded_file, input_path)
-        if kind == 'image':
-            output_path, content_type = _process_image(input_path)
-        elif kind == 'video':
-            output_path, content_type = _process_video(input_path)
-        else:
-            raise ValueError('Tipo de arquivo não suportado para processamento.')
+        return process_media_path(input_path, file_info)
     finally:
         _safe_unlink(input_path)
 
+
+def cleanup_processed_media(processed: ProcessedMedia) -> None:
+    _safe_unlink(processed.output_path)
+
+
+def save_upload_for_processing(uploaded_file) -> tuple[str, MediaFileInfo]:
+    processing_root = getattr(settings, 'MEDIA_PROCESSING_ROOT', None)
+    if not processing_root:
+        processing_root = os.path.join(str(getattr(settings, 'MEDIA_ROOT', tempfile.gettempdir())), 'processing')
+    os.makedirs(processing_root, exist_ok=True)
+
+    suffix = Path(uploaded_file.name or '').suffix
+    filename = f'raw_{uuid.uuid4().hex}{suffix}'
+    input_path = os.path.join(processing_root, filename)
+    with open(input_path, 'wb') as tmp:
+        for chunk in uploaded_file.chunks():
+            tmp.write(chunk)
+
+    file_info = _build_file_info(
+        name=getattr(uploaded_file, 'name', ''),
+        content_type=getattr(uploaded_file, 'content_type', ''),
+        size=getattr(uploaded_file, 'size', 0),
+    )
+    return input_path, file_info
+
+
+def process_media_path(input_path: str, file_info: MediaFileInfo | None = None) -> ProcessedMedia:
+    info = file_info or _build_file_info(name=os.path.basename(input_path), content_type='', size=0)
+    kind = _detect_media_kind(info, input_path)
+    if kind == 'image':
+        output_path, content_type = _process_image(input_path)
+    elif kind == 'video':
+        output_path, content_type = _process_video(input_path)
+    else:
+        raise ValueError('Tipo de arquivo não suportado para processamento.')
+
     output_name = _build_output_name(kind)
-    input_size = uploaded_file.size or 0
+    input_size = info.size or (os.path.getsize(input_path) if os.path.exists(input_path) else 0)
     output_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
     logger.info(
         "Processamento de mídia concluído (tipo=%s, tamanho_original=%s, tamanho_final=%s)",
@@ -68,10 +190,6 @@ def process_uploaded_media(uploaded_file) -> ProcessedMedia:
     )
 
 
-def cleanup_processed_media(processed: ProcessedMedia) -> None:
-    _safe_unlink(processed.output_path)
-
-
 def _write_upload_to_temp(uploaded_file) -> str:
     suffix = Path(uploaded_file.name or '').suffix
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -80,14 +198,14 @@ def _write_upload_to_temp(uploaded_file) -> str:
         return tmp.name
 
 
-def _detect_media_kind(uploaded_file, input_path: str) -> str:
-    content_type = (uploaded_file.content_type or '').lower()
+def _detect_media_kind(file_info: MediaFileInfo, input_path: str) -> str:
+    content_type = (file_info.content_type or '').lower()
     if content_type.startswith('image/'):
         return 'image'
     if content_type.startswith('video/'):
         return 'video'
 
-    extension = Path(uploaded_file.name or '').suffix.lower()
+    extension = Path(file_info.name or '').suffix.lower()
     if extension in IMAGE_EXTENSIONS:
         return 'image'
     if extension in VIDEO_EXTENSIONS:
@@ -99,6 +217,10 @@ def _detect_media_kind(uploaded_file, input_path: str) -> str:
         return 'video'
 
     raise ValueError('Tipo de arquivo não suportado. Envie imagem ou vídeo.')
+
+
+def _build_file_info(name: str, content_type: str, size: int) -> MediaFileInfo:
+    return MediaFileInfo(name=name or '', content_type=content_type or '', size=int(size or 0))
 
 
 def _looks_like_image(input_path: str) -> bool:

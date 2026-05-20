@@ -858,6 +858,47 @@ class ServiceMedia(models.Model):
         verbose_name = "Mídia de Serviço"
 
 
+class MediaProcessingJob(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pendente'
+        PROCESSING = 'PROCESSING', 'Processando'
+        DONE = 'DONE', 'Concluído'
+        ERROR = 'ERROR', 'Erro'
+
+    task = models.ForeignKey(ServiceOrderTask, on_delete=models.CASCADE, related_name='media_jobs', verbose_name="Etapa/Tarefa")
+    response = models.ForeignKey(
+        TaskChecklistResponse,
+        on_delete=models.SET_NULL,
+        related_name='media_jobs',
+        verbose_name="Resposta do Check-list",
+        null=True,
+        blank=True,
+    )
+    occurrence = models.ForeignKey(
+        Occurrence,
+        on_delete=models.SET_NULL,
+        related_name='media_jobs',
+        verbose_name="Ocorrência",
+        null=True,
+        blank=True,
+    )
+    raw_path = models.CharField(max_length=500, verbose_name="Arquivo bruto (local)")
+    original_name = models.CharField(max_length=255, blank=True, verbose_name="Nome original")
+    content_type = models.CharField(max_length=120, blank=True, verbose_name="Content-Type")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="Status")
+    error_message = models.TextField(blank=True, verbose_name="Mensagem de erro")
+    result_media_type = models.CharField(max_length=20, blank=True, verbose_name="Tipo de mídia gerada")
+    result_media_id = models.PositiveIntegerField(null=True, blank=True, verbose_name="ID da mídia gerada")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Job de Processamento de Mídia"
+        verbose_name_plural = "Jobs de Processamento de Mídia"
+        ordering = ['created_at']
+
+
 class PushSubscription(models.Model):
     user = models.ForeignKey(
         User, 

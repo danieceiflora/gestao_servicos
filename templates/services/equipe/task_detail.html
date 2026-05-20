@@ -1011,6 +1011,9 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(r => r.json())
         .then(resData => {
             if (resData.success) {
+                if (resData.queued) {
+                    alert('Mídia enfileirada para processamento. Ela aparecerá após a conversão.');
+                }
                 if (itemContainer) {
                     itemContainer.classList.remove('opacity-70');
                     itemContainer.classList.add('ring-1', 'ring-emerald-500');
@@ -1140,7 +1143,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (window.lucide) lucide.createIcons();
 
             updateChecklistItem(responseId, data)
-            .then(() => {
+            .then((result) => {
+                if (result && result.queued) {
+                    setTimeout(() => window.location.reload(), 4000);
+                    return;
+                }
                 // Recarrega a página para mostrar a nova mídia
                 window.location.reload();
             })
@@ -1192,8 +1199,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
                 body: formData
             })
-            .then(res => {
+            .then(async res => {
                 if (!res.ok) throw new Error("Erro de infraestrutura (Cloudflare, DB, etc)");
+                let data = null;
+                const contentType = res.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    data = await res.json().catch(() => null);
+                }
+                if (data && data.queued) {
+                    alert('Mídia enfileirada para processamento. Ela aparecerá após a conversão.');
+                    setTimeout(() => window.location.reload(), 4000);
+                    return;
+                }
                 window.location.reload();
             })
             .catch(err => {
