@@ -249,6 +249,21 @@ class ChatwootClient:
             return response.json()
         except: return None
 
+    def send_message(self, conversation_id, content, message_type="outgoing", private=False):
+        """Envia uma mensagem de texto simples."""
+        url = self._get_api_url(f"conversations/{conversation_id}/messages")
+        payload = {
+            "content": content,
+            "message_type": message_type,
+            "private": private
+        }
+        try:
+            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            return response.json()
+        except Exception:
+            logger.exception("Erro ao enviar mensagem no Chatwoot")
+            return None
+
     def get_templates(self):
         endpoints = [f"inboxes/{self.inbox_id}/templates", "templates"]
         for endpoint in endpoints:
@@ -355,14 +370,29 @@ class ChatwootClient:
         
         body_params = self._build_template_body_params(template_def, variables, parameter_format)
 
-        if not content or content == ".":
+        # Suporte a sufixo: se o content começar com ".", geramos o texto do template e anexamos o restante
+        suffix = ""
+        if content and content.startswith("."):
+            suffix = content[1:]
+            content = None
+
+        if not content:
             if template_def:
                 body_comp = next((c for c in template_def.get('components', []) if c['type'] == 'BODY'), None)
                 content = body_comp['text'] if body_comp else f"Template: {template_name}"
                 for key, value in body_params.items():
                     content = content.replace(f"{{{{{key}}}}}", str(value))
+                
+                # Renderizar botões no conteúdo para o histórico
+                buttons_comp = next((c for c in template_def.get('components', []) if c['type'] == 'BUTTONS'), None)
+                if buttons_comp:
+                    for btn in buttons_comp.get('buttons', []):
+                        btn_text = btn.get('text', '')
+                        content += f"\n\n[Botão: {btn_text}]"
             else:
                 content = f"Enviando template {template_name}..."
+        
+        content += suffix
 
         try:
             headers = {"api_access_token": self.token, "Content-Type": "application/json"}

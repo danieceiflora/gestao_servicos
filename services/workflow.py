@@ -1,11 +1,21 @@
 import logging
 import threading
+import time
 from django.utils import timezone
 from .utils.pdf_generator import CompletionPDFGenerator
 from integracoes.chatwoot_client import ChatwootClient
 from integracoes.models import SystemConfig
 
 logger = logging.getLogger(__name__)
+
+def _clean_phone_number(phone):
+    """Limpa o número de telefone para garantir formato E.164 básico."""
+    if not phone:
+        return ""
+    digits = "".join(filter(str.isdigit, str(phone)))
+    if not digits.startswith("55") and len(digits) <= 11:
+        digits = "55" + digits
+    return f"+{digits}"
 
 def run_payment_request_workflow(service_order_id):
     """
@@ -43,10 +53,12 @@ def run_payment_request_workflow(service_order_id):
             logger.error(f"Workflow abortado para OS #{service_order.number}: Cliente sem telefone cadastrado.")
             return
 
+        phone_number = _clean_phone_number(primary_phone.phone)
+
         # 5. Buscar ou Criar Contato e Conversa no Chatwoot
-        contact = client.search_contact(primary_phone.phone)
+        contact = client.search_contact(phone_number)
         if not contact:
-            contact = client.create_contact(customer.name, primary_phone.phone)
+            contact = client.create_contact(customer.name, phone_number)
         
         if not contact:
             logger.error(f"Não foi possível localizar ou criar contato no Chatwoot para OS #{service_order.number}")
@@ -58,6 +70,10 @@ def run_payment_request_workflow(service_order_id):
             return
 
         conversation_id = conversation.get('id')
+
+        # Pequeno delay para garantir que o Chatwoot/Meta sincronizou o contato/conversa
+        # Isso reduz erros de 'Undeliverable' em envios imediatos
+        time.sleep(2)
 
         # 6. Enviar Template de PIX com PDF Anexo (Header)
         # O attachment deve ser uma tupla (nome_arquivo, conteudo, tipo_mime)
@@ -103,12 +119,111 @@ def run_payment_request_workflow(service_order_id):
     except Exception as e:
         logger.exception(f"Erro crítico no workflow de pagamento da OS {service_order_id}: {str(e)}")
 
+
 def trigger_payment_workflow(service_order):
     """
     Dispara o workflow em uma thread separada para não bloquear o processo principal.
     """
     thread = threading.Thread(
         target=run_payment_request_workflow,
+        args=(service_order.id,),
+        daemon=True
+    )
+    thread.start()
+
+def run_payment_receipt_workflow(service_order_id):
+    """
+    Workflow para enviar mensagem de baixa de pagamento e avaliação,
+    após a OS ser finalizada, sem pendências e com pagamento registrado.
+    """
+    from .models import ServiceOrder
+    try:
+        service_order = ServiceOrder.objects.get(id=service_order_id)
+
+        # 1. Verificações de Elegibilidade
+        if service_order.chatwoot_payment_receipt_sent_at:
+            logger.info(f"Workflow de recibo abortado para OS #{service_order.number}: Já enviado.")
+            return
+            
+        if service_order.status != ServiceOrder.Status.FINISHED:
+            return
+
+        has_pending_payment = service_order.payments.filter(status='PENDING').exists() or service_order.balance_due > 0
+        has_any_payment = service_order.payments.filter(amount__gt=0).exists()
+
+        if has_pending_payment or not has_any_payment:
+            logger.info(f"OS #{service_order.number} não elegível para recibo. Pendente: {has_pending_payment}, Tem pgto: {has_any_payment}")
+            return
+
+        # 2. Configurações
+        config = SystemConfig.load()
+        if not config.chatwoot_api_token:
+            logger.warning(f"Workflow de recibo abortado para OS #{service_order.number}: Token do Chatwoot não configurado.")
+            return
+
+        template_name = config.chatwoot_receipt_template or "baixa_pagamento_avaliacao"
+
+        # 3. Preparar Cliente Chatwoot
+        client = ChatwootClient()
+        customer = service_order.client_property.client
+        primary_phone = customer.phones.filter(is_primary=True).first() or customer.phones.first()
+        
+        if not primary_phone:
+            logger.error(f"Workflow de recibo abortado para OS #{service_order.number}: Cliente sem telefone cadastrado.")
+            return
+
+        # Buscar ou Criar Contato e Conversa no Chatwoot
+        contact = client.search_contact(primary_phone.phone)
+        if not contact:
+            contact = client.create_contact(customer.name, primary_phone.phone)
+        if not contact:
+            return
+
+        conversation = client.get_or_create_conversation(contact['id'])
+        if not conversation:
+            return
+
+        conversation_id = conversation.get('id')
+
+        # 4. Enviar Template
+        # O template espera apenas o número da OS como variável {{1}}
+        body_variables = [str(service_order.number)]
+        google_link = "https://maps.app.goo.gl/WrnYYVZ4FjpqphyT6"
+
+        logger.info(f"Enviando template {template_name} para OS #{service_order.number}")
+        
+        # O link é enviado no 'content' com prefixo '.' apenas para o histórico do Chatwoot.
+        # O cliente NÃO recebe o link no WhatsApp (pois o template só tem 1 variável),
+        # mas o atendente consegue ver para onde o botão do template aponta.
+        response = client.send_template(
+            conversation_id=conversation_id,
+            template_name=template_name,
+            variables=body_variables,
+            content=f".\n\nLink de Avaliação: {google_link}",
+            attachment=None,
+            button_data=None
+        )
+
+        if response:
+            # 6. Atribuir Etiqueta de Avaliação (Substituindo as anteriores)
+            evaluation_label = config.chatwoot_evaluation_label or "avaliacao-google"
+            client.assign_label_to_conversation(conversation_id, evaluation_label)
+
+            service_order.chatwoot_payment_receipt_sent_at = timezone.now()
+            service_order.save(update_fields=['chatwoot_payment_receipt_sent_at'])
+            logger.info(f"Workflow de recibo concluído com sucesso para OS #{service_order.number}")
+        else:
+            logger.error(f"Falha ao enviar template de recibo para OS #{service_order.number}")
+
+    except Exception as e:
+        logger.exception(f"Erro crítico no workflow de recibo da OS {service_order_id}: {str(e)}")
+
+def trigger_payment_receipt_workflow(service_order):
+    """
+    Dispara o workflow de recibo de pagamento em uma thread separada.
+    """
+    thread = threading.Thread(
+        target=run_payment_receipt_workflow,
         args=(service_order.id,),
         daemon=True
     )

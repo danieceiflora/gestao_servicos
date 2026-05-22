@@ -519,8 +519,9 @@ class ServiceOrder(models.Model):
     client_budget_responded_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente respondeu o orçamento em")
     client_budget_approved_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente aprovou o orçamento em")
     
-    # Controle de Cobrança
+    # Controle de Cobrança e Recibo
     pix_sent_at = models.DateTimeField(null=True, blank=True, verbose_name="Cobrança/PIX enviada em")
+    chatwoot_payment_receipt_sent_at = models.DateTimeField(null=True, blank=True, verbose_name="Recibo/Avaliação enviada em")
     
     # Origem da OS
     origin_date = models.DateField(null=True, blank=True, verbose_name="Data de Origem")
@@ -589,6 +590,9 @@ class ServiceOrder(models.Model):
             else:
                 self.status = self.Status.WARRANTY
             self.save()
+            if self.status == self.Status.FINISHED:
+                from .workflow import trigger_payment_receipt_workflow
+                trigger_payment_receipt_workflow(self)
             return
 
         # 2. Verificar Pagamentos
@@ -597,6 +601,8 @@ class ServiceOrder(models.Model):
             if not self.finished_at:
                 self.finished_at = django.utils.timezone.now()
             self.save()
+            from .workflow import trigger_payment_receipt_workflow
+            trigger_payment_receipt_workflow(self)
             return
         elif self.total_paid > 0:
             self.status = self.Status.PARTIAL_PAYMENT

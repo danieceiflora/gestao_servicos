@@ -45,6 +45,8 @@ class SystemConfig(models.Model):
     chatwoot_budget_template = models.CharField('Nome do Template de Orçamento', max_length=100, blank=True, null=True, help_text='Ex: enviar_orcamento_v1')
     chatwoot_pix_template = models.CharField('Nome do Template de Cobrança/PIX', max_length=100, blank=True, null=True, help_text='Ex: enviar_pix_v1')
     chatwoot_pix_label = models.CharField('Etiqueta para PIX Enviado', max_length=50, default='pix-enviado', help_text='Etiqueta que será aplicada na conversa ao enviar o PIX')
+    chatwoot_receipt_template = models.CharField('Nome do Template de Recibo/Avaliação', max_length=100, default='baixa_pagamento_avaliacao', help_text='Template enviado ao finalizar a OS')
+    chatwoot_evaluation_label = models.CharField('Etiqueta de Avaliação', max_length=50, default='avaliacao-google', help_text='Etiqueta aplicada após o envio do recibo. Substitui as anteriores.')
 
     # Dados Financeiros para PIX
     pix_key = models.CharField('Chave PIX', max_length=100, default='41426314000138')
