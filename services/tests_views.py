@@ -1,10 +1,17 @@
 from django.test import TestCase, Client
 from django.urls import reverse
-from .models import Client as ServiceClient, Property, ServiceOrder
+from .models import Client as ServiceClient, Property, ServiceOrder, User
 
 class ServiceOrderListViewTest(TestCase):
     def setUp(self):
         self.client_obj = Client()
+        self.user = User.objects.create_user(
+            username='admin',
+            password='password123',
+            role=User.Roles.ADMIN
+        )
+        self.client_obj.login(username='admin', password='password123')
+        
         self.service_client = ServiceClient.objects.create(name="João Silva")
         self.property = Property.objects.create(
             client=self.service_client,

@@ -221,6 +221,40 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
         })
     )
 
+    send_whatsapp_confirmation = forms.BooleanField(
+        label="Enviar WhatsApp de Confirmação?",
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
+        })
+    )
+
+    whatsapp_confirmation_status = forms.ChoiceField(
+        choices=[('', 'Selecione...')] + ServiceOrderTask.WhatsAppConfirmationStatus.choices,
+        label="Status da Confirmação WhatsApp",
+        required=False,
+        widget=forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'})
+    )
+
+    whatsapp_notification_sent_at = forms.DateTimeField(
+        label="Notificação enviada em",
+        required=False,
+        widget=forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'})
+    )
+
+    whatsapp_confirmation_received_at = forms.DateTimeField(
+        label="Resposta recebida em",
+        required=False,
+        widget=forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'})
+    )
+
+    whatsapp_response_content = forms.CharField(
+        label="Conteúdo da Resposta WhatsApp",
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'})
+    )
+
     client = forms.ModelChoiceField(
         queryset=Client.objects.all(),
         label="Cliente",
@@ -281,20 +315,23 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
         self.fields['origin_date'].required = False
         self.fields['originator'].required = False
         
-        # Se está editando (já existe no banco), tornar campos não editáveis readonly/disabled
+        # Se está editando (já existe no banco), carregar dados da primeira task
         if self.instance and not self.instance._state.adding:
-            self.fields['client'].required = False
-            self.fields['client'].disabled = True
-            self.fields['client_property'].required = False
-            self.fields['client_property'].disabled = True
-            self.fields['scheduled_at'].required = False
-            self.fields['scheduled_at'].disabled = True
-            
-            self.fields['origin_date'].widget.attrs['readonly'] = True
-            self.fields['origin_date'].widget.attrs['class'] += ' bg-slate-100 cursor-not-allowed'
-            self.fields['originator'].disabled = True
-            self.fields['originator'].required = False
-            self.fields['originator'].widget.attrs['class'] += ' bg-slate-100 cursor-not-allowed'
+            first_task = self.instance.tasks.order_by('scheduled_at').first()
+            if first_task:
+                self.initial['task_type'] = first_task.task_type
+                if first_task.scheduled_at:
+                    self.initial['scheduled_at'] = django.utils.timezone.localtime(first_task.scheduled_at).strftime('%Y-%m-%dT%H:%M')
+                if first_task.scheduled_end_at:
+                    self.initial['scheduled_end_at'] = django.utils.timezone.localtime(first_task.scheduled_end_at).strftime('%Y-%m-%dT%H:%M')
+                
+                self.initial['send_whatsapp_confirmation'] = first_task.send_whatsapp_confirmation
+                self.initial['whatsapp_confirmation_status'] = first_task.whatsapp_confirmation_status or ''
+                if first_task.whatsapp_notification_sent_at:
+                    self.initial['whatsapp_notification_sent_at'] = django.utils.timezone.localtime(first_task.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
+                if first_task.whatsapp_confirmation_received_at:
+                    self.initial['whatsapp_confirmation_received_at'] = django.utils.timezone.localtime(first_task.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
+                self.initial['whatsapp_response_content'] = first_task.whatsapp_response_content
         
         # Filtrar apenas profissionais com função "Vendedor"
         try:
@@ -336,21 +373,35 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
 class ServiceOrderTaskForm(forms.ModelForm):
     class Meta:
         model = ServiceOrderTask
-        fields = ['task_type', 'status', 'scheduled_at', 'scheduled_end_at', 'notes']
+        fields = [
+            'task_type', 'status', 'scheduled_at', 'scheduled_end_at', 'notes',
+            'send_whatsapp_confirmation', 'whatsapp_confirmation_status',
+            'whatsapp_notification_sent_at', 'whatsapp_confirmation_received_at',
+            'whatsapp_response_content'
+        ]
         widgets = {
             'task_type': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'status': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'scheduled_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'scheduled_end_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'notes': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'whatsapp_confirmation_status': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'whatsapp_notification_sent_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'whatsapp_confirmation_received_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'whatsapp_response_content': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['whatsapp_confirmation_status'].choices = [('', 'Selecione...')] + ServiceOrderTask.WhatsAppConfirmationStatus.choices
         if self.instance.pk and self.instance.scheduled_at:
             self.initial['scheduled_at'] = django.utils.timezone.localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')
         if self.instance.pk and self.instance.scheduled_end_at:
             self.initial['scheduled_end_at'] = django.utils.timezone.localtime(self.instance.scheduled_end_at).strftime('%Y-%m-%dT%H:%M')
+        if self.instance.pk and self.instance.whatsapp_notification_sent_at:
+            self.initial['whatsapp_notification_sent_at'] = django.utils.timezone.localtime(self.instance.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
+        if self.instance.pk and self.instance.whatsapp_confirmation_received_at:
+            self.initial['whatsapp_confirmation_received_at'] = django.utils.timezone.localtime(self.instance.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
 
 # Equipe ligada à TASK
 ServiceOrderTeamFormSet = inlineformset_factory(
@@ -430,6 +481,34 @@ class ServiceOrderForm(forms.ModelForm):
                 pass
 
 class ServiceInspectionForm(forms.ModelForm):
+    description = forms.CharField(
+        label="Descrição do Problema/Solicitação",
+        required=False,
+        widget=forms.Textarea(attrs={
+            'rows': 3, 
+            'placeholder': 'Descreva o problema ou solicitação...',
+            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+        })
+    )
+    client_observation = forms.CharField(
+        label="Observação para o Cliente",
+        required=False,
+        widget=forms.Textarea(attrs={
+            'rows': 3, 
+            'placeholder': 'Observação para o cliente (orçamento)...',
+            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+        })
+    )
+    technical_notes = forms.CharField(
+        label="Notas Técnicas Gerais",
+        required=False,
+        widget=forms.Textarea(attrs={
+            'rows': 3, 
+            'placeholder': 'Notas técnicas gerais...',
+            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+        })
+    )
+    
     files = MultipleFileField(
         label="Fotos e Vídeos da Vistoria", 
         required=False,
@@ -438,14 +517,34 @@ class ServiceInspectionForm(forms.ModelForm):
 
     class Meta:
         model = ServiceOrderTask
-        fields = ['notes']
+        fields = [
+            'notes', 
+            'send_whatsapp_confirmation',
+            'whatsapp_confirmation_status',
+            'whatsapp_notification_sent_at',
+            'whatsapp_confirmation_received_at',
+            'whatsapp_response_content'
+        ]
         widgets = {
             'notes': forms.Textarea(attrs={
                 'rows': 4, 
                 'placeholder': 'Relate o que foi encontrado na vistoria...',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
+            'whatsapp_confirmation_status': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'whatsapp_notification_sent_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'whatsapp_confirmation_received_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'whatsapp_response_content': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['whatsapp_confirmation_status'].choices = [('', 'Selecione...')] + ServiceOrderTask.WhatsAppConfirmationStatus.choices
+        if self.instance.pk and self.instance.whatsapp_notification_sent_at:
+            self.initial['whatsapp_notification_sent_at'] = django.utils.timezone.localtime(self.instance.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
+        if self.instance.pk and self.instance.whatsapp_confirmation_received_at:
+            self.initial['whatsapp_confirmation_received_at'] = django.utils.timezone.localtime(self.instance.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
+
 
 class ServiceItemForm(forms.ModelForm):
     class Meta:
@@ -545,7 +644,13 @@ class TaskScheduleForm(forms.ModelForm):
     """
     class Meta:
         model = ServiceOrderTask
-        fields = ['task_type', 'status', 'is_approved', 'payment_method', 'scheduled_at', 'scheduled_end_at', 'started_at', 'finished_at', 'value', 'notes']
+        fields = [
+            'task_type', 'status', 'is_approved', 'payment_method', 'scheduled_at', 
+            'scheduled_end_at', 'started_at', 'finished_at', 'value', 'notes',
+            'send_whatsapp_confirmation', 'whatsapp_confirmation_status',
+            'whatsapp_notification_sent_at', 'whatsapp_confirmation_received_at',
+            'whatsapp_response_content'
+        ]
         widgets = {
             'task_type': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
@@ -589,6 +694,10 @@ class TaskScheduleForm(forms.ModelForm):
                 'placeholder': 'Observações sobre esta etapa...',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
+            'whatsapp_confirmation_status': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'whatsapp_notification_sent_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'whatsapp_confirmation_received_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'whatsapp_response_content': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
         }
         labels = {
             'task_type': 'Tipo de Etapa',
@@ -600,11 +709,17 @@ class TaskScheduleForm(forms.ModelForm):
             'started_at': 'Iniciado em (Execução)',
             'finished_at': 'Finalizado em (Execução)',
             'value': 'Valor do Serviço (R$)',
-            'notes': 'Observações'
+            'notes': 'Observações',
+            'send_whatsapp_confirmation': 'Enviar WhatsApp de Confirmação?',
+            'whatsapp_confirmation_status': 'Status da Confirmação WhatsApp',
+            'whatsapp_notification_sent_at': 'Notificação enviada em',
+            'whatsapp_confirmation_received_at': 'Resposta recebida em',
+            'whatsapp_response_content': 'Conteúdo da Resposta WhatsApp'
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['whatsapp_confirmation_status'].choices = [('', 'Selecione...')] + ServiceOrderTask.WhatsAppConfirmationStatus.choices
         self.fields['is_approved'] = forms.TypedChoiceField(
             label='Aprovado pelo Cliente',
             choices=((True, 'Aprovado'), (False, 'Reprovado')),
@@ -629,6 +744,10 @@ class TaskScheduleForm(forms.ModelForm):
                 self.initial['started_at'] = django.utils.timezone.localtime(self.instance.started_at).strftime('%Y-%m-%dT%H:%M')
             if self.instance.finished_at:
                 self.initial['finished_at'] = django.utils.timezone.localtime(self.instance.finished_at).strftime('%Y-%m-%dT%H:%M')
+            if self.instance.whatsapp_notification_sent_at:
+                self.initial['whatsapp_notification_sent_at'] = django.utils.timezone.localtime(self.instance.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
+            if self.instance.whatsapp_confirmation_received_at:
+                self.initial['whatsapp_confirmation_received_at'] = django.utils.timezone.localtime(self.instance.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
 
 class ServicePaymentForm(forms.ModelForm):
     class Meta:

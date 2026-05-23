@@ -682,6 +682,25 @@ class ServiceOrderTask(models.Model):
     
     notes = models.TextField(verbose_name="Observações Técnicas desta Etapa", blank=True)
     
+    # Confirmação de Agendamento via WhatsApp
+    class WhatsAppConfirmationStatus(models.TextChoices):
+        SENT = 'SENT', 'Enviado'
+        WAITING = 'WAITING', 'Aguardando Confirmação'
+        CONFIRMED = 'CONFIRMED', 'Confirmado'
+        RESCHEDULE = 'RESCHEDULE', 'Reagendar'
+
+    send_whatsapp_confirmation = models.BooleanField(default=False, verbose_name="Enviar WhatsApp de Confirmação?")
+    whatsapp_confirmation_status = models.CharField(
+        max_length=20, 
+        choices=WhatsAppConfirmationStatus.choices, 
+        null=True, 
+        blank=True, 
+        verbose_name="Status da Confirmação WhatsApp"
+    )
+    whatsapp_notification_sent_at = models.DateTimeField(null=True, blank=True, verbose_name="Notificação enviada em")
+    whatsapp_confirmation_received_at = models.DateTimeField(null=True, blank=True, verbose_name="Resposta recebida em")
+    whatsapp_response_content = models.TextField(null=True, blank=True, verbose_name="Conteúdo da Resposta WhatsApp")
+    
     # Assinatura Digital do Cliente (Salva apenas o caminho do arquivo)
     customer_signature = models.CharField(max_length=255, null=True, blank=True, verbose_name="Caminho da Assinatura")
     customer_name = models.CharField(max_length=100, null=True, blank=True, verbose_name="Nome de quem assinou")

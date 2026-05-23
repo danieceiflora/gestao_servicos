@@ -489,7 +489,7 @@ def service_order_scheduling(request):
             if has_conflict:
                 if is_out_of_hours:
                     messages.warning(request, f"Aviso de Agenda: {conflict_message} (Confirme para forçar o agendamento).")
-                    return render(request, 'services/orders/order_scheduling_form.html', {
+                    return render(request, 'services/orders/order_edit.html', {
                         'form': form,
                         'team_formset': team_formset,
                         'professionals': Professional.objects.filter(is_active=True),
@@ -504,7 +504,7 @@ def service_order_scheduling(request):
                     })
                 else:
                     messages.error(request, f"Conflito de agenda: {conflict_message}")
-                    return render(request, 'services/orders/order_scheduling_form.html', {
+                    return render(request, 'services/orders/order_edit.html', {
                         'form': form,
                         'team_formset': team_formset,
                         'professionals': Professional.objects.filter(is_active=True),
@@ -569,12 +569,26 @@ def service_order_scheduling(request):
 
                 if task_type and scheduled_datetime:
                     # Criar a tarefa
-                    task = ServiceOrderTask.objects.create(
-                        service_order=service_order,
-                        task_type=task_type,
-                        scheduled_at=scheduled_datetime,
-                        scheduled_end_at=scheduled_end_datetime,
-                    )
+                    task_kwargs = {
+                        'service_order': service_order,
+                        'task_type': task_type,
+                        'scheduled_at': scheduled_datetime,
+                        'scheduled_end_at': scheduled_end_datetime,
+                    }
+                    
+                    # Se for a primeira task, usar os dados do formulário principal
+                    if task_index == 0:
+                        task_kwargs.update({
+                            'send_whatsapp_confirmation': form.cleaned_data.get('send_whatsapp_confirmation', False),
+                            'whatsapp_confirmation_status': form.cleaned_data.get('whatsapp_confirmation_status'),
+                            'whatsapp_notification_sent_at': form.cleaned_data.get('whatsapp_notification_sent_at'),
+                            'whatsapp_confirmation_received_at': form.cleaned_data.get('whatsapp_confirmation_received_at'),
+                            'whatsapp_response_content': form.cleaned_data.get('whatsapp_response_content'),
+                        })
+                    else:
+                        task_kwargs['send_whatsapp_confirmation'] = False
+
+                    task = ServiceOrderTask.objects.create(**task_kwargs)
                     professionals = request.POST.getlist(f'task_{task_index}_professional[]')
                     roles = request.POST.getlist(f'task_{task_index}_role[]')
                     
@@ -620,7 +634,7 @@ def service_order_scheduling(request):
             return redirect('service_order_detail', order_id=service_order.id)
         else:
             messages.error(request, "Por favor, corrija os erros no formulário.")
-            return render(request, 'services/orders/order_scheduling_form.html', {
+            return render(request, 'services/orders/order_edit.html', {
                 'form': form,
                 'team_formset': team_formset,
                 'professionals': Professional.objects.filter(is_active=True),
@@ -652,7 +666,7 @@ def service_order_scheduling(request):
         if not initial_origin_date:
             initial_origin_date = django.utils.timezone.now().date()
 
-    return render(request, 'services/orders/order_scheduling_form.html', {
+    return render(request, 'services/orders/order_edit.html', {
         'form': form,
         'formset': team_formset,
         'professionals': Professional.objects.filter(is_active=True),
@@ -670,7 +684,10 @@ def service_order_create(request, property_id):
         if form.is_valid():
             service_order = ServiceOrder.objects.create(
                 client_property=property_obj,
-                status=ServiceOrder.Status.WAITING_VISIT
+                status=ServiceOrder.Status.WAITING_VISIT,
+                description=form.cleaned_data.get('description', ''),
+                client_observation=form.cleaned_data.get('client_observation', ''),
+                technical_notes=form.cleaned_data.get('technical_notes', '')
             )
             task = form.save(commit=False)
             task.service_order = service_order
@@ -812,6 +829,19 @@ def service_order_edit(request, order_id):
         if form.is_valid():
             # Atualiza a OS
             service_order = form.save()
+            
+            # Atualiza os campos da primeira task (Etapa)
+            first_task = service_order.tasks.order_by('scheduled_at').first()
+            if first_task:
+                first_task.task_type = form.cleaned_data.get('task_type')
+                first_task.scheduled_at = form.cleaned_data.get('scheduled_at')
+                first_task.scheduled_end_at = form.cleaned_data.get('scheduled_end_at')
+                first_task.send_whatsapp_confirmation = form.cleaned_data.get('send_whatsapp_confirmation', False)
+                first_task.whatsapp_confirmation_status = form.cleaned_data.get('whatsapp_confirmation_status')
+                first_task.whatsapp_notification_sent_at = form.cleaned_data.get('whatsapp_notification_sent_at')
+                first_task.whatsapp_confirmation_received_at = form.cleaned_data.get('whatsapp_confirmation_received_at')
+                first_task.whatsapp_response_content = form.cleaned_data.get('whatsapp_response_content')
+                first_task.save()
             
             messages.success(request, 'Ordem de Serviço atualizada com sucesso!')
             return redirect('service_order_detail', order_id=service_order.id)

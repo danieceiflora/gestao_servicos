@@ -229,3 +229,7 @@ if not WEBHOOK_SHARED_SECRET:
         WEBHOOK_SHARED_SECRET = webhook_secret_file.read_text(encoding='utf-8').strip()
 if not WEBHOOK_SHARED_SECRET:
     WEBHOOK_SHARED_SECRET = 'ofMMvS4WT9qusYCsjGZD3d5D'
+
+# Default primary key field type
+# https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

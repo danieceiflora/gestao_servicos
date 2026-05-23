@@ -3,11 +3,27 @@
 
 {% block title %}{{ title }}{% endblock %}
 
+{% block extra_head %}
+<!-- Tom Select CSS -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
+<style>
+    .ts-control {
+        border-radius: 0.5rem !important;
+        padding: 0.5rem 0.75rem !important;
+        border-color: #e2e8f0 !important;
+    }
+    .ts-wrapper.focus .ts-control {
+        box-shadow: 0 0 0 2px #3b82f6 !important;
+        border-color: #3b82f6 !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-5xl mx-auto space-y-6 md:pb-0">
     <!-- Header -->
     <div class="flex items-center gap-4 mb-2">
-        <a href="{% url 'service_order_detail' order.id %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-slate-100 hover:text-slate-900 h-10 w-10 border border-slate-200 bg-white shadow-sm">
+        <a href="{% if order and order.id %}{% url 'service_order_detail' order.id %}{% else %}{% url 'service_order_list' %}{% endif %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-slate-100 hover:text-slate-900 h-10 w-10 border border-slate-200 bg-white shadow-sm">
             <i data-lucide="arrow-left" class="h-4 w-4"></i>
         </a>
         <div>
@@ -54,7 +70,8 @@
             </div>
             
             <div class="p-5 md:p-6 space-y-5">
-                <!-- Cliente -->
+                {% if order %}
+                <!-- Cliente (Modo Edição) -->
                 <div class="space-y-2">
                     <label class="text-sm font-medium leading-none text-slate-700 flex items-center gap-2">
                         <i data-lucide="user-check" class="h-4 w-4 text-slate-500"></i>
@@ -64,7 +81,7 @@
                     <p class="text-xs text-slate-500 italic">Cliente não pode ser alterado após criação</p>
                 </div>
 
-                <!-- Imóvel -->
+                <!-- Imóvel (Modo Edição) -->
                 <div class="space-y-2">
                     <label class="text-sm font-medium leading-none text-slate-700 flex items-center gap-2">
                         <i data-lucide="home" class="h-4 w-4 text-slate-500"></i>
@@ -73,6 +90,40 @@
                     <p class="text-sm font-medium text-slate-900">{{ order.client_property.address }}, {{ order.client_property.number }}</p>
                     <p class="text-xs text-slate-500 italic">Imóvel não pode ser alterado após criação</p>
                 </div>
+                {% else %}
+                <!-- Cliente (Modo Criação) -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label for="{{ form.client.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                            Cliente
+                        </label>
+                        <button type="button" onclick="openModal('client')" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                            <i data-lucide="plus" class="h-3 w-3"></i> Novo Cliente
+                        </button>
+                    </div>
+                    {{ form.client }}
+                    {% if form.client.errors %}
+                    <p class="text-xs text-red-600">{{ form.client.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Imóvel (Modo Criação) -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label for="{{ form.client_property.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                            Imóvel
+                        </label>
+                        <button type="button" id="btn-add-property" onclick="openModal('property')" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 opacity-50 cursor-not-allowed" disabled>
+                            <i data-lucide="plus" class="h-3 w-3"></i> Novo Imóvel
+                        </button>
+                    </div>
+                    {{ form.client_property }}
+                    {% if form.client_property.errors %}
+                    <p class="text-xs text-red-600">{{ form.client_property.errors.0 }}</p>
+                    {% endif %}
+                    <p id="property-loading" class="text-xs text-slate-400 hidden italic">Carregando imóveis...</p>
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -152,7 +203,63 @@
             </div>
         </div>
 
-        <!-- ============ SEÇÃO 3: ETAPAS EXISTENTES ============ -->
+        <!-- ============ SEÇÃO: CONFIRMAÇÃO WHATSAPP ============ -->
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-slate-100 rounded-md border border-slate-200">
+                        <i data-lucide="message-square" class="h-4 w-4 text-slate-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold leading-none tracking-tight text-slate-900">Confirmação via WhatsApp</h3>
+                        <p class="text-xs text-slate-500 mt-1">Gerencie as notificações de agendamento</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-5 md:p-6 space-y-6">
+                <div class="flex items-center space-x-2">
+                    {{ form.send_whatsapp_confirmation }}
+                    <label for="{{ form.send_whatsapp_confirmation.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                        {{ form.send_whatsapp_confirmation.label }}
+                    </label>
+                </div>
+
+                {% if order %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label for="{{ form.whatsapp_confirmation_status.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                            {{ form.whatsapp_confirmation_status.label }}
+                        </label>
+                        {{ form.whatsapp_confirmation_status }}
+                    </div>
+                    <div class="space-y-2">
+                        <label for="{{ form.whatsapp_notification_sent_at.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                            {{ form.whatsapp_notification_sent_at.label }}
+                        </label>
+                        {{ form.whatsapp_notification_sent_at }}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label for="{{ form.whatsapp_confirmation_received_at.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                            {{ form.whatsapp_confirmation_received_at.label }}
+                        </label>
+                        {{ form.whatsapp_confirmation_received_at }}
+                    </div>
+                    <div class="space-y-2">
+                        <label for="{{ form.whatsapp_response_content.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                            {{ form.whatsapp_response_content.label }}
+                        </label>
+                        {{ form.whatsapp_response_content }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ============ SEÇÃO 3: ETAPAS DO SERVIÇO ============ -->
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
                 <div class="flex items-center justify-between">
@@ -162,56 +269,326 @@
                         </div>
                         <div>
                             <h3 class="font-semibold leading-none tracking-tight text-slate-900">Seção 3: Etapas do Serviço</h3>
-                            <p class="text-xs text-slate-500 mt-1">Gerencie as etapas desta OS</p>
+                            <p class="text-xs text-slate-500 mt-1">
+                                {% if order %}Gerencie as etapas desta OS{% else %}Adicione uma ou mais etapas para esta ordem de serviço{% endif %}
+                            </p>
                         </div>
                     </div>
                 </div>
             </div>
             
             <div class="p-5 md:p-6 space-y-4">
-                {% if tasks %}
-                <div class="space-y-3">
-                    {% for task in tasks %}
-                    <div class="p-4 border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div class="space-y-1">
-                            <div class="flex items-center gap-2">
-                                <span class="font-semibold text-slate-900">{{ task.get_task_type_display }}</span>
-                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium 
-                                    {% if task.status == 'COMPLETED' %}bg-green-100 text-green-700
-                                    {% elif task.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-700
-                                    {% else %}bg-slate-100 text-slate-700{% endif %}">
-                                    {{ task.get_status_display }}
-                                </span>
+                {% if order %}
+                    {% if tasks %}
+                    <div class="space-y-3">
+                        {% for task in tasks %}
+                        <div class="p-4 border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-semibold text-slate-900">{{ task.get_task_type_display }}</span>
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium 
+                                        {% if task.status == 'COMPLETED' %}bg-green-100 text-green-700
+                                        {% elif task.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-700
+                                        {% else %}bg-slate-100 text-slate-700{% endif %}">
+                                        {{ task.get_status_display }}
+                                    </span>
+                                </div>
+                                <p class="text-sm text-slate-500 flex items-center gap-1"><i data-lucide="calendar" class="h-3 w-3"></i> {{ task.scheduled_at|date:"d/m/Y H:i" }}</p>
+                                {% if task.value %}
+                                <p class="text-sm text-slate-500 flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3 w-3"></i> R$ {{ task.value|floatformat:2 }}</p>
+                                {% endif %}
                             </div>
-                            <p class="text-sm text-slate-500 flex items-center gap-1"><i data-lucide="calendar" class="h-3 w-3"></i> {{ task.scheduled_at|date:"d/m/Y H:i" }}</p>
-                            {% if task.value %}
-                            <p class="text-sm text-slate-500 flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3 w-3"></i> R$ {{ task.value|floatformat:2 }}</p>
-                            {% endif %}
+                            <div class="flex items-center gap-2 md:self-start">
+                                <a href="{% url 'task_edit' task.id %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-slate-100 hover:text-slate-900 h-9 px-3 border border-slate-200 bg-white shadow-sm">Editar</a>
+                                {% if task.status == 'SCHEDULED' %}
+                                <a href="{% url 'task_cancel' task.id %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-red-100 text-red-600 hover:text-red-900 h-9 px-3 border border-red-200 bg-white shadow-sm">Cancelar</a>
+                                {% endif %}
+                            </div>
                         </div>
-                        <div class="flex items-center gap-2 md:self-start">
-                            <a href="{% url 'task_edit' task.id %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-slate-100 hover:text-slate-900 h-9 px-3 border border-slate-200 bg-white shadow-sm">Editar</a>
-                            {% if task.status == 'SCHEDULED' %}
-                            <a href="{% url 'task_cancel' task.id %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-red-100 text-red-600 hover:text-red-900 h-9 px-3 border border-red-200 bg-white shadow-sm">Cancelar</a>
-                            {% endif %}
-                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="flex flex-col items-center justify-center py-8 text-center border border-dashed border-slate-200 rounded-lg bg-slate-50">
-                    <i data-lucide="calendar-x" class="h-8 w-8 text-slate-400 mb-2"></i>
-                    <p class="text-sm text-slate-500 font-medium">Nenhuma etapa cadastrada ainda.</p>
-                </div>
-                {% endif %}
+                    {% else %}
+                    <div class="flex flex-col items-center justify-center py-8 text-center border border-dashed border-slate-200 rounded-lg bg-slate-50">
+                        <i data-lucide="calendar-x" class="h-8 w-8 text-slate-400 mb-2"></i>
+                        <p class="text-sm text-slate-500 font-medium">Nenhuma etapa cadastrada ainda.</p>
+                    </div>
+                    {% endif %}
 
-                <a href="{% url 'task_add' order.id %}" class="w-full inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 gap-2">
-                    <i data-lucide="plus-circle" class="h-4 w-4"></i>
-                    Adicionar Nova Etapa
-                </a>
+                    <a href="{% if order.id %}{% url 'task_add' order.id %}{% else %}#{% endif %}" class="w-full inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 gap-2">
+                        <i data-lucide="plus-circle" class="h-4 w-4"></i>
+                        Adicionar Nova Etapa
+                    </a>
+                {% else %}
+                    <!-- Formulário Dinâmico de Múltiplas Etapas (Criação) -->
+                    <div id="tasks-container" class="space-y-4">
+                        {% if submitted_tasks %}
+                            {% for task in submitted_tasks %}
+                            <div class="task-card border-2 {% if forloop.first %}border-green-200 bg-gradient-to-br from-green-50/50 to-white{% else %}border-slate-200 bg-white{% endif %} rounded-2xl p-5 relative">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm task-number">
+                                            {{ forloop.counter }}
+                                        </div>
+                                        <h4 class="font-bold text-slate-900 task-title">Etapa {{ forloop.counter }}</h4>
+                                    </div>
+                                    {% if not forloop.first %}
+                                    <button type="button" class="remove-task-btn p-2 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-all">
+                                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+
+                                <div class="space-y-4">
+                                    <!-- Tipo de Etapa -->
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Tipo de Etapa *</label>
+                                        <select name="task_{{ task.index }}_type" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                            <option value="">Selecione...</option>
+                                            {% for value, label in form.task_type.field.choices %}
+                                            <option value="{{ value }}" {% if task.type == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <!-- Datas e Valor -->
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
+                                            <input type="datetime-local" {% if task.index == 0 %}name="scheduled_at" id="id_scheduled_at"{% else %}name="task_{{ task.index }}_scheduled"{% endif %} value="{{ task.scheduled }}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                        </div>
+                                        <div>
+                                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data Fim de Agendamento</label>
+                                            <input type="datetime-local" {% if task.index == 0 %}name="scheduled_end_at" id="id_scheduled_end_at"{% else %}name="task_{{ task.index }}_scheduled_end"{% endif %} value="{{ task.scheduled_end }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                        </div>
+                                    </div>
+
+                                    <!-- Execução -->
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 border border-slate-200 rounded-lg">
+                                        <h4 class="col-span-1 md:col-span-2 font-bold text-slate-800 text-sm flex items-center gap-2 mb-2">
+                                            <i data-lucide="clock" class="w-4 h-4 text-green-600"></i>
+                                            Execução
+                                        </h4>
+                                        <div>
+                                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Início (Execução)</label>
+                                            <input type="datetime-local" name="task_{{ task.index }}_start_date" value="{{ task.start_date }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                        </div>
+                                        <div>
+                                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Término (Execução)</label>
+                                            <input type="datetime-local" name="task_{{ task.index }}_end_date" value="{{ task.end_date }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                        </div>
+                                    </div>
+
+                                    <!-- Valor -->
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                        <div>
+                                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor do Serviço (R$)</label>
+                                            <input type="number" step="0.01" name="task_{{ task.index }}_value" value="{{ task.value }}" placeholder="0,00" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                        </div>
+                                        <div>
+                                            <!-- Campo vazio para manter o grid equilibrado -->
+                                        </div>
+                                    </div>
+
+                                    <!-- Equipe -->
+                                    <div class="border-t border-slate-200 pt-4">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Equipe Alocada</label>
+                                            <button type="button" class="add-team-member-btn text-xs font-bold text-green-600 hover:text-green-700 flex items-center gap-1">
+                                                <i data-lucide="user-plus" class="h-3 w-3"></i> Adicionar
+                                            </button>
+                                        </div>
+
+                                        <div class="team-members-container space-y-3">
+                                            {% if task.team %}
+                                                {% for member in task.team %}
+                                                <div class="team-member-row grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-lg bg-slate-50 border border-slate-200 relative">
+                                                    {% if forloop.counter0 > 0 or not forloop.first %}
+                                                    <button type="button" class="remove-member-btn absolute -top-2 -right-2 w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center hover:bg-red-200">
+                                                        <i data-lucide="x" class="w-3 h-3"></i>
+                                                    </button>
+                                                    {% endif %}
+                                                    <div>
+                                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Profissional</label>
+                                                        <select name="task_{{ task.index }}_professional[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                                            <option value="">Selecione...</option>
+                                                            {% for prof in professionals %}
+                                                            <option value="{{ prof.id }}" {% if member.professional_id == prof.id|stringformat:"s" %}selected{% endif %}>{{ prof.name }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Função</label>
+                                                        <select name="task_{{ task.index }}_role[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                                            <option value="">Selecione...</option>
+                                                            {% for role in roles %}
+                                                            <option value="{{ role.id }}" {% if member.role_id == role.id|stringformat:"s" %}selected{% endif %}>{{ role.name }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            {% else %}
+                                                <div class="team-member-row grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-lg bg-slate-50 border border-slate-200 relative">
+                                                    <div>
+                                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Profissional</label>
+                                                        <select name="task_{{ task.index }}_professional[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                                            <option value="">Selecione...</option>
+                                                            {% for prof in professionals %}
+                                                            <option value="{{ prof.id }}">{{ prof.name }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Função</label>
+                                                        <select name="task_{{ task.index }}_role[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                                            <option value="">Selecione...</option>
+                                                            {% for role in roles %}
+                                                            <option value="{{ role.id }}">{{ role.name }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <!-- Upload de mídias -->
+                                    <div class="border-t border-slate-200 pt-4">
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Anexar Fotos/Vídeos</label>
+                                        {% include 'services/components/media_dropzone.html' with dropzone_name="task_"|add:task.index|add:"_media" dropzone_id="task_"|add:task.index|add:"_media_id" additional_classes="task-media-input" is_subform=True %}
+                                        <p class="text-xs text-slate-500 italic mt-2">Adicione evidências da etapa. Toque em qualquer arquivo para removê-lo antes de salvar.</p>
+                                        <div class="task-media-preview grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 hidden"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <!-- Task 1 (Initial) -->
+                        <div class="task-card border-2 border-green-200 rounded-2xl p-5 bg-gradient-to-br from-green-50/50 to-white relative">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm task-number">
+                                        1
+                                    </div>
+                                    <h4 class="font-bold text-slate-900 task-title">Etapa 1</h4>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                <!-- Tipo de Etapa -->
+                                <div>
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Tipo de Etapa *</label>
+                                    <select name="task_0_type" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                        <option value="">Selecione...</option>
+                                        {% for value, label in form.task_type.field.choices %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <!-- Datas de Agendamento -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Início do Agendamento *</label>
+                                        <input type="datetime-local" name="scheduled_at" id="id_scheduled_at" value="{% if initial_scheduled_at %}{{ initial_scheduled_at }}{% else %}{{ task.scheduled|default:'' }}{% endif %}" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Fim do Agendamento</label>
+                                        <input type="datetime-local" name="scheduled_end_at" id="id_scheduled_end_at" value="{% if initial_scheduled_end_at %}{{ initial_scheduled_end_at }}{% else %}{{ task.scheduled_end|default:'' }}{% endif %}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                    </div>
+                                </div>
+
+                                <!-- WhatsApp Confirmation (Adicionado recentemente) -->
+                                <div class="flex items-center space-x-2 border border-slate-200 bg-white p-3 rounded-lg">
+                                    {{ form.send_whatsapp_confirmation }}
+                                    <label for="{{ form.send_whatsapp_confirmation.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                                        {{ form.send_whatsapp_confirmation.label }}
+                                    </label>
+                                </div>
+
+                                <!-- Execução -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 border border-slate-200 rounded-lg">
+                                    <h4 class="col-span-1 md:col-span-2 font-bold text-slate-800 text-sm flex items-center gap-2 mb-2">
+                                        <i data-lucide="clock" class="w-4 h-4 text-green-600"></i>
+                                        Execução
+                                    </h4>
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Início (Execução)</label>      
+                                        <input type="datetime-local" name="task_0_start_date" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">   
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Término (Execução)</label>     
+                                        <input type="datetime-local" name="task_0_end_date" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">   
+                                    </div>
+                                </div>
+
+                                <!-- Valor -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor do Serviço (R$)</label>
+                                        <input type="number" step="0.01" name="task_0_value" placeholder="0,00" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                    </div>
+                                    <div>
+                                        <!-- Campo vazio para manter o grid equilibrado -->
+                                    </div>
+                                </div>
+
+                                <!-- Equipe -->
+                                <div class="border-t border-slate-200 pt-4">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Equipe Alocada</label>
+                                        <button type="button" class="add-team-member-btn text-xs font-bold text-green-600 hover:text-green-700 flex items-center gap-1">
+                                            <i data-lucide="user-plus" class="h-3 w-3"></i> Adicionar
+                                        </button>
+                                    </div>
+
+                                    <div class="team-members-container space-y-3">
+                                        <div class="team-member-row grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-lg bg-slate-50 border border-slate-200 relative">
+                                            <div>
+                                                <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Profissional</label>
+                                                <select name="task_0_professional[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                                    <option value="">Selecione...</option>
+                                                    {% for prof in professionals %}
+                                                    <option value="{{ prof.id }}">{{ prof.name }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Função</label>
+                                                <select name="task_0_role[]" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
+                                                    <option value="">Selecione...</option>
+                                                    {% for role in roles %}
+                                                    <option value="{{ role.id }}">{{ role.name }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Upload de mídias -->
+                                <div class="border-t border-slate-200 pt-4">
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Anexar Fotos/Vídeos</label>
+                                    {% include 'services/components/media_dropzone.html' with dropzone_name="task_0_media" dropzone_id="task_0_media_id" additional_classes="task-media-input" is_subform=True %}
+                                    <p class="text-xs text-slate-500 italic mt-2">Adicione evidências da etapa. Toque em qualquer arquivo para removê-lo antes de salvar.</p>
+                                    <div class="task-media-preview grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 hidden"></div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Botão Adicionar Nova Etapa -->
+                    <button type="button" id="add-task-btn" class="w-full mt-4 py-4 border-2 border-dashed border-green-300 rounded-2xl text-green-600 font-bold hover:bg-green-50 hover:border-green-400 transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="plus-circle" class="h-5 w-5"></i>
+                        Adicionar Nova Etapa
+                    </button>
+                {% endif %}
             </div>
         </div>
 
         <!-- ============ SEÇÃO 4: ITENS DO ORÇAMENTO ============ -->
+        {% if order %}
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
                 <div class="flex items-center justify-between">
@@ -278,8 +655,10 @@
                 </a>
             </div>
         </div>
+        {% endif %}
 
         <!-- ============ SEÇÃO 5: OCORRÊNCIAS ============ -->
+        {% if order %}
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
                 <div class="flex items-center justify-between">
@@ -349,22 +728,76 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
 
         <!-- Submit Buttons -->
         <div class="flex flex-col-reverse sm:flex-row gap-3 pb-24 md:pb-6 pt-2">
-            <a href="{% url 'service_order_detail' order.id %}" class="inline-flex h-12 flex-1 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
+            <a href="{% if order and order.id %}{% url 'service_order_detail' order.id %}{% else %}{% url 'service_order_list' %}{% endif %}" class="inline-flex h-12 flex-1 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
                 Cancelar
             </a>
             <button type="submit" class="inline-flex h-12 flex-1 items-center justify-center rounded-md bg-slate-900 text-sm font-medium text-slate-50 shadow transition-colors hover:bg-slate-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 gap-2">
-                <i data-lucide="save" class="h-4 w-4"></i>
-                Salvar Alterações
+                <i data-lucide="{% if order %}save{% else %}check-circle{% endif %}" class="h-4 w-4"></i>
+                {% if order %}Salvar Alterações{% else %}Criar Ordem de Serviço{% endif %}
             </button>
         </div>
     </form>
 </div>
+
+<!-- Modal de Conflito de Horário (Aviso) -->
+{% if show_force_schedule_modal %}
+<div id="force-schedule-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+        <div class="p-6 space-y-4">
+            <div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-triangle" class="h-6 w-6 text-amber-600"></i>
+            </div>
+            <h3 class="text-xl font-bold text-center text-slate-900">Atenção ao Agendamento</h3>
+            <p class="text-slate-600 text-center text-sm">{{ force_message }}</p>
+        </div>
+        <div class="bg-slate-50 px-6 py-4 flex gap-3">
+            <button type="button" onclick="document.getElementById('force-schedule-modal').remove()" class="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
+                Revisar Horário
+            </button>
+            <button type="button" onclick="confirmForceSchedule()" class="flex-1 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-sm">
+                Confirmar Mesmo Assim
+            </button>
+        </div>
+    </div>
+</div>
+<script>
+    function confirmForceSchedule() {
+        const form = document.getElementById('order-form') || document.querySelector('form');
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'ignore_working_hours';
+        input.value = 'true';
+        form.appendChild(input);
+        form.submit();
+    }
+</script>
+{% endif %}
+
+<!-- Modal Container -->
+<div id="form-modal" class="hidden fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
+    <div class="bg-white w-full max-w-2xl h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <h3 id="modal-title" class="font-bold text-slate-900">Novo Cadastro</h3>
+            <button onclick="closeModal()" class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+                <i data-lucide="x" class="h-5 w-5 text-slate-500"></i>
+            </button>
+        </div>
+        <div class="flex-1">
+            <iframe id="modal-iframe" src="" class="w-full h-full border-none"></iframe>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
+<!-- Tom Select JS -->
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+
 <!-- Estilização Automática Shadcn para os Campos de Formulário -->
 <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -399,7 +832,354 @@
                 "disabled:cursor-not-allowed", "disabled:opacity-50", "accent-slate-900"
             );
         });
+
+        {% if not order %}
+        // ============ CRIAÇÃO: LÓGICA DE CLIENTES E PROPRIEDADES ============
+        const clientSelect = document.getElementById('id_client');
+        const propertySelect = document.getElementById('id_client_property');
+        const btnAddProperty = document.getElementById('btn-add-property');
+        const propertyLoading = document.getElementById('property-loading');
+
+        if (clientSelect) {
+            // Initialize Tom Select for Clients
+            const tsClient = new TomSelect(clientSelect, {
+                create: false,
+                sortField: { field: "text", direction: "asc" },
+                placeholder: "Pesquise pelo nome do cliente...",
+                onChange: function(value) {
+                    updateProperties(value);
+                }
+            });
+
+            function updateProperties(clientId) {
+                if (!clientId) {
+                    propertySelect.innerHTML = '<option value="">---------</option>';
+                    btnAddProperty.disabled = true;
+                    btnAddProperty.classList.add('opacity-50', 'cursor-not-allowed');
+                    return;
+                }
+
+                btnAddProperty.disabled = false;
+                btnAddProperty.classList.remove('opacity-50', 'cursor-not-allowed');
+                propertyLoading.classList.remove('hidden');
+
+                fetch(`{% url 'api_get_properties' %}?client_id=${clientId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        propertySelect.innerHTML = '<option value="">---------</option>';
+                        data.forEach(prop => {
+                            const option = document.createElement('option');
+                            option.value = prop.id;
+                            option.textContent = prop.address;
+                            propertySelect.appendChild(option);
+                        });
+                    })
+                    .finally(() => {
+                        propertyLoading.classList.add('hidden');
+                    });
+            }
+        }
+
+        // ============ MULTIPLE TASKS MANAGEMENT ============
+        let taskCount = {{ submitted_tasks|length|default:1 }};
+        const tasksContainer = document.getElementById('tasks-container');
+        const addTaskBtn = document.getElementById('add-task-btn');
+
+        // Add new task
+        if (addTaskBtn) {
+            addTaskBtn.addEventListener('click', function() {
+                taskCount++;
+                const newTaskCard = createTaskCard(taskCount);
+                tasksContainer.appendChild(newTaskCard);
+                lucide.createIcons();
+                initializeTaskEventListeners(newTaskCard);
+            });
+        }
+
+        function createTaskCard(number) {
+            const card = document.createElement('div');
+            card.className = 'task-card border-2 border-slate-200 rounded-2xl p-5 bg-white relative';
+            card.innerHTML = `
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm task-number">
+                            ${number}
+                        </div>
+                        <h4 class="font-bold text-slate-900 task-title">Etapa ${number}</h4>
+                    </div>
+                    <button type="button" class="remove-task-btn p-2 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-all">
+                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Tipo de Etapa -->
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Tipo de Etapa *</label>
+                        <select name="task_${number-1}_type" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                            <option value="">Selecione...</option>
+                            <option value="BUDGET">Vistoria/Orçamento</option>
+                            <option value="EXECUTION">Execução/Instalação</option>
+                            <option value="WARRANTY">Garantia</option>
+                        </select>
+                    </div>
+
+                    <!-- Datas e Valor -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
+                            <input type="datetime-local" id="task_${number-1}_scheduled" name="task_${number-1}_scheduled" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data Fim de Agendamento</label>
+                            <input type="datetime-local" name="task_${number-1}_scheduled_end" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                        </div>
+                    </div>
+
+                    <!-- Execução -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 border border-slate-200 rounded-lg">
+                        <h4 class="col-span-1 md:col-span-2 font-bold text-slate-800 text-sm flex items-center gap-2 mb-2">
+                            <i data-lucide="clock" class="w-4 h-4 text-green-600"></i>
+                            Execução
+                        </h4>
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Início (Execução)</label>
+                            <input type="datetime-local" name="task_${number-1}_start_date" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Término (Execução)</label>
+                            <input type="datetime-local" name="task_${number-1}_end_date" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white">
+                        </div>
+                    </div>
+
+                    <!-- Valor -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor do Serviço (R$)</label>
+                            <input type="number" step="0.01" name="task_${number-1}_value" placeholder="0,00" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                        </div>
+                        <div>
+                            <!-- Campo vazio para manter o grid equilibrado -->
+                        </div>
+                    </div>
+
+                    <!-- Equipe -->
+                    <div class="border-t border-slate-200 pt-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Equipe Alocada</label>
+                            <button type="button" class="add-team-member-btn text-xs font-bold text-green-600 hover:text-green-700 flex items-center gap-1">
+                                <i data-lucide="user-plus" class="h-3 w-3"></i> Adicionar
+                            </button>
+                        </div>
+                        <div class="team-members-container space-y-2">
+                            <!-- Campo padrão vazio -->
+                            <div class="team-member-row grid grid-cols-2 gap-3 p-3 rounded-lg bg-white border border-slate-200 relative">
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Profissional</label>
+                                    <select name="task_${number-1}_professional[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                                        <option value="">Selecione...</option>
+                                        {% for prof in professionals %}
+                                        <option value="{{ prof.id }}">{{ prof.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Função</label>
+                                    <select name="task_${number-1}_role[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                                        <option value="">Selecione...</option>
+                                        {% for role in roles %}
+                                        <option value="{{ role.id }}">{{ role.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload de mídias -->
+                    <div class="border-t border-slate-200 pt-4">
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Anexar Fotos/Vídeos</label>
+                        {% include 'services/components/media_dropzone.html' with dropzone_name="task_${number-1}_media" dropzone_id="task_${number-1}_media_id" additional_classes="task-media-input" is_subform=True %}
+                        <p class="text-xs text-slate-400 italic mt-1">Envie evidências desta etapa e toque no arquivo para removê-lo.</p>
+                        <div class="task-media-preview grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 hidden"></div>
+                    </div>
+                </div>
+            `;
+
+            return card;
+        }
+
+        // Initialize event listeners for task cards
+        function initializeTaskEventListeners(taskCard) {
+            // Remove task button
+            const removeBtn = taskCard.querySelector('.remove-task-btn');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', function() {
+                    if(typeof cleanupMediaState === 'function') cleanupMediaState(taskCard);
+                    taskCard.remove();
+                    updateTaskNumbers();
+                });
+            }
+
+            // Add team member button
+            const addTeamBtn = taskCard.querySelector('.add-team-member-btn');
+            if (addTeamBtn) {
+                addTeamBtn.addEventListener('click', function() {
+                    addTeamMemberToTask(taskCard);
+                });
+            }
+        }
+
+        // Add team member to specific task
+        function addTeamMemberToTask(taskCard) {
+            const container = taskCard.querySelector('.team-members-container');
+            const taskNumber = Array.from(tasksContainer.querySelectorAll('.task-card')).indexOf(taskCard);
+            
+            const memberRow = document.createElement('div');
+            memberRow.className = 'team-member-row grid grid-cols-2 gap-3 p-3 rounded-lg bg-white border border-slate-200 relative';
+            memberRow.innerHTML = `
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Profissional</label>
+                    <select name="task_${taskNumber}_professional[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                        <option value="">Selecione...</option>
+                        {% for prof in professionals %}
+                        <option value="{{ prof.id }}">{{ prof.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Função</label>
+                    <select name="task_${taskNumber}_role[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
+                        <option value="">Selecione...</option>
+                        {% for role in roles %}
+                        <option value="{{ role.id }}">{{ role.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="button" class="absolute -top-2 -right-2 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all remove-team-member-btn">
+                    <i data-lucide="x" class="h-3 w-3"></i>
+                </button>
+            `;
+
+            const removeBtn = memberRow.querySelector('.remove-team-member-btn');
+            removeBtn.addEventListener('click', function() {
+                memberRow.remove();
+            });
+
+            container.appendChild(memberRow);
+            lucide.createIcons();
+        }
+
+        // Update task numbers after removal
+        function updateTaskNumbers() {
+            const taskCards = tasksContainer.querySelectorAll('.task-card');
+            taskCards.forEach((card, index) => {
+                const number = index + 1;
+                const badge = card.querySelector('.task-number');
+                const title = card.querySelector('.task-title');
+                if (badge) badge.textContent = number;
+                if (title) title.textContent = `Etapa ${number}`;
+            });
+            taskCount = taskCards.length;
+        }
+
+        // Initialize first task event listeners
+        const firstTask = document.querySelector('.task-card');
+        if (firstTask) {
+            initializeTaskEventListeners(firstTask);
+        }
+
+        // Initialize team member buttons for existing formset
+        document.querySelectorAll('.add-team-member-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const taskCard = btn.closest('.task-card');
+                addTeamMemberToTask(taskCard);
+            });
+        });
+        
+        // Auto-preencher campos de data de Criação a partir da view (via Initial Context)
+        setTimeout(function() {
+            {% if initial_origin_date %}
+            const originDate = '{{ initial_origin_date }}';
+            {% else %}
+            const today = new Date();
+            const originDate = today.toISOString().split('T')[0]; // YYYY-MM-DD
+            {% endif %}
+            
+            if (originDate) {
+                const originDateField = document.getElementById('id_origin_date');
+                if (originDateField) {
+                    originDateField.value = originDate;
+                }
+            }
+            
+            {% if initial_scheduled_at %}
+            const initialDateTime = '{{ initial_scheduled_at }}';
+            if (initialDateTime) {
+                const date = new Date(initialDateTime);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                const formattedDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+                const scheduledField = document.getElementById('id_scheduled_at') || document.querySelector('input[name="scheduled_at"]');
+                if (scheduledField) {
+                    scheduledField.value = formattedDateTime;
+                }
+            }
+            {% endif %}
+
+            {% if initial_scheduled_end_at %}
+            const initialDateTimeEnd = '{{ initial_scheduled_end_at }}';
+            if (initialDateTimeEnd) {
+                const dateEnd = new Date(initialDateTimeEnd);
+                const yearEnd = dateEnd.getFullYear();
+                const monthEnd = String(dateEnd.getMonth() + 1).padStart(2, '0');
+                const dayEnd = String(dateEnd.getDate()).padStart(2, '0');
+                const hoursEnd = String(dateEnd.getHours()).padStart(2, '0');
+                const minutesEnd = String(dateEnd.getMinutes()).padStart(2, '0');
+                const formattedDateTimeEnd = `${yearEnd}-${monthEnd}-${dayEnd}T${hoursEnd}:${minutesEnd}`;
+
+                const scheduledEndField = document.getElementById('id_scheduled_end_at') || document.querySelector('input[name="scheduled_end_at"]');
+                if (scheduledEndField) {
+                    scheduledEndField.value = formattedDateTimeEnd;
+                }
+            }
+            {% endif %}
+        }, 200);
+        {% endif %}
     });
+
+    // Modal Management globais
+    window.openModal = function(type) {
+        if (type === 'client') {
+            const modal = document.getElementById('form-modal');
+            const iframe = document.getElementById('modal-iframe');
+            const title = document.getElementById('modal-title');
+            
+            let url = "{% url 'client_create' %}?popup=true";
+            title.innerText = "Novo Cliente";
+            
+            iframe.src = url;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+        } else if (type === 'property') {
+            const clientSelect = document.getElementById('id_client');
+            const clientId = clientSelect ? clientSelect.value : null;
+            if (!clientId) return alert("Selecione um cliente primeiro.");
+            window.location.href = `/clients/${clientId}/property/new/`;
+        }
+    };
+
+    window.closeModal = function() {
+        const modal = document.getElementById('form-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.style.overflow = '';
+    };
 
     // Initialize Lucide icons
     if (typeof lucide !== 'undefined') {
