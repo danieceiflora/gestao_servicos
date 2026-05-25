@@ -96,7 +96,6 @@ def api_tecnico_bootstrap(request):
                     'started_at': t.started_at.isoformat() if t.started_at else None,
                     'finished_at': t.finished_at.isoformat() if t.finished_at else None,
                     'notes': t.notes,
-                    'value': str(t.value) if t.value else None,
                     'customer_name': t.customer_name,
                     'customer_signature': t.customer_signature,
                 } for t in tasks_qs
@@ -302,6 +301,8 @@ def api_tecnico_sync_push(request):
                             print(f"Erro ao salvar pagamento offline: {pay_err}")
 
                     task.save()
+                    if hasattr(task.service_order, 'update_status'):
+                        task.service_order.update_status()
                     processed_count += 1
                     
                 # 3. Atualização de Checklist

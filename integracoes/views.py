@@ -360,7 +360,7 @@ def _process_chatwoot_confirmation_reply(payload):
     if reply_refs:
         task = ServiceOrderTask.objects.filter(
             chatwoot_confirmation_message_id__in=reply_refs
-        ).order_by('-updated_at').first()
+        ).order_by('-created_at').first()
 
     if not task and conversation_refs:
         task = ServiceOrderTask.objects.filter(
@@ -369,7 +369,7 @@ def _process_chatwoot_confirmation_reply(payload):
                 ServiceOrderTask.WhatsAppConfirmationStatus.SENT,
                 ServiceOrderTask.WhatsAppConfirmationStatus.WAITING,
             ]
-        ).order_by('-updated_at').first()
+        ).order_by('-created_at').first()
 
     if not task:
         logger.warning(

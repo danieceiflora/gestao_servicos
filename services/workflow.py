@@ -17,6 +17,34 @@ def _clean_phone_number(phone):
         digits = "55" + digits
     return f"+{digits}"
 
+def _get_order_payment_method(service_order):
+    from .models import ServiceOrderTask
+    exec_task = service_order.tasks.filter(
+        task_type=ServiceOrderTask.TaskType.EXECUTION,
+        payment_method__isnull=False
+    ).order_by('scheduled_at').first()
+    if exec_task and exec_task.payment_method:
+        return exec_task.payment_method
+
+    budget_task = service_order.tasks.filter(
+        task_type=ServiceOrderTask.TaskType.BUDGET,
+        payment_method__isnull=False
+    ).order_by('scheduled_at').first()
+    if budget_task and budget_task.payment_method:
+        return budget_task.payment_method
+
+    any_task = service_order.tasks.filter(
+        payment_method__isnull=False
+    ).order_by('scheduled_at').first()
+    return any_task.payment_method if any_task else None
+
+def _has_technician_payment(service_order):
+    from .models import ServicePayment
+    return service_order.payments.filter(
+        status=ServicePayment.PaymentStatus.PENDING,
+        amount__gt=0
+    ).exists()
+
 def run_payment_request_workflow(service_order_id):
     """
     Função principal do workflow de cobrança. 
@@ -33,10 +61,17 @@ def run_payment_request_workflow(service_order_id):
             return
 
         config = SystemConfig.load()
-        
-        # 2. Verificar se as configurações necessárias existem
-        if not all([config.chatwoot_pix_template, config.chatwoot_api_token]):
-            logger.warning(f"Workflow abortado para OS #{service_order.number}: Configurações de PIX/Chatwoot incompletas.")
+
+        if not config.chatwoot_api_token:
+            logger.warning(f"Workflow abortado para OS #{service_order.number}: Token do Chatwoot não configurado.")
+            return
+
+        payment_method = _get_order_payment_method(service_order)
+        has_technician_payment = _has_technician_payment(service_order)
+        use_pix_flow = payment_method == 'PIX' and not has_technician_payment
+
+        if use_pix_flow and not config.chatwoot_pix_template:
+            logger.warning(f"Workflow abortado para OS #{service_order.number}: Template de PIX não configurado.")
             return
 
         # 3. Gerar PDF de Execução
@@ -75,46 +110,54 @@ def run_payment_request_workflow(service_order_id):
         # Isso reduz erros de 'Undeliverable' em envios imediatos
         time.sleep(2)
 
-        # 6. Enviar Template de PIX com PDF Anexo (Header)
+        # 6. Enviar Template com PDF Anexo (Header)
         # O attachment deve ser uma tupla (nome_arquivo, conteudo, tipo_mime)
         filename = f"Execucao_OS_{service_order.number}.pdf"
         attachment = (filename, pdf_content, 'application/pdf')
         
-        logger.info(f"Enviando template {config.chatwoot_pix_template} para OS #{service_order.number}")
-        
-        # Formatação de valores
-        total_value_float = float(service_order.balance_due)
-        total_value_str = f"{total_value_float:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-        
-        # Variáveis do Corpo (4 variáveis conforme solicitado)
-        # 1. numero os, 2. valor do serviço, 3. chave pix, 4. Banco + Destinatario
-        body_variables = [
-            str(service_order.number),
-            total_value_str,            # Valor formatado
-            config.pix_key,             # Chave Pix (Global)
-            f"{config.pix_bank} - {config.pix_recipient}" # Banco e Destinatário combinados
-        ]
+        if use_pix_flow:
+            template_name = config.chatwoot_pix_template
+            logger.info(f"Enviando template {template_name} para OS #{service_order.number}")
+            
+            # Formatação de valores
+            total_value_float = float(service_order.balance_due)
+            total_value_str = f"{total_value_float:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            
+            # Variáveis do Corpo (4 variáveis conforme solicitado)
+            # 1. numero os, 2. valor do serviço, 3. chave pix, 4. Banco + Destinatario
+            body_variables = [
+                str(service_order.number),
+                total_value_str,            # Valor formatado
+                config.pix_key,             # Chave Pix (Global)
+                f"{config.pix_bank} - {config.pix_recipient}" # Banco e Destinatário combinados
+            ]
+        else:
+            template_name = "servico_finalizado_recebido_tecnico"
+            logger.info(f"Enviando template {template_name} para OS #{service_order.number}")
+            # O template espera apenas o número da OS como variável {{1}}
+            body_variables = [str(service_order.number)]
 
         # Enviar Template com Header tipo PDF e sem botões
         response = client.send_template(
             conversation_id=conversation_id,
-            template_name=config.chatwoot_pix_template,
+            template_name=template_name,
             variables=body_variables,
             attachment=attachment,
             button_data=None
         )
 
         if response:
-            # 7. Atribuir Etiqueta
-            label = config.chatwoot_pix_label or "pix-enviado"
-            client.assign_label_to_conversation(conversation_id, label)
+            if use_pix_flow:
+                # 7. Atribuir Etiqueta
+                label = config.chatwoot_pix_label or "pix-enviado"
+                client.assign_label_to_conversation(conversation_id, label)
             
             # 8. Marcar como enviado no banco
             service_order.pix_sent_at = timezone.now()
             service_order.save(update_fields=['pix_sent_at'])
             logger.info(f"Workflow concluído com sucesso para OS #{service_order.number}")
         else:
-            logger.error(f"Falha ao enviar template de PIX para OS #{service_order.number}")
+            logger.error(f"Falha ao enviar template de finalização/cobrança para OS #{service_order.number}")
 
     except Exception as e:
         logger.exception(f"Erro crítico no workflow de pagamento da OS {service_order_id}: {str(e)}")
