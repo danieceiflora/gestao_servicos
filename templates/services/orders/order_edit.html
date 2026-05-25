@@ -203,59 +203,61 @@
             </div>
         </div>
 
-        <!-- ============ SEÇÃO: CONFIRMAÇÃO WHATSAPP ============ -->
+        <!-- ============ SEÇÃO: APROVAÇÃO DA OS ============ -->
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
                 <div class="flex items-center gap-3">
                     <div class="p-2 bg-slate-100 rounded-md border border-slate-200">
-                        <i data-lucide="message-square" class="h-4 w-4 text-slate-600"></i>
+                        <i data-lucide="check-circle-2" class="h-4 w-4 text-slate-600"></i>
                     </div>
                     <div>
-                        <h3 class="font-semibold leading-none tracking-tight text-slate-900">Confirmação via WhatsApp</h3>
-                        <p class="text-xs text-slate-500 mt-1">Gerencie as notificações de agendamento</p>
+                        <h3 class="font-semibold leading-none tracking-tight text-slate-900">Aprovação da OS</h3>
+                        <p class="text-xs text-slate-500 mt-1">Defina o status de aprovação do cliente para esta ordem</p>
                     </div>
                 </div>
             </div>
             
             <div class="p-5 md:p-6 space-y-6">
-                <div class="flex items-center space-x-2">
-                    {{ form.send_whatsapp_confirmation }}
-                    <label for="{{ form.send_whatsapp_confirmation.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
-                        {{ form.send_whatsapp_confirmation.label }}
-                    </label>
-                </div>
-
-                {% if order %}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-2">
-                        <label for="{{ form.whatsapp_confirmation_status.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
-                            {{ form.whatsapp_confirmation_status.label }}
+                        <label for="{{ form.is_approved.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                            {{ form.is_approved.label }}
                         </label>
-                        {{ form.whatsapp_confirmation_status }}
+                        {{ form.is_approved }}
                     </div>
                     <div class="space-y-2">
-                        <label for="{{ form.whatsapp_notification_sent_at.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
-                            {{ form.whatsapp_notification_sent_at.label }}
+                        <label for="{{ form.payment_method.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                            {{ form.payment_method.label }}
                         </label>
-                        {{ form.whatsapp_notification_sent_at }}
+                        {{ form.payment_method }}
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="space-y-2">
-                        <label for="{{ form.whatsapp_confirmation_received_at.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
-                            {{ form.whatsapp_confirmation_received_at.label }}
-                        </label>
-                        {{ form.whatsapp_confirmation_received_at }}
+                <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-4">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="message-circle" class="h-4 w-4 text-slate-600"></i>
+                        <div>
+                            <h4 class="font-semibold text-slate-900">Resposta do orçamento</h4>
+                            <p class="text-xs text-slate-500">Resumo da resposta recebida para esta OS</p>
+                        </div>
                     </div>
                     <div class="space-y-2">
-                        <label for="{{ form.whatsapp_response_content.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
-                            {{ form.whatsapp_response_content.label }}
-                        </label>
-                        {{ form.whatsapp_response_content }}
+                        <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Mensagem recebida</p>
+                        <p class="text-sm text-slate-700 bg-white p-3 rounded-md border border-slate-200 whitespace-pre-wrap">
+                            {{ order.client_budget_response|default:"---" }}
+                        </p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-1">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resposta em</p>
+                            <p class="text-xs font-bold text-slate-900">{{ order.client_budget_responded_at|date:"d/m/Y H:i"|default:"---" }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Aprovação em</p>
+                            <p class="text-xs font-bold text-slate-900">{{ order.client_budget_approved_at|date:"d/m/Y H:i"|default:"---" }}</p>
+                        </div>
                     </div>
                 </div>
-                {% endif %}
             </div>
         </div>
 
@@ -294,9 +296,6 @@
                                     </span>
                                 </div>
                                 <p class="text-sm text-slate-500 flex items-center gap-1"><i data-lucide="calendar" class="h-3 w-3"></i> {{ task.scheduled_at|date:"d/m/Y H:i" }}</p>
-                                {% if task.value %}
-                                <p class="text-sm text-slate-500 flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3 w-3"></i> R$ {{ task.value|floatformat:2 }}</p>
-                                {% endif %}
                             </div>
                             <div class="flex items-center gap-2 md:self-start">
                                 <a href="{% url 'task_edit' task.id %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-slate-100 hover:text-slate-900 h-9 px-3 border border-slate-200 bg-white shadow-sm">Editar</a>
@@ -362,6 +361,31 @@
                                         </div>
                                     </div>
 
+                                    {% if task.index == 0 %}
+                                    <div class="border border-slate-200 bg-white p-4 rounded-lg space-y-4">
+                                        <div class="flex items-center space-x-2">
+                                            {{ form.send_whatsapp_confirmation }}
+                                            <label for="{{ form.send_whatsapp_confirmation.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                                                {{ form.send_whatsapp_confirmation.label }}
+                                            </label>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div class="space-y-2">
+                                                <label for="{{ form.whatsapp_notification_sent_at.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider block">Data de envio</label>
+                                                {{ form.whatsapp_notification_sent_at }}
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label for="{{ form.whatsapp_confirmation_received_at.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider block">Data da resposta</label>
+                                                {{ form.whatsapp_confirmation_received_at }}
+                                            </div>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label for="{{ form.whatsapp_response_content.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider block">Conteúdo da resposta</label>
+                                            {{ form.whatsapp_response_content }}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
                                     <!-- Execução -->
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 border border-slate-200 rounded-lg">
                                         <h4 class="col-span-1 md:col-span-2 font-bold text-slate-800 text-sm flex items-center gap-2 mb-2">
@@ -378,16 +402,6 @@
                                         </div>
                                     </div>
 
-                                    <!-- Valor -->
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                        <div>
-                                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor do Serviço (R$)</label>
-                                            <input type="number" step="0.01" name="task_{{ task.index }}_value" value="{{ task.value }}" placeholder="0,00" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
-                                        </div>
-                                        <div>
-                                            <!-- Campo vazio para manter o grid equilibrado -->
-                                        </div>
-                                    </div>
 
                                     <!-- Equipe -->
                                     <div class="border-t border-slate-200 pt-4">
@@ -506,6 +520,22 @@
                                     </label>
                                 </div>
 
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="space-y-2">
+                                        <label for="{{ form.whatsapp_notification_sent_at.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider block">Data de envio</label>
+                                        {{ form.whatsapp_notification_sent_at }}
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label for="{{ form.whatsapp_confirmation_received_at.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider block">Data da resposta</label>
+                                        {{ form.whatsapp_confirmation_received_at }}
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label for="{{ form.whatsapp_response_content.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider block">Conteúdo da resposta</label>
+                                    {{ form.whatsapp_response_content }}
+                                </div>
+
                                 <!-- Execução -->
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 border border-slate-200 rounded-lg">
                                     <h4 class="col-span-1 md:col-span-2 font-bold text-slate-800 text-sm flex items-center gap-2 mb-2">
@@ -522,16 +552,6 @@
                                     </div>
                                 </div>
 
-                                <!-- Valor -->
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor do Serviço (R$)</label>
-                                        <input type="number" step="0.01" name="task_0_value" placeholder="0,00" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
-                                    </div>
-                                    <div>
-                                        <!-- Campo vazio para manter o grid equilibrado -->
-                                    </div>
-                                </div>
 
                                 <!-- Equipe -->
                                 <div class="border-t border-slate-200 pt-4">
@@ -952,16 +972,6 @@
                         </div>
                     </div>
 
-                    <!-- Valor -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <div>
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor do Serviço (R$)</label>
-                            <input type="number" step="0.01" name="task_${number-1}_value" placeholder="0,00" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
-                        </div>
-                        <div>
-                            <!-- Campo vazio para manter o grid equilibrado -->
-                        </div>
-                    </div>
 
                     <!-- Equipe -->
                     <div class="border-t border-slate-200 pt-4">

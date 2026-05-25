@@ -408,7 +408,6 @@ def service_order_scheduling(request):
                 'scheduled_end': sched_end_val,
                 'start_date': request.POST.get(f'task_{_idx}_start_date', ''),
                 'end_date': request.POST.get(f'task_{_idx}_end_date', ''),
-                'value': request.POST.get(f'task_{_idx}_value', ''),
                 'team': []
             }
             professionals = request.POST.getlist(f'task_{_idx}_professional[]')
@@ -546,7 +545,6 @@ def service_order_scheduling(request):
                 
                 start_date = request.POST.get(f'task_{task_index}_start_date')
                 end_date = request.POST.get(f'task_{task_index}_end_date')
-                value = request.POST.get(f'task_{task_index}_value')
 
                 scheduled_datetime = None
                 if scheduled_input:
@@ -579,9 +577,11 @@ def service_order_scheduling(request):
                     # Se for a primeira task, usar os dados do formulário principal
                     if task_index == 0:
                         task_kwargs.update({
-                            'send_whatsapp_confirmation': form.cleaned_data.get('send_whatsapp_confirmation', False),
-                            'whatsapp_confirmation_status': form.cleaned_data.get('whatsapp_confirmation_status'),
-                            'whatsapp_notification_sent_at': form.cleaned_data.get('whatsapp_notification_sent_at'),
+                            'is_approved': form.cleaned_data.get('is_approved', False),
+                            'payment_method': form.cleaned_data.get('payment_method'),
+                            'send_whatsapp_confirmation': form.cleaned_data.get('send_whatsapp_confirmation', False),   
+                            'whatsapp_confirmation_status': form.cleaned_data.get('whatsapp_confirmation_status'),      
+                            'whatsapp_notification_sent_at': form.cleaned_data.get('whatsapp_notification_sent_at'),    
                             'whatsapp_confirmation_received_at': form.cleaned_data.get('whatsapp_confirmation_received_at'),
                             'whatsapp_response_content': form.cleaned_data.get('whatsapp_response_content'),
                         })
@@ -834,13 +834,10 @@ def service_order_edit(request, order_id):
             first_task = service_order.tasks.order_by('scheduled_at').first()
             if first_task:
                 first_task.task_type = form.cleaned_data.get('task_type')
+                first_task.is_approved = form.cleaned_data.get('is_approved', False)
+                first_task.payment_method = form.cleaned_data.get('payment_method')
                 first_task.scheduled_at = form.cleaned_data.get('scheduled_at')
                 first_task.scheduled_end_at = form.cleaned_data.get('scheduled_end_at')
-                first_task.send_whatsapp_confirmation = form.cleaned_data.get('send_whatsapp_confirmation', False)
-                first_task.whatsapp_confirmation_status = form.cleaned_data.get('whatsapp_confirmation_status')
-                first_task.whatsapp_notification_sent_at = form.cleaned_data.get('whatsapp_notification_sent_at')
-                first_task.whatsapp_confirmation_received_at = form.cleaned_data.get('whatsapp_confirmation_received_at')
-                first_task.whatsapp_response_content = form.cleaned_data.get('whatsapp_response_content')
                 first_task.save()
             
             messages.success(request, 'Ordem de Serviço atualizada com sucesso!')

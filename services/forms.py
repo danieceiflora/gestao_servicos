@@ -196,6 +196,26 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
     """
     Formulário para criar uma OS e sua primeira Etapa (Task) simultaneamente.
     """
+    is_approved = forms.TypedChoiceField(
+        label='Aprovado pelo Cliente',
+        choices=[('', 'Selecione...'), (True, 'Aprovado'), (False, 'Reprovado')],
+        coerce=lambda value: str(value).lower() in ('true', '1'),
+        empty_value=False,
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+        })
+    )
+
+    payment_method = forms.ChoiceField(
+        label='Método de Pagamento Preferencial',
+        choices=[('', 'Selecione...')] + ServiceOrderTask.PAYMENT_METHODS,
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+        })
+    )
+
     task_type = forms.ChoiceField(
         choices=ServiceOrderTask.TaskType.choices,
         initial=ServiceOrderTask.TaskType.BUDGET,
@@ -320,6 +340,8 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
             first_task = self.instance.tasks.order_by('scheduled_at').first()
             if first_task:
                 self.initial['task_type'] = first_task.task_type
+                self.initial['is_approved'] = first_task.is_approved
+                self.initial['payment_method'] = first_task.payment_method or ''
                 if first_task.scheduled_at:
                     self.initial['scheduled_at'] = django.utils.timezone.localtime(first_task.scheduled_at).strftime('%Y-%m-%dT%H:%M')
                 if first_task.scheduled_end_at:
@@ -332,6 +354,9 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
                 if first_task.whatsapp_confirmation_received_at:
                     self.initial['whatsapp_confirmation_received_at'] = django.utils.timezone.localtime(first_task.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
                 self.initial['whatsapp_response_content'] = first_task.whatsapp_response_content
+        else:
+            self.initial['is_approved'] = False
+            self.initial['payment_method'] = ''
         
         # Filtrar apenas profissionais com função "Vendedor"
         try:
@@ -645,8 +670,8 @@ class TaskScheduleForm(forms.ModelForm):
     class Meta:
         model = ServiceOrderTask
         fields = [
-            'task_type', 'status', 'is_approved', 'payment_method', 'scheduled_at', 
-            'scheduled_end_at', 'started_at', 'finished_at', 'value', 'notes',
+            'task_type', 'status', 'scheduled_at',
+            'scheduled_end_at', 'started_at', 'finished_at', 'notes',
             'send_whatsapp_confirmation', 'whatsapp_confirmation_status',
             'whatsapp_notification_sent_at', 'whatsapp_confirmation_received_at',
             'whatsapp_response_content'
@@ -656,12 +681,6 @@ class TaskScheduleForm(forms.ModelForm):
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
             'status': forms.Select(attrs={
-                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
-            }),
-            'is_approved': forms.Select(attrs={
-                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
-            }),
-            'payment_method': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
             'scheduled_at': forms.DateTimeInput(attrs={
@@ -684,11 +703,6 @@ class TaskScheduleForm(forms.ModelForm):
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
                 'id': 'id_finished_at'
             }),
-            'value': forms.NumberInput(attrs={
-                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
-                'step': '0.01',
-                'placeholder': '0.00'
-            }),
             'notes': forms.Textarea(attrs={
                 'rows': 3,
                 'placeholder': 'Observações sobre esta etapa...',
@@ -702,13 +716,10 @@ class TaskScheduleForm(forms.ModelForm):
         labels = {
             'task_type': 'Tipo de Etapa',
             'status': 'Status',
-            'is_approved': 'Aprovado pelo Cliente',
-            'payment_method': 'Método de Pagamento Preferencial',
             'scheduled_at': 'Data Início (Agendamento)',
             'scheduled_end_at': 'Data Término (Agendamento)',
             'started_at': 'Iniciado em (Execução)',
             'finished_at': 'Finalizado em (Execução)',
-            'value': 'Valor do Serviço (R$)',
             'notes': 'Observações',
             'send_whatsapp_confirmation': 'Enviar WhatsApp de Confirmação?',
             'whatsapp_confirmation_status': 'Status da Confirmação WhatsApp',
@@ -720,21 +731,6 @@ class TaskScheduleForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['whatsapp_confirmation_status'].choices = [('', 'Selecione...')] + ServiceOrderTask.WhatsAppConfirmationStatus.choices
-        self.fields['is_approved'] = forms.TypedChoiceField(
-            label='Aprovado pelo Cliente',
-            choices=((True, 'Aprovado'), (False, 'Reprovado')),
-            coerce=lambda value: str(value).lower() in ('true', '1'),
-            required=False,
-            widget=forms.Select(attrs={
-                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
-            }),
-        )
-        if self.instance.pk:
-            self.initial['is_approved'] = self.instance.is_approved
-        else:
-            self.initial['is_approved'] = False
-
-        self.fields['payment_method'].required = False
         if self.instance.pk:
             if self.instance.scheduled_at:
                 self.initial['scheduled_at'] = django.utils.timezone.localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')

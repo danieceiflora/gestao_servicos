@@ -554,8 +554,7 @@ class ServiceOrder(models.Model):
     @property
     def total_value(self):
         items_total = sum((item.total_price for item in self.items.all()), Decimal('0'))
-        tasks_total = sum((task.value for task in self.tasks.all() if task.value), Decimal('0'))
-        return quantize_money(items_total + tasks_total)
+        return quantize_money(items_total)
 
     @property
     def total_paid(self):
@@ -677,8 +676,6 @@ class ServiceOrderTask(models.Model):
     started_at = models.DateTimeField(null=True, blank=True, verbose_name="Iniciado em")
     finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
     
-    # Valor da Tarefa
-    value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Valor do Serviço")
     
     notes = models.TextField(verbose_name="Observações Técnicas desta Etapa", blank=True)
     

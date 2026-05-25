@@ -597,23 +597,19 @@ class CompletionPDFGenerator(BasePDFGenerator):
         elements = []
         status_display = self.service_order.get_status_display()
         finished_at_dt = None
-        finished_at_str = "Não finalizado"
         last_execution = self.service_order.tasks.filter(task_type='EXECUTION', status='COMPLETED').order_by('-finished_at').first()
         if last_execution and last_execution.finished_at:
             finished_at_dt = last_execution.finished_at
-            finished_at_str = finished_at_dt.strftime('%d/%m/%Y %H:%M')
 
         elements.append(self._section_title("DADOS DA FINALIZAÇÃO"))
         elements.append(Spacer(1, 0.1*cm))
 
-        data = [
-            [Paragraph("Data de Conclusão:", self.styles['Label']), Paragraph(finished_at_str, self.styles['Value'])],
-        ]
+        data = []
         if finished_at_dt:
             warranty_date = finished_at_dt + timezone.timedelta(days=365)
             data.append([Paragraph("Garantia do Serviço:", self.styles['Label']), Paragraph(f"Válida até {warranty_date.strftime('%d/%m/%Y')} (365 dias)", self.styles['Value'])])
         data.append([Paragraph("Descrição do Problema:", self.styles['Label']), Paragraph(self.service_order.description or "---", self.styles['Value'])])
-        
+
         table = Table(data, colWidths=[5*cm, 13*cm])
         table.setStyle(TableStyle([
             ('BOTTOMPADDING', (0,0), (-1,-1), 8),
@@ -713,14 +709,28 @@ class CompletionPDFGenerator(BasePDFGenerator):
         elements = []
         elements.append(self._section_title("CRONOGRAMA DE ETAPAS"))
         elements.append(Spacer(1, 0.1*cm))
-        data = [['Etapa', 'Data/Hora', 'Responsáveis', 'Status']]
+        data = [['Etapa', 'Programado', 'Iniciado', 'Finalizado', 'Responsáveis', 'Status']]
         tasks = self.service_order.tasks.all().order_by('scheduled_at').prefetch_related('team_members__professional', 'team_members__role')
         for task in tasks:
-            technicians = [f"{tm.professional.name}{' (' + tm.role.name + ')' if tm.role else ''}" for tm in task.team_members.all()]
-            date_str = (task.finished_at or task.scheduled_at).strftime('%d/%m/%Y %H:%M') if (task.finished_at or task.scheduled_at) else "---"
-            data.append([Paragraph(task.get_task_type_display(), self.styles['SmallValue']), Paragraph(date_str, self.styles['SmallValue']), Paragraph(", ".join(technicians) or "---", self.styles['SmallValue']), Paragraph(task.get_status_display(), self.styles['SmallValue'])])
-        if len(data) == 1: data.append(["-", "-", "-", "-"])
-        table = Table(data, colWidths=[4*cm, 3.5*cm, 7.5*cm, 3*cm])
+            technicians = [
+                f"{(tm.professional.name if getattr(tm, 'professional', None) and getattr(tm.professional, 'name', None) else 'Responsável')}"
+                f"{(' (' + tm.role.name + ')' if getattr(tm, 'role', None) and getattr(tm.role, 'name', None) else '')}"
+                for tm in task.team_members.all()
+            ]
+            scheduled_str = task.scheduled_at.strftime('%d/%m/%Y %H:%M') if getattr(task, 'scheduled_at', None) and task.scheduled_at else '---'
+            started_str = task.started_at.strftime('%d/%m/%Y %H:%M') if getattr(task, 'started_at', None) and task.started_at else '---'
+            finished_str = task.finished_at.strftime('%d/%m/%Y %H:%M') if getattr(task, 'finished_at', None) and task.finished_at else '---'
+            data.append([
+                Paragraph(task.get_task_type_display(), self.styles['SmallValue']),
+                Paragraph(scheduled_str, self.styles['SmallValue']),
+                Paragraph(started_str, self.styles['SmallValue']),
+                Paragraph(finished_str, self.styles['SmallValue']),
+                Paragraph(", ".join(technicians) or "---", self.styles['SmallValue']),
+                Paragraph(task.get_status_display(), self.styles['SmallValue'])
+            ])
+        if len(data) == 1:
+            data.append(["-", "-", "-", "-", "-", "-"])
+        table = Table(data, colWidths=[3.5*cm, 3*cm, 3*cm, 3*cm, 4*cm, 1.5*cm])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), self.bg_header),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
@@ -774,7 +784,6 @@ class CompletionPDFGenerator(BasePDFGenerator):
                 elif media.file:
                     photos.append(media.file)
         if photos or videos:
-            elements.append(PageBreak())
             elements.append(self._section_title("EVIDÊNCIAS GERAIS"))
             elements.append(Spacer(1, 0.3*cm))
             if videos:
