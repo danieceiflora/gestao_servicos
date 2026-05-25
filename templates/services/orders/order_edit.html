@@ -384,6 +384,17 @@
                                             {{ form.whatsapp_response_content }}
                                         </div>
                                     </div>
+                                    {% else %}
+                                    <div class="flex items-center space-x-2 border border-slate-200 bg-white p-3 rounded-lg">
+                                        <input type="checkbox"
+                                               name="task_{{ task.index }}_send_whatsapp_confirmation"
+                                               id="id_task_{{ task.index }}_send_whatsapp_confirmation"
+                                               class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                               {% if task.send_whatsapp_confirmation %}checked{% endif %}>
+                                        <label for="id_task_{{ task.index }}_send_whatsapp_confirmation" class="text-sm font-medium leading-none text-slate-700">
+                                            Enviar WhatsApp de Confirmação?
+                                        </label>
+                                    </div>
                                     {% endif %}
 
                                     <!-- Execução -->
@@ -954,6 +965,16 @@
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data Fim de Agendamento</label>
                             <input type="datetime-local" name="task_${number-1}_scheduled_end" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
                         </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2 border border-slate-200 bg-white p-3 rounded-lg">
+                        <input type="checkbox"
+                               name="task_${number-1}_send_whatsapp_confirmation"
+                               id="id_task_${number-1}_send_whatsapp_confirmation"
+                               class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                        <label for="id_task_${number-1}_send_whatsapp_confirmation" class="text-sm font-medium leading-none text-slate-700">
+                            Enviar WhatsApp de Confirmação?
+                        </label>
                     </div>
 
                     <!-- Execução -->

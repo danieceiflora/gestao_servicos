@@ -32,6 +32,103 @@ from .workflow import trigger_payment_workflow
 
 logger = logging.getLogger(__name__)
 
+def _format_schedule_datetime(value):
+    if not value:
+        return "a definir"
+    return django.utils.timezone.localtime(value).strftime('%d/%m/%Y às %H:%M')
+
+def _format_schedule_window(start_at, end_at):
+    if not start_at or not end_at:
+        return "a definir"
+    start_display = _format_schedule_datetime(start_at)
+    end_display = _format_schedule_datetime(end_at)
+    return f"{start_display} até {end_display}"
+
+def _build_visit_confirmation_template_vars(task):
+    order = task.service_order
+    order_number = order.number or "S/N"
+    description = order.description or "Sem descrição"
+    scheduled_display = _format_schedule_datetime(task.scheduled_at)
+    window_display = _format_schedule_window(task.scheduled_at, task.scheduled_end_at)
+
+    team_members = task.team_members.select_related('professional', 'role').all()
+    team_display = ""
+    if team_members:
+        team_display = ", ".join(
+            f"{member.professional.name}{f' ({member.role.name})' if member.role else ''}"
+            for member in team_members
+            if member.professional
+        )
+    if not team_display:
+        team_display = "Equipe a definir"
+
+    return [
+        str(order_number),
+        description,
+        scheduled_display,
+        window_display,
+        team_display,
+    ]
+
+def _send_visit_confirmation_if_needed(task):
+    if not task.send_whatsapp_confirmation or task.whatsapp_notification_sent_at:
+        return False
+
+    order = task.service_order
+    client = order.client_property.client if order and order.client_property else None
+    if not client:
+        logger.warning("Confirmação WhatsApp ignorada: OS sem cliente vinculada. task=%s", task.id)
+        return False
+
+    phone_record = client.phones.filter(is_primary=True).first() or client.phones.first()
+    if not phone_record or not phone_record.phone:
+        logger.warning("Confirmação WhatsApp ignorada: cliente sem telefone. os=%s", order.number)
+        return False
+
+    phone_e164 = format_phone_e164(phone_record.phone)
+    if not phone_e164:
+        logger.warning("Confirmação WhatsApp ignorada: telefone inválido. os=%s", order.number)
+        return False
+
+    cw = ChatwootClient()
+    if not all([cw.config.chatwoot_api_token, cw.config.chatwoot_account_id, cw.config.chatwoot_inbox_id]):
+        logger.warning("Confirmação WhatsApp ignorada: integração Chatwoot incompleta. os=%s", order.number)
+        return False
+
+    contact = cw.search_contact(phone_e164)
+    if not contact:
+        contact = cw.create_contact(client.name, phone_e164)
+    if not contact:
+        logger.warning("Falha ao localizar/criar contato no Chatwoot. os=%s", order.number)
+        return False
+
+    conversation = cw.get_or_create_conversation(contact['id'])
+    conversation_id = conversation.get('id') if isinstance(conversation, dict) else None
+    if not conversation_id:
+        logger.warning("Falha ao criar conversa no Chatwoot. os=%s", order.number)
+        return False
+
+    template_name = "confirmacao_agendamento"
+    template_vars = _build_visit_confirmation_template_vars(task)
+    response = cw.send_template(
+        conversation_id=conversation_id,
+        template_name=template_name,
+        variables=template_vars,
+        content=None
+    )
+    if not response:
+        logger.warning("Falha ao enviar confirmação WhatsApp. os=%s", order.number)
+        return False
+
+    cw.assign_label_to_conversation(conversation_id, "aguardando-confirmacao")
+    task.whatsapp_notification_sent_at = django.utils.timezone.now()
+    update_fields = ['whatsapp_notification_sent_at']
+    if not task.whatsapp_confirmation_status:
+        task.whatsapp_confirmation_status = ServiceOrderTask.WhatsAppConfirmationStatus.WAITING
+        update_fields.append('whatsapp_confirmation_status')
+    task.save(update_fields=update_fields)
+    return True
+
 
 def privacy_policy(request):
     return render(request, 'services/policies/privacy_policy.html')
@@ -397,10 +494,12 @@ def service_order_scheduling(request):
             if _idx == 0:
                 sched_val = request.POST.get('scheduled_at', '')
                 sched_end_val = request.POST.get('scheduled_end_at', '')
+                send_whatsapp_raw = request.POST.get('send_whatsapp_confirmation')
             else:
                 sched_val = request.POST.get(f'task_{_idx}_scheduled', '')
                 sched_end_val = request.POST.get(f'task_{_idx}_scheduled_end', '')
-            
+                send_whatsapp_raw = request.POST.get(f'task_{_idx}_send_whatsapp_confirmation')
+             
             task_data = {
                 'index': _idx,
                 'type': request.POST.get(f'task_{_idx}_type', ''),
@@ -408,6 +507,7 @@ def service_order_scheduling(request):
                 'scheduled_end': sched_end_val,
                 'start_date': request.POST.get(f'task_{_idx}_start_date', ''),
                 'end_date': request.POST.get(f'task_{_idx}_end_date', ''),
+                'send_whatsapp_confirmation': bool(send_whatsapp_raw),
                 'team': []
             }
             professionals = request.POST.getlist(f'task_{_idx}_professional[]')
@@ -586,7 +686,9 @@ def service_order_scheduling(request):
                             'whatsapp_response_content': form.cleaned_data.get('whatsapp_response_content'),
                         })
                     else:
-                        task_kwargs['send_whatsapp_confirmation'] = False
+                        task_kwargs['send_whatsapp_confirmation'] = request.POST.get(
+                            f'task_{task_index}_send_whatsapp_confirmation'
+                        ) == 'on'
 
                     task = ServiceOrderTask.objects.create(**task_kwargs)
                     professionals = request.POST.getlist(f'task_{task_index}_professional[]')
@@ -619,6 +721,7 @@ def service_order_scheduling(request):
                         ServiceMedia.objects.create(task=task, file=media)
                     
                     tasks_created.append(task)
+                    _send_visit_confirmation_if_needed(task)
                 
                 task_index += 1
             
@@ -956,6 +1059,8 @@ def task_add(request, order_id):
             for file in files:
                 ServiceMedia.objects.create(task=task, file=file)
             
+            _send_visit_confirmation_if_needed(task)
+
             messages.success(request, f'{task.get_task_type_display()} agendado(a) com sucesso!')
             return redirect('service_order_detail', order_id=order.id)
     else:
