@@ -2,6 +2,7 @@ import json
 import hmac
 import hashlib
 import logging
+import re
 import unicodedata
 from django.conf import settings
 from django.http import JsonResponse
@@ -143,6 +144,33 @@ def _build_budget_response_label(is_approved, payment_method):
         'BOLETO': 'Aprovado - Boleto',
     }
     return payment_labels.get(payment_method, 'Aprovado')
+
+def _parse_confirmation_decision(reply_text):
+    text = _normalize_text(reply_text)
+
+    reschedule_keywords = ['reagend', 'remarc', 'reagenda', 'remarca', 'alterar', 'mudar', 'adiar']
+    confirm_keywords = ['confirm', 'ok', 'certo', 'sim']
+    words = re.findall(r"[a-z0-9]+", text)
+
+    if any(keyword in text for keyword in reschedule_keywords):
+        return ServiceOrderTask.WhatsAppConfirmationStatus.RESCHEDULE
+
+    if any(keyword in text for keyword in confirm_keywords) or any(keyword in words for keyword in confirm_keywords):
+        return ServiceOrderTask.WhatsAppConfirmationStatus.CONFIRMED
+
+    return None
+
+
+def _build_confirmation_response_label(status):
+    if status == ServiceOrderTask.WhatsAppConfirmationStatus.CONFIRMED:
+        return "confirmado"
+    if status == ServiceOrderTask.WhatsAppConfirmationStatus.RESCHEDULE:
+        return "reagendar"
+    return None
+
+
+def _is_chatwoot_client_confirmation_reply(payload):
+    return _is_chatwoot_client_budget_reply(payload)
 
 
 def _resolve_order_status_from_budget_decision(is_approved):
@@ -314,6 +342,82 @@ def _process_chatwoot_budget_reply(payload):
     return 'processed', f'OS #{order.number} atualizada via Chatwoot ({ "aprovado" if is_approved else "reprovado" }).'
 
 
+def _process_chatwoot_confirmation_reply(payload):
+    if not _is_chatwoot_client_confirmation_reply(payload):
+        return 'processed', 'Evento Chatwoot ignorado (não é resposta de confirmação).'
+
+    reply_text = _extract_chatwoot_reply_text(payload)
+    if not reply_text:
+        return 'processed', 'Payload Chatwoot sem conteúdo de confirmação.'
+
+    decision = _parse_confirmation_decision(reply_text)
+    if decision is None:
+        return 'processed', f'Resposta recebida sem decisão de confirmação: "{reply_text}"'
+
+    reply_refs, conversation_refs = _extract_chatwoot_references(payload)
+
+    task = None
+    if reply_refs:
+        task = ServiceOrderTask.objects.filter(
+            chatwoot_confirmation_message_id__in=reply_refs
+        ).order_by('-updated_at').first()
+
+    if not task and conversation_refs:
+        task = ServiceOrderTask.objects.filter(
+            chatwoot_confirmation_conversation_id__in=conversation_refs,
+            whatsapp_confirmation_status__in=[
+                ServiceOrderTask.WhatsAppConfirmationStatus.SENT,
+                ServiceOrderTask.WhatsAppConfirmationStatus.WAITING,
+            ]
+        ).order_by('-updated_at').first()
+
+    if not task:
+        logger.warning(
+            "Webhook Chatwoot sem etapa correspondente. refs=%s convs=%s",
+            list(reply_refs),
+            list(conversation_refs)
+        )
+        return 'failed', 'Não foi possível localizar a etapa para confirmação.'
+
+    task.whatsapp_confirmation_status = decision
+    task.whatsapp_confirmation_received_at = timezone.now()
+    task.whatsapp_response_content = reply_text
+    task.save(update_fields=[
+        'whatsapp_confirmation_status',
+        'whatsapp_confirmation_received_at',
+        'whatsapp_response_content'
+    ])
+
+    label_title = _build_confirmation_response_label(decision)
+    conversation_id = next(iter(conversation_refs), None) or task.chatwoot_confirmation_conversation_id
+    if label_title and conversation_id:
+        try:
+            cw = ChatwootClient()
+            label = cw.get_label_by_title(label_title) or cw.create_label(label_title)
+            if not label:
+                logger.warning(
+                    "Não foi possível criar/localizar etiqueta de confirmação no Chatwoot. label=%s conversation_id=%s",
+                    label_title,
+                    conversation_id
+                )
+            else:
+                assigned = cw.assign_label_to_conversation(conversation_id, label.get("title", label_title))
+                if not assigned:
+                    logger.warning(
+                        "Não foi possível atribuir etiqueta de confirmação no Chatwoot. label=%s conversation_id=%s",
+                        label_title,
+                        conversation_id
+                    )
+        except Exception:
+            logger.exception(
+                "Erro ao etiquetar conversa de confirmação no Chatwoot. label=%s conversation_id=%s",
+                label_title,
+                conversation_id
+            )
+
+    return 'processed', f'Etapa #{task.id} atualizada via Chatwoot ({decision}).'
+
+
 def _validate_webhook_secret(request):
     expected_secret = (getattr(settings, 'WEBHOOK_SHARED_SECRET', '') or '').strip()
     if not expected_secret:
@@ -411,10 +515,11 @@ def _handle_webhook_request(request, provider):
     if provider == 'chatwoot':
         sent_status, sent_notes = _process_chatwoot_budget_sent(payload)
         reply_status, reply_notes = _process_chatwoot_budget_reply(payload)
+        confirmation_status, confirmation_notes = _process_chatwoot_confirmation_reply(payload)
 
-        status_candidates = [sent_status, reply_status]
+        status_candidates = [sent_status, reply_status, confirmation_status]
         event_status = 'failed' if 'failed' in status_candidates else 'processed'
-        event_notes = ' | '.join(note for note in [sent_notes, reply_notes] if note)
+        event_notes = ' | '.join(note for note in [sent_notes, reply_notes, confirmation_notes] if note)
 
     # Salva o evento no banco
     event = WebhookEvent.objects.create(

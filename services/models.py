@@ -697,6 +697,24 @@ class ServiceOrderTask(models.Model):
     whatsapp_notification_sent_at = models.DateTimeField(null=True, blank=True, verbose_name="Notificação enviada em")
     whatsapp_confirmation_received_at = models.DateTimeField(null=True, blank=True, verbose_name="Resposta recebida em")
     whatsapp_response_content = models.TextField(null=True, blank=True, verbose_name="Conteúdo da Resposta WhatsApp")
+    chatwoot_confirmation_conversation_id = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        verbose_name="Chatwoot Conversation ID (Confirmação)"
+    )
+    chatwoot_confirmation_message_id = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        verbose_name="Chatwoot Message ID (Confirmação)"
+    )
+    chatwoot_confirmation_contact_id = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        verbose_name="Chatwoot Contact ID (Confirmação)"
+    )
     
     # Assinatura Digital do Cliente (Salva apenas o caminho do arquivo)
     customer_signature = models.CharField(max_length=255, null=True, blank=True, verbose_name="Caminho da Assinatura")

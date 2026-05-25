@@ -120,12 +120,25 @@ def _send_visit_confirmation_if_needed(task):
         logger.warning("Falha ao enviar confirmação WhatsApp. os=%s", order.number)
         return False
 
+    message_id, response_conversation_id = cw.extract_message_tracking(response)
+    if response_conversation_id:
+        conversation_id = response_conversation_id
+
     cw.assign_label_to_conversation(conversation_id, "aguardando-confirmacao")
     task.whatsapp_notification_sent_at = django.utils.timezone.now()
     update_fields = ['whatsapp_notification_sent_at']
     if not task.whatsapp_confirmation_status:
         task.whatsapp_confirmation_status = ServiceOrderTask.WhatsAppConfirmationStatus.WAITING
         update_fields.append('whatsapp_confirmation_status')
+    if conversation_id:
+        task.chatwoot_confirmation_conversation_id = str(conversation_id)
+        update_fields.append('chatwoot_confirmation_conversation_id')
+    if message_id:
+        task.chatwoot_confirmation_message_id = str(message_id)
+        update_fields.append('chatwoot_confirmation_message_id')
+    if contact and contact.get('id'):
+        task.chatwoot_confirmation_contact_id = str(contact.get('id'))
+        update_fields.append('chatwoot_confirmation_contact_id')
     task.save(update_fields=update_fields)
     return True
 
