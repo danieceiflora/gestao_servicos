@@ -23,6 +23,10 @@
                 <a href="{% url 'professional_list' %}" class="text-sm font-medium {% if 'professional' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Equipe</a>
                 {% endif %}
                 
+                {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
+                <a href="{% url 'product_list' %}" class="text-sm font-medium {% if 'product' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Estoque</a>
+                {% endif %}
+                
                   {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
                   <a href="{% url 'occurrence_list' %}" class="text-sm font-medium {% if 'occurrence' in request.resolver_match.url_name %}text-amber-600{% else %}text-slate-600{% endif %} hover:text-amber-600 transition-colors">Ocorrências</a>
                   {% endif %}

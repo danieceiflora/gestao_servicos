@@ -4,6 +4,7 @@ from . import notifications
 from . import views_equipe
 from . import views_finance
 from . import views_offline
+from . import views_stock
 
 urlpatterns = [
     path('', views.home, name='home'),
@@ -11,6 +12,13 @@ urlpatterns = [
     path('finance/professional-payments/', views_finance.finance_professional_payments, name='finance_professional_payments'),
     path('finance/professional-payments/<int:payment_id>/confirm/', views_finance.finance_confirm_payment, name='finance_confirm_payment'),
     path('finance/professional-payments/bulk-confirm/', views_finance.finance_bulk_confirm_payments, name='finance_bulk_confirm_payments'),
+    
+    # --- ESTOQUE ---
+    path('products/', views_stock.ProductListView.as_view(), name='product_list'),
+    path('products/new/', views_stock.ProductCreateView.as_view(), name='product_create'),
+    path('products/<int:pk>/edit/', views_stock.ProductUpdateView.as_view(), name='product_edit'),
+    path('products/<int:pk>/history/', views_stock.product_stock_history, name='product_stock_history'),
+    path('stock/movement/new/', views_stock.StockMovementCreateView.as_view(), name='stock_movement_create'),
     path('politica-de-privacidade/', views.privacy_policy, name='privacy_policy'),
     path('exclusao-de-dados/', views.data_deletion_policy, name='data_deletion_policy'),
     path('termos-de-servico/', views.terms_of_service, name='terms_of_service'),

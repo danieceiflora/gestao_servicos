@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load static %}
+{% load stock_tags %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <a href="{% url 'product_list' %}" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all">
+            <i data-lucide="arrow-left" class="h-6 w-6"></i>
+        </a>
+        {% if product.image %}
+        <img src="{{ product.image.url }}" alt="{{ product.name }}" class="h-16 w-16 object-cover rounded-xl border border-slate-200">
+        {% else %}
+        <div class="h-16 w-16 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400">
+            <i data-lucide="package" class="h-8 w-8"></i>
+        </div>
+        {% endif %}
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Histórico: {{ product.name }}</h1>
+            <p class="text-slate-500 text-sm">Rastreabilidade de todas as movimentações.</p>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <p class="text-sm font-medium text-slate-500">Saldo Atual</p>
+            <p class="text-3xl font-bold text-slate-900">{{ product.current_stock }} {{ product.get_unit_type_display }}</p>
+        </div>
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <p class="text-sm font-medium text-slate-500">Código</p>
+            <p class="text-3xl font-bold text-slate-900">{{ product.code|default:"---" }}</p>
+        </div>
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <p class="text-sm font-medium text-slate-500">Valor Estimado em Estoque</p>
+            <p class="text-3xl font-bold text-slate-900">R$ {{ product.current_stock|multiply:product.default_unit_price|floatformat:2 }}</p>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/50 border-b border-slate-200">
+                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data/Hora</th>
+                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
+                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Quantidade</th>
+                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Motivo</th>
+                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Vínculo</th>
+                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Usuário</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for move in movements %}
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                        <td class="px-6 py-4 text-sm text-slate-600">
+                            {{ move.created_at|date:"d/m/Y H:i" }}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if move.movement_type == 'IN' %}
+                            <span class="inline-flex items-center gap-1 text-emerald-600 font-bold text-sm">
+                                <i data-lucide="arrow-up-circle" class="h-4 w-4"></i>
+                                Entrada
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 text-red-600 font-bold text-sm">
+                                <i data-lucide="arrow-down-circle" class="h-4 w-4"></i>
+                                Saída
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 font-mono font-bold text-slate-900">
+                            {% if move.movement_type == 'IN' %}+{% else %}-{% endif %}{{ move.quantity }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-600">
+                            {{ move.get_reason_display }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-600">
+                            {% if move.service_order %}
+                            <a href="{% url 'service_order_detail' move.service_order.id %}" class="text-blue-600 hover:underline">
+                                OS #{{ move.service_order.number }}
+                            </a>
+                            {% else %}
+                            ---
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-600">
+                            {{ move.user.get_full_name|default:move.user.username }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-slate-400">
+                            Nenhuma movimentação registrada.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

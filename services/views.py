@@ -18,7 +18,8 @@ from integracoes.chatwoot_client import ChatwootClient
 from .models import (
     User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem,
     Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
-    ServiceOrderTask, ServicePayment, Occurrence, Product, Service, ServiceCategory, TaskChecklistResponse
+    ServiceOrderTask, ServicePayment, Occurrence, Product, Service, ServiceCategory,
+    TaskChecklistResponse, StockMovement
 )
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
@@ -1512,6 +1513,22 @@ def order_item_add(request, order_id):
                 unit_price=item_data['unit_price']
             )
 
+            # --- ATUALIZAÇÃO DE ESTOQUE ---
+            if item.product:
+                product = item.product
+                product.current_stock -= item.quantity
+                product.save()
+                
+                # Registrar movimentação
+                StockMovement.objects.create(
+                    product=product,
+                    quantity=item.quantity,
+                    movement_type=StockMovement.MovementType.OUT,
+                    reason=StockMovement.Reason.SALE_OS,
+                    service_order=order,
+                    user=request.user
+                )
+
             if is_ajax:
                 try:
                     item_total = item.total_price
@@ -1624,6 +1641,22 @@ def order_item_delete(request, item_id):
     is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
     
     if request.method == 'POST':
+        # --- ATUALIZAÇÃO DE ESTOQUE ---
+        if item.product:
+            product = item.product
+            product.current_stock += item.quantity
+            product.save()
+            
+            # Registrar movimentação (estorno)
+            StockMovement.objects.create(
+                product=product,
+                quantity=item.quantity,
+                movement_type=StockMovement.MovementType.IN,
+                reason=StockMovement.Reason.RETURN,
+                service_order=order,
+                user=request.user
+            )
+
         item.delete()
         
         if is_ajax:

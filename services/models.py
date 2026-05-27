@@ -468,8 +468,10 @@ class Product(models.Model):
 
     name = models.CharField(max_length=255, unique=True, verbose_name="Produto")
     code = models.CharField(max_length=60, unique=True, null=True, blank=True, verbose_name="Código")
+    image = models.ImageField(upload_to='products/', null=True, blank=True, verbose_name="Imagem do Produto")
     unit_type = models.CharField(max_length=10, choices=UnitType.choices, default=UnitType.UNIT, verbose_name="Unidade de Venda")
     default_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço Padrão")
+    current_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Atual")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -480,6 +482,35 @@ class Product(models.Model):
         verbose_name = "Produto"
         verbose_name_plural = "Produtos"
         ordering = ['name']
+
+
+class StockMovement(models.Model):
+    class MovementType(models.TextChoices):
+        IN = 'IN', 'Entrada'
+        OUT = 'OUT', 'Saída'
+
+    class Reason(models.TextChoices):
+        PURCHASE = 'PURCHASE', 'Compra'
+        SALE_OS = 'SALE_OS', 'Venda OS'
+        ADJUSTMENT = 'ADJUSTMENT', 'Ajuste de Estoque'
+        LOSS = 'LOSS', 'Perda/Extravio'
+        RETURN = 'RETURN', 'Devolução'
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='movements', verbose_name="Produto")
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Quantidade")
+    movement_type = models.CharField(max_length=10, choices=MovementType.choices, verbose_name="Tipo de Movimento")
+    reason = models.CharField(max_length=20, choices=Reason.choices, verbose_name="Motivo")
+    service_order = models.ForeignKey('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='stock_movements', verbose_name="Ordem de Serviço")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Usuário")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data/Hora")
+
+    def __str__(self):
+        return f"{self.get_movement_type_display()} - {self.product.name} ({self.quantity})"
+
+    class Meta:
+        verbose_name = "Movimentação de Estoque"
+        verbose_name_plural = "Movimentações de Estoque"
+        ordering = ['-created_at']
 
 # --- ORDENS DE SERVIÇO ---
 

@@ -5,7 +5,7 @@ from .models import (
     Client, ClientPhone, ClientEmail, Property, ServiceOrder,
     ServiceMedia, ServiceItem, ServiceOrderTeam, Professional,
     ProfessionalRole, ProfessionalScheduleBlock,
-    ServiceOrderTask, ServicePayment
+    ServiceOrderTask, ServicePayment, Product, StockMovement
 )
 
 # --- UTILS FOR MULTIPLE UPLOAD ---
@@ -781,3 +781,36 @@ class TaskCancelForm(forms.Form):
             'required': True
         })
     )
+
+# --- STOCK MANAGEMENT FORMS ---
+
+class ProductForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        fields = ['name', 'code', 'image', 'unit_type', 'default_unit_price', 'current_stock', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'code': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'image': forms.FileInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'unit_type': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'default_unit_price': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'current_stock': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
+        }
+
+class StockMovementForm(forms.ModelForm):
+    class Meta:
+        model = StockMovement
+        fields = ['product', 'quantity', 'movement_type', 'reason', 'service_order']
+        widgets = {
+            'product': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'quantity': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'movement_type': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'reason': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'service_order': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Se for uma saída, podemos querer filtrar OS abertas
+        self.fields['service_order'].required = False

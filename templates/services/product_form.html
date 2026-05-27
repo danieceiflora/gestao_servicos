@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <a href="{% url 'product_list' %}" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all">
+            <i data-lucide="arrow-left" class="h-6 w-6"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+                {% if object %}Editar Produto{% else %}Novo Produto{% endif %}
+            </h1>
+            <p class="text-slate-500 text-sm">Preencha os dados básicos do produto.</p>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+        <form method="post" enctype="multipart/form-data" class="space-y-8" id="product-form">
+            {% csrf_token %}
+            
+            <!-- Imagem do Produto Section -->
+            <div class="space-y-4">
+                <label class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="image" class="h-4 w-4 text-blue-500"></i>
+                    Imagem do Produto
+                </label>
+                
+                <div class="dz-container" id="product-image-container">
+                    <!-- Preview Area -->
+                    <div id="image-preview-zone" class="relative group w-48 h-48 mx-auto mb-4 {% if not object.image %}hidden{% endif %}">
+                        <img id="image-preview" src="{% if object.image %}{{ object.image.url }}{% endif %}" 
+                             class="w-full h-full object-cover rounded-2xl border-2 border-slate-100 shadow-md">
+                        <button type="button" onclick="removeProductImage()" 
+                                class="absolute -top-2 -right-2 bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600 transition-all z-10">
+                            <i data-lucide="x" class="h-4 w-4"></i>
+                        </button>
+                    </div>
+
+                    <!-- Upload Zone -->
+                    <div id="upload-zone" class="{% if object.image %}hidden{% endif %}">
+                        <div class="relative group cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 rounded-2xl transition-all p-8 text-center"
+                             onclick="document.getElementById('{{ form.image.id_for_label }}').click()">
+                            <div class="flex flex-col items-center gap-3">
+                                <div class="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-100 transition-colors">
+                                    <i data-lucide="upload-cloud" class="h-8 w-8 text-slate-400 group-hover:text-blue-500"></i>
+                                </div>
+                                <div class="space-y-1">
+                                    <p class="text-sm font-bold text-slate-900">Toque para enviar uma foto</p>
+                                    <p class="text-xs text-slate-500">ou arraste o arquivo aqui</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden Input and Camera Option -->
+                    <div class="hidden">
+                        {{ form.image }}
+                    </div>
+                    
+                    <div class="flex justify-center mt-4">
+                        <button type="button" data-open-camera="{{ form.image.id_for_label }}"
+                                class="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all text-sm font-bold">
+                            <i data-lucide="camera" class="h-4 w-4 text-blue-500"></i>
+                            Tirar Foto com Câmera
+                        </button>
+                    </div>
+                </div>
+                {% if form.image.errors %}
+                <p class="text-xs text-red-500 text-center">{{ form.image.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Dados Básicos Section -->
+            <div class="space-y-6 pt-6 border-t border-slate-100">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="md:col-span-2 space-y-2">
+                        <label class="text-sm font-bold text-slate-700">Nome do Produto</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                        <p class="text-xs text-red-500">{{ form.name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-bold text-slate-700">Código/SKU</label>
+                        {{ form.code }}
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-bold text-slate-700">Unidade de Medida</label>
+                        {{ form.unit_type }}
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-bold text-slate-700">Preço Padrão (Venda)</label>
+                        <div class="relative group">
+                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 font-bold text-sm group-focus-within:text-blue-500">R$</span>
+                            <div class="[&>input]:pl-11 [&>input]:font-bold [&>input]:text-blue-600">
+                                {{ form.default_unit_price }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-bold text-slate-700">Estoque Inicial/Atual</label>
+                        <div class="[&>input]:font-mono [&>input]:font-bold">
+                            {{ form.current_stock }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-colors hover:bg-emerald-50/30">
+                    <div class="flex items-center h-5">
+                        {{ form.is_active }}
+                    </div>
+                    <div class="text-sm leading-6">
+                        <label for="{{ form.is_active.id_for_label }}" class="font-bold text-slate-900">Produto Ativo</label>
+                        <p class="text-slate-500 text-xs italic">Produtos inativos não aparecem na seleção de Ordens de Serviço.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-3 pt-8 border-t border-slate-100">
+                <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-4 rounded-2xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-[0.98] flex items-center justify-center gap-2">
+                    <i data-lucide="save" class="h-5 w-5"></i>
+                    Salvar Produto
+                </button>
+                <a href="{% url 'product_list' %}" class="flex-1 bg-white text-slate-600 font-bold py-4 rounded-2xl text-center border border-slate-200 hover:bg-slate-50 transition-all active:scale-[0.98]">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const imageInput = document.getElementById('{{ form.image.id_for_label }}');
+    const previewZone = document.getElementById('image-preview-zone');
+    const uploadZone = document.getElementById('upload-zone');
+    const previewImage = document.getElementById('image-preview');
+
+    imageInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImage.src = e.target.result;
+                previewZone.classList.remove('hidden');
+                uploadZone.classList.add('hidden');
+            }
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+
+    function removeProductImage() {
+        imageInput.value = '';
+        previewImage.src = '';
+        previewZone.classList.add('hidden');
+        uploadZone.classList.remove('hidden');
+        
+        // Se quisermos marcar para limpar no Django (ClearableFileInput)
+        const clearCheckbox = document.getElementById('{{ form.image.id_for_label }}-clear_id');
+        if (clearCheckbox) {
+            clearCheckbox.checked = true;
+        }
+    }
+</script>
+{% endblock %}
