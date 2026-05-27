@@ -54,6 +54,13 @@
 
     <form method="post" id="order-form" class="space-y-6">
         {% csrf_token %}
+        {% if order %}
+        {{ form.client.as_hidden }}
+        {{ form.client_property.as_hidden }}
+        {{ form.task_type.as_hidden }}
+        {{ form.scheduled_at.as_hidden }}
+        {{ form.scheduled_end_at.as_hidden }}
+        {% endif %}
 
         <!-- ============ SEÇÃO 1: INFORMAÇÕES DO CLIENTE ============ -->
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">

@@ -215,7 +215,8 @@ BLING_CLIENT_SECRET = None
 
 # Webhook Integration (Chatwoot)
 # Segredo fixo para facilitar testes locais.
-WEBHOOK_SHARED_SECRET = 'ofMMvS4WT9qusYCsjGZD3d5D'
+WEBHOOK_SHARED_SECRET = "NN2L3AnkCoT9jzGeFg4XcKZK"
+##WEBHOOK_SHARED_SECRET = 'ofMMvS4WT9qusYCsjGZD3d5D'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
