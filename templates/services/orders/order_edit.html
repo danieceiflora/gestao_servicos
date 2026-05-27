@@ -14,10 +14,21 @@
         min-height: 44px !important;
         display: flex !important;
         align-items: center !important;
+        background-color: #ffffff !important;
+        gap: 0.25rem !important;
+        width: 100% !important;
+    }
+    .ts-wrapper {
+        width: 100% !important;
+        display: block !important;
     }
     .ts-wrapper.focus .ts-control {
         box-shadow: 0 0 0 2px #3b82f6 !important;
         border-color: #3b82f6 !important;
+    }
+    .ts-hidden-accessible,
+    select.tomselected {
+        display: none !important;
     }
 </style>
 {% endblock %}
@@ -874,7 +885,7 @@
 <script>
     document.addEventListener("DOMContentLoaded", () => {
         // Inputs, Selects
-        const inputs = document.querySelectorAll("form input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']), form select, form textarea");
+        const inputs = document.querySelectorAll("form input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']), form select:not(#id_client), form textarea");
         inputs.forEach(input => {
             input.classList.add(
                 "flex", "w-full", "rounded-md", "border", "border-slate-200",   
@@ -912,7 +923,7 @@
         const btnAddProperty = document.getElementById('btn-add-property');
         const propertyLoading = document.getElementById('property-loading');
 
-        if (clientSelect) {
+        if (clientSelect && !clientSelect.tomselect) {
             // Initialize Tom Select for Clients
             const tsClient = new TomSelect(clientSelect, {
                 create: false,
