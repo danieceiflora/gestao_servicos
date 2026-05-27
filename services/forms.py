@@ -355,7 +355,7 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
                     self.initial['whatsapp_confirmation_received_at'] = django.utils.timezone.localtime(first_task.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
                 self.initial['whatsapp_response_content'] = first_task.whatsapp_response_content
         else:
-            self.initial['is_approved'] = False
+            self.initial['is_approved'] = ''
             self.initial['payment_method'] = ''
         
         # Filtrar apenas profissionais com função "Vendedor"
