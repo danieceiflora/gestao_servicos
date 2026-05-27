@@ -8,7 +8,6 @@ env/
 .env
 .git
 .gitignore
-db_v2.sqlite3
 media/
 staticfiles/
 node_modules/
