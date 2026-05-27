@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+from django.db import transaction
 from django.utils import timezone
 from .utils.pdf_generator import CompletionPDFGenerator
 from integracoes.chatwoot_client import ChatwootClient
@@ -52,6 +53,8 @@ def run_payment_request_workflow(service_order_id):
     """
     from .models import ServiceOrder # Import local para evitar circular import
     
+    lock_time = None
+    sent_success = False
     try:
         service_order = ServiceOrder.objects.get(id=service_order_id)
         
@@ -106,11 +109,22 @@ def run_payment_request_workflow(service_order_id):
 
         conversation_id = conversation.get('id')
 
+        # 6. Travar envio para evitar duplicidade (idempotência)
+        lock_time = timezone.now()
+        with transaction.atomic():
+            claimed = ServiceOrder.objects.filter(
+                id=service_order_id,
+                pix_sent_at__isnull=True
+            ).update(pix_sent_at=lock_time)
+        if claimed == 0:
+            logger.info(f"Workflow abortado para OS #{service_order.number}: Cobrança já enviada ou em andamento.")
+            return
+
         # Pequeno delay para garantir que o Chatwoot/Meta sincronizou o contato/conversa
         # Isso reduz erros de 'Undeliverable' em envios imediatos
         time.sleep(2)
 
-        # 6. Enviar Template com PDF Anexo (Header)
+        # 7. Enviar Template com PDF Anexo (Header)
         # O attachment deve ser uma tupla (nome_arquivo, conteudo, tipo_mime)
         filename = f"Execucao_OS_{service_order.number}.pdf"
         attachment = (filename, pdf_content, 'application/pdf')
@@ -153,14 +167,18 @@ def run_payment_request_workflow(service_order_id):
                 client.assign_label_to_conversation(conversation_id, label)
             
             # 8. Marcar como enviado no banco
-            service_order.pix_sent_at = timezone.now()
-            service_order.save(update_fields=['pix_sent_at'])
+            ServiceOrder.objects.filter(id=service_order_id).update(pix_sent_at=timezone.now())
+            sent_success = True
             logger.info(f"Workflow concluído com sucesso para OS #{service_order.number}")
         else:
             logger.error(f"Falha ao enviar template de finalização/cobrança para OS #{service_order.number}")
 
     except Exception as e:
         logger.exception(f"Erro crítico no workflow de pagamento da OS {service_order_id}: {str(e)}")
+    finally:
+        if lock_time and not sent_success:
+            # Libera a trava se o envio falhar para permitir nova tentativa
+            ServiceOrder.objects.filter(id=service_order_id, pix_sent_at=lock_time).update(pix_sent_at=None)
 
 
 def trigger_payment_workflow(service_order):
