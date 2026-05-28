@@ -2,11 +2,13 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum, Q, F
+from django.db import transaction
 from django.utils import timezone
 from django.core.paginator import Paginator
 from decimal import Decimal
 from datetime import datetime
-from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment
+from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement
+from .forms import SaleForm, SaleItemFormSet
 from django.http import HttpResponse
 import csv
 from io import BytesIO
@@ -378,3 +380,130 @@ def finance_bulk_confirm_payments(request):
             messages.warning(request, 'Nenhum pagamento selecionado.')
             
     return redirect('finance_professional_payments')
+
+
+# --- MÓDULO DE VENDAS (PDV) ---
+
+@login_required
+@user_passes_test(is_manager)
+def sale_list(request):
+    sales = Sale.objects.all().select_related('client', 'user').order_by('-created_at')
+    
+    # Filtros
+    q = request.GET.get('q')
+    if q:
+        sales = sales.filter(
+            Q(uuid__icontains=q) | 
+            Q(client__name__icontains=q) | 
+            Q(user__username__icontains=q)
+        )
+        
+    paginator = Paginator(sales, 20)
+    page = request.GET.get('page')
+    sales_page = paginator.get_page(page)
+    
+    context = {
+        'sales': sales_page,
+        'title': 'Histórico de Vendas',
+    }
+    return render(request, 'services/sale_list.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def sale_create(request):
+    if request.method == 'POST':
+        form = SaleForm(request.POST)
+        formset = SaleItemFormSet(request.POST)
+        
+        if form.is_valid() and formset.is_valid():
+            try:
+                with transaction.atomic():
+                    sale = form.save(commit=False)
+                    sale.user = request.user
+                    sale.save()
+                    
+                    formset.instance = sale
+                    items = formset.save()
+                    
+                    total = Decimal('0.00')
+                    for item in items:
+                        total += item.subtotal
+                        
+                        # Baixa de Estoque
+                        StockMovement.objects.create(
+                            product=item.product,
+                            quantity=item.quantity,
+                            movement_type=StockMovement.MovementType.OUT,
+                            reason=StockMovement.Reason.SALE_DIRECT,
+                            user=request.user,
+                            notes=f"Venda Direta: {sale.uuid.hex[:8]}"
+                        )
+                        
+                        # Atualizar estoque atual do produto
+                        product = item.product
+                        product.current_stock -= item.quantity
+                        product.save()
+                    
+                    sale.total_amount = total - sale.discount
+                    sale.status = Sale.Status.COMPLETED
+                    sale.save()
+                    
+                    messages.success(request, "Venda realizada com sucesso!")
+                    return redirect('sale_detail', uuid=sale.uuid)
+            except Exception as e:
+                messages.error(request, f"Erro ao processar venda: {str(e)}")
+        else:
+            messages.error(request, "Por favor, corrija os erros no formulário.")
+    else:
+        form = SaleForm()
+        formset = SaleItemFormSet()
+    
+    context = {
+        'form': form,
+        'formset': formset,
+        'title': 'Nova Venda (PDV)',
+        'products': Product.objects.filter(is_active=True)
+    }
+    return render(request, 'services/sale_form.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def sale_detail(request, uuid):
+    sale = get_object_or_404(Sale, uuid=uuid)
+    return render(request, 'services/sale_detail.html', {'sale': sale})
+
+@login_required
+@user_passes_test(is_manager)
+def sale_cancel(request, uuid):
+    sale = get_object_or_404(Sale, uuid=uuid)
+    
+    if sale.status == Sale.Status.CANCELLED:
+        messages.warning(request, "Esta venda já está cancelada.")
+        return redirect('sale_detail', uuid=sale.uuid)
+        
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                # Reverter Estoque
+                for item in sale.items.all():
+                    StockMovement.objects.create(
+                        product=item.product,
+                        quantity=item.quantity,
+                        movement_type=StockMovement.MovementType.IN,
+                        reason=StockMovement.Reason.RETURN,
+                        user=request.user,
+                        notes=f"Estorno Venda Cancelada: {sale.uuid.hex[:8]}"
+                    )
+                    
+                    product = item.product
+                    product.current_stock += item.quantity
+                    product.save()
+                
+                sale.status = Sale.Status.CANCELLED
+                sale.save()
+                
+                messages.success(request, "Venda cancelada e estoque estornado com sucesso!")
+        except Exception as e:
+            messages.error(request, f"Erro ao cancelar venda: {str(e)}")
+            
+    return redirect('sale_detail', uuid=sale.uuid)

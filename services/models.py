@@ -531,6 +531,7 @@ class StockMovement(models.Model):
     class Reason(models.TextChoices):
         PURCHASE = 'PURCHASE', 'Compra'
         SALE_OS = 'SALE_OS', 'Venda OS'
+        SALE_DIRECT = 'SALE_DIRECT', 'Venda Direta (PDV)'
         ADJUSTMENT = 'ADJUSTMENT', 'Ajuste de Estoque'
         LOSS = 'LOSS', 'Perda/Extravio'
         RETURN = 'RETURN', 'Devolução'
@@ -553,7 +554,59 @@ class StockMovement(models.Model):
         verbose_name_plural = "Movimentações de Estoque"
         ordering = ['-created_at']
 
+
+# --- MÓDULO DE VENDAS (PDV) ---
+
+class Sale(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = 'DRAFT', 'Rascunho'
+        COMPLETED = 'COMPLETED', 'Concluída'
+        CANCELLED = 'CANCELLED', 'Cancelada'
+
+    class PaymentMethod(models.TextChoices):
+        CASH = 'CASH', 'Dinheiro'
+        PIX = 'PIX', 'Pix'
+        DEBIT_CARD = 'DEBIT_CARD', 'Cartão de Débito'
+        CREDIT_CARD = 'CREDIT_CARD', 'Cartão de Crédito'
+
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
+    user = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="Vendedor")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, verbose_name="Status")
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Valor Total")
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
+    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, null=True, blank=True, verbose_name="Forma de Pagamento")
+    service_order = models.ForeignKey('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='sales', verbose_name="OS Vinculada")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Venda"
+        verbose_name_plural = "Vendas"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Venda {self.uuid.hex[:8]} - {self.get_status_display()}"
+
+
+class SaleItem(models.Model):
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, verbose_name="Produto")
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Quantidade")
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Unitário")
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Subtotal")
+
+    class Meta:
+        verbose_name = "Item de Venda"
+        verbose_name_plural = "Itens de Venda"
+
+    def save(self, *args, **kwargs):
+        self.subtotal = self.quantity * self.unit_price
+        super().save(*args, **kwargs)
+
+
 # --- ORDENS DE SERVIÇO ---
+
 
 class ServiceOrder(models.Model):
     class Status(models.TextChoices):

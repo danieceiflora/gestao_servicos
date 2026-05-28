@@ -25,6 +25,7 @@
                 
                 {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
                 <a href="{% url 'product_list' %}" class="text-sm font-medium {% if 'product' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Estoque</a>
+                <a href="{% url 'sale_list' %}" class="text-sm font-medium {% if 'sale' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Vendas</a>
                 {% endif %}
                 
                   {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}

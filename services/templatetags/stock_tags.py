@@ -8,3 +8,7 @@ def multiply(value, arg):
         return float(value) * float(arg)
     except (ValueError, TypeError):
         return 0
+
+@register.filter
+def sum_subtotal(queryset):
+    return sum(item.subtotal for item in queryset)

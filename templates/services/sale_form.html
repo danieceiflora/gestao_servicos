@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<style>
+    .product-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 1rem;
+    }
+    .product-card {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .product-card:active {
+        transform: scale(0.95);
+    }
+    .cart-item-row {
+        animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-10px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-slate-900">Terminal de Vendas (PDV)</h1>
+        <p class="text-slate-500">Registre vendas diretas de produtos</p>
+    </div>
+
+    <form method="POST" id="sale-form" class="flex flex-col lg:flex-row gap-6">
+        {% csrf_token %}
+        
+        <!-- Coluna Esquerda: Seleção e Carrinho -->
+        <div class="flex-1 space-y-6">
+            
+            <!-- Busca de Produtos -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div class="relative mb-4">
+                    <input type="text" id="product-search" placeholder="Buscar produto por nome ou código..." 
+                           class="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                    <div class="absolute left-3 top-3.5 text-slate-400">
+                        <i data-lucide="search" class="w-5 h-5"></i>
+                    </div>
+                </div>
+                
+                <!-- Grid de Produtos Sugeridos -->
+                <div class="product-grid max-h-64 overflow-y-auto p-1" id="products-container">
+                    {% for product in products %}
+                    <div class="product-card bg-slate-50 p-3 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50"
+                         data-id="{{ product.id }}" 
+                         data-name="{{ product.name }}" 
+                         data-price="{{ product.default_unit_price|stringformat:'.2f' }}"
+                         onclick="addToCart(this)">
+                        <div class="text-xs font-bold text-blue-600 mb-1">R$ {{ product.default_unit_price|floatformat:2 }}</div>
+                        <div class="text-sm font-medium text-slate-800 line-clamp-2">{{ product.name }}</div>
+                        <div class="text-[10px] text-slate-500 mt-1">Estoque: {{ product.current_stock|floatformat:0 }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Carrinho (Formset) -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+                    <h2 class="font-bold text-slate-700 flex items-center gap-2">
+                        <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+                        Itens da Venda
+                    </h2>
+                    <span id="items-count" class="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-full">0 itens</span>
+                </div>
+                
+                {{ formset.management_form }}
+                <div id="formset-container" class="divide-y divide-slate-100">
+                    {% for item_form in formset %}
+                    <div class="cart-item-row p-4 flex items-center gap-4" id="item-{{ forloop.counter0 }}">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-slate-900 mb-1 product-display-name">
+                                {% if item_form.instance.product %}
+                                    {{ item_form.instance.product.name }}
+                                {% else %}
+                                    Selecione um produto...
+                                {% endif %}
+                            </div>
+                            <div class="hidden">
+                                {{ item_form.product }}
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <div class="w-24">
+                                    <label class="text-[10px] text-slate-500 uppercase font-bold">Qtd</label>
+                                    {{ item_form.quantity }}
+                                </div>
+                                <div class="w-32">
+                                    <label class="text-[10px] text-slate-500 uppercase font-bold">Preço Un.</label>
+                                    {{ item_form.unit_price }}
+                                </div>
+                                <div class="flex-1 text-right pt-4">
+                                    <span class="text-sm font-bold text-slate-600 subtotal-display">R$ 0,00</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pt-4">
+                            {% if item_form.can_delete %}
+                                {{ item_form.DELETE }}
+                            {% endif %}
+                            <button type="button" onclick="removeItem(this)" class="p-2 text-red-400 hover:text-red-600 transition-colors">
+                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Template para novo item (Oculto) -->
+                <div id="empty-form" class="hidden">
+                    <div class="cart-item-row p-4 flex items-center gap-4">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-slate-900 mb-1 product-display-name">Nome do Produto</div>
+                            <div class="hidden">
+                                {{ formset.empty_form.product }}
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <div class="w-24">
+                                    <label class="text-[10px] text-slate-500 uppercase font-bold">Qtd</label>
+                                    {{ formset.empty_form.quantity }}
+                                </div>
+                                <div class="w-32">
+                                    <label class="text-[10px] text-slate-500 uppercase font-bold">Preço Un.</label>
+                                    {{ formset.empty_form.unit_price }}
+                                </div>
+                                <div class="flex-1 text-right pt-4">
+                                    <span class="text-sm font-bold text-slate-600 subtotal-display">R$ 0,00</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pt-4">
+                            <button type="button" onclick="removeItem(this)" class="p-2 text-red-400 hover:text-red-600 transition-colors">
+                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna Direita: Checkout -->
+        <div class="w-full lg:w-96 space-y-6">
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200 sticky top-24">
+                <h3 class="text-lg font-bold text-slate-900 mb-4">Resumo da Venda</h3>
+                
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Cliente</label>
+                        {{ form.client }}
+                        <p class="text-[10px] text-slate-400 mt-1">Deixe vazio para venda balcão (Consumidor Final)</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Forma de Pagamento</label>
+                        {{ form.payment_method }}
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Desconto (R$)</label>
+                        {{ form.discount }}
+                    </div>
+                    
+                    <div class="hidden">
+                        {{ form.service_order }}
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-100 pt-4 space-y-2">
+                    <div class="flex justify-between text-slate-600">
+                        <span>Subtotal</span>
+                        <span id="display-subtotal">R$ 0,00</span>
+                    </div>
+                    <div class="flex justify-between text-red-600">
+                        <span>Desconto</span>
+                        <span id="display-discount">- R$ 0,00</span>
+                    </div>
+                    <div class="flex justify-between text-xl font-black text-slate-900 pt-2 border-t border-slate-200">
+                        <span>TOTAL</span>
+                        <span id="display-total">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full mt-8 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="w-6 h-6"></i>
+                    Finalizar Venda
+                </button>
+                
+                <a href="{% url 'sale_list' %}" class="block text-center mt-4 text-sm text-slate-400 hover:text-slate-600">
+                    Cancelar e Voltar
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const formsetContainer = document.getElementById('formset-container');
+    const emptyFormTemplate = document.getElementById('empty-form').innerHTML;
+    const totalFormsInput = document.getElementById('id_items-TOTAL_FORMS');
+    const displaySubtotal = document.getElementById('display-subtotal');
+    const displayDiscount = document.getElementById('display-discount');
+    const displayTotal = document.getElementById('display-total');
+    const discountInput = document.getElementById('id_discount');
+    const itemsCountBadge = document.getElementById('items-count');
+
+    // Inicialização: Remover a primeira linha se não tiver produto selecionado (caso de formulário novo)
+    document.addEventListener('DOMContentLoaded', function() {
+        const rows = formsetContainer.querySelectorAll('.cart-item-row');
+        if (rows.length === 1) {
+            const productSelect = rows[0].querySelector('select[name$="-product"]');
+            if (!productSelect.value) {
+                rows[0].remove();
+                totalFormsInput.value = 0;
+            }
+        }
+        updateTotals();
+    });
+
+    function addToCart(element) {
+        const id = element.dataset.id;
+        const name = element.dataset.name;
+        const price = element.dataset.price;
+        
+        // Verifica se produto já está no carrinho
+        const existingSelects = formsetContainer.querySelectorAll('select[name$="-product"]');
+        for (let select of existingSelects) {
+            const row = select.closest('.cart-item-row');
+            if (select.value === id && !row.classList.contains('hidden')) {
+                const qtyInput = row.querySelector('input[name$="-quantity"]');
+                qtyInput.value = (parseFloat(qtyInput.value) + 1).toFixed(2);
+                updateTotals();
+                return;
+            }
+        }
+
+        // Adiciona novo item
+        const formIdx = parseInt(totalFormsInput.value);
+        const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, formIdx);
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newFormHtml;
+        const newRow = tempDiv.firstElementChild;
+        
+        // Configurar campos
+        newRow.querySelector('.product-display-name').textContent = name;
+        newRow.querySelector('select[name$="-product"]').innerHTML = `<option value="${id}" selected>${name}</option>`;
+        newRow.querySelector('input[name$="-quantity"]').value = "1.00";
+        newRow.querySelector('input[name$="-unit_price"]').value = price;
+        
+        formsetContainer.appendChild(newRow);
+        totalFormsInput.value = formIdx + 1;
+        
+        lucide.createIcons();
+        updateTotals();
+    }
+
+    function removeItem(button) {
+        const row = button.closest('.cart-item-row');
+        const deleteInput = row.querySelector('input[name$="-DELETE"]');
+        
+        if (deleteInput) {
+            deleteInput.checked = true;
+            row.classList.add('hidden');
+        } else {
+            row.remove();
+            // Reindexar não é estritamente necessário se usarmos o TOTAL_FORMS corretamente,
+            // mas Django espera que os índices sejam sequenciais. 
+            // Para simplificar PDV, vamos apenas esconder se já salvou ou remover se for novo.
+        }
+        updateTotals();
+    }
+
+    function updateTotals() {
+        let subtotal = 0;
+        const rows = formsetContainer.querySelectorAll('.cart-item-row:not(.hidden)');
+        
+        rows.forEach(row => {
+            const qty = parseFloat(row.querySelector('input[name$="-quantity"]').value) || 0;
+            const price = parseFloat(row.querySelector('input[name$="-unit_price"]').value) || 0;
+            const itemSubtotal = qty * price;
+            
+            row.querySelector('.subtotal-display').textContent = `R$ ${itemSubtotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            subtotal += itemSubtotal;
+        });
+
+        const discount = parseFloat(discountInput.value) || 0;
+        const total = Math.max(0, subtotal - discount);
+
+        displaySubtotal.textContent = `R$ ${subtotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+        displayDiscount.textContent = `- R$ ${discount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+        displayTotal.textContent = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+        itemsCountBadge.textContent = `${rows.length} item${rows.length !== 1 ? 's' : ''}`;
+    }
+
+    // Listeners para mudanças de valores
+    formsetContainer.addEventListener('input', (e) => {
+        if (e.target.name.includes('-quantity') || e.target.name.includes('-unit_price')) {
+            updateTotals();
+        }
+    });
+
+    discountInput.addEventListener('input', updateTotals);
+
+    // Busca reativa simples
+    document.getElementById('product-search').addEventListener('input', function(e) {
+        const term = e.target.value.toLowerCase();
+        const cards = document.querySelectorAll('.product-card');
+        
+        cards.forEach(card => {
+            const name = card.dataset.name.toLowerCase();
+            if (name.includes(term)) {
+                card.classList.remove('hidden');
+            } else {
+                card.classList.add('hidden');
+            }
+        });
+    });
+</script>
+{% endblock %}

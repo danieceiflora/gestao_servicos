@@ -6,7 +6,7 @@ from .models import (
     ServiceOrder, ServiceItem, ServiceMedia, ServiceOrderTeam,
     ServiceOrderTask, Product, ServiceCategory, Service,
     ServiceChecklistItem, TaskChecklistResponse, ChecklistTemplate,
-    ChecklistResponseMedia
+    ChecklistResponseMedia, Sale, SaleItem
 )
 
 
@@ -166,3 +166,19 @@ class ServiceOrderAdmin(admin.ModelAdmin):
     def total_value_display(self, obj):
         return f"R$ {obj.total_value:,.2f}"
     total_value_display.short_description = "Valor Total"
+
+
+class SaleItemInline(admin.TabularInline):
+    model = SaleItem
+    extra = 1
+
+@admin.register(Sale)
+class SaleAdmin(admin.ModelAdmin):
+    list_display = ['uuid_short', 'client', 'user', 'status', 'total_amount', 'created_at']
+    list_filter = ['status', 'payment_method', 'created_at']
+    search_fields = ['uuid', 'client__name', 'user__username']
+    inlines = [SaleItemInline]
+
+    def uuid_short(self, obj):
+        return str(obj.uuid.hex)[:8]
+    uuid_short.short_description = "ID"

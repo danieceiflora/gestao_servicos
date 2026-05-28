@@ -5,7 +5,8 @@ from .models import (
     Client, ClientPhone, ClientEmail, Property, ServiceOrder,
     ServiceMedia, ServiceItem, ServiceOrderTeam, Professional,
     ProfessionalRole, ProfessionalScheduleBlock,
-    ServiceOrderTask, ServicePayment, Product, StockMovement
+    ServiceOrderTask, ServicePayment, Product, StockMovement,
+    Sale, SaleItem
 )
 
 # --- UTILS FOR MULTIPLE UPLOAD ---
@@ -831,3 +832,36 @@ class ProductImportForm(forms.Form):
         help_text="Selecione o arquivo correspondente ao modelo da operação escolhida.",
         widget=forms.FileInput(attrs={'class': 'w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500', 'accept': '.csv, .xlsx'})
     )
+
+
+# --- SALES (PDV) FORMS ---
+
+class SaleForm(forms.ModelForm):
+    class Meta:
+        model = Sale
+        fields = ['client', 'payment_method', 'discount', 'service_order']
+        widgets = {
+            'client': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white search-select'}),
+            'payment_method': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'discount': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'service_order': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+        }
+
+class SaleItemForm(forms.ModelForm):
+    class Meta:
+        model = SaleItem
+        fields = ['product', 'quantity', 'unit_price']
+        widgets = {
+            'product': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 search-select product-select'}),
+            'quantity': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 quantity-input', 'step': '0.01'}),
+            'unit_price': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 price-input', 'step': '0.01'}),
+        }
+
+SaleItemFormSet = inlineformset_factory(
+    Sale, SaleItem,
+    form=SaleItemForm,
+    extra=1,
+    can_delete=True,
+    min_num=1,
+    validate_min=True
+)

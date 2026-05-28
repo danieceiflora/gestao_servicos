@@ -13,6 +13,12 @@ urlpatterns = [
     path('finance/professional-payments/<int:payment_id>/confirm/', views_finance.finance_confirm_payment, name='finance_confirm_payment'),
     path('finance/professional-payments/bulk-confirm/', views_finance.finance_bulk_confirm_payments, name='finance_bulk_confirm_payments'),
     
+    # --- VENDAS (PDV) ---
+    path('sales/', views_finance.sale_list, name='sale_list'),
+    path('sales/create/', views_finance.sale_create, name='sale_create'),
+    path('sales/<uuid:uuid>/', views_finance.sale_detail, name='sale_detail'),
+    path('sales/<uuid:uuid>/cancel/', views_finance.sale_cancel, name='sale_cancel'),
+    
     # --- ESTOQUE ---
     path('products/', views_stock.ProductListView.as_view(), name='product_list'),
     path('products/new/', views_stock.ProductCreateView.as_view(), name='product_create'),

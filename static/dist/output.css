@@ -389,14 +389,23 @@
   .top-2 {
     top: calc(var(--spacing) * 2);
   }
+  .top-2\.5 {
+    top: calc(var(--spacing) * 2.5);
+  }
   .top-3 {
     top: calc(var(--spacing) * 3);
+  }
+  .top-3\.5 {
+    top: calc(var(--spacing) * 3.5);
   }
   .top-4 {
     top: calc(var(--spacing) * 4);
   }
   .top-10 {
     top: calc(var(--spacing) * 10);
+  }
+  .top-24 {
+    top: calc(var(--spacing) * 24);
   }
   .top-\[57px\] {
     top: 57px;
@@ -1482,6 +1491,12 @@
   .border-slate-200 {
     border-color: var(--color-slate-200);
   }
+  .border-slate-200\/50 {
+    border-color: color-mix(in srgb, oklch(92.9% 0.013 255.508) 50%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-slate-200) 50%, transparent);
+    }
+  }
   .border-slate-200\/60 {
     border-color: color-mix(in srgb, oklch(92.9% 0.013 255.508) 60%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
@@ -1778,6 +1793,9 @@
   }
   .bg-slate-400 {
     background-color: var(--color-slate-400);
+  }
+  .bg-slate-800 {
+    background-color: var(--color-slate-800);
   }
   .bg-slate-900 {
     background-color: var(--color-slate-900);
@@ -2387,6 +2405,9 @@
   }
   .text-blue-100 {
     color: var(--color-blue-100);
+  }
+  .text-blue-400 {
+    color: var(--color-blue-400);
   }
   .text-blue-500 {
     color: var(--color-blue-500);
@@ -3555,6 +3576,16 @@
       }
     }
   }
+  .hover\:bg-slate-50\/30 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: color-mix(in srgb, oklch(98.4% 0.003 247.858) 30%, transparent);
+        @supports (color: color-mix(in lab, red, red)) {
+          background-color: color-mix(in oklab, var(--color-slate-50) 30%, transparent);
+        }
+      }
+    }
+  }
   .hover\:bg-slate-50\/50 {
     &:hover {
       @media (hover: hover) {
@@ -3593,6 +3624,13 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-slate-800);
+      }
+    }
+  }
+  .hover\:bg-slate-900 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-slate-900);
       }
     }
   }
@@ -4453,6 +4491,11 @@
       display: none;
     }
   }
+  .lg\:w-96 {
+    @media (width >= 64rem) {
+      width: calc(var(--spacing) * 96);
+    }
+  }
   .lg\:grid-cols-3 {
     @media (width >= 64rem) {
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4466,6 +4509,11 @@
   .lg\:grid-cols-5 {
     @media (width >= 64rem) {
       grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+  }
+  .lg\:flex-row {
+    @media (width >= 64rem) {
+      flex-direction: row;
     }
   }
   .lg\:px-8 {

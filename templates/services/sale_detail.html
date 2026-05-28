@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load stock_tags %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+    
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <a href="{% url 'sale_list' %}" class="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1 mb-2">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                Voltar para Histórico
+            </a>
+            <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                Venda #{{ sale.uuid.hex|slice:":8"|upper }}
+                {% if sale.status == 'COMPLETED' %}
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Concluída</span>
+                {% elif sale.status == 'CANCELLED' %}
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Cancelada</span>
+                {% endif %}
+            </h1>
+        </div>
+        <div class="flex gap-2">
+            {% if sale.status == 'COMPLETED' %}
+            <form action="{% url 'sale_cancel' uuid=sale.uuid %}" method="POST" onsubmit="return confirm('Tem certeza que deseja cancelar esta venda? O estoque será estornado.')">
+                {% csrf_token %}
+                <button type="submit" class="inline-flex items-center px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors shadow-sm">
+                    <i data-lucide="x-circle" class="w-4 h-4 mr-2"></i>
+                    Cancelar Venda
+                </button>
+            </form>
+            {% endif %}
+            <button onclick="window.print()" class="inline-flex items-center px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors shadow-sm">
+                <i data-lucide="printer" class="w-4 h-4 mr-2"></i>
+                Imprimir
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Info Principal -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Informações Gerais</div>
+            <div class="space-y-3">
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-500">Data e Hora</span>
+                    <span class="font-medium text-slate-900">{{ sale.created_at|date:"d/m/Y H:i" }}</span>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-500">Vendedor</span>
+                    <span class="font-medium text-slate-900">{{ sale.user.get_full_name|default:sale.user.username }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cliente -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Cliente</div>
+            <div class="space-y-3">
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-500">Nome</span>
+                    <span class="font-medium text-slate-900">{{ sale.client.name|default:"Consumidor Final" }}</span>
+                </div>
+                {% if sale.client %}
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-500">Documento</span>
+                    <span class="font-medium text-slate-900">{{ sale.client.document|default:"---" }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Pagamento -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Pagamento</div>
+            <div class="space-y-3">
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-500">Forma</span>
+                    <span class="font-medium text-slate-900">{{ sale.get_payment_method_display|default:"Não informado" }}</span>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-500">Total Pago</span>
+                    <span class="text-lg font-black text-blue-600">R$ {{ sale.total_amount|floatformat:2 }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Itens da Venda -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+        <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
+            <h2 class="font-bold text-slate-800">Itens da Venda</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/50">
+                        <th class="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Produto</th>
+                        <th class="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-center">Qtd</th>
+                        <th class="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-right">Preço Un.</th>
+                        <th class="px-6 py-3 text-xs font-bold text-slate-500 uppercase text-right">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for item in sale.items.all %}
+                        <tr>
+                            <td class="px-6 py-4">
+                                <div class="font-medium text-slate-900">{{ item.product.name }}</div>
+                                <div class="text-xs text-slate-500">{{ item.product.code|default:"" }}</div>
+                            </td>
+                            <td class="px-6 py-4 text-center text-slate-600">
+                                {{ item.quantity|floatformat:2 }}
+                            </td>
+                            <td class="px-6 py-4 text-right text-slate-600">
+                                R$ {{ item.unit_price|floatformat:2 }}
+                            </td>
+                            <td class="px-6 py-4 text-right font-bold text-slate-900">
+                                R$ {{ item.subtotal|floatformat:2 }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-slate-50/30">
+                        <td colspan="3" class="px-6 py-3 text-right text-slate-500 font-medium">Subtotal Geral</td>
+                        <td class="px-6 py-3 text-right text-slate-900 font-bold">
+                            R$ {{ sale.items.all|sum_subtotal|floatformat:2 }}
+                        </td>
+                    </tr>
+                    {% if sale.discount > 0 %}
+                    <tr class="bg-slate-50/30">
+                        <td colspan="3" class="px-6 py-3 text-right text-red-500 font-medium">Desconto</td>
+                        <td class="px-6 py-3 text-right text-red-600 font-bold">
+                            - R$ {{ sale.discount|floatformat:2 }}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    <tr class="bg-slate-50 border-t border-slate-200">
+                        <td colspan="3" class="px-6 py-4 text-right text-slate-900 font-black text-lg">TOTAL FINAL</td>
+                        <td class="px-6 py-4 text-right text-blue-700 font-black text-xl">
+                            R$ {{ sale.total_amount|floatformat:2 }}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Notas e Auditoria -->
+    <div class="bg-slate-50 p-6 rounded-xl border border-dashed border-slate-300">
+        <div class="flex items-start gap-4">
+            <div class="p-2 bg-white rounded-lg shadow-sm">
+                <i data-lucide="shield-check" class="w-6 h-6 text-slate-400"></i>
+            </div>
+            <div>
+                <h4 class="font-bold text-slate-700 mb-1">Registro de Auditoria</h4>
+                <p class="text-sm text-slate-500 leading-relaxed">
+                    Esta venda gerou baixas automáticas no estoque. O UUID desta transação é <code class="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-xs">{{ sale.uuid }}</code>.
+                    Última atualização em {{ sale.updated_at|date:"d/m/Y H:i:s" }}.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
