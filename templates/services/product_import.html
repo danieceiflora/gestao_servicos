@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+        <a href="{% url 'product_list' %}" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all">
+            <i data-lucide="arrow-left" class="h-6 w-6"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Importação em Massa</h1>
+            <p class="text-slate-500 text-sm font-medium">Selecione o tipo de operação para continuar.</p>
+        </div>
+    </div>
+
+    <!-- Upload Form -->
+    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+        <form method="post" enctype="multipart/form-data" class="space-y-8" id="import-form">
+            {% csrf_token %}
+            
+            <div class="space-y-4">
+                <label class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="settings-2" class="h-4 w-4 text-blue-500"></i>
+                    Tipo de Operação
+                </label>
+                {{ form.operation_type }}
+                {% if form.operation_type.errors %}
+                <p class="text-xs text-red-500">{{ form.operation_type.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Dynamic Instructions -->
+            <div id="instructions-container" class="bg-slate-50 border border-slate-100 p-6 rounded-3xl space-y-4 transition-all">
+                <div class="flex items-start gap-3">
+                    <i data-lucide="info" class="h-5 w-5 text-blue-600 mt-0.5"></i>
+                    <div class="space-y-2">
+                        <h3 class="font-bold text-slate-900 text-sm" id="op-title">Gestão de Catálogo</h3>
+                        <div id="op-description" class="text-slate-600 text-xs space-y-2 font-medium leading-relaxed">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="pt-2 border-t border-slate-200/50">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Baixar Modelos</p>
+                    <div class="flex flex-wrap gap-4">
+                        <a id="link-csv" href="#" class="inline-flex items-center gap-2 text-blue-700 font-bold text-xs hover:text-blue-800 underline decoration-2 underline-offset-4">
+                            <i data-lucide="file-text" class="h-4 w-4"></i>
+                            Modelo (CSV)
+                        </a>
+                        <a id="link-xlsx" href="#" class="inline-flex items-center gap-2 text-emerald-700 font-bold text-xs hover:text-emerald-800 underline decoration-2 underline-offset-4">
+                            <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>
+                            Modelo (Excel .xlsx)
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <label class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="file-up" class="h-4 w-4 text-blue-500"></i>
+                    Arquivo de Importação
+                </label>
+                
+                <div class="relative group cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 rounded-2xl transition-all p-10 text-center"
+                     onclick="document.getElementById('{{ form.file.id_for_label }}').click()">
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-100 transition-colors">
+                            <i data-lucide="upload-cloud" class="h-8 w-8 text-slate-400 group-hover:text-blue-500"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-sm font-bold text-slate-900" id="file-name-display">Toque para selecionar o arquivo</p>
+                            <p class="text-xs text-slate-500">Selecione o arquivo formatado para a operação escolhida</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="hidden">
+                    {{ form.file }}
+                </div>
+                {% if form.file.errors %}
+                <p class="text-xs text-red-500 text-center">{{ form.file.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-100">
+                <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-4 rounded-2xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-[0.98] flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="h-5 w-5"></i>
+                    Processar Importação
+                </button>
+                <a href="{% url 'product_list' %}" class="flex-1 bg-white text-slate-600 font-bold py-4 rounded-2xl text-center border border-slate-200 hover:bg-slate-50 transition-all active:scale-[0.98]">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const opSelect = document.getElementById('{{ form.operation_type.id_for_label }}');
+    const opTitle = document.getElementById('op-title');
+    const opDesc = document.getElementById('op-description');
+    const linkCsv = document.getElementById('link-csv');
+    const linkXlsx = document.getElementById('link-xlsx');
+    const fileInput = document.getElementById('{{ form.file.id_for_label }}');
+    const fileNameDisplay = document.getElementById('file-name-display');
+
+    const opConfig = {
+        'CATALOG': {
+            title: 'Gestão de Catálogo',
+            desc: '<ul class="list-disc pl-4 space-y-1"><li>Crie novos produtos ou atualize dados básicos (nome, preço, unidade).</li><li>Use a coluna <strong>ativo_sim_nao</strong> (S/N) para ativar ou inativar itens.</li><li>Identificação feita pelo <strong>Código (SKU)</strong>.</li></ul>',
+            baseUrl: "{% url 'product_import_template' %}?type=CATALOG"
+        },
+        'STOCK': {
+            title: 'Atualização de Estoque',
+            desc: '<ul class="list-disc pl-4 space-y-1"><li>Ajuste o saldo atual de produtos já cadastrados.</li><li>Requer apenas <strong>codigo</strong> e <strong>novo_estoque</strong>.</li><li>Gera automaticamente registros de auditoria e movimentação de ajuste.</li></ul>',
+            baseUrl: "{% url 'product_import_template' %}?type=STOCK"
+        }
+    };
+
+    function updateUI() {
+        const config = opConfig[opSelect.value];
+        opTitle.textContent = config.title;
+        opDesc.innerHTML = config.desc;
+        linkCsv.href = config.baseUrl + "&format=csv";
+        linkXlsx.href = config.baseUrl + "&format=xlsx";
+    }
+
+    opSelect.addEventListener('change', updateUI);
+    updateUI(); // Initial call
+
+    fileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            fileNameDisplay.textContent = this.files[0].name;
+            fileNameDisplay.classList.add('text-blue-600');
+        }
+    });
+</script>
+{% endblock %}

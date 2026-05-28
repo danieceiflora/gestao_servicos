@@ -15,6 +15,13 @@
             </div>
         </div>
         <div class="flex gap-2">
+            <a href="{% url 'product_import_history' %}" title="Histórico de Importações" class="p-3 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-2xl border border-transparent hover:border-slate-200 transition-all">
+                <i data-lucide="history" class="h-5 w-5"></i>
+            </a>
+            <a href="{% url 'product_import' %}" class="inline-flex items-center justify-center gap-2 px-5 py-3 bg-white text-slate-700 font-bold rounded-2xl hover:bg-slate-50 transition-all border border-slate-200 shadow-sm active:scale-95 text-sm">
+                <i data-lucide="upload" class="h-4 w-4"></i>
+                Importar
+            </a>
             <a href="{% url 'stock_movement_create' %}" class="inline-flex items-center justify-center gap-2 px-5 py-3 bg-amber-500 text-white font-bold rounded-2xl hover:bg-amber-600 transition-all shadow-md shadow-amber-100 active:scale-95 text-sm">
                 <i data-lucide="arrow-left-right" class="h-4 w-4"></i>
                 Movimentar

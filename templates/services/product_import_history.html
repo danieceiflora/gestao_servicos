@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'product_list' %}" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all">
+                <i data-lucide="arrow-left" class="h-6 w-6"></i>
+            </a>
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Histórico de Importações</h1>
+                <p class="text-slate-500 text-sm font-medium">Auditoria de atualizações em massa.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Desktop Table -->
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-slate-50/50 border-b border-slate-200">
+                    <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Data / Hora</th>
+                    <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Usuário</th>
+                    <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Arquivo</th>
+                    <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Criados</th>
+                    <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Atualizados</th>
+                    <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Movimentos</th>
+                    <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                    <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for import in imports %}
+                <tr class="hover:bg-slate-50/50 transition-all">
+                    <td class="px-6 py-4 text-sm font-medium text-slate-900">
+                        {{ import.created_at|date:"d/m/Y H:i" }}
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-2">
+                            <div class="h-7 w-7 bg-slate-100 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-600">
+                                {{ import.user.username|slice:":2"|upper }}
+                            </div>
+                            <span class="text-sm font-bold text-slate-700">{{ import.user.get_full_name|default:import.user.username }}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-xs font-mono text-slate-500">
+                        {{ import.filename }}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="text-sm font-black text-blue-600">{{ import.created_count }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="text-sm font-black text-amber-600">{{ import.updated_count }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="text-sm font-black text-slate-900">{{ import.movements_count }}</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if import.errors %}
+                        <div class="flex items-center gap-1.5 text-red-500" title="{{ import.errors }}">
+                            <i data-lucide="alert-circle" class="h-4 w-4"></i>
+                            <span class="text-[10px] font-black uppercase">Com Erros</span>
+                        </div>
+                        {% else %}
+                        <div class="flex items-center gap-1.5 text-emerald-500">
+                            <i data-lucide="check-circle" class="h-4 w-4"></i>
+                            <span class="text-[10px] font-black uppercase">Sucesso</span>
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="{% url 'product_import_history_detail' import.pk %}" class="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-900 hover:text-white rounded-lg text-[10px] font-black uppercase transition-all">
+                            <i data-lucide="eye" class="h-3 w-3"></i>
+                            Detalhes
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="px-6 py-20 text-center text-slate-400">
+                        <i data-lucide="history" class="h-12 w-12 mx-auto mb-3 opacity-20"></i>
+                        <p class="font-bold">Nenhuma importação registrada.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="flex items-center justify-between bg-white px-6 py-4 rounded-3xl border border-slate-200 shadow-sm">
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            Página <span class="text-slate-900">{{ page_obj.number }}</span> de {{ page_obj.paginator.num_pages }}
+        </span>
+        <div class="flex gap-2">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 transition-all border border-slate-200">Anterior</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="px-4 py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all shadow-md shadow-slate-100">Próxima</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

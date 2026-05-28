@@ -465,6 +465,9 @@ class Product(models.Model):
     class UnitType(models.TextChoices):
         UNIT = 'UNIT', 'Unidade (un)'
         METER = 'METER', 'Metro (mt)'
+        SQUARE_METER = 'M2', 'Metro Quadrado (m²)'
+        LITER = 'LITER', 'Litro (lt)'
+        KILO = 'KILO', 'Quilo (kg)'
 
     name = models.CharField(max_length=255, unique=True, verbose_name="Produto")
     code = models.CharField(max_length=60, unique=True, null=True, blank=True, verbose_name="Código")
@@ -482,6 +485,42 @@ class Product(models.Model):
         verbose_name = "Produto"
         verbose_name_plural = "Produtos"
         ordering = ['name']
+
+
+class ImportHistory(models.Model):
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Usuário")
+    filename = models.CharField(max_length=255, verbose_name="Arquivo")
+    file_hash = models.CharField(max_length=64, unique=True, null=True, blank=True, verbose_name="Hash do Arquivo (Prevenção Duplicidade)")
+    created_count = models.PositiveIntegerField(default=0, verbose_name="Produtos Criados")
+    updated_count = models.PositiveIntegerField(default=0, verbose_name="Produtos Atualizados")
+    movements_count = models.PositiveIntegerField(default=0, verbose_name="Movimentações Geradas")
+    errors = models.TextField(blank=True, verbose_name="Erros/Alertas")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data/Hora")
+
+    class Meta:
+        verbose_name = "Histórico de Importação"
+        verbose_name_plural = "Histórico de Importações"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        user_name = self.user.username if self.user else "Sistema"
+        return f"Importação {self.created_at.strftime('%d/%m/%Y %H:%M')} por {user_name}"
+
+
+class ImportItem(models.Model):
+    import_history = models.ForeignKey(ImportHistory, on_delete=models.CASCADE, related_name='items_logged', verbose_name="Importação")
+    row_number = models.PositiveIntegerField(verbose_name="Linha")
+    identifier = models.CharField(max_length=255, verbose_name="Identificador (Código/Nome)")
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Produto")
+    action = models.CharField(max_length=50, verbose_name="Ação")
+    details = models.TextField(verbose_name="Detalhes da Alteração")
+    is_error = models.BooleanField(default=False, verbose_name="É Erro?")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Item da Importação"
+        verbose_name_plural = "Itens da Importação"
+        ordering = ['row_number']
 
 
 class StockMovement(models.Model):
@@ -502,6 +541,8 @@ class StockMovement(models.Model):
     reason = models.CharField(max_length=20, choices=Reason.choices, verbose_name="Motivo")
     service_order = models.ForeignKey('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='stock_movements', verbose_name="Ordem de Serviço")
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Usuário")
+    import_history = models.ForeignKey(ImportHistory, on_delete=models.SET_NULL, null=True, blank=True, related_name='movements', verbose_name="Origem (Importação)")
+    notes = models.TextField(blank=True, verbose_name="Observações")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data/Hora")
 
     def __str__(self):

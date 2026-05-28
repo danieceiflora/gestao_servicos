@@ -16,6 +16,10 @@ urlpatterns = [
     # --- ESTOQUE ---
     path('products/', views_stock.ProductListView.as_view(), name='product_list'),
     path('products/new/', views_stock.ProductCreateView.as_view(), name='product_create'),
+    path('products/import/', views_stock.product_import, name='product_import'),
+    path('products/import/template/', views_stock.product_import_template, name='product_import_template'),
+    path('products/import/history/', views_stock.ImportHistoryListView.as_view(), name='product_import_history'),
+    path('products/import/history/<int:pk>/', views_stock.ImportHistoryDetailView.as_view(), name='product_import_history_detail'),
     path('products/<int:pk>/edit/', views_stock.ProductUpdateView.as_view(), name='product_edit'),
     path('products/<int:pk>/history/', views_stock.product_stock_history, name='product_stock_history'),
     path('stock/movement/new/', views_stock.StockMovementCreateView.as_view(), name='stock_movement_create'),

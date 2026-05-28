@@ -814,3 +814,20 @@ class StockMovementForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Se for uma saída, podemos querer filtrar OS abertas
         self.fields['service_order'].required = False
+
+class ProductImportForm(forms.Form):
+    OPERATION_CHOICES = [
+        ('CATALOG', 'Gestão de Catálogo (Criar/Ativar/Inativar)'),
+        ('STOCK', 'Atualização de Estoque (Ajuste de Saldo)'),
+    ]
+    
+    operation_type = forms.ChoiceField(
+        label="Tipo de Operação",
+        choices=OPERATION_CHOICES,
+        widget=forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500'})
+    )
+    file = forms.FileField(
+        label="Arquivo (CSV ou Excel)",
+        help_text="Selecione o arquivo correspondente ao modelo da operação escolhida.",
+        widget=forms.FileInput(attrs={'class': 'w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500', 'accept': '.csv, .xlsx'})
+    )
