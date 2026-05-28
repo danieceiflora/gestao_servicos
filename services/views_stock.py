@@ -11,6 +11,7 @@ from decimal import Decimal
 from django.http import HttpResponse
 from django.db import transaction
 from openpyxl import load_workbook
+import hashlib
 from .models import Product, StockMovement, User, ImportHistory, ImportItem
 from .forms import ProductForm, StockMovementForm, ProductImportForm
 
@@ -158,6 +159,17 @@ def product_import(request):
             file = request.FILES['file']
             filename = file.name
             
+            # --- PREVENÇÃO DE DUPLICIDADE (CHECKSUM) ---
+            file_content = file.read()
+            file_hash = hashlib.sha256(file_content).hexdigest()
+            
+            if ImportHistory.objects.filter(file_hash=file_hash).exists():
+                messages.error(request, "Este arquivo (ou um conteúdo idêntico) já foi importado anteriormente. Operação cancelada para evitar duplicidade.")
+                return redirect('product_import')
+            
+            # Reset file pointer for processing after reading for hash
+            file.seek(0)
+            
             data = []
             try:
                 if filename.endswith('.csv'):
@@ -199,7 +211,8 @@ def product_import(request):
             with transaction.atomic():
                 audit = ImportHistory.objects.create(
                     user=request.user,
-                    filename=f"[{op_type}] {filename}"
+                    filename=f"[{op_type}] {filename}",
+                    file_hash=file_hash
                 )
 
                 for index, row in enumerate(data, start=2):
