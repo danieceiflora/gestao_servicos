@@ -28,9 +28,9 @@
             </div>
         </div>
         {% if user.is_authenticated %}
-        <div class="flex items-center gap-3 md:gap-4">
+        <div class="flex items-center gap-3 lg:gap-4">
             <!-- Menus Desktop -->
-            <nav class="hidden md:flex items-center gap-6 mr-2 pr-6 border-r border-slate-200">
+            <nav class="hidden lg:flex items-center gap-6 mr-2 pr-6 border-r border-slate-200">
                 <a href="{% url 'equipe_dashboard' %}" class="text-sm font-medium flex items-center gap-2 {% if request.resolver_match.url_name == 'equipe_dashboard' %}text-blue-600{% else %}text-slate-500{% endif %} hover:text-blue-600 transition-colors">
                     <i data-lucide="layout-dashboard" class="h-4 w-4"></i> Início
                 </a>
@@ -44,12 +44,12 @@
 
             <form action="{% url 'logout' %}" method="post" class="inline">
                 {% csrf_token %}
-                <button type="submit" class="p-2 -mr-2 md:mr-0 text-slate-500 hover:text-red-600 transition-colors" title="Sair">
+                <button type="submit" class="p-2 -mr-2 lg:mr-0 text-slate-500 hover:text-red-600 transition-colors" title="Sair">
                     <i data-lucide="log-out" class="h-5 w-5"></i>
                 </button>
             </form>
             {% if VAPID_PUBLIC_KEY %}
-            <button type="button" onclick="PushManagerUI.openSettings('{{ VAPID_PUBLIC_KEY }}')" class="p-2 -mr-2 md:mr-0 text-slate-500 hover:text-blue-600 transition-colors" title="Notificações">
+            <button type="button" onclick="PushManagerUI.openSettings('{{ VAPID_PUBLIC_KEY }}')" class="p-2 -mr-2 lg:mr-0 text-slate-500 hover:text-blue-600 transition-colors" title="Notificações">
                 <i data-lucide="bell" class="h-5 w-5"></i>
             </button>
             {% endif %}
@@ -58,7 +58,7 @@
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 container mx-auto px-4 py-4 md:py-6 pb-24">
+    <main class="flex-1 container mx-auto px-4 py-4 lg:py-6 pb-24">
         <!-- Messages -->
         {% include 'partials/messages.html' %}
         
@@ -67,7 +67,7 @@
 
     <!-- Mobile Bottom Navigation Especializado -->
     {% if user.is_authenticated %}
-    <nav class="md:hidden fixed bottom-0 left-0 z-50 w-full bg-white border-t border-slate-200 safe-area-bottom shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+    <nav class="lg:hidden fixed bottom-0 left-0 z-50 w-full bg-white border-t border-slate-200 safe-area-bottom shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <div class="grid h-16 grid-cols-3 items-center justify-around relative divide-x divide-slate-100">
             
             <a href="{% url 'equipe_offline_app' %}" class="flex flex-col items-center justify-center gap-1.5 h-full {% if 'equipe_task' in request.resolver_match.url_name or 'equipe_offline_app' == request.resolver_match.url_name %}text-blue-600{% else %}text-slate-400{% endif %} hover:text-blue-600 transition-colors">
