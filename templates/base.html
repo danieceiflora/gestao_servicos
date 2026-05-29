@@ -56,10 +56,23 @@
                 {% endif %}
                 
                 {% if user.is_staff %}
-                <a href="{% url 'admin:index' %}" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-1">
-                    <i data-lucide="settings" class="h-4 w-4"></i> Admin
-                </a>
-                {% endif %}
+                <div class="relative group">
+                    <button type="button" class="text-sm font-medium {% if 'whatsapp' in request.path or 'admin' in request.path %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
+                        <i data-lucide="settings" class="h-4 w-4"></i> Configurações <i data-lucide="chevron-down" class="h-3 w-3"></i>
+                    </button>
+                    <div class="absolute right-0 top-full -mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
+                        <a href="{% url 'admin:index' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                            <i data-lucide="shield-check" class="h-4 w-4 text-slate-400"></i>
+                            Admin
+                        </a>
+                        <a href="{% url 'integracoes:whatsapp_template_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                            <i data-lucide="message-square" class="h-4 w-4 text-slate-400"></i>
+                            Templates WhatsApp
+                        </a>
+                        </div>
+                        </div>
+                        {% endif %}
+
 
                 <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
                     <div class="text-right hidden xl:block">
@@ -92,6 +105,9 @@
             {% if user.is_staff %}
             <a href="{% url 'admin:index' %}" class="p-1 text-slate-400 hover:text-slate-900" title="Painel Admin">
                 <i data-lucide="settings" class="h-4 w-4"></i>
+            </a>
+            <a href="{% url 'integracoes:whatsapp_template_list' %}" class="p-1 text-slate-400 hover:text-slate-900" title="Templates WhatsApp">
+                <i data-lucide="message-square" class="h-4 w-4"></i>
             </a>
             {% endif %}
             <form action="{% url 'logout' %}" method="post" class="inline">

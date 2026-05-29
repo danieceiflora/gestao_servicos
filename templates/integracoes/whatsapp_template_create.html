@@ -1,0 +1,489 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Novo Template WhatsApp{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6 pb-20">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'integracoes:whatsapp_template_list' %}" class="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-500">
+            <i data-lucide="arrow-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Novo Template</h1>
+            <p class="text-slate-500 text-sm">Crie um modelo de mensagem para a Meta</p>
+        </div>
+    </div>
+
+    <form method="post" id="template-form" enctype="multipart/form-data" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {% csrf_token %}
+        <!-- Main Form -->
+        <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-6 space-y-8">
+                    <!-- Basic Info -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-3">
+                            <label for="name" class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                <i data-lucide="type" class="h-4 w-4 text-slate-400"></i>
+                                Nome do Modelo
+                            </label>
+                            <input type="text" name="name" id="name" required pattern="[a-z0-9_]+" 
+                                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-700" 
+                                placeholder="ex: confirmacao_reserva">
+                            <p class="text-[10px] text-slate-400">Apenas letras minúsculas, números e sublinhados (_).</p>
+                        </div>
+                        <div class="space-y-3">
+                            <label for="category" class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                <i data-lucide="tag" class="h-4 w-4 text-slate-400"></i>
+                                Categoria
+                            </label>
+                            <select name="category" id="category" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-700">
+                                <option value="MARKETING">Marketing</option>
+                                <option value="UTILITY">Utilidade</option>
+                            </select>
+                        </div>
+                        <div class="space-y-3">
+                            <label for="language" class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                <i data-lucide="languages" class="h-4 w-4 text-slate-400"></i>
+                                Idioma
+                            </label>
+                            <select name="language" id="language" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-700">
+                                <option value="pt_BR">Português (Brasil)</option>
+                                <option value="en_US">Inglês (EUA)</option>
+                                <option value="es_ES">Espanhol</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Header Section -->
+                    <div class="space-y-4 pt-6 border-t border-slate-100">
+                        <div class="flex items-center justify-between">
+                            <label class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                <i data-lucide="heading" class="h-4 w-4 text-slate-400"></i>
+                                Cabeçalho (Opcional)
+                            </label>
+                            <select name="header_type" id="header_type" onchange="toggleHeaderType()" class="text-xs font-bold border-none bg-slate-100 rounded-md px-2 py-1 outline-none">
+                                <option value="NONE">Nenhum</option>
+                                <option value="TEXT">Texto</option>
+                                <option value="IMAGE">Imagem</option>
+                                <option value="VIDEO">Vídeo</option>
+                                <option value="DOCUMENT">Documento</option>
+                            </select>
+                        </div>
+
+                        <!-- Header Text Input -->
+                        <div id="header-text-input" class="hidden space-y-3">
+                            <input type="text" name="header_text" id="header_text" oninput="updatePreview()" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-blue-500" placeholder="Digite o título do cabeçalho...">
+                            <div id="header-variable-example" class="hidden space-y-2 pl-4 border-l-2 border-blue-200">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase">Exemplo para {1}</label>
+                                <input type="text" name="header_example" id="header_example" oninput="updatePreview()" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm outline-none" placeholder="Ex: João">
+                            </div>
+                        </div>
+
+                        <!-- Header Media Info -->
+                        <div id="header-media-info" class="hidden space-y-4">
+                            <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3">
+                                <i data-lucide="info" class="h-5 w-5 text-blue-500 mt-0.5"></i>
+                                <div class="space-y-1">
+                                    <p class="text-xs font-bold text-blue-900">Exemplo de Mídia Obrigatório</p>
+                                    <p class="text-[11px] text-blue-700 leading-relaxed">A Meta exige um arquivo de exemplo para aprovar modelos com mídia. O arquivo será enviado para revisão, mas não será enviado aos seus clientes.</p>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <label for="header_file" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Upload do Arquivo de Exemplo</label>
+                                <div class="flex items-center gap-4">
+                                    <input type="file" name="header_file" id="header_file" class="hidden" onchange="handleHeaderFileChange(this)">
+                                    <button type="button" onclick="document.getElementById('header_file').click()" class="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-2">
+                                        <i data-lucide="upload" class="h-4 w-4"></i>
+                                        Selecionar Arquivo
+                                    </button>
+                                    <span id="file-name-display" class="text-xs text-slate-400 italic truncate max-w-[200px]">Nenhum arquivo selecionado</span>
+                                </div>
+                                <div class="relative">
+                                    <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                                        <div class="w-full border-t border-slate-100"></div>
+                                    </div>
+                                    <div class="relative flex justify-center text-[10px] uppercase font-bold">
+                                        <span class="bg-white px-2 text-slate-400">ou use um handle existente</span>
+                                    </div>
+                                </div>
+                                <input type="text" name="header_handle" id="header_handle" placeholder="Handle da Mídia (ex: 4::...)" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Body Content -->
+                    <div class="space-y-3 pt-6 border-t border-slate-100">
+                        <label for="body_text" class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <i data-lucide="align-left" class="h-4 w-4 text-slate-400"></i>
+                            Conteúdo da Mensagem (Corpo)
+                        </label>
+                        <textarea name="body_text" id="body_text" rows="5" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-700 resize-none" placeholder="Digite o conteúdo principal..."></textarea>
+                        
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase">Inserir:</span>
+                                <button type="button" onclick="insertVariable()" class="px-2 py-1 bg-white border border-slate-200 hover:border-blue-300 rounded text-[10px] font-mono font-bold transition-all shadow-sm">{% templatetag openvariable %}n{% templatetag closevariable %}</button>
+                            </div>
+                            <span id="char-count" class="text-[11px] font-bold text-slate-400">0 / 1024</span>
+                        </div>
+
+                        <!-- Examples for Body Variables -->
+                        <div id="body-examples-container" class="hidden space-y-4 pt-4">
+                            <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <i data-lucide="help-circle" class="h-3 w-3"></i>
+                                Exemplos Obrigatórios
+                            </h4>
+                            <div id="examples-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- Dynamic JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer Section -->
+                    <div class="space-y-3 pt-6 border-t border-slate-100">
+                        <label for="footer_text" class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <i data-lucide="minus" class="h-4 w-4 text-slate-400"></i>
+                            Rodapé (Opcional)
+                        </label>
+                        <input type="text" name="footer_text" id="footer_text" oninput="updatePreview()" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-blue-500" placeholder="Texto curto em cinza no final...">
+                    </div>
+
+                    <!-- Buttons Section -->
+                    <div class="space-y-4 pt-6 border-t border-slate-100">
+                        <div class="flex items-center justify-between">
+                            <label class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                <i data-lucide="mouse-pointer-2" class="h-4 w-4 text-slate-400"></i>
+                                Botões Interativos (Opcional)
+                            </label>
+                            <button type="button" onclick="addButton()" class="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                                <i data-lucide="plus" class="h-3 w-3"></i>
+                                Adicionar Botão
+                            </button>
+                        </div>
+
+                        <div id="buttons-container" class="space-y-3">
+                            <!-- Dynamic Buttons -->
+                        </div>
+                        <p id="buttons-empty-msg" class="text-center py-4 text-xs text-slate-400 italic">Nenhum botão adicionado.</p>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <a href="{% url 'integracoes:whatsapp_template_list' %}" class="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors">
+                        Cancelar
+                    </a>
+                    <button type="submit" class="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all active:scale-95 flex items-center gap-2">
+                        <i data-lucide="send" class="h-5 w-5"></i>
+                        Criar e Enviar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar / Visual Preview -->
+        <div class="space-y-6">
+            <div class="sticky top-6">
+                <div class="bg-[#e5ddd5] rounded-[2.5rem] border-[8px] border-slate-900 shadow-2xl overflow-hidden flex flex-col min-h-[550px] max-w-[300px] mx-auto">
+                    <!-- WhatsApp Header -->
+                    <div class="bg-[#075e54] p-4 pt-8 flex items-center gap-3">
+                        <div class="h-8 w-8 bg-slate-200 rounded-full flex-shrink-0 flex items-center justify-center">
+                            <i data-lucide="user" class="h-5 w-5 text-slate-400"></i>
+                        </div>
+                        <div class="overflow-hidden">
+                            <p class="text-white text-xs font-bold truncate">Empresa Verificada</p>
+                            <p class="text-white/70 text-[8px]">Online</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Chat Area -->
+                    <div class="flex-1 p-3 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat bg-[length:150px]">
+                        <div class="bg-white rounded-xl shadow-sm overflow-hidden max-w-[95%] relative animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <!-- Triangle -->
+                            <div class="absolute -left-2 top-0 w-0 h-0 border-t-[10px] border-t-white border-l-[10px] border-l-transparent"></div>
+                            
+                            <!-- Header Media Preview -->
+                            <div id="preview-header-media" class="aspect-video bg-slate-100 flex flex-col items-center justify-center hidden border-b border-slate-50 p-4 text-center gap-2">
+                                <div id="media-icon-container" class="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+                                    <i data-lucide="image" class="h-5 w-5 text-slate-300"></i>
+                                </div>
+                                <span id="media-type-label" class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Imagem</span>
+                            </div>
+
+                            <div class="p-3 space-y-2">
+                                <div id="preview-header" class="text-xs font-bold text-slate-900 hidden"></div>
+                                <div id="preview-body" class="text-[13px] text-slate-800 whitespace-pre-wrap break-words leading-tight">Sua mensagem aparecerá aqui...</div>
+                                <div id="preview-footer" class="text-[9px] text-slate-400 hidden italic border-t border-slate-50 pt-1"></div>
+                                
+                                <div class="flex justify-end pt-0.5">
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-[8px] text-slate-400">{{ now|date:"H:i" }}</span>
+                                        <i data-lucide="check-check" class="h-2.5 w-2.5 text-blue-500"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Buttons in Preview -->
+                            <div id="preview-buttons" class="border-t border-slate-100 divide-y divide-slate-100 hidden bg-slate-50/50">
+                                <!-- Dynamic JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 p-4 bg-white rounded-2xl border border-slate-200">
+                    <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Dicas da Meta</h4>
+                    <ul class="space-y-3">
+                        <li class="flex gap-2 text-xs text-slate-600">
+                            <i data-lucide="shield-check" class="h-4 w-4 text-emerald-500 flex-shrink-0"></i>
+                            <span>Nomes devem ser únicos e descritivos.</span>
+                        </li>
+                        <li class="flex gap-2 text-xs text-slate-600">
+                            <i data-lucide="alert-circle" class="h-4 w-4 text-amber-500 flex-shrink-0"></i>
+                            <span>Evite palavras puramente promocionais em 'Utilidade'.</span>
+                        </li>
+                        <li class="flex gap-2 text-xs text-slate-600">
+                            <i data-lucide="help-circle" class="h-4 w-4 text-blue-500 flex-shrink-0"></i>
+                            <span>Use chaves {% verbatim %}{{1}}, {{2}}{% endverbatim %} para dados dinâmicos.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    {% verbatim %}
+    const bodyInput = document.getElementById('body_text');
+    const previewBody = document.getElementById('preview-body');
+    const previewHeader = document.getElementById('preview-header');
+    const previewFooter = document.getElementById('preview-footer');
+    const previewButtons = document.getElementById('preview-buttons');
+    const charCount = document.getElementById('char-count');
+    const examplesList = document.getElementById('examples-list');
+    const buttonsContainer = document.getElementById('buttons-container');
+    const buttonsEmptyMsg = document.getElementById('buttons-empty-msg');
+
+    function toggleHeaderType() {
+        const type = document.getElementById('header_type').value;
+        const textInput = document.getElementById('header-text-input');
+        const mediaInfo = document.getElementById('header-media-info');
+        const previewMedia = document.getElementById('preview-header-media');
+        const mediaLabel = document.getElementById('media-type-label');
+        const mediaIconContainer = document.getElementById('media-icon-container');
+
+        textInput.classList.add('hidden');
+        mediaInfo.classList.add('hidden');
+        previewMedia.classList.add('hidden');
+        previewHeader.classList.add('hidden');
+
+        if (type === 'TEXT') {
+            textInput.classList.remove('hidden');
+            previewHeader.classList.remove('hidden');
+        } else if (type !== 'NONE') {
+            mediaInfo.classList.remove('hidden');
+            previewMedia.classList.remove('hidden');
+            mediaLabel.textContent = type === 'IMAGE' ? 'Imagem' : (type === 'VIDEO' ? 'Vídeo' : 'Documento');
+            
+            let icon = 'image';
+            if (type === 'VIDEO') icon = 'play-circle';
+            if (type === 'DOCUMENT') icon = 'file-text';
+            mediaIconContainer.innerHTML = `<i data-lucide="${icon}" class="h-5 w-5 text-slate-400"></i>`;
+            lucide.createIcons();
+        }
+        updatePreview();
+    }
+
+    function handleHeaderFileChange(input) {
+        const fileNameDisplay = document.getElementById('file-name-display');
+        if (input.files && input.files[0]) {
+            fileNameDisplay.textContent = input.files[0].name;
+            fileNameDisplay.classList.remove('text-slate-400');
+            fileNameDisplay.classList.add('text-blue-600', 'font-bold');
+        } else {
+            fileNameDisplay.textContent = 'Nenhum arquivo selecionado';
+            fileNameDisplay.classList.remove('text-blue-600', 'font-bold');
+            fileNameDisplay.classList.add('text-slate-400');
+        }
+    }
+
+    function updatePreview() {
+        // Body
+        const text = bodyInput.value;
+        charCount.textContent = `${text.length} / 1024`;
+        
+        const vars = text.match(/\{\{\d+\}\}/g) || [];
+        const currentExamples = Array.from(document.getElementsByName('body_examples[]')).map(i => i.value);
+        
+        let processedText = text;
+        vars.forEach((v, index) => {
+            const val = currentExamples[index] || '';
+            processedText = processedText.replace(v, val ? `[${val}]` : v);
+        });
+        previewBody.textContent = processedText || 'Sua mensagem aparecerá aqui...';
+
+        // Update Examples List if count changed
+        if (vars.length !== document.getElementsByName('body_examples[]').length) {
+            let html = '';
+            vars.forEach((v, index) => {
+                const num = v.replace(/\{|\}/g, '');
+                const val = currentExamples[index] || '';
+                html += `
+                    <div class="space-y-1 animate-in fade-in zoom-in duration-200">
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Exemplo para {{${num}}}</label>
+                        <input type="text" name="body_examples[]" value="${val}" oninput="updatePreview()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500" placeholder="Ex: R$ 50,00" required>
+                    </div>
+                `;
+            });
+            examplesList.innerHTML = html;
+            document.getElementById('body-examples-container').classList.toggle('hidden', vars.length === 0);
+        }
+
+        // Header
+        const hType = document.getElementById('header_type').value;
+        if (hType === 'TEXT') {
+            const hText = document.getElementById('header_text').value;
+            const hExample = document.getElementById('header_example').value;
+            previewHeader.textContent = hExample ? hText.replace('{{1}}', `[${hExample}]`) : hText;
+            document.getElementById('header-variable-example').classList.toggle('hidden', !hText.includes('{{1}}'));
+        }
+
+        // Footer
+        const fText = document.getElementById('footer_text').value;
+        previewFooter.textContent = fText;
+        previewFooter.classList.toggle('hidden', !fText);
+
+        // Buttons
+        renderButtonsPreview();
+    }
+
+    function insertVariable() {
+        const text = bodyInput.value;
+        const vars = text.match(/\{\{\d+\}\}/g) || [];
+        const nextNum = vars.length + 1;
+        const variable = `{{${nextNum}}}`;
+        
+        const start = bodyInput.selectionStart;
+        const end = bodyInput.selectionEnd;
+        bodyInput.value = text.substring(0, start) + variable + text.substring(end);
+        bodyInput.focus();
+        bodyInput.selectionStart = bodyInput.selectionEnd = start + variable.length;
+        updatePreview();
+    }
+
+    function addButton() {
+        const id = Date.now();
+        const html = `
+            <div id="btn-${id}" class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4 relative animate-in slide-in-from-right-4 duration-300">
+                <button type="button" onclick="removeButton(${id})" class="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-500 transition-colors">
+                    <i data-lucide="x" class="h-4 w-4"></i>
+                </button>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Tipo</label>
+                        <select name="button_type[]" onchange="updateButtonFields(${id})" class="w-full text-xs font-bold border-none bg-white rounded-lg px-2 py-2 outline-none shadow-sm">
+                            <option value="QUICK_REPLY">Resposta Rápida</option>
+                            <option value="URL">Abrir Site (URL)</option>
+                            <option value="PHONE_NUMBER">Ligar para Número</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Texto do Botão</label>
+                        <input type="text" name="button_text[]" maxlength="25" required oninput="updatePreview()" class="w-full px-3 py-1.5 bg-white border border-slate-100 rounded-lg text-xs outline-none shadow-sm" placeholder="Ex: Confirmar">
+                    </div>
+                </div>
+
+                <div id="extra-fields-${id}" class="hidden space-y-1">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase">Valor (URL ou Telefone)</label>
+                    <input type="text" name="button_url[]" class="hidden w-full px-3 py-1.5 bg-white border border-slate-100 rounded-lg text-xs outline-none shadow-sm" placeholder="https://exemplo.com">
+                    <input type="text" name="button_phone[]" class="hidden w-full px-3 py-1.5 bg-white border border-slate-100 rounded-lg text-xs outline-none shadow-sm" placeholder="+55 11 99999-9999">
+                </div>
+            </div>
+        `;
+        buttonsContainer.insertAdjacentHTML('beforeend', html);
+        buttonsEmptyMsg.classList.add('hidden');
+        lucide.createIcons();
+        updatePreview();
+    }
+
+    function removeButton(id) {
+        document.getElementById(`btn-${id}`).remove();
+        if (buttonsContainer.children.length === 0) {
+            buttonsEmptyMsg.classList.remove('hidden');
+        }
+        updatePreview();
+    }
+
+    function updateButtonFields(id) {
+        const container = document.getElementById(`btn-${id}`);
+        const type = container.querySelector('select').value;
+        const extraFields = document.getElementById(`extra-fields-${id}`);
+        const urlInput = extraFields.querySelector('input[name="button_url[]"]');
+        const phoneInput = extraFields.querySelector('input[name="button_phone[]"]');
+
+        extraFields.classList.toggle('hidden', type === 'QUICK_REPLY');
+        urlInput.classList.toggle('hidden', type !== 'URL');
+        phoneInput.classList.toggle('hidden', type !== 'PHONE_NUMBER');
+        
+        if (type === 'URL') urlInput.required = true; else urlInput.required = false;
+        if (type === 'PHONE_NUMBER') phoneInput.required = true; else phoneInput.required = false;
+
+        updatePreview();
+    }
+
+    function renderButtonsPreview() {
+        const btnTypes = document.getElementsByName('button_type[]');
+        const btnTexts = document.getElementsByName('button_text[]');
+        
+        let html = '';
+        for (let i = 0; i < btnTypes.length; i++) {
+            const type = btnTypes[i].value;
+            const text = btnTexts[i].value || 'Botão';
+            
+            let icon = '';
+            if (type === 'URL') icon = '<i data-lucide="external-link" class="h-3 w-3"></i>';
+            if (type === 'PHONE_NUMBER') icon = '<i data-lucide="phone" class="h-3 w-3"></i>';
+
+            html += `
+                <div class="p-2.5 text-center text-[13px] font-semibold text-blue-500 flex items-center justify-center gap-2">
+                    ${icon}
+                    ${text}
+                </div>
+            `;
+        }
+
+        previewButtons.innerHTML = html;
+        previewButtons.classList.toggle('hidden', btnTypes.length === 0);
+        lucide.createIcons();
+    }
+
+    bodyInput.addEventListener('input', updatePreview);
+    
+    document.getElementById('template-form').addEventListener('submit', function(e) {
+        const name = document.getElementById('name').value;
+        if (!/^[a-z0-9_]+$/.test(name)) {
+            alert('O nome do modelo deve conter apenas letras minúsculas, números e sublinhados.');
+            e.preventDefault();
+            return;
+        }
+    });
+
+    // Initial setup
+    lucide.createIcons();
+    {% endverbatim %}
+</script>
+
+<style>
+    .animate-in {
+        animation-duration: 0.3s;
+        animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        animation-fill-mode: both;
+    }
+</style>
+{% endblock %}

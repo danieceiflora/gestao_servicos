@@ -4,12 +4,16 @@ import hashlib
 import logging
 import re
 import unicodedata
+import requests
 from django.conf import settings
 from django.http import JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
-from .models import WebhookEvent
+from .models import WebhookEvent, SystemConfig
 from .chatwoot_client import ChatwootClient
 from services.models import ServiceOrder, ServiceOrderTask
 
@@ -466,6 +470,394 @@ def _validate_webhook_secret(request):
     logger.error("Falha na verificação de assinatura do Webhook Chatwoot. Hash calculado não confere.")
     return False
 
+
+class MetaCloudAPI:
+    def __init__(self, waba_id, token):
+        self.waba_id = waba_id
+        self.token = token
+        self.base_url = "https://graph.facebook.com/v20.0"
+
+    def get_templates(self):
+        if not self.waba_id or not self.token:
+            return {"data": []}
+        url = f"{self.base_url}/{self.waba_id}/message_templates"
+        headers = {"Authorization": f"Bearer {self.token}"}
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching templates: {e}")
+            return {"error": str(e), "data": []}
+
+    def get_template(self, template_id):
+        url = f"{self.base_url}/{template_id}"
+        headers = {"Authorization": f"Bearer {self.token}"}
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching template {template_id}: {e}")
+            return {"error": str(e)}
+
+    def update_template(self, template_id, category, components):
+        url = f"{self.base_url}/{template_id}"
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "category": category,
+            "components": components
+        }
+        try:
+            response = requests.post(url, headers=headers, json=data, timeout=10)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error updating template {template_id}: {e}")
+            return {"error": str(e)}
+
+    def get_app_id(self):
+        url = "https://graph.facebook.com/debug_token"
+        params = {
+            "input_token": self.token,
+            "access_token": self.token
+        }
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            data = response.json()
+            return data.get('data', {}).get('app_id')
+        except Exception as e:
+            logger.error(f"Error getting app_id: {e}")
+            return None
+
+    def upload_header_media(self, file_obj):
+        """
+        Meta Resumable Upload API for template header handles.
+        Returns the handle (e.g., '4::...') or None.
+        """
+        app_id = self.get_app_id()
+        if not app_id:
+            return None
+
+        file_name = file_obj.name
+        file_length = file_obj.size
+        file_type = file_obj.content_type
+
+        # 1. Create upload session
+        url_session = f"{self.base_url}/{app_id}/uploads"
+        params = {
+            "file_name": file_name,
+            "file_length": file_length,
+            "file_type": file_type,
+            "access_token": self.token
+        }
+        try:
+            res_session = requests.post(url_session, params=params, timeout=10)
+            session_data = res_session.json()
+            upload_id = session_data.get('id')
+            if not upload_id:
+                logger.error(f"Failed to create upload session: {session_data}")
+                return None
+
+            # 2. Upload file content
+            url_upload = f"{self.base_url}/{upload_id}"
+            headers = {
+                "Authorization": f"OAuth {self.token}",
+                "file_offset": "0"
+            }
+            res_upload = requests.post(url_upload, headers=headers, data=file_obj.read(), timeout=30)
+            upload_data = res_upload.json()
+            handle = upload_data.get('h')
+            if not handle:
+                logger.error(f"Failed to get media handle: {upload_data}")
+                return None
+            
+            return handle
+        except Exception as e:
+            logger.error(f"Error in resumable upload: {e}")
+            return None
+
+    def create_template(self, name, language, category, components):
+        url = f"{self.base_url}/{self.waba_id}/message_templates"
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "name": name,
+            "language": language,
+            "category": category,
+            "components": components
+        }
+        try:
+            response = requests.post(url, headers=headers, json=data, timeout=10)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error creating template: {e}")
+            return {"error": str(e)}
+
+    def delete_template(self, template_name):
+        url = f"{self.base_url}/{self.waba_id}/message_templates"
+        headers = {"Authorization": f"Bearer {self.token}"}
+        params = {"name": template_name}
+        try:
+            response = requests.delete(url, headers=headers, params=params, timeout=10)
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error deleting template: {e}")
+            return {"error": str(e)}
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def whatsapp_template_list(request):
+    config = SystemConfig.load()
+    
+    # Verificar se as credenciais estão configuradas (agora via Django Admin)
+    if not all([config.meta_access_token, config.meta_waba_id, config.meta_phone_number_id]):
+        messages.warning(
+            request, 
+            "As credenciais da API Meta (Token, WABA ID ou Phone ID) não estão configuradas. "
+            "Por favor, configure-as no painel administrativo."
+        )
+        return render(request, 'integracoes/whatsapp_template_list.html', {
+            'templates': [],
+            'config': config,
+            'missing_credentials': True
+        })
+
+    api = MetaCloudAPI(config.meta_waba_id, config.meta_access_token)
+    
+    # Sincronização automática ao carregar a página
+    result = api.get_templates()
+    templates = result.get('data', [])
+    error = result.get('error')
+    
+    if error:
+        messages.error(request, f"Erro ao sincronizar templates com a Meta: {error}")
+    else:
+        # Opcional: Logar sucesso de sincronização silenciosamente ou com mensagem
+        pass
+
+    return render(request, 'integracoes/whatsapp_template_list.html', {
+        'templates': templates,
+        'config': config
+    })
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def whatsapp_template_create(request):
+    config = SystemConfig.load()
+    api = MetaCloudAPI(config.meta_waba_id, config.meta_access_token)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        category = request.POST.get('category')
+        language = request.POST.get('language', 'pt_BR')
+        
+        # Components data
+        header_type = request.POST.get('header_type', 'NONE')
+        header_text = request.POST.get('header_text')
+        header_example = request.POST.get('header_example')
+        header_file = request.FILES.get('header_file')
+        
+        body_text = request.POST.get('body_text')
+        body_examples = request.POST.getlist('body_examples[]')
+        
+        footer_text = request.POST.get('footer_text')
+        
+        # Buttons
+        button_types = request.POST.getlist('button_type[]')
+        button_texts = request.POST.getlist('button_text[]')
+        button_urls = request.POST.getlist('button_url[]')
+        button_phones = request.POST.getlist('button_phone[]')
+        
+        components = []
+        
+        # 1. Header
+        if header_type != 'NONE':
+            header_comp = {"type": "HEADER", "format": header_type}
+            if header_type == 'TEXT':
+                header_comp['text'] = header_text
+                if header_example:
+                    header_comp['example'] = {"header_text": [header_example]}
+            else:
+                # Media headers (IMAGE, VIDEO, DOCUMENT) require an example handle
+                handle = None
+                if header_file:
+                    handle = api.upload_header_media(header_file)
+                
+                if not handle:
+                    handle = request.POST.get('header_handle')
+                
+                if handle:
+                    header_comp['example'] = {"header_handle": [handle]}
+                else:
+                    messages.error(request, "Cabeçalhos de mídia exigem um arquivo ou handle de exemplo para aprovação.")
+                    return redirect('integracoes:whatsapp_template_create')
+
+            components.append(header_comp)
+            
+        # 2. Body
+        body_comp = {"type": "BODY", "text": body_text}
+        if body_examples:
+            # Filter empty strings and ensure it matches variable count if possible
+            clean_examples = [ex for ex in body_examples if ex]
+            if clean_examples:
+                body_comp['example'] = {"body_text": [clean_examples]}
+        components.append(body_comp)
+        
+        # 3. Footer
+        if footer_text:
+            components.append({"type": "FOOTER", "text": footer_text})
+            
+        # 4. Buttons
+        if button_types:
+            buttons = []
+            for i in range(len(button_types)):
+                b_type = button_types[i]
+                b_text = button_texts[i]
+                
+                btn = {"type": b_type, "text": b_text}
+                if b_type == 'URL':
+                    btn['url'] = button_urls[i]
+                elif b_type == 'PHONE_NUMBER':
+                    btn['phone_number'] = button_phones[i]
+                
+                buttons.append(btn)
+            
+            if buttons:
+                components.append({"type": "BUTTONS", "buttons": buttons})
+        
+        result = api.create_template(name, language, category, components)
+        
+        if 'error' in result:
+            messages.error(request, f"Erro ao criar template: {result['error'].get('message', 'Erro desconhecido')}")
+        else:
+            messages.success(request, f"Template '{name}' criado com sucesso e enviado para revisão.")
+            return redirect('integracoes:whatsapp_template_list')
+
+    return render(request, 'integracoes/whatsapp_template_create.html', {
+        'config': config
+    })
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def whatsapp_template_edit(request, template_id):
+    config = SystemConfig.load()
+    api = MetaCloudAPI(config.meta_waba_id, config.meta_access_token)
+    
+    # 1. Buscar estado atual do template
+    template = api.get_template(template_id)
+    if 'error' in template:
+        messages.error(request, f"Erro ao buscar template: {template['error'].get('message', 'Erro desconhecido')}")
+        return redirect('integracoes:whatsapp_template_list')
+
+    if request.method == 'POST':
+        category = request.POST.get('category')
+        body_text = request.POST.get('body_text')
+        
+        # Extrair exemplos do POST
+        body_examples = request.POST.getlist('body_examples[]')
+        header_example = request.POST.get('header_example')
+        
+        # Reconstruir componentes
+        new_components = []
+        for comp in template.get('components', []):
+            new_comp = comp.copy()
+            
+            if comp['type'] == 'BODY':
+                new_comp['text'] = body_text
+                if body_examples:
+                    # A Meta espera um array de arrays para o body_text
+                    new_comp['example'] = {"body_text": [body_examples]}
+                elif 'example' in new_comp:
+                    del new_comp['example']
+            
+            elif comp['type'] == 'HEADER' and comp.get('format') == 'TEXT':
+                # Preservar texto do header ou permitir edição simples se implementado futuramente
+                if header_example:
+                    new_comp['example'] = {"header_text": [header_example]}
+            
+            # Botões e outros componentes são mantidos como estão (ou editados via POST se adicionarmos campos)
+            new_components.append(new_comp)
+        
+        result = api.update_template(template_id, category, new_components)
+        
+        if 'error' in result:
+            messages.error(request, f"Erro ao atualizar: {result['error'].get('message', 'Erro desconhecido')}")
+        else:
+            messages.success(request, f"Template '{template.get('name')}' enviado para revisão.")
+            return redirect('integracoes:whatsapp_template_list')
+
+    # Extrair dados para o template
+    body_text = ""
+    body_examples = []
+    header_text = ""
+    header_example = ""
+    header_format = ""
+    buttons = []
+
+    for comp in template.get('components', []):
+        if comp['type'] == 'BODY':
+            body_text = comp.get('text', "")
+            # Extrair exemplos existentes
+            example_data = comp.get('example', {}).get('body_text', [])
+            if example_data and isinstance(example_data[0], list):
+                body_examples = example_data[0]
+        
+        elif comp['type'] == 'HEADER':
+            header_format = comp.get('format', "")
+            header_text = comp.get('text', "")
+            
+            # Tenta extrair exemplo baseado no formato
+            example_obj = comp.get('example', {})
+            if header_format == 'TEXT':
+                example_data = example_obj.get('header_text', [])
+                if example_data:
+                    header_example = example_data[0]
+            elif header_format in ['IMAGE', 'VIDEO', 'DOCUMENT']:
+                example_data = example_obj.get('header_handle', [])
+                if example_data:
+                    header_example = example_data[0]
+                
+        elif comp['type'] == 'BUTTONS':
+            buttons = comp.get('buttons', [])
+
+    # Identificar quantas variáveis existem no body para gerar campos de exemplo
+    body_vars_count = len(re.findall(r"\{\{\d+\}\}", body_text))
+    # Garantir que a lista de exemplos tenha o tamanho correto
+    while len(body_examples) < body_vars_count:
+        body_examples.append("")
+
+    return render(request, 'integracoes/whatsapp_template_edit.html', {
+        'template': template,
+        'body_text': body_text,
+        'body_examples': body_examples[:body_vars_count],
+        'header_text': header_text,
+        'header_example': header_example,
+        'header_format': header_format,
+        'buttons': buttons,
+        'config': config
+    })
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def whatsapp_template_delete(request, name):
+    if request.method == 'POST':
+        config = SystemConfig.load()
+        if not config.meta_access_token or not config.meta_waba_id:
+             messages.error(request, "Credenciais ausentes para realizar a exclusão.")
+             return redirect('integracoes:whatsapp_template_list')
+
+        api = MetaCloudAPI(config.meta_waba_id, config.meta_access_token)
+        result = api.delete_template(name)
+        
+        if 'error' in result:
+            messages.error(request, f"Erro ao excluir template: {result['error'].get('message', 'Erro desconhecido')}")
+        else:
+            messages.success(request, f"Template '{name}' excluído com sucesso.")
+            
+    return redirect('integracoes:whatsapp_template_list')
 
 def _handle_webhook_request(request, provider):
     # Validação de Assinatura do Bling

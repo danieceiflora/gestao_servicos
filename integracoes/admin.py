@@ -9,16 +9,16 @@ class SystemConfigAdmin(admin.ModelAdmin):
         ('Dados da Empresa (PDF de Orçamento)', {
             'fields': ('company_name', 'company_cnpj', 'company_address', 'company_phone', 'company_website', 'company_logo')
         }),
-        ('Integração Chatwoot (WhatsApp)', {
+        ('Integração Meta API Cloud (Principal)', {
+            'fields': ('meta_access_token', 'meta_waba_id', 'meta_phone_number_id'),
+            'description': 'Configure aqui as credenciais principais para sincronização de templates e envios diretos via WhatsApp Cloud API.'
+        }),
+        ('Integração Chatwoot (Atendimento)', {
             'fields': (
                 'chatwoot_base_url', 'chatwoot_account_id', 'chatwoot_inbox_id', 
                 'chatwoot_api_token', 'chatwoot_budget_template', 
                 'chatwoot_pix_template', 'chatwoot_pix_label'
             )
-        }),
-        ('Integração Direta Meta (Fallback Templates)', {
-            'fields': ('meta_waba_id', 'meta_access_token'),
-            'description': 'Opcional: Use estes campos se o Chatwoot não conseguir listar seus templates automaticamente.'
         }),
         ('Dados Financeiros para PIX', {
             'fields': ('pix_key', 'pix_bank', 'pix_recipient'),

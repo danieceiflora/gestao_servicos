@@ -55,6 +55,7 @@ class SystemConfig(models.Model):
 
     # Configurações Diretas da Meta (WhatsApp Cloud API)
     meta_waba_id = models.CharField('WhatsApp Business Account ID', max_length=100, blank=True, null=True, help_text='Necessário para buscar definições de templates diretamente na Meta')
+    meta_phone_number_id = models.CharField('WhatsApp Phone Number ID', max_length=100, blank=True, null=True, help_text='ID do número de telefone na API da Meta')
     meta_access_token = models.CharField('Meta System User Access Token', max_length=512, blank=True, null=True, help_text='Token de acesso permanente do Gerenciador de Negócios da Meta')
 
     class Meta:
