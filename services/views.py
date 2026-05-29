@@ -1687,6 +1687,72 @@ def order_item_delete(request, item_id):
         'order': order
     })
 
+@permission_required('services.change_serviceitem', raise_exception=True)
+def order_item_update(request, item_id):
+    """View para atualizar quantidade e preço unitário de um item via AJAX"""
+    item = get_object_or_404(ServiceItem, id=item_id)
+    order = item.service_order
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
+    if request.method == 'POST' and is_ajax:
+        try:
+            quantity_raw = request.POST.get('quantity', '').replace(',', '.')
+            unit_price_raw = request.POST.get('unit_price', '').replace(',', '.')
+            
+            new_quantity = Decimal(quantity_raw)
+            new_unit_price = Decimal(unit_price_raw)
+
+            if new_quantity <= 0:
+                return JsonResponse({'success': False, 'message': 'A quantidade deve ser maior que zero.'}, status=400)
+
+            # --- ATUALIZAÇÃO DE ESTOQUE ---
+            if item.product:
+                product = item.product
+                diff = new_quantity - item.quantity
+                
+                # Ajusta o estoque
+                product.current_stock -= diff
+                product.save()
+                
+                # Registrar movimentação se houve mudança
+                if diff != 0:
+                    movement_type = StockMovement.MovementType.OUT if diff > 0 else StockMovement.MovementType.IN
+                    reason = StockMovement.Reason.SALE_OS if diff > 0 else StockMovement.Reason.RETURN
+                    
+                    StockMovement.objects.create(
+                        product=product,
+                        quantity=abs(diff),
+                        movement_type=movement_type,
+                        reason=reason,
+                        service_order=order,
+                        user=request.user
+                    )
+
+            # Atualiza o item
+            item.quantity = new_quantity
+            item.unit_price = new_unit_price
+            item.save()
+
+            return JsonResponse({
+                'success': True,
+                'item': {
+                    'id': item.id,
+                    'quantity_display': f'{item.quantity:.2f}'.replace('.', ','),
+                    'unit_price_display': f'{item.unit_price:.2f}'.replace('.', ','),
+                    'total_price_display': f'{item.total_price:.2f}'.replace('.', ','),
+                },
+                'order_total_display': f'{order.total_value:.2f}'.replace('.', ','),
+                'estimated_value_display': f'{order.estimated_value:.2f}'.replace('.', ','),
+                'balance_due_display': f'{order.balance_due:.2f}'.replace('.', ','),
+                'balance_due_positive': bool(order.balance_due > 0)
+            })
+        except (InvalidOperation, TypeError, ValueError) as e:
+            return JsonResponse({'success': False, 'message': 'Valores inválidos.'}, status=400)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+    return JsonResponse({'success': False, 'message': 'Método não permitido.'}, status=405)
+
 # ============ PAGAMENTOS E DESCONTOS ============
 
 @login_required

@@ -96,6 +96,7 @@ urlpatterns = [
     path('api/resolve-maps-url/', views.resolve_maps_url, name='resolve_maps_url'),
     path('orders/<uuid:order_id>/items/add/', views.order_item_add, name='order_item_add'),
     path('items/<int:item_id>/delete/', views.order_item_delete, name='order_item_delete'),
+    path('items/<int:item_id>/update/', views.order_item_update, name='order_item_update'),
     path('orders/<uuid:order_id>/payments/add/', views.order_payment_add, name='order_payment_add'),
     path('orders/<uuid:order_id>/discount/', views.order_discount_update, name='order_discount_update'),
     path('orders/<uuid:order_id>/observation/', views.order_observation_update, name='order_observation_update'),

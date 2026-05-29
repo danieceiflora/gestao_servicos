@@ -75,9 +75,21 @@
                 </div>
                 
                 {{ formset.management_form }}
+                
+                {% if formset.non_form_errors %}
+                <div class="p-4 bg-red-50 border-b border-red-100 text-red-600 text-sm">
+                    {{ formset.non_form_errors }}
+                </div>
+                {% endif %}
+
                 <div id="formset-container" class="divide-y divide-slate-100">
                     {% for item_form in formset %}
                     <div class="cart-item-row p-4 flex items-center gap-4" id="item-{{ forloop.counter0 }}">
+                        {% if item_form.errors %}
+                        <div class="w-full text-red-500 text-[10px] mb-2">
+                            {{ item_form.errors }}
+                        </div>
+                        {% endif %}
                         <div class="flex-1 min-w-0">
                             <div class="font-medium text-slate-900 mb-1 product-display-name">
                                 {% if item_form.instance.product %}
@@ -214,16 +226,8 @@
     const discountInput = document.getElementById('id_discount');
     const itemsCountBadge = document.getElementById('items-count');
 
-    // Inicialização: Remover a primeira linha se não tiver produto selecionado (caso de formulário novo)
+    // Inicialização
     document.addEventListener('DOMContentLoaded', function() {
-        const rows = formsetContainer.querySelectorAll('.cart-item-row');
-        if (rows.length === 1) {
-            const productSelect = rows[0].querySelector('select[name$="-product"]');
-            if (!productSelect.value) {
-                rows[0].remove();
-                totalFormsInput.value = 0;
-            }
-        }
         updateTotals();
     });
 

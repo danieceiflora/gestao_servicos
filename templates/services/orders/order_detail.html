@@ -311,15 +311,22 @@
                                 </p>
                             </div>
                             {% if user.role != 'COLLABORATOR' %}
-                            <button type="button" class="js-delete-item p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors" data-item-id="{{ item.id }}">
-                                <i data-lucide="trash-2" class="h-4 w-4"></i>
-                            </button>
+                            <div class="flex items-center gap-1">
+                                <button type="button" class="js-edit-item p-2 text-slate-400 hover:text-blue-600 transition-colors" data-item-id="{{ item.id }}">
+                                    <i data-lucide="edit-2" class="h-4 w-4"></i>
+                                </button>
+                                <button type="button" class="js-delete-item p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors" data-item-id="{{ item.id }}">
+                                    <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                </button>
+                            </div>
                             {% endif %}
                         </div>
                         
                         <div class="flex flex-wrap items-center gap-2">
                             <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
-                                {% if item.product %}{{ item.product.get_unit_type_display }}{% else %}{{ item.service.unit_of_measure }}{% endif %}: {{ item.quantity|floatformat:2 }}
+                                {% if item.product %}{{ item.product.get_unit_type_display }}{% else %}{{ item.service.unit_of_measure }}{% endif %}: 
+                                <span class="js-item-quantity-display">{{ item.quantity|floatformat:2 }}</span>
+                                <input type="number" step="0.01" class="hidden js-item-quantity-input w-16 px-1 py-0.5 text-[10px] border rounded" value="{{ item.quantity|unlocalize }}">
                             </span>
                             <span class="px-2 py-0.5 rounded-full {% if item.task %}bg-blue-50 text-blue-600{% else %}bg-green-50 text-green-600{% endif %} text-[10px] font-bold">
                                 {% if item.task %}{{ item.task.get_task_type_display }}{% else %}Orçamento{% endif %}
@@ -328,8 +335,15 @@
 
                         {% if user.role != 'COLLABORATOR' %}
                         <div class="flex items-center justify-between pt-2 border-t border-slate-50">
-                            <span class="text-xs text-slate-500">Unitário: R$ {{ item.unit_price|floatformat:2 }}</span>
-                            <span class="text-sm font-bold text-slate-900">Total: R$ {{ item.total_price|floatformat:2 }}</span>
+                            <span class="text-xs text-slate-500">
+                                Unitário: R$ <span class="js-item-unit-price-display">{{ item.unit_price|floatformat:2 }}</span>
+                                <input type="number" step="0.01" class="hidden js-item-unit-price-input w-20 px-1 py-0.5 text-xs border rounded text-right" value="{{ item.unit_price|unlocalize }}">
+                            </span>
+                            <span class="text-sm font-bold text-slate-900">Total: R$ <span class="js-item-total-price-display">{{ item.total_price|floatformat:2 }}</span></span>
+                        </div>
+                        <div class="hidden js-edit-actions flex items-center justify-end gap-2 pt-2">
+                            <button type="button" class="js-cancel-edit px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 rounded-md">Cancelar</button>
+                            <button type="button" class="js-save-item px-3 py-1 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm">Salvar</button>
                         </div>
                         {% endif %}
                     </div>
@@ -378,15 +392,30 @@
                                     {% if item.product %}{{ item.product.get_unit_type_display }}{% else %}{{ item.service.unit_of_measure }}{% endif %}
                                 </td>
                                 <td class="px-6 py-4 text-center font-bold text-slate-900">
-                                    {{ item.quantity|floatformat:2 }}
+                                    <span class="js-item-quantity-display">{{ item.quantity|floatformat:2 }}</span>
+                                    <input type="number" step="0.01" class="hidden js-item-quantity-input w-20 px-2 py-1 text-sm border rounded" value="{{ item.quantity|unlocalize }}">
                                 </td>
                                 {% if user.role != 'COLLABORATOR' %}
-                                <td class="px-6 py-4 text-right text-slate-500">R$ {{ item.unit_price|floatformat:2 }}</td>
-                                <td class="px-6 py-4 text-right font-bold text-slate-900">R$ {{ item.total_price|floatformat:2 }}</td>
+                                <td class="px-6 py-4 text-right text-slate-500">
+                                    R$ <span class="js-item-unit-price-display">{{ item.unit_price|floatformat:2 }}</span>
+                                    <input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="{{ item.unit_price|unlocalize }}">
+                                </td>
+                                <td class="px-6 py-4 text-right font-bold text-slate-900">R$ <span class="js-item-total-price-display">{{ item.total_price|floatformat:2 }}</span></td>
                                 <td class="px-6 py-4 text-center">
-                                    <button type="button" class="js-delete-item p-2 text-slate-400 hover:text-red-600 transition-colors" data-item-id="{{ item.id }}" title="Remover item">
-                                        <i data-lucide="trash-2" class="h-4 w-4"></i>
-                                    </button>
+                                    <div class="flex items-center justify-center gap-1">
+                                        <button type="button" class="js-edit-item p-2 text-slate-400 hover:text-blue-600 transition-colors" data-item-id="{{ item.id }}" title="Editar item">
+                                            <i data-lucide="edit-2" class="h-4 w-4"></i>
+                                        </button>
+                                        <button type="button" class="hidden js-save-item p-2 text-green-600 hover:bg-green-50 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Salvar">
+                                            <i data-lucide="check" class="h-4 w-4"></i>
+                                        </button>
+                                        <button type="button" class="hidden js-cancel-edit p-2 text-slate-400 hover:bg-slate-50 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Cancelar">
+                                            <i data-lucide="x" class="h-4 w-4"></i>
+                                        </button>
+                                        <button type="button" class="js-delete-item p-2 text-slate-400 hover:text-red-600 transition-colors" data-item-id="{{ item.id }}" title="Remover item">
+                                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                        </button>
+                                    </div>
                                 </td>
                                 {% endif %}
                             </tr>
@@ -999,13 +1028,30 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="px-2 py-0.5 ${item.type_class} rounded-md text-[10px] font-bold border">${item.type_display}</span>
                 </td>
                 <td class="px-6 py-4 text-center text-slate-600 font-medium">${item.unit_display}</td>
-                <td class="px-6 py-4 text-center font-bold text-slate-900">${item.quantity_display}</td>
-                <td class="px-6 py-4 text-right text-slate-500">R$ ${item.unit_price_display}</td>
-                <td class="px-6 py-4 text-right font-bold text-slate-900">R$ ${item.total_price_display}</td>
+                <td class="px-6 py-4 text-center font-bold text-slate-900">
+                    <span class="js-item-quantity-display">${item.quantity_display}</span>
+                    <input type="number" step="0.01" class="hidden js-item-quantity-input w-20 px-2 py-1 text-sm border rounded" value="${item.quantity_display.replace(',', '.')}">
+                </td>
+                <td class="px-6 py-4 text-right text-slate-500">
+                    R$ <span class="js-item-unit-price-display">${item.unit_price_display}</span>
+                    <input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="${item.unit_price_display.replace(',', '.')}">
+                </td>
+                <td class="px-6 py-4 text-right font-bold text-slate-900">R$ <span class="js-item-total-price-display">${item.total_price_display}</span></td>
                 <td class="px-6 py-4 text-center">
-                    <button type="button" class="js-delete-item p-2 text-slate-400 hover:text-red-600 transition-colors" data-item-id="${item.id}">
-                        <i data-lucide="trash-2" class="h-4 w-4"></i>
-                    </button>
+                    <div class="flex items-center justify-center gap-1">
+                        <button type="button" class="js-edit-item p-2 text-slate-400 hover:text-blue-600 transition-colors" data-item-id="${item.id}" title="Editar item">
+                            <i data-lucide="edit-2" class="h-4 w-4"></i>
+                        </button>
+                        <button type="button" class="hidden js-save-item p-2 text-green-600 hover:bg-green-50 rounded-md transition-colors" data-item-id="${item.id}" title="Salvar">
+                            <i data-lucide="check" class="h-4 w-4"></i>
+                        </button>
+                        <button type="button" class="hidden js-cancel-edit p-2 text-slate-400 hover:bg-slate-50 rounded-md transition-colors" data-item-id="${item.id}" title="Cancelar">
+                            <i data-lucide="x" class="h-4 w-4"></i>
+                        </button>
+                        <button type="button" class="js-delete-item p-2 text-slate-400 hover:text-red-600 transition-colors" data-item-id="${item.id}">
+                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                        </button>
+                    </div>
                 </td>
             `;
             tbody.prepend(tr);
@@ -1023,17 +1069,33 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="text-sm font-bold text-slate-900">${item.description}</p>
                         <p class="text-[11px] text-slate-500 mt-0.5">${item.product_name}</p>
                     </div>
-                    <button type="button" class="js-delete-item p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors" data-item-id="${item.id}">
-                        <i data-lucide="trash-2" class="h-4 w-4"></i>
-                    </button>
+                    <div class="flex items-center gap-1">
+                        <button type="button" class="js-edit-item p-2 text-slate-400 hover:text-blue-600 transition-colors" data-item-id="${item.id}">
+                            <i data-lucide="edit-2" class="h-4 w-4"></i>
+                        </button>
+                        <button type="button" class="js-delete-item p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors" data-item-id="${item.id}">
+                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">${item.unit_display}: ${item.quantity_display}</span>
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
+                        ${item.unit_display}: 
+                        <span class="js-item-quantity-display">${item.quantity_display}</span>
+                        <input type="number" step="0.01" class="hidden js-item-quantity-input w-16 px-1 py-0.5 text-[10px] border rounded" value="${item.quantity_display.replace(',', '.')}">
+                    </span>
                     <span class="px-2 py-0.5 rounded-full ${item.origin_is_task ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'} text-[10px] font-bold">${item.origin_display}</span>
                 </div>
                 <div class="flex items-center justify-between pt-2 border-t border-slate-50">
-                    <span class="text-xs text-slate-500">Unitário: R$ ${item.unit_price_display}</span>
-                    <span class="text-sm font-bold text-slate-900">Total: R$ ${item.total_price_display}</span>
+                    <span class="text-xs text-slate-500">
+                        Unitário: R$ <span class="js-item-unit-price-display">${item.unit_price_display}</span>
+                        <input type="number" step="0.01" class="hidden js-item-unit-price-input w-20 px-1 py-0.5 text-xs border rounded text-right" value="${item.unit_price_display.replace(',', '.')}">
+                    </span>
+                    <span class="text-sm font-bold text-slate-900">Total: R$ <span class="js-item-total-price-display">${item.total_price_display}</span></span>
+                </div>
+                <div class="hidden js-edit-actions flex items-center justify-end gap-2 pt-2">
+                    <button type="button" class="js-cancel-edit px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 rounded-md">Cancelar</button>
+                    <button type="button" class="js-save-item px-3 py-1 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm">Salvar</button>
                 </div>
             `;
             mobileList.prepend(div);
@@ -1090,25 +1152,112 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Delegated events for Edit, Save, Cancel, and Delete
     document.addEventListener('click', async (e) => {
-        const delBtn = e.target.closest('.js-delete-item');
-        if (!delBtn || !confirm("Remover este item?")) return;
-
-        const id = delBtn.dataset.itemId;
-        try {
-            const response = await fetch(`/items/${id}/delete/`, {
-                method: 'POST',
-                headers: { 
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        const target = e.target;
+        
+        // --- DELETE ITEM ---
+        const delBtn = target.closest('.js-delete-item');
+        if (delBtn) {
+            if (!confirm("Remover este item?")) return;
+            const id = delBtn.dataset.itemId;
+            try {
+                const response = await fetch(`/items/${id}/delete/`, {
+                    method: 'POST',
+                    headers: { 
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    document.querySelectorAll(`.js-order-item-row[data-item-id="${id}"]`).forEach(el => el.remove());
+                    updateDOM(data);
                 }
+            } catch (err) { console.error(err); }
+            return;
+        }
+
+        // --- EDIT ITEM ---
+        const editBtn = target.closest('.js-edit-item');
+        if (editBtn) {
+            const rowId = editBtn.dataset.itemId;
+            const rows = document.querySelectorAll(`.js-order-item-row[data-item-id="${rowId}"]`);
+            rows.forEach(row => {
+                row.querySelectorAll('.js-item-quantity-display, .js-item-unit-price-display, .js-edit-item, .js-delete-item').forEach(el => el.classList.add('hidden'));
+                row.querySelectorAll('.js-item-quantity-input, .js-item-unit-price-input, .js-save-item, .js-cancel-edit, .js-edit-actions').forEach(el => el.classList.remove('hidden'));
             });
-            const data = await response.json();
-            if (data.success) {
-                document.querySelectorAll(`.js-order-item-row[data-item-id="${id}"]`).forEach(el => el.remove());
-                updateDOM(data);
+            return;
+        }
+
+        // --- CANCEL EDIT ---
+        const cancelBtn = target.closest('.js-cancel-edit');
+        if (cancelBtn) {
+            const rowId = cancelBtn.dataset.itemId;
+            const rows = document.querySelectorAll(`.js-order-item-row[data-item-id="${rowId}"]`);
+            rows.forEach(row => {
+                row.querySelectorAll('.js-item-quantity-display, .js-item-unit-price-display, .js-edit-item, .js-delete-item').forEach(el => el.classList.remove('hidden'));
+                row.querySelectorAll('.js-item-quantity-input, .js-item-unit-price-input, .js-save-item, .js-cancel-edit, .js-edit-actions').forEach(el => el.classList.add('hidden'));
+                
+                // Reset input values
+                const qtyDisplay = row.querySelector('.js-item-quantity-display').textContent.replace(',', '.');
+                const priceDisplay = row.querySelector('.js-item-unit-price-display').textContent.replace(',', '.');
+                row.querySelector('.js-item-quantity-input').value = qtyDisplay;
+                row.querySelector('.js-item-unit-price-input').value = priceDisplay;
+            });
+            return;
+        }
+
+        // --- SAVE ITEM ---
+        const saveBtn = target.closest('.js-save-item');
+        if (saveBtn) {
+            const rowId = saveBtn.dataset.itemId;
+            const row = target.closest('.js-order-item-row');
+            const qtyInput = row.querySelector('.js-item-quantity-input');
+            const priceInput = row.querySelector('.js-item-unit-price-input');
+            
+            const formData = new FormData();
+            formData.append('quantity', qtyInput.value);
+            formData.append('unit_price', priceInput.value);
+            
+            saveBtn.disabled = true;
+            const originalContent = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i>';
+            if (window.lucide) window.lucide.createIcons();
+
+            try {
+                const response = await fetch(`/items/${rowId}/update/`, {
+                    method: 'POST',
+                    headers: { 
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const rows = document.querySelectorAll(`.js-order-item-row[data-item-id="${rowId}"]`);
+                    rows.forEach(r => {
+                        r.querySelector('.js-item-quantity-display').textContent = data.item.quantity_display;
+                        r.querySelector('.js-item-unit-price-display').textContent = data.item.unit_price_display;
+                        r.querySelector('.js-item-total-price-display').textContent = data.item.total_price_display;
+                        
+                        r.querySelectorAll('.js-item-quantity-display, .js-item-unit-price-display, .js-edit-item, .js-delete-item').forEach(el => el.classList.remove('hidden'));
+                        r.querySelectorAll('.js-item-quantity-input, .js-item-unit-price-input, .js-save-item, .js-cancel-edit, .js-edit-actions').forEach(el => el.classList.add('hidden'));
+                    });
+                    updateDOM(data);
+                } else {
+                    alert(data.message || "Erro ao atualizar item.");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Erro de conexão ao atualizar item.");
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalContent;
+                if (window.lucide) window.lucide.createIcons();
             }
-        } catch (err) { console.error(err); }
+        }
     });
 });
 {% endif %}
