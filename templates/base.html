@@ -51,6 +51,10 @@
                             <i data-lucide="banknote" class="h-4 w-4 text-slate-400"></i>
                             Pagamentos de Técnicos
                         </a>
+                        <a href="{% url 'payment_method_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                            <i data-lucide="credit-card" class="h-4 w-4 text-slate-400"></i>
+                            Métodos de Pagamento
+                        </a>
                     </div>
                 </div>
                 {% endif %}
@@ -68,6 +72,10 @@
                         <a href="{% url 'integracoes:whatsapp_template_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
                             <i data-lucide="message-square" class="h-4 w-4 text-slate-400"></i>
                             Templates WhatsApp
+                        </a>
+                        <a href="{% url 'integracoes:notification_config_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                            <i data-lucide="zap" class="h-4 w-4 text-slate-400"></i>
+                            Notificações Automáticas
                         </a>
                         </div>
                         </div>

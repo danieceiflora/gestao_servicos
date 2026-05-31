@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Notificações Automáticas</h1>
+            <p class="text-sm text-slate-500">Configure disparos automáticos de WhatsApp baseados em eventos do sistema.</p>
+        </div>
+        <a href="{% url 'integracoes:notification_config_create' %}" class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors gap-2">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            Nova Regra
+        </a>
+    </div>
+
+    <div class="grid gap-4">
+        {% for config in configs %}
+        <div class="group relative flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 transition-all">
+            <div class="flex items-center gap-4">
+                <div class="h-10 w-10 rounded-full {% if config.is_active %}bg-green-50 text-green-600{% else %}bg-slate-50 text-slate-400{% endif %} flex items-center justify-center">
+                    <i data-lucide="message-square" class="h-5 w-5"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-900 leading-tight">{{ config.name }}</h3>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                            {{ config.get_model_name_display }}
+                        </span>
+                        <span class="text-slate-300">•</span>
+                        <span class="text-[11px] text-slate-500">
+                            {{ config.get_event_type_display }}
+                            {% if config.to_status %}
+                                → <span class="font-medium text-slate-700">{{ config.to_status }}</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <a href="{% url 'integracoes:notification_config_edit' config.pk %}" class="p-2 text-slate-400 hover:text-slate-900 transition-colors">
+                    <i data-lucide="edit-3" class="h-4 w-4"></i>
+                </a>
+                <form action="{% url 'integracoes:notification_config_delete' config.pk %}" method="post" class="inline" onsubmit="return confirm('Tem certeza?')">
+                    {% csrf_token %}
+                    <button type="submit" class="p-2 text-slate-400 hover:text-red-600 transition-colors">
+                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-12 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+            <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-4">
+                <i data-lucide="bell-off" class="h-6 w-6"></i>
+            </div>
+            <h3 class="text-sm font-medium text-slate-900">Nenhuma regra configurada</h3>
+            <p class="text-xs text-slate-500 mt-1">Crie sua primeira automação para começar.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

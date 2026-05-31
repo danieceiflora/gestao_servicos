@@ -6,7 +6,7 @@ from .models import (
     ServiceMedia, ServiceItem, ServiceOrderTeam, Professional,
     ProfessionalRole, ProfessionalScheduleBlock,
     ServiceOrderTask, ServicePayment, Product, StockMovement,
-    Sale, SaleItem
+    Sale, SaleItem, Supplier, PaymentMethod
 )
 
 # --- UTILS FOR MULTIPLE UPLOAD ---
@@ -158,7 +158,7 @@ class PropertyForm(forms.ModelForm):
         fields = [
             'classification', 'cep', 'address', 'number', 
             'complement', 'neighborhood', 'city', 'state',
-            'latitude', 'longitude'
+            'ibge_code', 'latitude', 'longitude'
         ]
         widgets = {
             'classification': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
@@ -169,6 +169,7 @@ class PropertyForm(forms.ModelForm):
             'neighborhood': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'city': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'state': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'ibge_code': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Código IBGE'}),
             'latitude': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: -23.123456'}),
             'longitude': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: -46.123456'}),
         }
@@ -788,15 +789,34 @@ class TaskCancelForm(forms.Form):
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
-        fields = ['name', 'code', 'image', 'unit_type', 'default_unit_price', 'current_stock', 'is_active']
+        fields = [
+            'name', 'category', 'supplier', 'code', 'barcode', 'image', 'unit_type', 'default_unit_price', 'current_stock', 'is_active',
+            'ncm', 'cest', 'cfop_padrao', 'origem_mercadoria', 'csosn', 'cst_icms', 'cst_pis', 'cst_cofins',
+            'aliquota_ibpt_fed', 'aliquota_ibpt_est', 'aliquota_ibpt_mun'
+        ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'category': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'supplier': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'code': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'barcode': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'image': forms.FileInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'unit_type': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'default_unit_price': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
             'current_stock': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
+            # Fiscais
+            'ncm': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'cest': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'cfop_padrao': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'origem_mercadoria': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'csosn': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'cst_icms': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'cst_pis': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'cst_cofins': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'aliquota_ibpt_fed': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'aliquota_ibpt_est': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'aliquota_ibpt_mun': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
         }
 
 class StockMovementForm(forms.ModelForm):
@@ -839,22 +859,27 @@ class ProductImportForm(forms.Form):
 class SaleForm(forms.ModelForm):
     class Meta:
         model = Sale
-        fields = ['client', 'payment_method', 'discount', 'service_order']
+        fields = [
+            'client', 'discount',
+            'indicador_presenca', 'modalidade_frete', 'forma_pagamento_sefaz'
+        ]
         widgets = {
             'client': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white search-select'}),
-            'payment_method': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'discount': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
-            'service_order': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'indicador_presenca': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'modalidade_frete': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'forma_pagamento_sefaz': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
         }
 
 class SaleItemForm(forms.ModelForm):
     class Meta:
         model = SaleItem
-        fields = ['product', 'quantity', 'unit_price']
+        fields = ['product', 'quantity', 'unit_price', 'discount']
         widgets = {
             'product': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 search-select product-select'}),
             'quantity': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 quantity-input', 'step': '0.01'}),
             'unit_price': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 price-input', 'step': '0.01'}),
+            'discount': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 discount-input', 'step': '0.01'}),
         }
 
 SaleItemFormSet = inlineformset_factory(
@@ -862,6 +887,23 @@ SaleItemFormSet = inlineformset_factory(
     form=SaleItemForm,
     extra=0,
     can_delete=True,
-    min_num=1,
+    min_num=0,
     validate_min=True
 )
+
+class PaymentMethodForm(forms.ModelForm):
+    class Meta:
+        model = PaymentMethod
+        fields = [
+            'descricao', 'tipo_provedor', 'tarifa_porcentagem', 
+            'tarifa_fixa', 'prazo_recebimento', 'codigo_sefaz', 'ativo'
+        ]
+        widgets = {
+            'descricao': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: Cartão de Crédito Visa'}),
+            'tipo_provedor': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'tarifa_porcentagem': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'tarifa_fixa': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'prazo_recebimento': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'codigo_sefaz': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: 03'}),
+            'ativo': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
+        }

@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 from .models import WebhookEvent, SystemConfig
 from .chatwoot_client import ChatwootClient
-from services.models import ServiceOrder, ServiceOrderTask
+from services.models import ServiceOrder, ServiceOrderTask, Sale
 
 logger = logging.getLogger(__name__)
 
@@ -606,6 +606,156 @@ class MetaCloudAPI:
         except Exception as e:
             logger.error(f"Error deleting template: {e}")
             return {"error": str(e)}
+
+from .models import WebhookEvent, SystemConfig, NotificationConfig, NotificationVariable
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def notification_config_list(request):
+    configs = NotificationConfig.objects.all()
+    return render(request, 'integracoes/notifications/config_list.html', {'configs': configs})
+
+def _get_model_fields(model_name):
+    """Retorna campos comuns para o mapeamento baseados no modelo."""
+    fields = {
+        'ServiceOrder': [
+            ('number', 'Número da OS'),
+            ('client_property.client.name', 'Nome do Cliente'),
+            ('client_property.client.display_name', 'Nome Fantasia/Exibição'),
+            ('client_property.address', 'Endereço do Serviço'),
+            ('total_value', 'Valor Total'),
+            ('balance_due', 'Saldo Devedor'),
+            ('description', 'Descrição do Problema'),
+        ],
+        'ServiceOrderTask': [
+            ('service_order.number', 'Número da OS'),
+            ('service_order.client_property.client.name', 'Nome do Cliente'),
+            ('get_task_type_display', 'Tipo da Etapa'),
+            ('scheduled_at', 'Data/Hora Agendada'),
+        ],
+        'Sale': [
+            ('uuid.hex', 'ID da Venda'),
+            ('client.name', 'Nome do Cliente'),
+            ('total_amount', 'Valor Total'),
+            ('get_status_display', 'Status'),
+        ]
+    }
+    return fields.get(model_name, [])
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def notification_config_create(request):
+    config_obj = SystemConfig.load()
+    api = MetaCloudAPI(config_obj.meta_waba_id, config_obj.meta_access_token)
+    templates = api.get_templates().get('data', [])
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        model_name = request.POST.get('model_name')
+        event_type = request.POST.get('event_type')
+        from_status = request.POST.get('from_status')
+        to_status = request.POST.get('to_status')
+        template_name = request.POST.get('template_name')
+        phone_path = request.POST.get('phone_field_path')
+        
+        config = NotificationConfig.objects.create(
+            name=name, model_name=model_name, event_type=event_type,
+            from_status=from_status, to_status=to_status,
+            template_name=template_name, phone_field_path=phone_path
+        )
+        
+        # Salvar variáveis
+        indices = request.POST.getlist('var_index[]')
+        paths = request.POST.getlist('var_path[]')
+        for i, path in zip(indices, paths):
+            if path:
+                NotificationVariable.objects.create(config=config, index=i, field_path=path)
+        
+        messages.success(request, "Configuração de notificação criada com sucesso!")
+        return redirect('integracoes:notification_config_list')
+
+    return render(request, 'integracoes/notifications/config_form.html', {
+        'templates': templates,
+        'model_choices': NotificationConfig.MODEL_CHOICES,
+        'event_choices': NotificationConfig.EVENT_CHOICES,
+        'status_choices': ServiceOrder.Status.choices + Sale.Status.choices # Simplificado
+    })
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def notification_config_edit(request, pk):
+    config = get_object_or_404(NotificationConfig, pk=pk)
+    config_obj = SystemConfig.load()
+    api = MetaCloudAPI(config_obj.meta_waba_id, config_obj.meta_access_token)
+    templates = api.get_templates().get('data', [])
+    
+    if request.method == 'POST':
+        config.name = request.POST.get('name')
+        config.model_name = request.POST.get('model_name')
+        config.event_type = request.POST.get('event_type')
+        config.from_status = request.POST.get('from_status')
+        config.to_status = request.POST.get('to_status')
+        config.template_name = request.POST.get('template_name')
+        config.phone_field_path = request.POST.get('phone_field_path')
+        config.is_active = request.POST.get('is_active') == 'on'
+        config.save()
+        
+        # Atualizar variáveis (deleta e recria para simplificar)
+        config.variables.all().delete()
+        indices = request.POST.getlist('var_index[]')
+        paths = request.POST.getlist('var_path[]')
+        for i, path in zip(indices, paths):
+            if path:
+                NotificationVariable.objects.create(config=config, index=i, field_path=path)
+                
+        messages.success(request, "Configuração atualizada!")
+        return redirect('integracoes:notification_config_list')
+
+    return render(request, 'integracoes/notifications/config_form.html', {
+        'config': config,
+        'templates': templates,
+        'model_choices': NotificationConfig.MODEL_CHOICES,
+        'event_choices': NotificationConfig.EVENT_CHOICES,
+        'variables': config.variables.all().order_by('index')
+    })
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def notification_config_delete(request, pk):
+    config = get_object_or_404(NotificationConfig, pk=pk)
+    if request.method == 'POST':
+        config.delete()
+        messages.success(request, "Configuração removida.")
+    return redirect('integracoes:notification_config_list')
+
+@login_required
+def ajax_get_template_details(request):
+    """Retorna o corpo do template e campos de variáveis via AJAX/HTMX."""
+    template_name = request.GET.get('name')
+    model_name = request.GET.get('model')
+    
+    config_obj = SystemConfig.load()
+    api = MetaCloudAPI(config_obj.meta_waba_id, config_obj.meta_access_token)
+    templates = api.get_templates().get('data', [])
+    
+    template = next((t for t in templates if t['name'] == template_name), None)
+    if not template:
+        return JsonResponse({'error': 'Template não encontrado'}, status=404)
+        
+    body_comp = next((c for c in template.get('components', []) if c['type'] == 'BODY'), None)
+    body_text = body_comp.get('text', '') if body_comp else ''
+    
+    # Encontrar variáveis {{n}}
+    vars_count = len(re.findall(r"\{\{\d+\}\}", body_text))
+    
+    # Sugestões de campos para o modelo
+    suggested_fields = _get_model_fields(model_name)
+    
+    return render(request, 'integracoes/notifications/partials/template_variables.html', {
+        'body_text': body_text,
+        'vars_count': range(1, vars_count + 1),
+        'suggested_fields': suggested_fields
+    })
 
 @login_required
 @user_passes_test(lambda u: u.is_staff)

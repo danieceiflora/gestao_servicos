@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ title }}</h2>
+            <p class="text-sm text-slate-500">
+                {% if is_edit %}Atualize as informações do método de pagamento.{% else %}Cadastre um novo método de pagamento para o PDV.{% endif %}
+            </p>
+        </div>
+        <a href="{% url 'payment_method_list' %}" class="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
+            Cancelar
+        </a>
+    </div>
+
+    <!-- Form -->
+    <form method="POST" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {% csrf_token %}
+        <div class="p-6 space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Descrição -->
+                <div class="md:col-span-2 space-y-1.5">
+                    <label class="text-sm font-semibold text-slate-700">Descrição do Método</label>
+                    {{ form.descricao }}
+                    {% if form.descricao.errors %}<p class="text-xs text-rose-500">{{ form.descricao.errors.0 }}</p>{% endif %}
+                </div>
+
+                <!-- Tipo Provedor -->
+                <div class="space-y-1.5">
+                    <label class="text-sm font-semibold text-slate-700">Tipo de Provedor</label>
+                    {{ form.tipo_provedor }}
+                    {% if form.tipo_provedor.errors %}<p class="text-xs text-rose-500">{{ form.tipo_provedor.errors.0 }}</p>{% endif %}
+                </div>
+
+                <!-- Código SEFAZ -->
+                <div class="space-y-1.5">
+                    <label class="text-sm font-semibold text-slate-700">Código SEFAZ (tPag)</label>
+                    {{ form.codigo_sefaz }}
+                    {% if form.codigo_sefaz.errors %}<p class="text-xs text-rose-500">{{ form.codigo_sefaz.errors.0 }}</p>{% endif %}
+                    <p class="text-[10px] text-slate-400">Ex: 01 (Dinheiro), 03 (Cartão Crédito), 17 (PIX)</p>
+                </div>
+
+                <!-- Tarifa % -->
+                <div class="space-y-1.5">
+                    <label class="text-sm font-semibold text-slate-700">Tarifa de Operação (%)</label>
+                    {{ form.tarifa_porcentagem }}
+                    {% if form.tarifa_porcentagem.errors %}<p class="text-xs text-rose-500">{{ form.tarifa_porcentagem.errors.0 }}</p>{% endif %}
+                </div>
+
+                <!-- Tarifa Fixa -->
+                <div class="space-y-1.5">
+                    <label class="text-sm font-semibold text-slate-700">Tarifa Fixa por Venda (R$)</label>
+                    {{ form.tarifa_fixa }}
+                    {% if form.tarifa_fixa.errors %}<p class="text-xs text-rose-500">{{ form.tarifa_fixa.errors.0 }}</p>{% endif %}
+                </div>
+
+                <!-- Prazo Recebimento -->
+                <div class="space-y-1.5">
+                    <label class="text-sm font-semibold text-slate-700">Prazo de Recebimento (Dias)</label>
+                    {{ form.prazo_recebimento }}
+                    {% if form.prazo_recebimento.errors %}<p class="text-xs text-rose-500">{{ form.prazo_recebimento.errors.0 }}</p>{% endif %}
+                </div>
+
+                <!-- Ativo -->
+                <div class="flex items-center gap-2 pt-8">
+                    {{ form.ativo }}
+                    <label for="{{ form.ativo.id_for_label }}" class="text-sm font-semibold text-slate-700">Método Ativo</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-50 p-6 flex items-center justify-between border-t border-slate-200">
+            <p class="text-xs text-slate-500">As tarifas serão descontadas automaticamente no cálculo do valor líquido.</p>
+            <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-slate-800 transition-all shadow-sm">
+                <i data-lucide="check" class="h-4 w-4"></i>
+                {% if is_edit %}Salvar Alterações{% else %}Criar Método{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -13,6 +13,12 @@ urlpatterns = [
     path('finance/professional-payments/<int:payment_id>/confirm/', views_finance.finance_confirm_payment, name='finance_confirm_payment'),
     path('finance/professional-payments/bulk-confirm/', views_finance.finance_bulk_confirm_payments, name='finance_bulk_confirm_payments'),
     
+    # --- MÉTODOS DE PAGAMENTO ---
+    path('finance/payment-methods/', views_finance.payment_method_list, name='payment_method_list'),
+    path('finance/payment-methods/new/', views_finance.payment_method_create, name='payment_method_create'),
+    path('finance/payment-methods/<int:pk>/edit/', views_finance.payment_method_edit, name='payment_method_edit'),
+    path('finance/payment-methods/<int:pk>/toggle/', views_finance.payment_method_toggle, name='payment_method_toggle'),
+    
     # --- VENDAS (PDV) ---
     path('sales/', views_finance.sale_list, name='sale_list'),
     path('sales/create/', views_finance.sale_create, name='sale_create'),

@@ -1,18 +1,11 @@
 from datetime import timedelta
 from django.db.models import Q
-from ..models import ServiceOrder, ServiceOrderTeam, WorkScheduleDay, ProfessionalScheduleBlock, ServiceOrderTask
-
 def check_professional_availability(professional, timestamp, scheduled_end_at=None, exclude_task_id=None, ignore_working_hours=False):
     """
     Retorna (bool, message, conflict_type) indicando se o profissional está disponível no timestamp.
-
-    Args:
-        professional: Instância do Professional
-        timestamp: datetime do agendamento (início)
-        scheduled_end_at: datetime do fim do agendamento (opcional)
-        exclude_task_id: UUID da task a excluir da verificação (útil ao editar)
-        ignore_working_hours: bool indicando se deve ignorar a checagem de horário de trabalho (para confirmação forçada)
     """
+    from ..models import ServiceOrderTask, ProfessionalScheduleBlock
+    
     if not timestamp:
         return True, "", "OK"
 

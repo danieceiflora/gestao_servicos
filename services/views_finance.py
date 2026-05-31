@@ -7,8 +7,8 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 from decimal import Decimal
 from datetime import datetime
-from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement
-from .forms import SaleForm, SaleItemFormSet
+from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment
+from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm
 from django.http import HttpResponse
 import csv
 from io import BytesIO
@@ -22,6 +22,65 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 def is_manager(user):
     return user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
+
+@login_required
+@user_passes_test(is_manager)
+def payment_method_list(request):
+    methods = PaymentMethod.objects.all().order_by('descricao')
+    context = {
+        'methods': methods,
+        'title': 'Métodos de Pagamento',
+    }
+    return render(request, 'services/finance/payment_method_list.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def payment_method_create(request):
+    if request.method == 'POST':
+        form = PaymentMethodForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Método de pagamento criado com sucesso!")
+            return redirect('payment_method_list')
+    else:
+        form = PaymentMethodForm()
+    
+    context = {
+        'form': form,
+        'title': 'Novo Método de Pagamento',
+        'is_edit': False
+    }
+    return render(request, 'services/finance/payment_method_form.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def payment_method_edit(request, pk):
+    method = get_object_or_404(PaymentMethod, pk=pk)
+    if request.method == 'POST':
+        form = PaymentMethodForm(request.POST, instance=method)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Método de pagamento atualizado com sucesso!")
+            return redirect('payment_method_list')
+    else:
+        form = PaymentMethodForm(instance=method)
+    
+    context = {
+        'form': form,
+        'title': f'Editar: {method.descricao}',
+        'is_edit': True
+    }
+    return render(request, 'services/finance/payment_method_form.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def payment_method_toggle(request, pk):
+    method = get_object_or_404(PaymentMethod, pk=pk)
+    method.ativo = not method.ativo
+    method.save()
+    status = "ativado" if method.ativo else "desativado"
+    messages.success(request, f"Método de pagamento {method.descricao} {status} com sucesso!")
+    return redirect('payment_method_list')
 
 @login_required
 @user_passes_test(is_manager)
@@ -448,6 +507,29 @@ def sale_create(request):
                     sale.status = Sale.Status.COMPLETED
                     sale.save()
                     
+                    # Salvar Pagamentos Múltiplos
+                    payment_method_ids = request.POST.getlist('payment_method_id[]')
+                    payment_amounts = request.POST.getlist('payment_amount[]')
+                    
+                    for p_id, p_amount in zip(payment_method_ids, payment_amounts):
+                        try:
+                            method = PaymentMethod.objects.get(pk=p_id)
+                            bruto = Decimal(p_amount)
+                            tarifa = (bruto * (method.tarifa_porcentagem / Decimal('100'))) + method.tarifa_fixa
+                            liquido = bruto - tarifa
+                            previsao = timezone.now().date() + timezone.timedelta(days=method.prazo_recebimento)
+                            
+                            SalePayment.objects.create(
+                                venda=sale,
+                                metodo_pagamento=method,
+                                valor_bruto=bruto,
+                                valor_tarifa=tarifa,
+                                valor_liquido=liquido,
+                                data_previsao=previsao
+                            )
+                        except PaymentMethod.DoesNotExist:
+                            pass
+                    
                     messages.success(request, "Venda realizada com sucesso!")
                     return redirect('sale_detail', uuid=sale.uuid)
             except Exception as e:
@@ -456,13 +538,14 @@ def sale_create(request):
             messages.error(request, "Por favor, corrija os erros no formulário.")
     else:
         form = SaleForm()
-        formset = SaleItemFormSet()
+        formset = SaleItemFormSet(queryset=SaleItem.objects.none())
     
     context = {
         'form': form,
         'formset': formset,
         'title': 'Nova Venda (PDV)',
-        'products': Product.objects.filter(is_active=True)
+        'products': Product.objects.filter(is_active=True),
+        'payment_methods': PaymentMethod.objects.filter(ativo=True)
     }
     return render(request, 'services/sale_form.html', context)
 

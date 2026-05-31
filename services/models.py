@@ -3,6 +3,8 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal, ROUND_HALF_UP
 import uuid
+from .utils import fiscal_logic
+from integracoes.models import SystemConfig
 
 MONEY_PLACES = Decimal('0.01')
 
@@ -37,30 +39,26 @@ class User(AbstractUser):
 
 # --- CLIENTES & CONTATOS ---
 
-class Client(models.Model):
-    CLIENT_TYPE_CHOICES = [
+class BusinessEntityBase(models.Model):
+    ENTITY_TYPE_CHOICES = [
         ('PF', 'Pessoa Física'),
         ('PJ', 'Pessoa Jurídica'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Tipo de cliente
     client_type = models.CharField(
         max_length=2,
-        choices=CLIENT_TYPE_CHOICES,
+        choices=ENTITY_TYPE_CHOICES,
         default='PF',
-        verbose_name="Tipo de Cliente"
+        verbose_name="Tipo (PF/PJ)"
     )
     
-    # ============ CAMPOS COMUNS ============
-    # Nome completo (PF) ou Razão Social (PJ)
     name = models.CharField(
         max_length=255,
         verbose_name="Nome Completo / Razão Social"
     )
     
-    # ============ PESSOA FÍSICA ============
     cpf = models.CharField(
         max_length=14,
         unique=True,
@@ -75,7 +73,6 @@ class Client(models.Model):
         verbose_name="RG"
     )
     
-    # ============ PESSOA JURÍDICA ============
     trade_name = models.CharField(
         max_length=255,
         null=True,
@@ -91,53 +88,45 @@ class Client(models.Model):
     )
     state_registration = models.CharField(
         max_length=20,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         verbose_name="Inscrição Estadual"
     )
     municipal_registration = models.CharField(
         max_length=20,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         verbose_name="Inscrição Municipal"
     )
     contact_person = models.CharField(
         max_length=255,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         verbose_name="Responsável/Contato"
     )
     
-    # ============ CAMPOS DE AUDITORIA ============
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    # ============ PROPRIEDADES ============
+    class Meta:
+        abstract = True
+
     @property
     def document(self):
-        """Retorna CPF ou CNPJ dependendo do tipo"""
         return self.cpf if self.client_type == 'PF' else self.cnpj
     
     @property
     def display_name(self):
-        """Nome para exibição (considera nome fantasia)"""
         if self.client_type == 'PJ' and self.trade_name:
             return self.trade_name
         return self.name
     
-    # ============ VALIDAÇÃO ============
     def clean(self):
         from django.core.exceptions import ValidationError
         import re
         
         if self.client_type == 'PF':
             if self.cpf:
-                # Valida formato CPF
                 cpf_limpo = re.sub(r'\D', '', self.cpf)
                 if len(cpf_limpo) != 11:
                     raise ValidationError({'cpf': 'CPF deve ter 11 dígitos'})
-            
-            # Limpa campos de PJ
             self.trade_name = None
             self.cnpj = None
             self.state_registration = None
@@ -146,15 +135,14 @@ class Client(models.Model):
             
         elif self.client_type == 'PJ':
             if self.cnpj:
-                # Valida formato CNPJ
                 cnpj_limpo = re.sub(r'\D', '', self.cnpj)
                 if len(cnpj_limpo) != 14:
                     raise ValidationError({'cnpj': 'CNPJ deve ter 14 dígitos'})
-            
-            # Limpa campos de PF
             self.cpf = None
             self.rg = None
 
+
+class Client(BusinessEntityBase):
     def __str__(self):
         doc = self.document or "Sem documento"
         return f"{self.display_name} ({doc})"
@@ -162,6 +150,21 @@ class Client(models.Model):
     class Meta:
         verbose_name = "Cliente"
         verbose_name_plural = "Clientes"
+        ordering = ['name']
+
+
+class Supplier(BusinessEntityBase):
+    notes = models.TextField(null=True, blank=True, verbose_name="Observações")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+
+    def __str__(self):
+        return self.display_name
+
+    class Meta:
+        verbose_name = "Fornecedor"
+        verbose_name_plural = "Fornecedores"
+        ordering = ['name']
+
 
 class ClientPhone(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='phones')
@@ -205,6 +208,7 @@ class Property(models.Model):
     neighborhood = models.CharField(max_length=100, verbose_name="Bairro")
     city = models.CharField(max_length=100, verbose_name="Cidade")
     state = models.CharField(max_length=2, verbose_name="UF")
+    ibge_code = models.CharField(max_length=7, null=True, blank=True, verbose_name="Código IBGE do Município")
 
     # Geolocalização
     latitude = models.DecimalField(
@@ -461,6 +465,18 @@ class ServiceChecklistItem(models.Model):
 
 # --- PRODUTOS ---
 
+class ProductCategory(models.Model):
+    name = models.CharField(max_length=100, unique=True, verbose_name="Nome da Categoria")
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name = "Categoria de Produto"
+        verbose_name_plural = "Categorias de Produtos"
+        ordering = ['name']
+
+
 class Product(models.Model):
     class UnitType(models.TextChoices):
         UNIT = 'UNIT', 'Unidade (un)'
@@ -470,9 +486,52 @@ class Product(models.Model):
         KILO = 'KILO', 'Quilo (kg)'
 
     name = models.CharField(max_length=255, unique=True, verbose_name="Produto")
+    category = models.ForeignKey(
+        ProductCategory,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='products',
+        verbose_name="Categoria"
+    )
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='products',
+        verbose_name="Fornecedor Padrão"
+    )
     code = models.CharField(max_length=60, unique=True, null=True, blank=True, verbose_name="Código")
+    barcode = models.CharField(max_length=14, blank=True, null=True, verbose_name="Código de Barras (GTIN/EAN)")
     image = models.ImageField(upload_to='products/', null=True, blank=True, verbose_name="Imagem do Produto")
     unit_type = models.CharField(max_length=10, choices=UnitType.choices, default=UnitType.UNIT, verbose_name="Unidade de Venda")
+    
+    # Dados Fiscais
+    ncm = models.CharField(max_length=8, blank=True, null=True, verbose_name="NCM", help_text="Nomenclatura Comum do Mercosul (8 dígitos)")
+    cest = models.CharField(max_length=7, blank=True, null=True, verbose_name="CEST", help_text="Código Especificador da Substituição Tributária (7 dígitos)")
+    cfop_padrao = models.CharField(max_length=4, blank=True, null=True, verbose_name="CFOP Padrão")
+    origem_mercadoria = models.IntegerField(default=0, verbose_name="Origem da Mercadoria", choices=[
+        (0, '0 - Nacional'),
+        (1, '1 - Estrangeira - Importação direta'),
+        (2, '2 - Estrangeira - Adquirida no mercado interno'),
+        (3, '3 - Nacional, mercadoria ou bem com Conteúdo de Importação superior a 40%'),
+        (4, '4 - Nacional, cuja produção tenha sido feita em conformidade com os processos produtivos básicos'),
+        (5, '5 - Nacional, mercadoria ou bem com Conteúdo de Importação inferior ou igual a 40%'),
+        (6, '6 - Estrangeira - Importação direta, sem similar nacional, constante em lista de Resolução CAMEX'),
+        (7, '7 - Estrangeira - Adquirida no mercado interno, sem similar nacional, constante em lista de Resolução CAMEX'),
+        (8, '8 - Nacional, mercadoria ou bem com Conteúdo de Importação superior a 70%'),
+    ])
+    
+    # Tributação (CST/CSOSN)
+    csosn = models.CharField(max_length=3, blank=True, null=True, verbose_name="CSOSN", help_text="Código de Situação da Operação no Simples Nacional")
+    cst_icms = models.CharField(max_length=2, blank=True, null=True, verbose_name="CST ICMS", help_text="Código de Situação Tributária do ICMS (Regime Normal)")
+    cst_pis = models.CharField(max_length=2, blank=True, null=True, verbose_name="CST PIS")
+    cst_cofins = models.CharField(max_length=2, blank=True, null=True, verbose_name="CST COFINS")
+    
+    # Alíquotas IBPT (Transparência de Impostos)
+    aliquota_ibpt_fed = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Alíquota IBPT Federal (%)")
+    aliquota_ibpt_est = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Alíquota IBPT Estadual (%)")
+    aliquota_ibpt_mun = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Alíquota IBPT Municipal (%)")
+
     default_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço Padrão")
     current_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Atual")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
@@ -555,7 +614,45 @@ class StockMovement(models.Model):
         ordering = ['-created_at']
 
 
-# --- MÓDULO DE VENDAS (PDV) ---
+# --- MÓDULO DE VENDAS E PAGAMENTOS (PDV) ---
+
+class ProviderType(models.TextChoices):
+    DINHEIRO = 'DINHEIRO', 'Dinheiro'
+    CARTAO_CREDITO = 'CARTAO_CREDITO', 'Cartão de Crédito'
+    CARTAO_DEBITO = 'CARTAO_DEBITO', 'Cartão de Débito'
+    PIX = 'PIX', 'Pix'
+    BOLETO = 'BOLETO', 'Boleto'
+    CREDIARIO = 'CREDIARIO', 'Crediário'
+
+class PaymentMethod(models.Model):
+    descricao = models.CharField(max_length=100, verbose_name="Descrição")
+    tipo_provedor = models.CharField(max_length=20, choices=ProviderType.choices, verbose_name="Tipo de Provedor")
+    tarifa_porcentagem = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Tarifa (%)")
+    tarifa_fixa = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Tarifa Fixa (R$)")
+    prazo_recebimento = models.IntegerField(default=0, verbose_name="Prazo de Recebimento (dias)")
+    codigo_sefaz = models.CharField(max_length=2, verbose_name="Código SEFAZ")
+    ativo = models.BooleanField(default=True, verbose_name="Ativo")
+
+    class Meta:
+        verbose_name = "Método de Pagamento"
+        verbose_name_plural = "Métodos de Pagamento"
+
+    def __str__(self):
+        return self.descricao
+
+class SalePayment(models.Model):
+    venda = models.ForeignKey('Sale', on_delete=models.CASCADE, related_name='payments', null=True, blank=True, verbose_name="Venda")
+    os = models.ForeignKey('ServiceOrder', on_delete=models.CASCADE, related_name='sale_payments', null=True, blank=True, verbose_name="Ordem de Serviço")
+    metodo_pagamento = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT, verbose_name="Método de Pagamento")
+    valor_bruto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Bruto")
+    valor_tarifa = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Tarifa")
+    valor_liquido = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Líquido")
+    data_pagamento = models.DateTimeField(auto_now_add=True, verbose_name="Data do Pagamento")
+    data_previsao = models.DateField(verbose_name="Previsão de Recebimento")
+
+    class Meta:
+        verbose_name = "Pagamento da Venda/OS"
+        verbose_name_plural = "Pagamentos de Vendas/OS"
 
 class Sale(models.Model):
     class Status(models.TextChoices):
@@ -573,6 +670,39 @@ class Sale(models.Model):
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
     user = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="Vendedor")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, verbose_name="Status")
+    
+    # Dados Fiscais da Venda
+    indicador_presenca = models.IntegerField(default=1, verbose_name="Indicador de Presença", choices=[
+        (1, '1 - Operação presencial'),
+        (2, '2 - Operação não presencial, pela Internet'),
+        (3, '3 - Operação não presencial, Teleatendimento'),
+        (4, '4 - NFC-e em operação com entrega a domicílio'),
+        (9, '9 - Operação não presencial, outros'),
+    ])
+    modalidade_frete = models.IntegerField(default=9, verbose_name="Modalidade do Frete", choices=[
+        (0, '0 - Contratação do Frete por conta do Remetente (CIF)'),
+        (1, '1 - Contratação do Frete por conta do Destinatário (FOB)'),
+        (2, '2 - Contratação do Frete por conta de Terceiros'),
+        (3, '3 - Próprio por conta do Remetente'),
+        (4, '4 - Próprio por conta do Destinatário'),
+        (9, '9 - Sem Ocorrência de Transporte'),
+    ])
+    forma_pagamento_sefaz = models.CharField(max_length=2, default='01', verbose_name="Forma de Pagamento (SEFAZ)", choices=[
+        ('01', '01 - Dinheiro'),
+        ('02', '02 - Cheque'),
+        ('03', '03 - Cartão de Crédito'),
+        ('04', '04 - Cartão de Débito'),
+        ('05', '05 - Crédito Loja'),
+        ('10', '10 - Vale Alimentação'),
+        ('11', '11 - Vale Refeição'),
+        ('12', '12 - Vale Presente'),
+        ('13', '13 - Vale Combustível'),
+        ('15', '15 - Boleto Bancário'),
+        ('17', '17 - PIX'),
+        ('90', '90 - Sem pagamento'),
+        ('99', '99 - Outros'),
+    ])
+
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Valor Total")
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, null=True, blank=True, verbose_name="Forma de Pagamento")
@@ -594,14 +724,65 @@ class SaleItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.PROTECT, verbose_name="Produto")
     quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Quantidade")
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Unitário")
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Subtotal")
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Subtotal (Líquido)")
+    
+    # Dados Fiscais "Congelados" no ato da venda
+    ncm_ato = models.CharField(max_length=8, blank=True, null=True, verbose_name="NCM no ato")
+    cest_ato = models.CharField(max_length=7, blank=True, null=True, verbose_name="CEST no ato")
+    origem_ato = models.IntegerField(blank=True, null=True, verbose_name="Origem no ato")
+    cfop_aplicado = models.CharField(max_length=4, blank=True, null=True, verbose_name="CFOP Aplicado")
+    vlr_tributos_ibpt = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Valor Tributos IBPT")
 
     class Meta:
         verbose_name = "Item de Venda"
         verbose_name_plural = "Itens de Venda"
 
     def save(self, *args, **kwargs):
-        self.subtotal = self.quantity * self.unit_price
+        self.subtotal = (self.quantity * self.unit_price) - self.discount
+        
+        # Lógica Fiscal (Inteligência Fiscal)
+        if self.product:
+            # Detecta se é criação ou mudança de produto
+            is_new = self._state.adding
+            product_changed = False
+            if not is_new:
+                old_instance = SaleItem.objects.filter(pk=self.pk).first()
+                if old_instance and old_instance.product_id != self.product_id:
+                    product_changed = True
+            
+            if is_new or product_changed or not self.ncm_ato:
+                # Congela dados do produto
+                self.ncm_ato = self.product.ncm
+                self.cest_ato = self.product.cest
+                self.origem_ato = self.product.origem_mercadoria
+                
+                # CFOP
+                config = SystemConfig.load()
+                origem_uf = config.state
+                
+                # Tenta determinar o destino_uf
+                destino_uf = origem_uf
+                if self.sale.service_order:
+                    destino_uf = self.sale.service_order.client_property.state
+                elif self.sale.client:
+                    # Tenta pegar a UF do cliente (via primeira propriedade cadastrada)
+                    # No futuro, o Client/BusinessEntityBase pode ter um estado principal
+                    prop = self.sale.client.properties.first()
+                    if prop:
+                        destino_uf = prop.state
+                
+                tem_st = bool(self.product.cest)
+                self.cfop_aplicado = fiscal_logic.get_cfop(origem_uf, destino_uf, tem_st)
+
+            # Cálculo de Impostos IBPT (sempre atualiza baseado no subtotal atual)
+            self.vlr_tributos_ibpt = fiscal_logic.calculate_ibpt(
+                self.subtotal,
+                self.product.aliquota_ibpt_fed,
+                self.product.aliquota_ibpt_est,
+                self.product.aliquota_ibpt_mun
+            )
+
         super().save(*args, **kwargs)
 
 
@@ -664,6 +845,8 @@ class ServiceOrder(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
     warranty_until = models.DateField(null=True, blank=True, verbose_name="Garantia Válida até")
+    
+    stock_lowered = models.BooleanField(default=False, verbose_name="Estoque Baixado")
 
     def save(self, *args, **kwargs):
         if not self.number:
@@ -698,9 +881,10 @@ class ServiceOrder(models.Model):
         return quantize_money(self.total_value - self.total_paid - quantize_money(self.discount))
 
     def update_status(self):
-        """Lógica centralizada de atualização de status da OS"""
+        """Lógica centralizada de atualização de status da OS e gestão de estoque"""
         from datetime import timedelta
         import django.utils.timezone
+        from django.db import transaction
 
         # Sempre atualiza o valor estimado para bater com o total líquido (Total - Desconto)
         self.estimated_value = self.total_value - self.discount
@@ -713,51 +897,80 @@ class ServiceOrder(models.Model):
                 self.status = self.Status.FINISHED
             else:
                 self.status = self.Status.WARRANTY
-            self.save()
-            if self.status == self.Status.FINISHED:
-                from .workflow import trigger_payment_receipt_workflow
-                trigger_payment_receipt_workflow(self)
-            return
-
+        
         # 2. Verificar Pagamentos
-        if self.total_paid + self.discount >= self.total_value and self.total_value > 0:
+        elif self.total_paid + self.discount >= self.total_value and self.total_value > 0:
             self.status = self.Status.FINISHED
             if not self.finished_at:
                 self.finished_at = django.utils.timezone.now()
-            self.save()
-            from .workflow import trigger_payment_receipt_workflow
-            trigger_payment_receipt_workflow(self)
-            return
         elif self.total_paid > 0:
             self.status = self.Status.PARTIAL_PAYMENT
+
+        # 3. Lógica baseada em Tasks (apenas se não for Garantia nem Pago)
+        else:
+            budget_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.BUDGET)
+            exec_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.EXECUTION)
+
+            # Se todas as execuções acabaram, aguarda pagamento
+            if exec_tasks.exists() and not exec_tasks.exclude(status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
+                self.status = self.Status.WAITING_PAYMENT
+            
+            # Se tem execução agendada ou em andamento
+            elif exec_tasks.filter(status__in=[ServiceOrderTask.TaskStatus.SCHEDULED, ServiceOrderTask.TaskStatus.IN_PROGRESS]).exists():
+                self.status = self.Status.WAITING_EXECUTION
+
+            # Se tem execução aprovada mas não agendada
+            elif exec_tasks.filter(is_approved=True).exists():
+                self.status = self.Status.APPROVED_WAITING_SCHEDULE
+
+            # Se orçamento foi concluído mas não aprovado
+            elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
+                self.status = self.Status.BUDGET_DONE_WAITING_SEND
+
+            # Se tem orçamento agendado
+            elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.SCHEDULED).exists():
+                self.status = self.Status.BUDGET_SCHEDULED
+        
+        # 4. GESTÃO DE ESTOQUE (Reserva -> Baixa Real)
+        with transaction.atomic():
+            # Baixa de estoque ao finalizar ou aguardar pagamento
+            if not self.stock_lowered and self.status in [self.Status.FINISHED, self.Status.WAITING_PAYMENT]:
+                for item in self.items.filter(product__isnull=False):
+                    product = item.product
+                    product.current_stock -= item.quantity
+                    product.save()
+                    StockMovement.objects.create(
+                        product=product,
+                        quantity=item.quantity,
+                        movement_type=StockMovement.MovementType.OUT,
+                        reason=StockMovement.Reason.SALE_OS,
+                        service_order=self,
+                        notes="Baixa automática na finalização/aguardando pagamento da OS"
+                    )
+                self.stock_lowered = True
+            
+            # Estorno de estoque em caso de cancelamento
+            elif self.stock_lowered and self.status == self.Status.CANCELLED:
+                for item in self.items.filter(product__isnull=False):
+                    product = item.product
+                    product.current_stock += item.quantity
+                    product.save()
+                    StockMovement.objects.create(
+                        product=product,
+                        quantity=item.quantity,
+                        movement_type=StockMovement.MovementType.IN,
+                        reason=StockMovement.Reason.RETURN,
+                        service_order=self,
+                        notes="Estorno automático por cancelamento da OS"
+                    )
+                self.stock_lowered = False
+
             self.save()
-            return
 
-        # 3. Lógica baseada em Tasks
-        budget_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.BUDGET)
-        exec_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.EXECUTION)
-
-        # Se todas as execuções acabaram, aguarda pagamento
-        if exec_tasks.exists() and not exec_tasks.exclude(status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
-            self.status = self.Status.WAITING_PAYMENT
-        
-        # Se tem execução agendada ou em andamento
-        elif exec_tasks.filter(status__in=[ServiceOrderTask.TaskStatus.SCHEDULED, ServiceOrderTask.TaskStatus.IN_PROGRESS]).exists():
-            self.status = self.Status.WAITING_EXECUTION
-
-        # Se tem execução aprovada mas não agendada
-        elif exec_tasks.filter(is_approved=True).exists():
-            self.status = self.Status.APPROVED_WAITING_SCHEDULE
-
-        # Se orçamento foi concluído mas não aprovado
-        elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
-            self.status = self.Status.BUDGET_DONE_WAITING_SEND
-
-        # Se tem orçamento agendado
-        elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.SCHEDULED).exists():
-            self.status = self.Status.BUDGET_SCHEDULED
-        
-        self.save()
+        # Gatilhos de workflow (fora da transação de estoque se possível, ou garantindo consistência)
+        if self.status == self.Status.FINISHED:
+            from .workflow import trigger_payment_receipt_workflow
+            trigger_payment_receipt_workflow(self)
 
     class Meta:
         verbose_name = "Ordem de Serviço"
@@ -927,6 +1140,13 @@ class ServiceItem(models.Model):
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Unitário")
 
+    # Dados Fiscais "Congelados" no ato da venda/OS
+    ncm_ato = models.CharField(max_length=8, blank=True, null=True, verbose_name="NCM no ato")
+    cest_ato = models.CharField(max_length=7, blank=True, null=True, verbose_name="CEST no ato")
+    origem_ato = models.IntegerField(blank=True, null=True, verbose_name="Origem no ato")
+    cfop_aplicado = models.CharField(max_length=4, blank=True, null=True, verbose_name="CFOP Aplicado")
+    vlr_tributos_ibpt = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Valor Tributos IBPT")
+
     @property
     def total_price(self):
         return quantize_money(self.quantity * self.unit_price)
@@ -936,6 +1156,38 @@ class ServiceItem(models.Model):
         return f"{self.description} - Qtd: {self.quantity}{task_info}"
 
     def save(self, *args, **kwargs):
+        # Lógica Fiscal (Inteligência Fiscal)
+        if self.product:
+            # Detecta se é criação ou mudança de produto
+            is_new = self._state.adding
+            product_changed = False
+            if not is_new:
+                old_instance = ServiceItem.objects.filter(pk=self.pk).first()
+                if old_instance and old_instance.product_id != self.product_id:
+                    product_changed = True
+            
+            if is_new or product_changed or not self.ncm_ato:
+                # Congela dados do produto
+                self.ncm_ato = self.product.ncm
+                self.cest_ato = self.product.cest
+                self.origem_ato = self.product.origem_mercadoria
+                
+                # CFOP
+                config = SystemConfig.load()
+                origem_uf = config.state
+                destino_uf = self.service_order.client_property.state
+                
+                tem_st = bool(self.product.cest)
+                self.cfop_aplicado = fiscal_logic.get_cfop(origem_uf, destino_uf, tem_st)
+
+            # Cálculo de Impostos IBPT
+            self.vlr_tributos_ibpt = fiscal_logic.calculate_ibpt(
+                self.quantity * self.unit_price,
+                self.product.aliquota_ibpt_fed,
+                self.product.aliquota_ibpt_est,
+                self.product.aliquota_ibpt_mun
+            )
+
         super().save(*args, **kwargs)
         self.service_order.update_status()
 

@@ -1,0 +1,47 @@
+<div class="space-y-4">
+    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+        <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Preview do Corpo do Template</label>
+        <p class="text-sm text-slate-700 font-serif leading-relaxed italic">"{{ body_text }}"</p>
+    </div>
+
+    <div class="space-y-4">
+        <label class="text-sm font-bold text-slate-700 flex items-center gap-2">
+            Mapeamento de Variáveis
+            <span class="px-2 py-0.5 rounded-full bg-slate-100 text-[10px] text-slate-500 font-mono">{{ vars_count|length }} detectadas</span>
+        </label>
+        
+        <div class="grid gap-3">
+            {% for i in vars_count %}
+            <div class="flex flex-col md:flex-row md:items-center gap-3 p-3 border border-slate-100 rounded-xl bg-white">
+                <div class="flex items-center gap-2 min-w-[100px]">
+                    <span class="h-6 w-6 rounded bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center">
+                        {{ i }}
+                    </span>
+                    <span class="text-xs font-mono text-slate-400">\{{ {{ i }} \}}</span>
+                </div>
+                
+                <div class="flex-1">
+                    <input type="hidden" name="var_index[]" value="{{ i }}">
+                    <select class="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs focus:ring-1 focus:ring-slate-900 transition-all"
+                            onchange="this.nextElementSibling.value = this.value">
+                        <option value="">-- Selecionar Sugestão --</option>
+                        {% for field_path, field_label in suggested_fields %}
+                        <option value="{{ field_path }}">{{ field_label }} ({{ field_path }})</option>
+                        {% endfor %}
+                        <option value="custom">-- Outro campo (digitar) --</option>
+                    </select>
+                    <input type="text" name="var_path[]" placeholder="Caminho do campo (ex: client.name)" 
+                           class="mt-2 w-full rounded-lg border border-slate-100 px-3 py-1.5 text-xs font-mono text-slate-500 focus:border-slate-400 outline-none transition-all">
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    // Inicializar Lucide se necessário (já que HTMX injetou conteúdo novo)
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+</script>

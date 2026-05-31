@@ -15,6 +15,8 @@ import hashlib
 from .models import Product, StockMovement, User, ImportHistory, ImportItem
 from .forms import ProductForm, StockMovementForm, ProductImportForm
 
+from integracoes.models import SystemConfig
+
 def is_manager(user):
     return user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
 
@@ -44,6 +46,11 @@ class ProductCreateView(LoginRequiredMixin, ManagerRequiredMixin, CreateView):
     template_name = 'services/product_form.html'
     success_url = reverse_lazy('product_list')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['tax_regime'] = SystemConfig.load().tax_regime
+        return context
+
     def form_valid(self, form):
         messages.success(self.request, "Produto cadastrado com sucesso.")
         return super().form_valid(form)
@@ -53,6 +60,11 @@ class ProductUpdateView(LoginRequiredMixin, ManagerRequiredMixin, UpdateView):
     form_class = ProductForm
     template_name = 'services/product_form.html'
     success_url = reverse_lazy('product_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['tax_regime'] = SystemConfig.load().tax_regime
+        return context
 
     def form_valid(self, form):
         messages.success(self.request, "Produto atualizado com sucesso.")

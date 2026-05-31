@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="mb-8 flex items-center gap-4">
+        <a href="{% url 'integracoes:notification_config_list' %}" class="h-10 w-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+            <i data-lucide="chevron-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+                {% if config %}Editar Regra{% else %}Nova Regra de Notificação{% endif %}
+            </h1>
+            <p class="text-sm text-slate-500">Defina o gatilho e as variáveis da mensagem.</p>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <!-- Bloco 1: Identificação -->
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+            <div class="grid gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Nome da Regra</label>
+                    <input type="text" name="name" value="{{ config.name|default:'' }}" placeholder="Ex: Aviso de Vistoria Agendada" required
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="is_active" id="is_active" {% if not config or config.is_active %}checked{% endif %} class="rounded border-slate-300">
+                    <label for="is_active" class="text-sm font-medium text-slate-700">Ativar esta automação</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bloco 2: Gatilho -->
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Gatilho (Quando enviar?)</h2>
+            
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Modelo</label>
+                    <select name="model_name" id="model_select" required
+                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                        {% for val, label in model_choices %}
+                        <option value="{{ val }}" {% if config.model_name == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Evento</label>
+                    <select name="event_type" id="event_select" required
+                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                        {% for val, label in event_choices %}
+                        <option value="{{ val }}" {% if config.event_type == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Status (Opcional, aparece apenas para STATUS_CHANGE) -->
+            <div id="status_fields" class="grid md:grid-cols-2 gap-4 {% if config.event_type != 'STATUS_CHANGE' %}hidden{% endif %}">
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Vindo do Status (De)</label>
+                    <input type="text" name="from_status" value="{{ config.from_status|default:'' }}" placeholder="Qualquer"
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Para o Status (Ate)</label>
+                    <input type="text" name="to_status" value="{{ config.to_status|default:'' }}" placeholder="Obrigatório"
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                </div>
+            </div>
+        </div>
+
+        <!-- Bloco 3: Template e Variáveis -->
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Conteúdo e Mapeamento</h2>
+            
+            <div class="grid gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Template WhatsApp (Meta)</label>
+                    <select name="template_name" id="template_select" required
+                            hx-get="{% url 'integracoes:ajax_get_template_details' %}"
+                            hx-target="#template_details"
+                            hx-trigger="change, load delay:100ms"
+                            hx-include="#model_select"
+                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                        <option value="">Selecione um template...</option>
+                        {% for t in templates %}
+                        <option value="{{ t.name }}" {% if config.template_name == t.name %}selected{% endif %}>{{ t.name }} ({{ t.language }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Caminho do Telefone</label>
+                    <input type="text" name="phone_field_path" value="{{ config.phone_field_path|default:'client_property.client' }}" required
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono text-slate-600 focus:outline-none focus:border-slate-900 transition-all">
+                    <p class="text-[10px] text-slate-400">Caminho até o objeto Cliente que possui o telefone.</p>
+                </div>
+            </div>
+
+            <!-- Área Carregada via AJAX -->
+            <div id="template_details" class="space-y-6 pt-4 border-t border-slate-100">
+                <div class="animate-pulse flex space-y-4 flex-col">
+                    <div class="h-4 bg-slate-100 rounded w-3/4"></div>
+                    <div class="h-20 bg-slate-50 rounded"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-4">
+            <a href="{% url 'integracoes:notification_config_list' %}" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Cancelar</a>
+            <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-8 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10">
+                {% if config %}Salvar Alterações{% else %}Criar Regra{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const eventSelect = document.getElementById('event_select');
+        const statusFields = document.getElementById('status_fields');
+        const modelSelect = document.getElementById('model_select');
+        const templateSelect = document.getElementById('template_select');
+
+        eventSelect.addEventListener('change', function() {
+            if (this.value === 'STATUS_CHANGE') {
+                statusFields.classList.remove('hidden');
+            } else {
+                statusFields.classList.add('hidden');
+            }
+        });
+
+        // Forçar recarga das variáveis quando o modelo muda
+        modelSelect.addEventListener('change', function() {
+            if (templateSelect.value) {
+                htmx.trigger(templateSelect, 'change');
+            }
+        });
+    });
+</script>
+{% endblock %}

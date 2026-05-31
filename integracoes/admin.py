@@ -1,7 +1,32 @@
 import json
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import WebhookEvent, SystemConfig
+from .models import WebhookEvent, SystemConfig, NotificationConfig, NotificationVariable
+
+class NotificationVariableInline(admin.TabularInline):
+    model = NotificationVariable
+    extra = 1
+
+@admin.register(NotificationConfig)
+class NotificationConfigAdmin(admin.ModelAdmin):
+    list_display = ('name', 'model_name', 'event_type', 'template_name', 'is_active')
+    list_filter = ('model_name', 'event_type', 'is_active')
+    search_fields = ('name', 'template_name')
+    inlines = [NotificationVariableInline]
+    
+    fieldsets = (
+        ('Identificação', {
+            'fields': ('name', 'is_active')
+        }),
+        ('Gatilho', {
+            'fields': ('model_name', 'event_type', 'from_status', 'to_status'),
+            'description': 'Configure quando esta notificação deve ser enviada.'
+        }),
+        ('WhatsApp Template', {
+            'fields': ('template_name', 'phone_field_path'),
+            'description': 'Configure qual template usar e como encontrar o telefone do cliente.'
+        }),
+    )
 
 @admin.register(SystemConfig)
 class SystemConfigAdmin(admin.ModelAdmin):

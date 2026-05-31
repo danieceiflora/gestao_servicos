@@ -32,7 +32,9 @@ class SystemConfig(models.Model):
     # Dados da Empresa (para o PDF)
     company_name = models.CharField('Razão Social / Nome Fantasia', max_length=255, default='Minha Empresa')
     company_cnpj = models.CharField('CNPJ', max_length=20, blank=True, null=True)
+    tax_regime = models.CharField('Regime Tributário', max_length=20, choices=[('SIMPLES', 'Simples Nacional'), ('NORMAL', 'Regime Normal')], default='SIMPLES')
     company_address = models.TextField('Endereço Completo', blank=True, null=True, help_text='Endereço que sairá no cabeçalho do PDF do Orçamento')
+    state = models.CharField('UF', max_length=2, default='MS', help_text='UF da empresa para cálculo de CFOP')
     company_website = models.URLField('Site', blank=True, null=True)
     company_phone = models.CharField('Telefone de Contato', max_length=20, blank=True, null=True)
     company_logo = models.ImageField('Logo da Empresa', upload_to='company/', blank=True, null=True)
@@ -74,4 +76,78 @@ class SystemConfig(models.Model):
     def load(cls):
         obj, created = cls.objects.get_or_create(pk=1)
         return obj
+
+class NotificationConfig(models.Model):
+    """
+    Configuração dinâmica de notificações automáticas baseadas em eventos de modelos.
+    """
+    MODEL_CHOICES = [
+        ('ServiceOrder', 'Ordem de Serviço'),
+        ('ServiceOrderTask', 'Etapa de Serviço'),
+        ('Sale', 'Venda'),
+    ]
+    
+    EVENT_CHOICES = [
+        ('CREATE', 'Criação do Registro'),
+        ('STATUS_CHANGE', 'Alteração de Status'),
+    ]
+
+    name = models.CharField('Nome da Regra/Descrição', max_length=100)
+    model_name = models.CharField('Modelo', max_length=50, choices=MODEL_CHOICES)
+    event_type = models.CharField('Evento Gatilho', max_length=20, choices=EVENT_CHOICES)
+    
+    # Filtros de Status (apenas para EVENT_TYPE == 'STATUS_CHANGE')
+    from_status = models.CharField(
+        'Status de Origem', 
+        max_length=50, 
+        blank=True, 
+        null=True, 
+        help_text='Deixe em branco para disparar vindo de qualquer status'
+    )
+    to_status = models.CharField(
+        'Status de Destino', 
+        max_length=50, 
+        blank=True, 
+        null=True,
+        help_text='O status que o registro deve assumir para disparar a regra'
+    )
+    
+    # Template e Destinatário
+    template_name = models.CharField('Nome do Template na Meta', max_length=100, help_text='Ex: boas_vindas_cliente')
+    phone_field_path = models.CharField(
+        'Caminho para o Cliente/Telefone', 
+        max_length=255, 
+        default='client',
+        help_text='Caminho para chegar no objeto Cliente. Ex: client_property.client para OS, ou client para Venda.'
+    )
+    
+    is_active = models.BooleanField('Ativo', default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuração de Notificação'
+        verbose_name_plural = 'Configurações de Notificações'
+        ordering = ['model_name', 'name']
+
+    def __str__(self):
+        return f"{self.get_model_name_display()} - {self.name} ({self.template_name})"
+
+class NotificationVariable(models.Model):
+    """
+    Mapeamento de variáveis {{1}}, {{2}}, etc do template para campos do modelo.
+    """
+    config = models.ForeignKey(NotificationConfig, on_delete=models.CASCADE, related_name='variables', verbose_name="Configuração")
+    index = models.PositiveIntegerField('Índice da Variável (Ex: 1 para {{1}})')
+    field_path = models.CharField(
+        'Caminho do Campo no Modelo', 
+        max_length=255, 
+        help_text='Ex: number, client_property.client.name, total_value'
+    )
+
+    class Meta:
+        verbose_name = 'Variável de Notificação'
+        verbose_name_plural = 'Variáveis de Notificação'
+        ordering = ['index']
+        unique_together = ('config', 'index')
 

@@ -1513,22 +1513,6 @@ def order_item_add(request, order_id):
                 unit_price=item_data['unit_price']
             )
 
-            # --- ATUALIZAÇÃO DE ESTOQUE ---
-            if item.product:
-                product = item.product
-                product.current_stock -= item.quantity
-                product.save()
-                
-                # Registrar movimentação
-                StockMovement.objects.create(
-                    product=product,
-                    quantity=item.quantity,
-                    movement_type=StockMovement.MovementType.OUT,
-                    reason=StockMovement.Reason.SALE_OS,
-                    service_order=order,
-                    user=request.user
-                )
-
             if is_ajax:
                 try:
                     item_total = item.total_price
@@ -1641,22 +1625,6 @@ def order_item_delete(request, item_id):
     is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
     
     if request.method == 'POST':
-        # --- ATUALIZAÇÃO DE ESTOQUE ---
-        if item.product:
-            product = item.product
-            product.current_stock += item.quantity
-            product.save()
-            
-            # Registrar movimentação (estorno)
-            StockMovement.objects.create(
-                product=product,
-                quantity=item.quantity,
-                movement_type=StockMovement.MovementType.IN,
-                reason=StockMovement.Reason.RETURN,
-                service_order=order,
-                user=request.user
-            )
-
         item.delete()
         
         if is_ajax:
@@ -1704,29 +1672,6 @@ def order_item_update(request, item_id):
 
             if new_quantity <= 0:
                 return JsonResponse({'success': False, 'message': 'A quantidade deve ser maior que zero.'}, status=400)
-
-            # --- ATUALIZAÇÃO DE ESTOQUE ---
-            if item.product:
-                product = item.product
-                diff = new_quantity - item.quantity
-                
-                # Ajusta o estoque
-                product.current_stock -= diff
-                product.save()
-                
-                # Registrar movimentação se houve mudança
-                if diff != 0:
-                    movement_type = StockMovement.MovementType.OUT if diff > 0 else StockMovement.MovementType.IN
-                    reason = StockMovement.Reason.SALE_OS if diff > 0 else StockMovement.Reason.RETURN
-                    
-                    StockMovement.objects.create(
-                        product=product,
-                        quantity=abs(diff),
-                        movement_type=movement_type,
-                        reason=reason,
-                        service_order=order,
-                        user=request.user
-                    )
 
             # Atualiza o item
             item.quantity = new_quantity

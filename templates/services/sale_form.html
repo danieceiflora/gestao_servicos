@@ -3,216 +3,322 @@
 
 {% block extra_head %}
 <style>
-    .product-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 1rem;
+    .item-row {
+        animation: fadeIn 0.1s ease-out;
     }
-    .product-card {
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    .table-input-border input {
+        width: 100% !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        font-size: 0.75rem !important; /* text-xs */
+        padding: 0.25rem 0.5rem !important;
+        color: #334155 !important; /* text-slate-700 */
+        font-weight: 500 !important;
+    }
+    /* Reset global para evitar setas duplicadas em navegadores e conflitos com plugins */
+    select {
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        appearance: none !important;
+        background-image: none !important;
+    }
+    select::-ms-expand {
+        display: none !important;
+    }
+
+    .table-input-border input {
+        width: 100% !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        font-size: 0.75rem !important; /* text-xs */
+        padding: 0.25rem 0.5rem !important;
+        color: #334155 !important; /* text-slate-700 */
+        font-weight: 500 !important;
+    }
+    .table-input-border select {
+        width: 100% !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        font-size: 0.75rem !important;
+        padding: 0.25rem 0.5rem !important;
+        padding-right: 1.25rem !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 0.25rem center !important;
+        background-size: 0.75rem !important;
         cursor: pointer;
-        transition: all 0.2s;
     }
-    .product-card:active {
-        transform: scale(0.95);
+    .table-input-border {
+        @apply border border-slate-200 rounded-md focus-within:ring-1 focus-within:ring-slate-400 transition-all bg-white;
     }
-    .cart-item-row {
-        animation: slideIn 0.3s ease-out;
+    
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { @apply bg-slate-50; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded; }
+
+    /* Estilo para o Select de Cliente e outros selects proeminentes */
+    .client-select-container select, .prominent-select {
+        @apply w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-2.5 pr-10 text-sm font-semibold text-slate-700 outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-900/5 transition-all cursor-pointer;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 0.75rem center !important;
+        background-size: 1rem !important;
     }
-    @keyframes slideIn {
-        from { opacity: 0; transform: translateX(-10px); }
-        to { opacity: 1; transform: translateX(0); }
+    .client-select-container select:hover, .prominent-select:hover {
+        @apply border-slate-400;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-6">
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-slate-900">Terminal de Vendas (PDV)</h1>
-        <p class="text-slate-500">Registre vendas diretas de produtos</p>
+<div class="fixed inset-0 top-16 bg-white flex flex-col overflow-hidden">
+    <!-- Cabeçalho (Fixo) -->
+    <div class="flex items-center justify-between px-6 py-3 border-b border-slate-200 shrink-0 bg-white z-20">
+        <div class="flex items-center gap-3">
+            <div class="bg-slate-900 text-white p-2 rounded-lg">
+                <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-slate-900 tracking-tight leading-none">Novo Pedido</h1>
+                <p class="text-[10px] text-slate-500 font-medium mt-1 uppercase tracking-wider">Pedido de venda</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{% url 'sale_list' %}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-md transition-colors">Cancelar</a>
+            <button type="submit" form="sale-form" class="bg-slate-900 text-white px-5 py-2 rounded-md font-bold text-xs hover:bg-slate-800 transition-all flex items-center gap-2 shadow-sm active:scale-[0.98]">
+                <i data-lucide="save" class="w-4 h-4"></i> FINALIZAR VENDA
+            </button>
+        </div>
     </div>
 
-    <form method="POST" id="sale-form" class="flex flex-col lg:flex-row gap-6">
+    <form method="POST" id="sale-form" class="flex-1 flex flex-col min-h-0">
         {% csrf_token %}
+        {{ formset.management_form }}
         
-        <!-- Coluna Esquerda: Seleção e Carrinho -->
-        <div class="flex-1 space-y-6">
-            
-            <!-- Busca de Produtos -->
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                <div class="relative mb-4">
-                    <input type="text" id="product-search" placeholder="Buscar produto por nome ou código..." 
-                           class="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
-                    <div class="absolute left-3 top-3.5 text-slate-400">
-                        <i data-lucide="search" class="w-5 h-5"></i>
-                    </div>
-                </div>
-                
-                <!-- Grid de Produtos Sugeridos -->
-                <div class="product-grid max-h-64 overflow-y-auto p-1" id="products-container">
-                    {% for product in products %}
-                    <div class="product-card bg-slate-50 p-3 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50"
-                         data-id="{{ product.id }}" 
-                         data-name="{{ product.name }}" 
-                         data-price="{{ product.default_unit_price|stringformat:'.2f' }}"
-                         onclick="addToCart(this)">
-                        <div class="text-xs font-bold text-blue-600 mb-1">R$ {{ product.default_unit_price|floatformat:2 }}</div>
-                        <div class="text-sm font-medium text-slate-800 line-clamp-2">{{ product.name }}</div>
-                        <div class="text-[10px] text-slate-500 mt-1">Estoque: {{ product.current_stock|floatformat:0 }}</div>
-                    </div>
-                    {% endfor %}
-                </div>
+        <!-- Info Cliente e Configurações -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 px-6 py-5 border-b border-slate-100 shrink-0 bg-slate-50/40">
+            <div class="md:col-span-8 client-select-container">
+                <label class="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Cliente / Consumidor</label>
+                {{ form.client }}
             </div>
-
-            <!-- Carrinho (Formset) -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                    <h2 class="font-bold text-slate-700 flex items-center gap-2">
-                        <i data-lucide="shopping-cart" class="w-5 h-5"></i>
-                        Itens da Venda
-                    </h2>
-                    <span id="items-count" class="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-full">0 itens</span>
-                </div>
-                
-                {{ formset.management_form }}
-                
-                {% if formset.non_form_errors %}
-                <div class="p-4 bg-red-50 border-b border-red-100 text-red-600 text-sm">
-                    {{ formset.non_form_errors }}
-                </div>
-                {% endif %}
-
-                <div id="formset-container" class="divide-y divide-slate-100">
-                    {% for item_form in formset %}
-                    <div class="cart-item-row p-4 flex items-center gap-4" id="item-{{ forloop.counter0 }}">
-                        {% if item_form.errors %}
-                        <div class="w-full text-red-500 text-[10px] mb-2">
-                            {{ item_form.errors }}
-                        </div>
-                        {% endif %}
-                        <div class="flex-1 min-w-0">
-                            <div class="font-medium text-slate-900 mb-1 product-display-name">
-                                {% if item_form.instance.product %}
-                                    {{ item_form.instance.product.name }}
-                                {% else %}
-                                    Selecione um produto...
-                                {% endif %}
-                            </div>
-                            <div class="hidden">
-                                {{ item_form.product }}
-                            </div>
-                            <div class="flex items-center gap-4">
-                                <div class="w-24">
-                                    <label class="text-[10px] text-slate-500 uppercase font-bold">Qtd</label>
-                                    {{ item_form.quantity }}
-                                </div>
-                                <div class="w-32">
-                                    <label class="text-[10px] text-slate-500 uppercase font-bold">Preço Un.</label>
-                                    {{ item_form.unit_price }}
-                                </div>
-                                <div class="flex-1 text-right pt-4">
-                                    <span class="text-sm font-bold text-slate-600 subtotal-display">R$ 0,00</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="pt-4">
-                            {% if item_form.can_delete %}
-                                {{ item_form.DELETE }}
-                            {% endif %}
-                            <button type="button" onclick="removeItem(this)" class="p-2 text-red-400 hover:text-red-600 transition-colors">
-                                <i data-lucide="trash-2" class="w-5 h-5"></i>
-                            </button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                
-                <!-- Template para novo item (Oculto) -->
-                <div id="empty-form" class="hidden">
-                    <div class="cart-item-row p-4 flex items-center gap-4">
-                        <div class="flex-1 min-w-0">
-                            <div class="font-medium text-slate-900 mb-1 product-display-name">Nome do Produto</div>
-                            <div class="hidden">
-                                {{ formset.empty_form.product }}
-                            </div>
-                            <div class="flex items-center gap-4">
-                                <div class="w-24">
-                                    <label class="text-[10px] text-slate-500 uppercase font-bold">Qtd</label>
-                                    {{ formset.empty_form.quantity }}
-                                </div>
-                                <div class="w-32">
-                                    <label class="text-[10px] text-slate-500 uppercase font-bold">Preço Un.</label>
-                                    {{ formset.empty_form.unit_price }}
-                                </div>
-                                <div class="flex-1 text-right pt-4">
-                                    <span class="text-sm font-bold text-slate-600 subtotal-display">R$ 0,00</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="pt-4">
-                            <button type="button" onclick="removeItem(this)" class="p-2 text-red-400 hover:text-red-600 transition-colors">
-                                <i data-lucide="trash-2" class="w-5 h-5"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Coluna Direita: Checkout -->
-        <div class="w-full lg:w-96 space-y-6">
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200 sticky top-24">
-                <h3 class="text-lg font-bold text-slate-900 mb-4">Resumo da Venda</h3>
-                
-                <div class="space-y-4 mb-6">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Cliente</label>
-                        {{ form.client }}
-                        <p class="text-[10px] text-slate-400 mt-1">Deixe vazio para venda balcão (Consumidor Final)</p>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Forma de Pagamento</label>
-                        {{ form.payment_method }}
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Desconto (R$)</label>
-                        {{ form.discount }}
-                    </div>
-                    
-                    <div class="hidden">
-                        {{ form.service_order }}
-                    </div>
-                </div>
-
-                <div class="border-t border-slate-100 pt-4 space-y-2">
-                    <div class="flex justify-between text-slate-600">
-                        <span>Subtotal</span>
-                        <span id="display-subtotal">R$ 0,00</span>
-                    </div>
-                    <div class="flex justify-between text-red-600">
-                        <span>Desconto</span>
-                        <span id="display-discount">- R$ 0,00</span>
-                    </div>
-                    <div class="flex justify-between text-xl font-black text-slate-900 pt-2 border-t border-slate-200">
-                        <span>TOTAL</span>
-                        <span id="display-total">R$ 0,00</span>
-                    </div>
-                </div>
-
-                <button type="submit" class="w-full mt-8 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2">
-                    <i data-lucide="check-circle" class="w-6 h-6"></i>
-                    Finalizar Venda
+            <div class="md:col-span-4 flex items-end">
+                <button type="button" onclick="document.getElementById('fiscal-pane').classList.toggle('hidden')" class="w-full py-2.5 bg-white border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:border-slate-400 transition-all flex items-center justify-center gap-2 shadow-sm">
+                    <i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i> Opções Fiscais (NFe)
                 </button>
-                
-                <a href="{% url 'sale_list' %}" class="block text-center mt-4 text-sm text-slate-400 hover:text-slate-600">
-                    Cancelar e Voltar
-                </a>
             </div>
         </div>
+
+        <div id="fiscal-pane" class="hidden grid grid-cols-3 gap-6 px-6 py-4 bg-white border-b border-slate-100 shrink-0 shadow-inner">
+             <div class="space-y-1.5">
+                <label class="block text-[9px] font-bold text-slate-400 uppercase">Presença</label>
+                <div class="table-input-border prominent-select-wrapper">{{ form.indicador_presenca }}</div>
+             </div>
+             <div class="space-y-1.5">
+                <label class="block text-[9px] font-bold text-slate-400 uppercase">Frete</label>
+                <div class="table-input-border prominent-select-wrapper">{{ form.modalidade_frete }}</div>
+             </div>
+             <div class="space-y-1.5">
+                <label class="block text-[9px] font-bold text-slate-400 uppercase">Meio Pagto SEFAZ</label>
+                <div class="table-input-border prominent-select-wrapper">{{ form.forma_pagamento_sefaz }}</div>
+             </div>
+        </div>
+
+        <!-- Área Principal 50/50 -->
+        <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-0 overflow-hidden">
+            
+            <!-- COLUNA ESQUERDA: ITENS -->
+            <div class="flex flex-col border-r border-slate-200 min-h-0 bg-white">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
+                    <h2 class="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                        <i data-lucide="package" class="w-4 h-4 text-slate-400"></i> Carrinho
+                    </h2>
+                    
+                    <!-- Busca de Produtos -->
+                    <div class="relative w-72">
+                        <input type="text" id="product-search" autocomplete="off" placeholder="Buscar produto por nome..." class="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-full focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 outline-none transition-all">
+                        <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
+                        
+                        <div id="search-results" class="absolute z-50 w-full mt-2 bg-white border border-slate-200 shadow-2xl rounded-xl hidden max-h-[400px] overflow-y-auto custom-scrollbar p-1">
+                            {% for product in products %}
+                            <div class="product-item p-3 hover:bg-slate-50 cursor-pointer flex justify-between items-center rounded-lg transition-colors border-b border-slate-50 last:border-0" 
+                                 data-id="{{ product.id }}" 
+                                 data-name="{{ product.name }}" 
+                                 data-price="{{ product.default_unit_price|stringformat:'.2f' }}" 
+                                 onclick="addToCart(this)">
+                                <div>
+                                    <div class="text-[12px] font-bold text-slate-800">{{ product.name }}</div>
+                                    <div class="text-[10px] text-slate-500 font-medium">Estoque: {{ product.current_stock|floatformat:0 }} {{ product.get_unit_type_display }}</div>
+                                </div>
+                                <div class="text-sm font-black text-slate-900">R$ {{ product.default_unit_price|floatformat:2 }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela de Itens -->
+                <div class="flex-1 overflow-y-auto custom-scrollbar">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="sticky top-0 bg-slate-50/95 backdrop-blur z-10">
+                            <tr class="text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                                <th class="px-6 py-3 w-12 text-center">#</th>
+                                <th class="px-2 py-3">Produto</th>
+                                <th class="px-2 py-3 w-20 text-center">Qtd</th>
+                                <th class="px-2 py-3 w-28 text-center">Unitário</th>
+                                <th class="px-2 py-3 w-24 text-center">Desc.</th>
+                                <th class="px-2 py-3 w-28 text-right">Subtotal</th>
+                                <th class="px-6 py-3 w-12"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="formset-container" class="divide-y divide-slate-100">
+                            {% for item_form in formset %}
+                            <tr class="item-row group hover:bg-slate-50/50 transition-colors" id="item-{{ forloop.counter0 }}">
+                                <td class="px-6 py-3 text-[11px] font-medium text-slate-400 text-center">{{ forloop.counter }}</td>
+                                <td class="px-2 py-3">
+                                    <div class="text-[13px] font-bold text-slate-700 truncate product-display-name">
+                                        {{ item_form.instance.product.name|default:"---" }}
+                                    </div>
+                                    <div class="hidden">{{ item_form.product }}</div>
+                                </td>
+                                <td class="px-2 py-3">
+                                    <div class="table-input-border">{{ item_form.quantity }}</div>
+                                </td>
+                                <td class="px-2 py-3">
+                                    <div class="table-input-border">{{ item_form.unit_price }}</div>
+                                </td>
+                                <td class="px-2 py-3">
+                                    <div class="table-input-border">{{ item_form.discount }}</div>
+                                </td>
+                                <td class="px-2 py-3 text-right text-[13px] font-bold text-slate-900 subtotal-display">R$ 0,00</td>
+                                <td class="px-6 py-3 text-center">
+                                    <button type="button" onclick="removeItem(this)" class="text-slate-300 hover:text-red-500 transition-colors">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                    <div class="hidden">{{ item_form.DELETE }}</div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    
+                    <div id="no-items-msg" class="flex flex-col items-center justify-center h-64 text-center {% if formset|length > 0 %}hidden{% endif %}">
+                        <div class="bg-slate-50 p-4 rounded-full mb-3">
+                            <i data-lucide="shopping-cart" class="w-8 h-8 text-slate-300"></i>
+                        </div>
+                        <p class="text-sm text-slate-400 font-medium">Seu carrinho está vazio</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Busque produtos acima para adicionar</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUNA DIREITA: CHECKOUT & PAGAMENTO -->
+            <div class="flex flex-col bg-slate-50/50 min-h-0">
+                <!-- Resumo de Totais -->
+                <div class="p-8 bg-white border-b border-slate-200 shadow-sm shrink-0">
+                    <div class="flex flex-col gap-6">
+                        <div class="flex justify-between items-end">
+                            <div class="space-y-4 flex-1 max-w-[240px]">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Subtotal Bruto</span>
+                                    <span id="display-subtotal" class="text-sm font-bold text-slate-700">R$ 0,00</span>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Desconto no Total</label>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-2 text-xs text-slate-400 font-bold">R$</span>
+                                        <div class="table-input-border pl-6">{{ form.discount }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 block">Total a Pagar</span>
+                                <div id="display-total" class="text-5xl font-black text-slate-900 tracking-tighter">R$ 0,00</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gestão de Pagamentos -->
+                <div class="flex-1 flex flex-col p-8 min-h-0">
+                    <div class="flex items-center justify-between mb-4 shrink-0">
+                        <h3 class="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                            <i data-lucide="credit-card" class="w-4 h-4 text-slate-400"></i> Pagamento
+                        </h3>
+                        <span id="display-balance-tag" class="text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">---</span>
+                    </div>
+
+                    <!-- Seletor de Pagamento -->
+                    <div class="bg-white p-5 rounded-2xl border-2 border-slate-200 shadow-sm mb-6 shrink-0">
+                        <div class="flex gap-3">
+                            <div class="flex-1">
+                                <select id="payment-method-select" class="prominent-select !py-2 !rounded-xl !bg-slate-50">
+                                    <option value="">Forma de Pagamento...</option>
+                                    {% for pm in payment_methods %}
+                                    <option value="{{ pm.id }}" data-name="{{ pm.descricao }}">{{ pm.descricao }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="w-32">
+                                <div class="relative h-full">
+                                    <span class="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">R$</span>
+                                    <input type="number" step="0.01" id="payment-amount-input" placeholder="0,00" class="w-full h-full bg-slate-50 border-2 border-slate-100 rounded-xl pl-8 pr-3 text-sm font-bold text-slate-700 focus:border-slate-400 transition-all outline-none">
+                                </div>
+                            </div>
+                            <button type="button" onclick="addPayment()" class="bg-slate-900 text-white px-5 rounded-xl hover:bg-slate-800 transition-all active:scale-95 shadow-md flex items-center justify-center">
+                                <i data-lucide="plus" class="w-6 h-6"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Pagamentos -->
+                    <div id="payments-list" class="flex-1 overflow-y-auto custom-scrollbar space-y-3 mb-6 pr-2">
+                        <!-- Injetado via JS -->
+                    </div>
+
+                    <!-- Rodapé de Status Financeiro -->
+                    <div class="bg-slate-900 text-white p-6 rounded-3xl flex items-center justify-between shrink-0 shadow-xl mt-auto">
+                        <div class="space-y-1">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Restante</span>
+                            <span id="display-balance-text" class="text-2xl font-black text-slate-100">R$ 0,00</span>
+                        </div>
+                        <div class="h-10 w-[1px] bg-slate-800"></div>
+                        <div class="text-right space-y-1">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Total Pago</span>
+                            <span id="display-paid" class="text-2xl font-black text-emerald-400">R$ 0,00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="payments-hidden-inputs"></div>
     </form>
 </div>
+
+<!-- Template para novos itens -->
+<template id="empty-form">
+    <tr class="item-row group hover:bg-slate-50/50 transition-colors">
+        <td class="px-6 py-3 text-[11px] font-medium text-slate-400 text-center">#</td>
+        <td class="px-2 py-3">
+            <div class="text-[13px] font-bold text-slate-700 truncate product-display-name">Nome do Produto</div>
+            <div class="hidden">{{ formset.empty_form.product }}</div>
+        </td>
+        <td class="px-2 py-3"><div class="table-input-border">{{ formset.empty_form.quantity }}</div></td>
+        <td class="px-2 py-3"><div class="table-input-border">{{ formset.empty_form.unit_price }}</div></td>
+        <td class="px-2 py-3"><div class="table-input-border">{{ formset.empty_form.discount }}</div></td>
+        <td class="px-2 py-3 text-right text-[13px] font-bold text-slate-900 subtotal-display">R$ 0,00</td>
+        <td class="px-6 py-3 text-center">
+            <button type="button" onclick="removeItem(this)" class="text-slate-300 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+        </td>
+    </tr>
+</template>
 {% endblock %}
 
 {% block extra_js %}
@@ -221,14 +327,42 @@
     const emptyFormTemplate = document.getElementById('empty-form').innerHTML;
     const totalFormsInput = document.getElementById('id_items-TOTAL_FORMS');
     const displaySubtotal = document.getElementById('display-subtotal');
-    const displayDiscount = document.getElementById('display-discount');
     const displayTotal = document.getElementById('display-total');
     const discountInput = document.getElementById('id_discount');
-    const itemsCountBadge = document.getElementById('items-count');
+    const noItemsMsg = document.getElementById('no-items-msg');
+    
+    // Busca Reativa
+    const productSearch = document.getElementById('product-search');
+    const searchResults = document.getElementById('search-results');
 
-    // Inicialização
-    document.addEventListener('DOMContentLoaded', function() {
-        updateTotals();
+    productSearch.addEventListener('input', function(e) {
+        const term = e.target.value.toLowerCase();
+        const items = document.querySelectorAll('.product-item');
+        let hasResults = false;
+
+        if (term.length > 0) {
+            searchResults.classList.remove('hidden');
+            items.forEach(item => {
+                const name = item.dataset.name.toLowerCase();
+                if (name.includes(term)) {
+                    item.classList.remove('hidden');
+                    hasResults = true;
+                } else {
+                    item.classList.add('hidden');
+                }
+            });
+        } else {
+            searchResults.classList.add('hidden');
+        }
+        
+        if (!hasResults && term.length > 0) searchResults.classList.add('hidden');
+    });
+
+    // Fechar busca ao clicar fora
+    document.addEventListener('click', (e) => {
+        if (!productSearch.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.classList.add('hidden');
+        }
     });
 
     function addToCart(element) {
@@ -236,41 +370,45 @@
         const name = element.dataset.name;
         const price = element.dataset.price;
         
-        // Verifica se produto já está no carrinho
+        // Verifica se já existe
         const existingSelects = formsetContainer.querySelectorAll('select[name$="-product"]');
         for (let select of existingSelects) {
-            const row = select.closest('.cart-item-row');
+            const row = select.closest('.item-row');
             if (select.value === id && !row.classList.contains('hidden')) {
                 const qtyInput = row.querySelector('input[name$="-quantity"]');
                 qtyInput.value = (parseFloat(qtyInput.value) + 1).toFixed(2);
                 updateTotals();
+                productSearch.value = '';
+                searchResults.classList.add('hidden');
                 return;
             }
         }
 
-        // Adiciona novo item
+        // Adiciona novo
         const formIdx = parseInt(totalFormsInput.value);
-        const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, formIdx);
+        const newRowHtml = emptyFormTemplate.replace(/__prefix__/g, formIdx);
         
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = newFormHtml;
+        const tempDiv = document.createElement('tbody');
+        tempDiv.innerHTML = newRowHtml;
         const newRow = tempDiv.firstElementChild;
         
-        // Configurar campos
         newRow.querySelector('.product-display-name').textContent = name;
         newRow.querySelector('select[name$="-product"]').innerHTML = `<option value="${id}" selected>${name}</option>`;
         newRow.querySelector('input[name$="-quantity"]').value = "1.00";
         newRow.querySelector('input[name$="-unit_price"]').value = price;
-        
+        newRow.querySelector('input[name$="-discount"]').value = "0.00";
+
         formsetContainer.appendChild(newRow);
         totalFormsInput.value = formIdx + 1;
         
+        productSearch.value = '';
+        searchResults.classList.add('hidden');
         lucide.createIcons();
         updateTotals();
     }
 
     function removeItem(button) {
-        const row = button.closest('.cart-item-row');
+        const row = button.closest('.item-row');
         const deleteInput = row.querySelector('input[name$="-DELETE"]');
         
         if (deleteInput) {
@@ -278,57 +416,140 @@
             row.classList.add('hidden');
         } else {
             row.remove();
-            // Reindexar não é estritamente necessário se usarmos o TOTAL_FORMS corretamente,
-            // mas Django espera que os índices sejam sequenciais. 
-            // Para simplificar PDV, vamos apenas esconder se já salvou ou remover se for novo.
         }
         updateTotals();
     }
 
+    let payments = [];
+
+    function addPayment() {
+        const select = document.getElementById('payment-method-select');
+        const amountInput = document.getElementById('payment-amount-input');
+        
+        if(!select.value || !amountInput.value || parseFloat(amountInput.value) <= 0) return;
+
+        payments.push({
+            id: Date.now(),
+            method_id: select.value,
+            method_name: select.options[select.selectedIndex].dataset.name,
+            amount: parseFloat(amountInput.value)
+        });
+
+        amountInput.value = '';
+        select.value = '';
+        renderPayments();
+        updateTotals();
+    }
+
+    function removePayment(id) {
+        payments = payments.filter(p => p.id !== id);
+        renderPayments();
+        updateTotals();
+    }
+
+    function renderPayments() {
+        const list = document.getElementById('payments-list');
+        const hiddenContainer = document.getElementById('payments-hidden-inputs');
+        list.innerHTML = '';
+        hiddenContainer.innerHTML = '';
+
+        payments.forEach((p) => {
+            const div = document.createElement('div');
+            div.className = "flex justify-between items-center px-5 py-4 bg-white border-2 border-slate-100 rounded-2xl shadow-sm group animate-fadeIn hover:border-slate-300 transition-all";
+            div.innerHTML = `
+                <div class="flex items-center gap-4">
+                    <div class="bg-slate-900 p-2.5 rounded-xl group-hover:scale-110 transition-transform">
+                        <i data-lucide="wallet" class="w-4 h-4 text-white"></i>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Meio de Pagto</span>
+                        <span class="text-sm font-black text-slate-800 tracking-tight leading-none">${p.method_name}</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="text-right">
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Valor</span>
+                        <span class="text-lg font-black text-slate-900 tracking-tighter">R$ ${p.amount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    <button type="button" onclick="removePayment(${p.id})" class="text-slate-300 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-lg">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            `;
+            list.appendChild(div);
+
+            hiddenContainer.innerHTML += `
+                <input type="hidden" name="payment_method_id[]" value="${p.method_id}">
+                <input type="hidden" name="payment_amount[]" value="${p.amount}">
+            `;
+        });
+        lucide.createIcons();
+    }
+
     function updateTotals() {
         let subtotal = 0;
-        const rows = formsetContainer.querySelectorAll('.cart-item-row:not(.hidden)');
+        const rows = Array.from(formsetContainer.querySelectorAll('.item-row:not(.hidden)'));
         
-        rows.forEach(row => {
+        rows.forEach((row, index) => {
+            row.querySelector('td:first-child').textContent = index + 1;
+            
             const qty = parseFloat(row.querySelector('input[name$="-quantity"]').value) || 0;
             const price = parseFloat(row.querySelector('input[name$="-unit_price"]').value) || 0;
-            const itemSubtotal = qty * price;
+            const itemDiscount = parseFloat(row.querySelector('input[name$="-discount"]').value) || 0;
             
+            const itemSubtotal = (qty * price) - itemDiscount;
             row.querySelector('.subtotal-display').textContent = `R$ ${itemSubtotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
             subtotal += itemSubtotal;
         });
 
-        const discount = parseFloat(discountInput.value) || 0;
-        const total = Math.max(0, subtotal - discount);
+        const globalDiscount = parseFloat(discountInput.value) || 0;
+        const total = Math.max(0, subtotal - globalDiscount);
+        const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
+        const balance = total - totalPaid;
 
+        // Atualizar Displays
         displaySubtotal.textContent = `R$ ${subtotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-        displayDiscount.textContent = `- R$ ${discount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
         displayTotal.textContent = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-        itemsCountBadge.textContent = `${rows.length} item${rows.length !== 1 ? 's' : ''}`;
+        document.getElementById('display-paid').textContent = `R$ ${totalPaid.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+        
+        const balanceTag = document.getElementById('display-balance-tag');
+        const balanceText = document.getElementById('display-balance-text');
+        
+        if (balance > 0.01) {
+            balanceTag.textContent = "Pagamento Pendente";
+            balanceTag.className = "text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wide bg-amber-100 text-amber-700";
+            balanceText.textContent = `FALTA R$ ${balance.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            balanceText.classList.remove('text-emerald-400');
+            balanceText.classList.add('text-slate-100');
+        } else if (balance < -0.01) {
+            balanceTag.textContent = "Valor Excedente";
+            balanceTag.className = "text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wide bg-blue-100 text-blue-700";
+            balanceText.textContent = `TROCO R$ ${Math.abs(balance).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            balanceText.classList.remove('text-emerald-400');
+            balanceText.classList.add('text-slate-100');
+        } else {
+            balanceTag.textContent = "Pedido Quitado";
+            balanceTag.className = "text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700";
+            balanceText.textContent = `QUITADO`;
+            balanceText.classList.remove('text-slate-100');
+            balanceText.classList.add('text-emerald-400');
+        }
+
+        noItemsMsg.classList.toggle('hidden', rows.length > 0);
     }
 
-    // Listeners para mudanças de valores
+    // Listeners
     formsetContainer.addEventListener('input', (e) => {
-        if (e.target.name.includes('-quantity') || e.target.name.includes('-unit_price')) {
+        if (e.target.matches('input[name$="-quantity"], input[name$="-unit_price"], input[name$="-discount"]')) {
             updateTotals();
         }
     });
 
     discountInput.addEventListener('input', updateTotals);
 
-    // Busca reativa simples
-    document.getElementById('product-search').addEventListener('input', function(e) {
-        const term = e.target.value.toLowerCase();
-        const cards = document.querySelectorAll('.product-card');
-        
-        cards.forEach(card => {
-            const name = card.dataset.name.toLowerCase();
-            if (name.includes(term)) {
-                card.classList.remove('hidden');
-            } else {
-                card.classList.add('hidden');
-            }
-        });
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', () => {
+        updateTotals();
     });
 </script>
 {% endblock %}

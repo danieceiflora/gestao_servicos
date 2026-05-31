@@ -4,10 +4,30 @@ from .models import (
     User, Client, ClientPhone, ClientEmail, Property,
     ProfessionalRole, Professional, WorkSchedule, WorkScheduleDay,
     ServiceOrder, ServiceItem, ServiceMedia, ServiceOrderTeam,
-    ServiceOrderTask, Product, ServiceCategory, Service,
+    ServiceOrderTask, Product, ProductCategory, ServiceCategory, Service,
     ServiceChecklistItem, TaskChecklistResponse, ChecklistTemplate,
-    ChecklistResponseMedia, Sale, SaleItem
+    ChecklistResponseMedia, Sale, SaleItem, Supplier, PaymentMethod, SalePayment
 )
+
+
+@admin.register(PaymentMethod)
+class PaymentMethodAdmin(admin.ModelAdmin):
+    list_display = ['descricao', 'tipo_provedor', 'tarifa_porcentagem', 'tarifa_fixa', 'ativo']
+    list_filter = ['tipo_provedor', 'ativo']
+    search_fields = ['descricao']
+
+
+@admin.register(SalePayment)
+class SalePaymentAdmin(admin.ModelAdmin):
+    list_display = ['id', 'metodo_pagamento', 'valor_bruto', 'data_pagamento', 'venda', 'os']
+    list_filter = ['metodo_pagamento', 'data_pagamento']
+    readonly_fields = ['data_pagamento']
+
+
+@admin.register(ProductCategory)
+class ProductCategoryAdmin(admin.ModelAdmin):
+    list_display = ['name']
+    search_fields = ['name']
 
 
 @admin.register(ServiceCategory)
@@ -51,10 +71,17 @@ class TaskChecklistResponseAdmin(admin.ModelAdmin):
     inlines = [ChecklistResponseMediaInline]
 
 
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = ['display_name', 'document', 'is_active', 'created_at']
+    list_filter = ['client_type', 'is_active']
+    search_fields = ['name', 'trade_name', 'cpf', 'cnpj']
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ['name', 'code', 'unit_type', 'default_unit_price', 'is_active']
-    list_filter = ['is_active', 'unit_type']
+    list_display = ['name', 'code', 'supplier', 'unit_type', 'default_unit_price', 'is_active']
+    list_filter = ['is_active', 'unit_type', 'supplier']
     search_fields = ['name', 'code']
 
 @admin.register(User)

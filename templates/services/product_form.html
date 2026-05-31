@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto space-y-6">
+<div class="max-w-4xl mx-auto space-y-6 pb-20">
     <!-- Header -->
     <div class="flex items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <a href="{% url 'product_list' %}" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all">
@@ -12,69 +12,41 @@
             <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
                 {% if object %}Editar Produto{% else %}Novo Produto{% endif %}
             </h1>
-            <p class="text-slate-500 text-sm">Preencha os dados básicos do produto.</p>
+            <p class="text-slate-500 text-sm">Gerencie informações cadastrais, estoque e dados fiscais.</p>
         </div>
     </div>
 
-    <!-- Form -->
-    <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-        <form method="post" enctype="multipart/form-data" class="space-y-8" id="product-form">
+    <!-- Main Form Card -->
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <!-- Tabs Navigation -->
+        <div class="flex border-b border-slate-100 bg-slate-50/50 p-1">
+            <button type="button" onclick="switchTab('geral')" id="tab-geral-btn" 
+                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-blue-600 bg-white shadow-sm border border-slate-200">
+                <i data-lucide="package" class="h-4 w-4"></i>
+                Dados Gerais
+            </button>
+            <button type="button" onclick="switchTab('midia')" id="tab-midia-btn" 
+                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700">
+                <i data-lucide="image" class="h-4 w-4"></i>
+                Mídia
+            </button>
+            <button type="button" onclick="switchTab('estoque')" id="tab-estoque-btn" 
+                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700">
+                <i data-lucide="boxes" class="h-4 w-4"></i>
+                Estoque
+            </button>
+            <button type="button" onclick="switchTab('fiscal')" id="tab-fiscal-btn" 
+                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700">
+                <i data-lucide="receipt" class="h-4 w-4"></i>
+                Dados Fiscais
+            </button>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="p-6 md:p-8" id="product-form">
             {% csrf_token %}
-            
-            <!-- Imagem do Produto Section -->
-            <div class="space-y-4">
-                <label class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <i data-lucide="image" class="h-4 w-4 text-blue-500"></i>
-                    Imagem do Produto
-                </label>
-                
-                <div class="dz-container" id="product-image-container">
-                    <!-- Preview Area -->
-                    <div id="image-preview-zone" class="relative group w-48 h-48 mx-auto mb-4 {% if not object.image %}hidden{% endif %}">
-                        <img id="image-preview" src="{% if object.image %}{{ object.image.url }}{% endif %}" 
-                             class="w-full h-full object-cover rounded-2xl border-2 border-slate-100 shadow-md">
-                        <button type="button" onclick="removeProductImage()" 
-                                class="absolute -top-2 -right-2 bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600 transition-all z-10">
-                            <i data-lucide="x" class="h-4 w-4"></i>
-                        </button>
-                    </div>
 
-                    <!-- Upload Zone -->
-                    <div id="upload-zone" class="{% if object.image %}hidden{% endif %}">
-                        <div class="relative group cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 rounded-2xl transition-all p-8 text-center"
-                             onclick="document.getElementById('{{ form.image.id_for_label }}').click()">
-                            <div class="flex flex-col items-center gap-3">
-                                <div class="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-100 transition-colors">
-                                    <i data-lucide="upload-cloud" class="h-8 w-8 text-slate-400 group-hover:text-blue-500"></i>
-                                </div>
-                                <div class="space-y-1">
-                                    <p class="text-sm font-bold text-slate-900">Toque para enviar uma foto</p>
-                                    <p class="text-xs text-slate-500">ou arraste o arquivo aqui</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Hidden Input and Camera Option -->
-                    <div class="hidden">
-                        {{ form.image }}
-                    </div>
-                    
-                    <div class="flex justify-center mt-4">
-                        <button type="button" data-open-camera="{{ form.image.id_for_label }}"
-                                class="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all text-sm font-bold">
-                            <i data-lucide="camera" class="h-4 w-4 text-blue-500"></i>
-                            Tirar Foto com Câmera
-                        </button>
-                    </div>
-                </div>
-                {% if form.image.errors %}
-                <p class="text-xs text-red-500 text-center">{{ form.image.errors.0 }}</p>
-                {% endif %}
-            </div>
-
-            <!-- Dados Básicos Section -->
-            <div class="space-y-6 pt-6 border-t border-slate-100">
+            <!-- Tab 1: Dados Gerais -->
+            <div id="tab-geral" class="tab-content space-y-8">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="md:col-span-2 space-y-2">
                         <label class="text-sm font-bold text-slate-700">Nome do Produto</label>
@@ -85,13 +57,29 @@
                     </div>
 
                     <div class="space-y-2">
+                        <label class="text-sm font-bold text-slate-700">Categoria</label>
+                        {{ form.category }}
+                        {% if form.category.errors %}
+                        <p class="text-xs text-red-500">{{ form.category.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-bold text-slate-700">Fornecedor Padrão</label>
+                        {{ form.supplier }}
+                        {% if form.supplier.errors %}
+                        <p class="text-xs text-red-500">{{ form.supplier.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="space-y-2">
                         <label class="text-sm font-bold text-slate-700">Código/SKU</label>
                         {{ form.code }}
                     </div>
 
                     <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Unidade de Medida</label>
-                        {{ form.unit_type }}
+                        <label class="text-sm font-bold text-slate-700">Código de Barras (GTIN/EAN)</label>
+                        {{ form.barcode }}
                     </div>
 
                     <div class="space-y-2">
@@ -104,27 +92,178 @@
                         </div>
                     </div>
 
+                    <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-colors hover:bg-emerald-50/30 self-end">
+                        <div class="flex items-center h-5">
+                            {{ form.is_active }}
+                        </div>
+                        <div class="text-sm leading-6">
+                            <label for="{{ form.is_active.id_for_label }}" class="font-bold text-slate-900">Produto Ativo</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 2: Mídia -->
+            <div id="tab-midia" class="tab-content hidden space-y-8">
+                <!-- Imagem do Produto Section -->
+                <div class="space-y-4">
+                    <label class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="image" class="h-4 w-4 text-blue-500"></i>
+                        Imagem do Produto
+                    </label>
+                    
+                    <div class="dz-container" id="product-image-container">
+                        <!-- Preview Area -->
+                        <div id="image-preview-zone" class="relative group w-48 h-48 mx-auto mb-4 {% if not object.image %}hidden{% endif %}">
+                            <img id="image-preview" src="{% if object.image %}{{ object.image.url }}{% endif %}" 
+                                 class="w-full h-full object-cover rounded-2xl border-2 border-slate-100 shadow-md">
+                            <button type="button" onclick="removeProductImage()" 
+                                    class="absolute -top-2 -right-2 bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600 transition-all z-10">
+                                <i data-lucide="x" class="h-4 w-4"></i>
+                            </button>
+                        </div>
+
+                        <!-- Upload Zone -->
+                        <div id="upload-zone" class="{% if object.image %}hidden{% endif %}">
+                            <div class="relative group cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 rounded-2xl transition-all p-8 text-center"
+                                 onclick="document.getElementById('{{ form.image.id_for_label }}').click()">
+                                <div class="flex flex-col items-center gap-3">
+                                    <div class="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-100 transition-colors">
+                                        <i data-lucide="upload-cloud" class="h-8 w-8 text-slate-400 group-hover:text-blue-500"></i>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-sm font-bold text-slate-900">Toque para enviar uma foto</p>
+                                        <p class="text-xs text-slate-500">ou arraste o arquivo aqui</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Hidden Input and Camera Option -->
+                        <div class="hidden">
+                            {{ form.image }}
+                        </div>
+                        
+                        <div class="flex justify-center mt-4">
+                            <button type="button" data-open-camera="{{ form.image.id_for_label }}"
+                                    class="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all text-sm font-bold">
+                                <i data-lucide="camera" class="h-4 w-4 text-blue-500"></i>
+                                Tirar Foto com Câmera
+                            </button>
+                        </div>
+                    </div>
+                    {% if form.image.errors %}
+                    <p class="text-xs text-red-500 text-center">{{ form.image.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Tab 3: Estoque -->
+            <div id="tab-estoque" class="tab-content hidden space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Estoque Inicial/Atual</label>
+                        <label class="text-sm font-bold text-slate-700">Unidade de Venda</label>
+                        {{ form.unit_type }}
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-bold text-slate-700">Estoque Atual</label>
                         <div class="[&>input]:font-mono [&>input]:font-bold">
                             {{ form.current_stock }}
+                        </div>
+                        <p class="text-[10px] text-slate-500 italic mt-1">Ajuste de saldo manual.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 4: Dados Fiscais -->
+            <div id="tab-fiscal" class="tab-content hidden space-y-8">
+                <!-- Identificação Fiscal -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
+                        <i data-lucide="tag" class="h-4 w-4 text-blue-500"></i>
+                        Identificação Fiscal
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2 space-y-1">
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Origem da Mercadoria</label>
+                            {{ form.origem_mercadoria }}
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">NCM</label>
+                            {{ form.ncm }}
+                            <p class="text-[10px] text-slate-400">8 dígitos numéricos.</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CEST</label>
+                            {{ form.cest }}
+                            <p class="text-[10px] text-slate-400">7 dígitos (Subst. Tributária).</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CFOP Padrão</label>
+                            {{ form.cfop_padrao }}
+                            <p class="text-[10px] text-slate-400">Ex: 5102, 5405.</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-colors hover:bg-emerald-50/30">
-                    <div class="flex items-center h-5">
-                        {{ form.is_active }}
+                <!-- Tributação -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
+                        <i data-lucide="percent" class="h-4 w-4 text-emerald-500"></i>
+                        Tributação
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {% if tax_regime == 'SIMPLES' %}
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CSOSN</label>
+                            {{ form.csosn }}
+                        </div>
+                        <div class="hidden">{{ form.cst_icms }}</div>
+                        {% else %}
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST ICMS</label>
+                            {{ form.cst_icms }}
+                        </div>
+                        <div class="hidden">{{ form.csosn }}</div>
+                        {% endif %}
+
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST PIS</label>
+                            {{ form.cst_pis }}
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST COFINS</label>
+                            {{ form.cst_cofins }}
+                        </div>
                     </div>
-                    <div class="text-sm leading-6">
-                        <label for="{{ form.is_active.id_for_label }}" class="font-bold text-slate-900">Produto Ativo</label>
-                        <p class="text-slate-500 text-xs italic">Produtos inativos não aparecem na seleção de Ordens de Serviço.</p>
+                </div>
+
+                <!-- Alíquotas IBPT -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
+                        <i data-lucide="info" class="h-4 w-4 text-blue-500"></i>
+                        Alíquotas IBPT (Lei da Transparência)
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-600">Federal (%)</label>
+                            {{ form.aliquota_ibpt_fed }}
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-600">Estadual (%)</label>
+                            {{ form.aliquota_ibpt_est }}
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-600">Municipal (%)</label>
+                            {{ form.aliquota_ibpt_mun }}
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Action Buttons -->
-            <div class="flex flex-col sm:flex-row gap-3 pt-8 border-t border-slate-100">
+            <div class="flex flex-col sm:flex-row gap-3 pt-8 mt-8 border-t border-slate-100">
                 <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-4 rounded-2xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-[0.98] flex items-center justify-center gap-2">
                     <i data-lucide="save" class="h-5 w-5"></i>
                     Salvar Produto
@@ -140,33 +279,57 @@
 
 {% block extra_js %}
 <script>
+    function switchTab(tabId) {
+        // Hide all contents
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        // Show selected content
+        document.getElementById('tab-' + tabId).classList.remove('hidden');
+
+        // Reset all buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('text-blue-600', 'bg-white', 'shadow-sm', 'border', 'border-slate-200');
+            btn.classList.add('text-slate-500', 'hover:text-slate-700');
+        });
+
+        // Highlight active button
+        const activeBtn = document.getElementById('tab-' + tabId + '-btn');
+        activeBtn.classList.remove('text-slate-500', 'hover:text-slate-700');
+        activeBtn.classList.add('text-blue-600', 'bg-white', 'shadow-sm', 'border', 'border-slate-200');
+        
+        lucide.createIcons();
+    }
+
     const imageInput = document.getElementById('{{ form.image.id_for_label }}');
     const previewZone = document.getElementById('image-preview-zone');
     const uploadZone = document.getElementById('upload-zone');
     const previewImage = document.getElementById('image-preview');
 
-    imageInput.addEventListener('change', function() {
-        if (this.files && this.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                previewImage.src = e.target.result;
-                previewZone.classList.remove('hidden');
-                uploadZone.classList.add('hidden');
+    if (imageInput) {
+        imageInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImage.src = e.target.result;
+                    previewZone.classList.remove('hidden');
+                    uploadZone.classList.add('hidden');
+                }
+                reader.readAsDataURL(this.files[0]);
             }
-            reader.readAsDataURL(this.files[0]);
-        }
-    });
+        });
+    }
 
     function removeProductImage() {
-        imageInput.value = '';
-        previewImage.src = '';
-        previewZone.classList.add('hidden');
-        uploadZone.classList.remove('hidden');
-        
-        // Se quisermos marcar para limpar no Django (ClearableFileInput)
-        const clearCheckbox = document.getElementById('{{ form.image.id_for_label }}-clear_id');
-        if (clearCheckbox) {
-            clearCheckbox.checked = true;
+        if (imageInput) {
+            imageInput.value = '';
+            previewImage.src = '';
+            previewZone.classList.add('hidden');
+            uploadZone.classList.remove('hidden');
+            
+            // Se quisermos marcar para limpar no Django (ClearableFileInput)
+            const clearCheckbox = document.getElementById('{{ form.image.id_for_label }}-clear_id');
+            if (clearCheckbox) {
+                clearCheckbox.checked = true;
+            }
         }
     }
 </script>

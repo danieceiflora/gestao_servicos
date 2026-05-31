@@ -237,21 +237,26 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div class="space-y-2">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div class="md:col-span-1 space-y-2">
                             <label class="text-sm font-medium text-slate-700">Bairro</label>
                             {{ f.neighborhood }}
                             {% if f.neighborhood.errors %}<p class="text-[10px] text-red-500">{{ f.neighborhood.errors }}</p>{% endif %}
                         </div>
-                        <div class="space-y-2">
+                        <div class="md:col-span-1 space-y-2">
                             <label class="text-sm font-medium text-slate-700">Cidade</label>
                             {{ f.city }}
                             {% if f.city.errors %}<p class="text-[10px] text-red-500">{{ f.city.errors }}</p>{% endif %}
                         </div>
-                        <div class="space-y-2">
+                        <div class="md:col-span-1 space-y-2">
                             <label class="text-sm font-medium text-slate-700">UF</label>
                             {{ f.state }}
                             {% if f.state.errors %}<p class="text-[10px] text-red-500">{{ f.state.errors }}</p>{% endif %}
+                        </div>
+                        <div class="md:col-span-1 space-y-2">
+                            <label class="text-sm font-medium text-slate-700">Cód. IBGE</label>
+                            {{ f.ibge_code }}
+                            {% if f.ibge_code.errors %}<p class="text-[10px] text-red-500">{{ f.ibge_code.errors }}</p>{% endif %}
                         </div>
                     </div>
 
