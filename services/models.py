@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
 from decimal import Decimal, ROUND_HALF_UP
 import uuid
 from .utils import fiscal_logic
@@ -614,6 +615,84 @@ class StockMovement(models.Model):
         ordering = ['-created_at']
 
 
+class Billing(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pendente'
+        PARTIAL = 'PARTIAL', 'Parcialmente Pago'
+        PAID = 'PAID', 'Pago'
+        CANCELLED = 'CANCELLED', 'Cancelado'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    number = models.PositiveIntegerField(unique=True, null=True, blank=True, verbose_name="Número da Cobrança")
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='billings', verbose_name="Cliente")
+    
+    sale = models.OneToOneField('Sale', on_delete=models.SET_NULL, null=True, blank=True, related_name='billing', verbose_name="Venda")
+    service_order = models.OneToOneField('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='billing', verbose_name="Ordem de Serviço")
+    
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Bruto")
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
+    
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="Status")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.number:
+            from django.db.models import Max
+            max_number = Billing.objects.aggregate(Max('number'))['number__max']
+            self.number = (max_number or 5000) + 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        origin = f"Venda #{self.sale.number}" if self.sale and hasattr(self.sale, 'number') else f"OS #{self.service_order.number}" if self.service_order else "Manual"
+        return f"Cobrança #{self.number} ({origin})"
+
+    def get_total_paid(self):
+        return sum(inst.get_total_paid() for inst in self.installments.all())
+
+    def get_remaining_balance(self):
+        return (self.total_amount - self.discount) - self.get_total_paid()
+
+    class Meta:
+        verbose_name = "Cobrança"
+        verbose_name_plural = "Cobranças"
+        ordering = ['-created_at']
+
+class Installment(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pendente'
+        PARTIAL = 'PARTIAL', 'Parcial'
+        PAID = 'PAID', 'Pago'
+        OVERDUE = 'OVERDUE', 'Atrasado'
+        CANCELLED = 'CANCELLED', 'Cancelado'
+
+    billing = models.ForeignKey(Billing, on_delete=models.CASCADE, related_name='installments', verbose_name="Cobrança")
+    installment_number = models.PositiveIntegerField(verbose_name="Nº Parcela")
+    due_date = models.DateField(verbose_name="Data de Vencimento")
+    amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor")
+    
+    payment_method = models.ForeignKey('PaymentMethod', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Forma de Pagto")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="Status")
+    
+    paid_at = models.DateTimeField(null=True, blank=True, verbose_name="Pago em")
+    notes = models.TextField(blank=True, null=True, verbose_name="Observações")
+
+    def __str__(self):
+        return f"{self.billing} - Parc {self.installment_number}"
+
+    def get_total_paid(self):
+        from django.db.models import Sum
+        return self.actual_payments.aggregate(Sum('valor_bruto'))['valor_bruto__sum'] or Decimal('0.00')
+
+    def get_remaining_balance(self):
+        return self.amount - self.get_total_paid()
+
+    class Meta:
+        verbose_name = "Parcela"
+        verbose_name_plural = "Parcelas"
+        ordering = ['billing', 'installment_number']
+
 # --- MÓDULO DE VENDAS E PAGAMENTOS (PDV) ---
 
 class ProviderType(models.TextChoices):
@@ -643,11 +722,12 @@ class PaymentMethod(models.Model):
 class SalePayment(models.Model):
     venda = models.ForeignKey('Sale', on_delete=models.CASCADE, related_name='payments', null=True, blank=True, verbose_name="Venda")
     os = models.ForeignKey('ServiceOrder', on_delete=models.CASCADE, related_name='sale_payments', null=True, blank=True, verbose_name="Ordem de Serviço")
+    installment = models.ForeignKey(Installment, on_delete=models.SET_NULL, null=True, blank=True, related_name='actual_payments', verbose_name="Parcela")
     metodo_pagamento = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT, verbose_name="Método de Pagamento")
     valor_bruto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Bruto")
     valor_tarifa = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Tarifa")
     valor_liquido = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Líquido")
-    data_pagamento = models.DateTimeField(auto_now_add=True, verbose_name="Data do Pagamento")
+    data_pagamento = models.DateTimeField(default=timezone.now, verbose_name="Data do Pagamento")
     data_previsao = models.DateField(verbose_name="Previsão de Recebimento")
 
     class Meta:
@@ -656,9 +736,14 @@ class SalePayment(models.Model):
 
 class Sale(models.Model):
     class Status(models.TextChoices):
+        ATENDIDO = 'ATENDIDO', 'Atendido'
+        CANCELADO = 'CANCELADO', 'Cancelado'
+        EM_ANDAMENTO = 'EM_ANDAMENTO', 'Em Andamento'
+        PRONTO = 'PRONTO', 'Pronto'
+        RECEBIDO = 'RECEBIDO', 'Recebido'
+        VENDA_AGENCIADA = 'VENDA_AGENCIADA', 'Venda Agenciada'
         DRAFT = 'DRAFT', 'Rascunho'
-        COMPLETED = 'COMPLETED', 'Concluída'
-        CANCELLED = 'CANCELLED', 'Cancelada'
+        COMPLETED = 'COMPLETED', 'Finalizada'
 
     class PaymentMethod(models.TextChoices):
         CASH = 'CASH', 'Dinheiro'
@@ -667,6 +752,7 @@ class Sale(models.Model):
         CREDIT_CARD = 'CREDIT_CARD', 'Cartão de Crédito'
 
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    number = models.PositiveIntegerField(unique=True, null=True, blank=True, verbose_name="Número da Venda")
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
     user = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="Vendedor")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, verbose_name="Status")
@@ -705,6 +791,7 @@ class Sale(models.Model):
 
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Valor Total")
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
+    surcharge = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Acréscimo")
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, null=True, blank=True, verbose_name="Forma de Pagamento")
     service_order = models.ForeignKey('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='sales', verbose_name="OS Vinculada")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -715,8 +802,21 @@ class Sale(models.Model):
         verbose_name_plural = "Vendas"
         ordering = ['-created_at']
 
+    def save(self, *args, **kwargs):
+        if not self.number:
+            from django.db.models import Max
+            max_number = Sale.objects.aggregate(Max('number'))['number__max']
+            self.number = (max_number or 1000) + 1
+
+        # Garantir decimais
+        self.discount = self.discount or Decimal('0.00')
+        self.surcharge = self.surcharge or Decimal('0.00')
+        self.total_amount = self.total_amount or Decimal('0.00')
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"Venda {self.uuid.hex[:8]} - {self.get_status_display()}"
+        return f"Venda #{self.number} - {self.get_status_display()}"
 
 
 class SaleItem(models.Model):
@@ -726,7 +826,7 @@ class SaleItem(models.Model):
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Unitário")
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Subtotal (Líquido)")
-    
+
     # Dados Fiscais "Congelados" no ato da venda
     ncm_ato = models.CharField(max_length=8, blank=True, null=True, verbose_name="NCM no ato")
     cest_ato = models.CharField(max_length=7, blank=True, null=True, verbose_name="CEST no ato")
@@ -739,6 +839,7 @@ class SaleItem(models.Model):
         verbose_name_plural = "Itens de Venda"
 
     def save(self, *args, **kwargs):
+        self.discount = self.discount or Decimal('0.00')
         self.subtotal = (self.quantity * self.unit_price) - self.discount
         
         # Lógica Fiscal (Inteligência Fiscal)

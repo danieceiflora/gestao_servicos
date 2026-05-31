@@ -7,7 +7,7 @@
 const db = new Dexie("GestaoServicosDB");
 
 // Definição do Schema
-db.version(5).stores({
+db.version(6).stores({
     tasks: 'id, service_order_id, status, scheduled_at',
     orders: 'id, number, status, client_property_id',
     properties: 'id, client_id',
@@ -19,7 +19,10 @@ db.version(5).stores({
     products: 'id',
     media: '++id, task_id, response_id, occurrence_id, status',
     sync_queue: '++id, type, status, timestamp',
-    settings: 'key'
+    settings: 'key',
+    billings: 'id, service_order_id, number, status',
+    installments: '++id, billing_id, status, due_date',
+    payment_methods: 'id, descricao'
 });
 
 const OfflineDB = {
@@ -80,7 +83,8 @@ const OfflineDB = {
             await db.transaction('rw', [
                 db.tasks, db.orders, db.properties, db.clients, 
                 db.checklist_items, db.checklist_responses, 
-                db.services, db.products, db.settings
+                db.services, db.products, db.settings,
+                db.payment_methods, db.billings, db.installments
             ], async () => {
                 // Aplica estado pendente às tarefas que vieram do servidor
                 const finalizedTasks = (data.tasks || []).map(serverTask => {
@@ -115,6 +119,15 @@ const OfflineDB = {
                 
                 await db.products.clear();
                 await db.products.bulkPut(data.products || []);
+
+                await db.payment_methods.clear();
+                await db.payment_methods.bulkPut(data.payment_methods || []);
+
+                await db.billings.clear();
+                await db.billings.bulkPut(data.billings || []);
+
+                await db.installments.clear();
+                await db.installments.bulkPut(data.installments || []);
                 
                 await db.settings.put({ key: 'last_sync', value: data.sync_token });
                 await db.settings.put({ key: 'technician', value: data.technician });

@@ -660,31 +660,66 @@ const OfflineApp = {
         if (window.lucide) lucide.createIcons();
     },
 
-    initPaymentLogic() {
-        const buttons = document.querySelectorAll('.btn-payment-method');
+    async initPaymentLogic() {
+        const methodsContainer = document.getElementById('finish-payment-methods-grid');
         const details = document.getElementById('payment-details');
         
+        if (!methodsContainer) return;
+
+        // Limpa e busca métodos reais do DB
+        methodsContainer.innerHTML = '';
+        const methods = await db.payment_methods.toArray();
+        
+        if (methods.length === 0) {
+            methodsContainer.innerHTML = '<p class="col-span-full text-center text-[10px] text-slate-400 py-4">Nenhum método de pagamento disponível.</p>';
+            return;
+        }
+
         this.state.payment.method = null;
 
-        buttons.forEach(btn => {
+        methods.forEach(method => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-payment-method flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-slate-100 bg-white hover:border-blue-200 transition-all active:scale-95';
+            btn.dataset.method = method.descricao; // Usamos a descrição/código para sync
+            
+            // Ícone genérico (pode ser melhorado com mapeamento)
+            let icon = 'credit-card';
+            if (method.descricao.toUpperCase().includes('PIX')) icon = 'qr-code';
+            if (method.descricao.toUpperCase().includes('DINHEIRO')) icon = 'banknote';
+
+            btn.innerHTML = `
+                <div class="p-2 rounded-xl bg-slate-50 text-slate-400">
+                    <i data-lucide="${icon}" class="h-6 w-6"></i>
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-tighter text-slate-600">${method.descricao}</span>
+            `;
+
             btn.onclick = () => {
                 const isSelected = btn.classList.contains('bg-blue-50');
                 
                 // Limpar seleções
-                buttons.forEach(b => b.classList.remove('bg-blue-50', 'border-blue-500', 'text-blue-600'));
+                methodsContainer.querySelectorAll('.btn-payment-method').forEach(b => {
+                    b.classList.remove('bg-blue-50', 'border-blue-500', 'text-blue-600');
+                    b.querySelector('div').classList.replace('bg-blue-100', 'bg-slate-50');
+                    b.querySelector('div').classList.replace('text-blue-600', 'text-slate-400');
+                });
                 
                 if (isSelected) {
-                    // Deselecionar
                     this.state.payment.method = null;
                     details.classList.add('hidden');
                 } else {
-                    // Selecionar
                     btn.classList.add('bg-blue-50', 'border-blue-500', 'text-blue-600');
+                    btn.querySelector('div').classList.replace('bg-slate-50', 'bg-blue-100');
+                    btn.querySelector('div').classList.replace('text-slate-400', 'text-blue-600');
                     this.state.payment.method = btn.dataset.method;
                     details.classList.remove('hidden');
                 }
             };
+            methodsContainer.appendChild(btn);
         });
+
+        if (window.lucide) lucide.createIcons();
     },
 
     async confirmFinish(taskId) {

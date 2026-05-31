@@ -1,7 +1,8 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import ServiceOrder
+from .models import ServiceOrder, Sale
 from .workflow import trigger_payment_workflow
+from .utils.finance import create_billing_for_os, create_billing_for_sale
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,9 +11,20 @@ logger = logging.getLogger(__name__)
 def handle_service_order_status_change(sender, instance, created, **kwargs):
     """
     Sinal que monitora mudanças na ServiceOrder.
-    Se o status for WAITING_PAYMENT e a cobrança ainda não tiver sido enviada, dispara o workflow.
+    Gera cobrança automaticamente ao atingir status de pagamento ou finalização.
     """
-    # Se acabou de ser criada ou o status mudou para WAITING_PAYMENT
+    if instance.status in [ServiceOrder.Status.WAITING_PAYMENT, ServiceOrder.Status.FINISHED]:
+        create_billing_for_os(instance)
+
+    # Workflow de notificação
     if instance.status == ServiceOrder.Status.WAITING_PAYMENT and not instance.pix_sent_at:
         logger.info(f"Detectada OS #{instance.number} em Aguardando Pagamento. Disparando workflow de cobrança.")
         trigger_payment_workflow(instance)
+
+@receiver(post_save, sender=Sale)
+def handle_sale_creation(sender, instance, created, **kwargs):
+    """
+    Gera cobrança básica para vendas se ainda não existir.
+    """
+    if instance.status == Sale.Status.COMPLETED:
+        create_billing_for_sale(instance)

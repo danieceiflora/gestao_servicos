@@ -13,6 +13,11 @@ urlpatterns = [
     path('finance/professional-payments/<int:payment_id>/confirm/', views_finance.finance_confirm_payment, name='finance_confirm_payment'),
     path('finance/professional-payments/bulk-confirm/', views_finance.finance_bulk_confirm_payments, name='finance_bulk_confirm_payments'),
     
+    # --- CONTAS A RECEBER (FINANCEIRO CENTRALIZADO) ---
+    path('finance/receivables/', views_finance.billing_list, name='billing_list'),
+    path('finance/receivables/<uuid:pk>/', views_finance.billing_detail, name='billing_detail'),
+    path('finance/installments/<int:pk>/pay/', views_finance.installment_pay, name='installment_pay'),
+    
     # --- MÉTODOS DE PAGAMENTO ---
     path('finance/payment-methods/', views_finance.payment_method_list, name='payment_method_list'),
     path('finance/payment-methods/new/', views_finance.payment_method_create, name='payment_method_create'),

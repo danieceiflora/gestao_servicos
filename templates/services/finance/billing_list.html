@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="space-y-6 animate-in fade-in duration-500">
+    <!-- Cabeçalho -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tighter">Contas a Receber</h1>
+            <p class="text-sm text-slate-500 font-medium">Gestão centralizada de cobranças e parcelas</p>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <div class="bg-white border border-slate-200 rounded-lg p-1 flex gap-1 shadow-sm">
+                <a href="?status=" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if not request.GET.status %}bg-slate-900 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Todos</a>
+                <a href="?status=PENDING" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PENDING' %}bg-amber-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pendentes</a>
+                <a href="?status=PARTIAL" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PARTIAL' %}bg-blue-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Parciais</a>
+                <a href="?status=PAID" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PAID' %}bg-emerald-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pagos</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Cobranças -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/50 border-b border-slate-100">
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nº Cobrança</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cliente</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Origem</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Valor Total</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Saldo Devedor</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                    {% for billing in billings %}
+                    <tr class="hover:bg-slate-50/80 transition-colors group">
+                        <td class="px-6 py-4">
+                            <span class="text-sm font-black text-slate-900 tracking-tight">#{{ billing.number }}</span>
+                            <p class="text-[10px] text-slate-400 font-medium">{{ billing.created_at|date:"d/m/Y H:i" }}</p>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="text-sm font-bold text-slate-700">{{ billing.client.display_name }}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if billing.sale %}
+                                <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-purple-50 text-[10px] font-bold text-purple-600 border border-purple-100">
+                                    <i data-lucide="shopping-bag" class="w-3 h-3"></i> Venda #{{ billing.sale.number }}
+                                </div>
+                            {% elif billing.service_order %}
+                                <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50 text-[10px] font-bold text-blue-600 border border-blue-100">
+                                    <i data-lucide="wrench" class="w-3 h-3"></i> OS #{{ billing.service_order.number }}
+                                </div>
+                            {% else %}
+                                <span class="text-[10px] font-bold text-slate-400">Manual</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if billing.status == 'PENDING' %}
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide bg-amber-100 text-amber-700">Pendente</span>
+                            {% elif billing.status == 'PARTIAL' %}
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide bg-blue-100 text-blue-700">Parcial</span>
+                            {% elif billing.status == 'PAID' %}
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide bg-emerald-100 text-emerald-700">Pago</span>
+                            {% else %}
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide bg-slate-100 text-slate-500">{{ billing.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <span class="text-sm font-black text-slate-900 tracking-tighter">R$ {{ billing.total_amount|floatformat:2 }}</span>
+                            {% if billing.discount > 0 %}
+                                <p class="text-[9px] text-red-500 font-bold">- R$ {{ billing.discount|floatformat:2 }} desc.</p>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            {% with balance=billing.get_remaining_balance %}
+                                <span class="text-sm font-black tracking-tighter {% if balance > 0 %}text-red-600{% else %}text-emerald-600{% endif %}">
+                                    R$ {{ balance|floatformat:2 }}
+                                </span>
+                            {% endwith %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="{% url 'billing_detail' billing.id %}" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white transition-all">
+                                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-20 text-center">
+                            <div class="flex flex-col items-center gap-3">
+                                <div class="bg-slate-50 p-4 rounded-full">
+                                    <i data-lucide="receipt" class="w-8 h-8 text-slate-300"></i>
+                                </div>
+                                <p class="text-slate-400 font-medium">Nenhuma cobrança encontrada.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

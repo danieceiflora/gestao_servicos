@@ -6,16 +6,18 @@ from .models import (
     Professional, ServiceOrderTask, ServiceOrder, Client, Property,
     Service, Product, ChecklistTemplate, ServiceChecklistItem,
     TaskChecklistResponse, ServiceItem, ServicePayment, Occurrence,
-    MediaProcessingJob
+    MediaProcessingJob, Billing, Installment, PaymentMethod
 )
 from .utils_media import (
     MediaProcessingBusyError,
     save_upload_for_processing,
 )
+from .utils.finance import create_billing_for_os
 from integracoes.models import SystemConfig
 import uuid
 import json
 from decimal import Decimal
+from django.db.models import Q, Sum
 
 @login_required
 def equipe_offline_app(request):
@@ -74,6 +76,13 @@ def api_tecnico_bootstrap(request):
 
         # Ocorrências
         occurrences = Occurrence.objects.filter(task__in=tasks_qs)
+
+        # Métodos de Pagamento reais
+        payment_methods = PaymentMethod.objects.filter(ativo=True)
+
+        # Cobranças e Parcelas (Apenas as vinculadas às OSs baixadas)
+        billings = Billing.objects.filter(service_order_id__in=order_ids)
+        installments = Installment.objects.filter(billing__in=billings)
 
         # Configurações do Sistema
         sys_config = SystemConfig.load()
@@ -181,6 +190,32 @@ def api_tecnico_bootstrap(request):
                     'unit': prod.unit_type,
                 } for prod in products
             ],
+            'payment_methods': [
+                {
+                    'id': pm.id,
+                    'descricao': pm.descricao,
+                } for pm in payment_methods
+            ],
+            'billings': [
+                {
+                    'id': str(b.id),
+                    'service_order_id': str(b.service_order_id),
+                    'number': b.number,
+                    'status': b.status,
+                    'total_amount': str(b.total_amount),
+                    'discount': str(b.discount),
+                } for b in billings
+            ],
+            'installments': [
+                {
+                    'id': inst.id,
+                    'billing_id': str(inst.billing_id),
+                    'installment_number': inst.installment_number,
+                    'due_date': inst.due_date.isoformat(),
+                    'amount': str(inst.amount),
+                    'status': inst.status,
+                } for inst in installments
+            ],
             'config': {
                 'company_name': sys_config.company_name,
                 'pix_key': sys_config.pix_key,
@@ -275,30 +310,55 @@ def api_tecnico_sync_push(request):
                     if finish_data.get('notes'):
                         task.notes = (task.notes or "") + "\n\nNotas Offline:\n" + finish_data.get('notes')
                     
-                    # Processa Pagamento Opcional
+                    # Processa Pagamento Centralizado
                     payment_data = finish_data.get('payment')
                     if payment_data:
                         try:
                             amount = Decimal(str(payment_data.get('amount', 0)))
-                            method = payment_data.get('method')
-                            if amount > 0 and method:
-                                # Tenta pegar o perfil profissional do usuário logado
+                            method_code = payment_data.get('method')
+                            
+                            if amount > 0:
+                                # Garante a existência da cobrança centralizada
+                                billing = create_billing_for_os(task.service_order)
+                                
+                                # Tenta mapear o método de pagamento (CASH, PIX, etc. vindo do mobile)
+                                payment_method = PaymentMethod.objects.filter(
+                                    Q(descricao__iexact=method_code) | Q(ativo=True)
+                                ).first()
+
+                                # No fluxo mobile simplificado, damos baixa na primeira parcela pendente
+                                installment = billing.installments.filter(status=Installment.Status.PENDING).first()
+                                if installment:
+                                    installment.amount = amount
+                                    installment.payment_method = payment_method
+                                    installment.status = Installment.Status.PAID
+                                    installment.paid_at = task.finished_at or timezone.now()
+                                    installment.save()
+                                    
+                                    # Recalcula status da cobrança
+                                    total_paid = billing.installments.filter(status=Installment.Status.PAID).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+                                    if total_paid >= (billing.total_amount - billing.discount):
+                                        billing.status = Billing.Status.PAID
+                                    else:
+                                        billing.status = Billing.Status.PARTIAL
+                                    billing.save()
+
+                                # Mantém compatibilidade com ServicePayment legado para relatórios antigos se necessário
                                 try:
                                     professional = request.user.professional_profile
-                                except (Professional.DoesNotExist, AttributeError):
-                                    professional = None
-                                    
+                                except: professional = None
+                                
                                 ServicePayment.objects.create(
                                     order=task.service_order,
                                     amount=amount,
-                                    payment_method=method,
+                                    payment_method=method_code,
                                     paid_at=task.finished_at or timezone.now(),
                                     received_by=professional,
-                                    status=ServicePayment.PaymentStatus.PENDING,
-                                    notes="[Sincronizado Offline]: Recebido na finalização da OS"
+                                    status=ServicePayment.PaymentStatus.CONFIRMED, # Técnico recebeu na mão
+                                    notes=f"[Sinc Centralizado]: Vinculado à Cobrança #{billing.number}"
                                 )
                         except Exception as pay_err:
-                            print(f"Erro ao salvar pagamento offline: {pay_err}")
+                            print(f"Erro ao salvar faturamento centralizado offline: {pay_err}")
 
                     task.save()
                     if hasattr(task.service_order, 'update_status'):

@@ -8,6 +8,7 @@ from .models import (
     ServiceOrderTask, ServicePayment, Product, StockMovement,
     Sale, SaleItem, Supplier, PaymentMethod
 )
+from integracoes.models import SystemConfig
 
 # --- UTILS FOR MULTIPLE UPLOAD ---
 
@@ -857,19 +858,42 @@ class ProductImportForm(forms.Form):
 # --- SALES (PDV) FORMS ---
 
 class SaleForm(forms.ModelForm):
+    installment_count = forms.ChoiceField(
+        label="Parcelas",
+        choices=[(str(i), f"{i}x") for i in range(1, 13)],
+        initial='1',
+        required=False,
+        widget=forms.Select(attrs={'class': 'prominent-select'})
+    )
+    due_days = forms.IntegerField(
+        label="Dias para Vencimento",
+        initial=1,
+        required=False,
+        widget=forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'min': 0})
+    )
+
     class Meta:
         model = Sale
         fields = [
-            'client', 'discount',
+            'client', 'status', 'discount', 'surcharge',
             'indicador_presenca', 'modalidade_frete', 'forma_pagamento_sefaz'
         ]
         widgets = {
             'client': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white search-select'}),
+            'status': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'discount': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'surcharge': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
             'indicador_presenca': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'modalidade_frete': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'forma_pagamento_sefaz': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        config = SystemConfig.load()
+        self.fields['due_days'].initial = config.billing_default_due_days
+        self.fields['discount'].required = False
+        self.fields['surcharge'].required = False
 
 class SaleItemForm(forms.ModelForm):
     class Meta:
@@ -882,12 +906,16 @@ class SaleItemForm(forms.ModelForm):
             'discount': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 discount-input', 'step': '0.01'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['discount'].required = False
+
 SaleItemFormSet = inlineformset_factory(
     Sale, SaleItem,
     form=SaleItemForm,
     extra=0,
     can_delete=True,
-    min_num=0,
+    min_num=1,
     validate_min=True
 )
 

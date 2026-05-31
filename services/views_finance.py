@@ -19,6 +19,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from .models import Billing, Installment
 
 def is_manager(user):
     return user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
@@ -495,7 +496,7 @@ def sale_create(request):
                             movement_type=StockMovement.MovementType.OUT,
                             reason=StockMovement.Reason.SALE_DIRECT,
                             user=request.user,
-                            notes=f"Venda Direta: {sale.uuid.hex[:8]}"
+                            notes=f"Venda Direta: #{sale.number}"
                         )
                         
                         # Atualizar estoque atual do produto
@@ -503,36 +504,32 @@ def sale_create(request):
                         product.current_stock -= item.quantity
                         product.save()
                     
-                    sale.total_amount = total - sale.discount
+                    sale.total_amount = total - sale.discount + sale.surcharge
                     sale.status = Sale.Status.COMPLETED
                     sale.save()
                     
-                    # Salvar Pagamentos Múltiplos
-                    payment_method_ids = request.POST.getlist('payment_method_id[]')
-                    payment_amounts = request.POST.getlist('payment_amount[]')
+                    # --- Lógica de Cobrança Centralizada (Opcional) ---
+                    installment_dates = request.POST.getlist('installment_due_date[]')
+                    installment_amounts = request.POST.getlist('installment_amount[]')
+                    installment_methods = request.POST.getlist('installment_method_id[]')
                     
-                    for p_id, p_amount in zip(payment_method_ids, payment_amounts):
-                        try:
-                            method = PaymentMethod.objects.get(pk=p_id)
-                            bruto = Decimal(p_amount)
-                            tarifa = (bruto * (method.tarifa_porcentagem / Decimal('100'))) + method.tarifa_fixa
-                            liquido = bruto - tarifa
-                            previsao = timezone.now().date() + timezone.timedelta(days=method.prazo_recebimento)
-                            
-                            SalePayment.objects.create(
-                                venda=sale,
-                                metodo_pagamento=method,
-                                valor_bruto=bruto,
-                                valor_tarifa=tarifa,
-                                valor_liquido=liquido,
-                                data_previsao=previsao
-                            )
-                        except PaymentMethod.DoesNotExist:
-                            pass
+                    if installment_dates:
+                        installments_data = []
+                        for d, a, m in zip(installment_dates, installment_amounts, installment_methods):
+                            installments_data.append({
+                                'due_date': d,
+                                'amount': Decimal(a),
+                                'payment_method_id': m if m else None
+                            })
+                        
+                        from .utils.finance import create_billing_for_sale
+                        create_billing_for_sale(sale, installments_data)
                     
-                    messages.success(request, "Venda realizada com sucesso!")
+                    messages.success(request, f"Venda #{sale.number} realizada com sucesso!")
                     return redirect('sale_detail', uuid=sale.uuid)
             except Exception as e:
+                import traceback
+                print(traceback.format_exc())
                 messages.error(request, f"Erro ao processar venda: {str(e)}")
         else:
             messages.error(request, "Por favor, corrija os erros no formulário.")
@@ -575,7 +572,7 @@ def sale_cancel(request, uuid):
                         movement_type=StockMovement.MovementType.IN,
                         reason=StockMovement.Reason.RETURN,
                         user=request.user,
-                        notes=f"Estorno Venda Cancelada: {sale.uuid.hex[:8]}"
+                        notes=f"Estorno Venda Cancelada: #{sale.number}"
                     )
                     
                     product = item.product
@@ -584,9 +581,126 @@ def sale_cancel(request, uuid):
                 
                 sale.status = Sale.Status.CANCELLED
                 sale.save()
+
+                # Cancelar Billing se existir
+                if hasattr(sale, 'billing'):
+                    sale.billing.status = Billing.Status.CANCELLED
+                    sale.billing.save()
+                    sale.billing.installments.update(status=Installment.Status.CANCELLED)
                 
                 messages.success(request, "Venda cancelada e estoque estornado com sucesso!")
         except Exception as e:
             messages.error(request, f"Erro ao cancelar venda: {str(e)}")
             
     return redirect('sale_detail', uuid=sale.uuid)
+
+# --- CONTAS A RECEBER (FINANCEIRO CENTRALIZADO) ---
+
+@login_required
+@user_passes_test(is_manager)
+def billing_list(request):
+    """Lista de todas as cobranças (Contas a Receber)."""
+    billings = Billing.objects.all().select_related('client', 'sale', 'service_order')
+    
+    # Filtros simples
+    status = request.GET.get('status')
+    if status:
+        billings = billings.filter(status=status)
+        
+    context = {
+        'billings': billings,
+        'title': 'Contas a Receber',
+        'active_menu': 'finance'
+    }
+    return render(request, 'services/finance/billing_list.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def billing_detail(request, pk):
+    """Detalhamento de uma cobrança e suas parcelas."""
+    billing = get_object_or_404(Billing, pk=pk)
+    installments = billing.installments.all().select_related('payment_method')
+    payment_methods = PaymentMethod.objects.filter(ativo=True)
+    
+    context = {
+        'billing': billing,
+        'installments': installments,
+        'payment_methods': payment_methods,
+        'title': f'Cobrança #{billing.number}'
+    }
+    return render(request, 'services/finance/billing_detail.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def installment_pay(request, pk):
+    """Dá baixa manual em uma parcela, suportando múltiplos meios de pagamento."""
+    installment = get_object_or_404(Installment, pk=pk)
+    
+    if request.method == 'POST':
+        # Recebe listas de métodos e valores do formulário
+        method_ids = request.POST.getlist('payment_method[]')
+        amounts = request.POST.getlist('payment_amount[]')
+        
+        if not method_ids:
+            # Fallback para o comportamento antigo (único select)
+            method_ids = [request.POST.get('payment_method')]
+            amounts = [installment.amount - installment.get_total_paid()]
+        
+        total_this_time = Decimal('0.00')
+        
+        for m_id, amt, dt in zip(method_ids, amounts, request.POST.getlist('payment_date[]')):
+            if not m_id or not amt: continue
+            
+            amt_decimal = Decimal(amt.replace(',', '.'))
+            if amt_decimal <= 0: continue
+            
+            method = get_object_or_404(PaymentMethod, pk=m_id)
+            
+            pay_date = timezone.now()
+            if dt:
+                try:
+                    pay_date = timezone.make_aware(datetime.fromisoformat(dt))
+                except ValueError:
+                    pass
+            
+            # Cria o registro de pagamento real
+            SalePayment.objects.create(
+                venda=installment.billing.sale,
+                os=installment.billing.service_order,
+                installment=installment,
+                metodo_pagamento=method,
+                valor_bruto=amt_decimal,
+                valor_tarifa=Decimal('0.00'), # TODO: Calcular tarifa se necessário
+                valor_liquido=amt_decimal,     # TODO: Calcular líquido
+                data_pagamento=pay_date,
+                data_previsao=timezone.now().date() # TODO: Usar prazo do método
+            )
+            total_this_time += amt_decimal
+        
+        # Atualiza status da Parcela
+        total_paid = installment.get_total_paid()
+        if total_paid >= installment.amount:
+            installment.status = Installment.Status.PAID
+            installment.paid_at = timezone.now()
+        elif total_paid > 0:
+            installment.status = Installment.Status.PARTIAL
+        
+        installment.save()
+        
+        # Atualiza status da Cobrança (Billing)
+        billing = installment.billing
+        all_installments = billing.installments.all()
+        
+        # Verifica se todas as parcelas estão pagas
+        if not all_installments.exclude(status=Installment.Status.PAID).exists():
+            billing.status = Billing.Status.PAID
+        elif all_installments.filter(status__in=[Installment.Status.PAID, Installment.Status.PARTIAL]).exists():
+            billing.status = Billing.Status.PARTIAL
+        else:
+            billing.status = Billing.Status.PENDING
+            
+        billing.save()
+        
+        messages.success(request, f"Pagamento de R$ {total_this_time} registrado para a parcela {installment.installment_number}!")
+        
+    return redirect('billing_detail', pk=installment.billing.id)
