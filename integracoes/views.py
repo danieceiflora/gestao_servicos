@@ -157,18 +157,18 @@ def _parse_confirmation_decision(reply_text):
     words = re.findall(r"[a-z0-9]+", text)
 
     if any(keyword in text for keyword in reschedule_keywords):
-        return ServiceOrderTask.WhatsAppConfirmationStatus.RESCHEDULE
+        return ServiceOrderTask.WhatsAppConfirmationStatus.REAGENDAR
 
     if any(keyword in text for keyword in confirm_keywords) or any(keyword in words for keyword in confirm_keywords):
-        return ServiceOrderTask.WhatsAppConfirmationStatus.CONFIRMED
+        return ServiceOrderTask.WhatsAppConfirmationStatus.CONFIRMADO
 
     return None
 
 
 def _build_confirmation_response_label(status):
-    if status == ServiceOrderTask.WhatsAppConfirmationStatus.CONFIRMED:
+    if status == ServiceOrderTask.WhatsAppConfirmationStatus.CONFIRMADO:
         return "confirmado"
-    if status == ServiceOrderTask.WhatsAppConfirmationStatus.RESCHEDULE:
+    if status == ServiceOrderTask.WhatsAppConfirmationStatus.REAGENDAR:
         return "reagendar"
     return None
 
@@ -179,8 +179,8 @@ def _is_chatwoot_client_confirmation_reply(payload):
 
 def _resolve_order_status_from_budget_decision(is_approved):
     if is_approved:
-        return ServiceOrder.Status.APPROVED_WAITING_SCHEDULE
-    return ServiceOrder.Status.REJECTED_BY_CLIENT
+        return ServiceOrder.Status.APROVADO_AGUARDANDO_AGENDAMENTO
+    return ServiceOrder.Status.REPROVADO_PELO_CLIENTE
 
 
 def _is_chatwoot_client_budget_reply(payload):
@@ -247,8 +247,8 @@ def _process_chatwoot_budget_sent(payload):
         order = ServiceOrder.objects.filter(
             chatwoot_budget_conversation_id=str(conversation_id),
             status__in=[
-                ServiceOrder.Status.BUDGET_DONE_WAITING_SEND,
-                ServiceOrder.Status.WAITING_APPROVAL,
+                ServiceOrder.Status.ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO,
+                ServiceOrder.Status.AGUARDANDO_APROVACAO,
             ]
         ).order_by('-updated_at').first()
 
@@ -293,8 +293,8 @@ def _process_chatwoot_budget_reply(payload):
         order = ServiceOrder.objects.filter(
             chatwoot_budget_conversation_id__in=conversation_refs,
             status__in=[
-                ServiceOrder.Status.BUDGET_DONE_WAITING_SEND,
-                ServiceOrder.Status.WAITING_APPROVAL,
+                ServiceOrder.Status.ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO,
+                ServiceOrder.Status.AGUARDANDO_APROVACAO,
             ]
         ).order_by('-updated_at').first()
 
@@ -302,7 +302,7 @@ def _process_chatwoot_budget_reply(payload):
         logger.warning("Webhook Chatwoot sem OS correspondente. refs=%s convs=%s", list(reply_refs), list(conversation_refs))
         return 'failed', 'Não foi possível localizar a OS pelo ID da mensagem/conversa.'
 
-    budget_task = order.tasks.filter(task_type=ServiceOrderTask.TaskType.BUDGET).order_by('-scheduled_at').first()
+    budget_task = order.tasks.filter(task_type=ServiceOrderTask.TaskType.ORCAMENTO).order_by('-scheduled_at').first()
     if not budget_task:
         return 'failed', f'OS #{order.number} sem etapa de orçamento para atualizar.'
 
@@ -370,8 +370,8 @@ def _process_chatwoot_confirmation_reply(payload):
         task = ServiceOrderTask.objects.filter(
             chatwoot_confirmation_conversation_id__in=conversation_refs,
             whatsapp_confirmation_status__in=[
-                ServiceOrderTask.WhatsAppConfirmationStatus.SENT,
-                ServiceOrderTask.WhatsAppConfirmationStatus.WAITING,
+                ServiceOrderTask.WhatsAppConfirmationStatus.ENVIADO,
+                ServiceOrderTask.WhatsAppConfirmationStatus.AGUARDANDO,
             ]
         ).order_by('-created_at').first()
 

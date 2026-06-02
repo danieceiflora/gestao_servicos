@@ -2,15 +2,15 @@ from django.db import models
 
 class WebhookEvent(models.Model):
     STATUS_CHOICES = [
-        ('pending', 'Pendente'),
-        ('processed', 'Processado'),
-        ('failed', 'Falha'),
+        ('pendente', 'Pendente'),
+        ('processado', 'Processado'),
+        ('falha', 'Falha'),
     ]
 
     provider = models.CharField(max_length=50, verbose_name='Provedor')
     payload = models.JSONField(verbose_name='Payload Bruto')
     headers = models.JSONField(verbose_name='Cabeçalhos', blank=True, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='Status')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente', verbose_name='Status')
     notes = models.TextField(blank=True, null=True, verbose_name='Notas/Erros')
     
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Recebido em')
@@ -91,15 +91,15 @@ class NotificationConfig(models.Model):
     ]
     
     EVENT_CHOICES = [
-        ('CREATE', 'Criação do Registro'),
-        ('STATUS_CHANGE', 'Alteração de Status'),
+        ('CRIAR', 'Criação do Registro'),
+        ('MUDANCA_STATUS', 'Alteração de Status'),
     ]
 
     name = models.CharField('Nome da Regra/Descrição', max_length=100)
     model_name = models.CharField('Modelo', max_length=50, choices=MODEL_CHOICES)
     event_type = models.CharField('Evento Gatilho', max_length=20, choices=EVENT_CHOICES)
     
-    # Filtros de Status (apenas para EVENT_TYPE == 'STATUS_CHANGE')
+    # Filtros de Status (apenas para EVENT_TYPE == 'MUDANCA_STATUS')
     from_status = models.CharField(
         'Status de Origem', 
         max_length=50, 
@@ -153,4 +153,3 @@ class NotificationVariable(models.Model):
         verbose_name_plural = 'Variáveis de Notificação'
         ordering = ['index']
         unique_together = ('config', 'index')
-

@@ -177,10 +177,10 @@ const OfflineDB = {
             .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
             .forEach((item) => {
                 if (item.type === 'TASK_START') {
-                    mergedTask.status = 'IN_PROGRESS';
+                    mergedTask.status = 'EM_ANDAMENTO';
                     mergedTask.started_at = item.payload?.started_at || mergedTask.started_at || new Date(item.timestamp || Date.now()).toISOString();
                 } else if (item.type === 'TASK_FINISH') {
-                    mergedTask.status = 'COMPLETED';
+                    mergedTask.status = 'CONCLUIDO';
                     mergedTask.finished_at = item.payload?.finished_at || mergedTask.finished_at || new Date(item.timestamp || Date.now()).toISOString();
                     const queuedNotes = item.payload?.data?.notes;
                     if (queuedNotes) mergedTask.notes = queuedNotes;

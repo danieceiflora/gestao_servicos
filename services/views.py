@@ -129,7 +129,7 @@ def _send_visit_confirmation_if_needed(task):
     task.whatsapp_notification_sent_at = django.utils.timezone.now()
     update_fields = ['whatsapp_notification_sent_at']
     if not task.whatsapp_confirmation_status:
-        task.whatsapp_confirmation_status = ServiceOrderTask.WhatsAppConfirmationStatus.WAITING
+        task.whatsapp_confirmation_status = ServiceOrderTask.WhatsAppConfirmationStatus.AGUARDANDO
         update_fields.append('whatsapp_confirmation_status')
     if conversation_id:
         task.chatwoot_confirmation_conversation_id = str(conversation_id)
@@ -263,13 +263,13 @@ def home(request):
         return redirect('equipe_dashboard')
 
     orders_qs = get_orders_queryset(request)
-    active_orders = orders_qs.exclude(status__in=[ServiceOrder.Status.FINISHED, ServiceOrder.Status.CANCELLED]).count()
-    pending_approval = orders_qs.filter(status=ServiceOrder.Status.WAITING_APPROVAL).count()
-    waiting_execution = orders_qs.filter(status=ServiceOrder.Status.WAITING_EXECUTION).count()
-    
+    active_orders = orders_qs.exclude(status__in=[ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CANCELADO]).count()
+    pending_approval = orders_qs.filter(status=ServiceOrder.Status.AGUARDANDO_APROVACAO).count()
+    waiting_execution = orders_qs.filter(status=ServiceOrder.Status.AGUARDANDO_EXECUCAO).count()
+
     needs_scheduling = orders_qs.filter(
-        Q(status=ServiceOrder.Status.APPROVED_WAITING_SCHEDULE) | 
-        Q(tasks__status=ServiceOrderTask.TaskStatus.NOT_EXECUTED)
+        Q(status=ServiceOrder.Status.APROVADO_AGUARDANDO_AGENDAMENTO) | 
+        Q(tasks__status=ServiceOrderTask.TaskStatus.NAO_EXECUTADO)
     ).distinct().count()
 
     recent_orders = orders_qs.all().order_by('-updated_at')[:5]
@@ -439,8 +439,8 @@ def service_order_list(request):
 
     if custom_filter == 'needs_scheduling':
         orders = orders.filter(
-            Q(status=ServiceOrder.Status.APPROVED_WAITING_SCHEDULE) | 
-            Q(tasks__status=ServiceOrderTask.TaskStatus.NOT_EXECUTED)
+            Q(status=ServiceOrder.Status.APROVADO_AGUARDANDO_AGENDAMENTO) | 
+            Q(tasks__status=ServiceOrderTask.TaskStatus.NAO_EXECUTADO)
         ).distinct()
 
     paginator = Paginator(orders, 20)
@@ -517,7 +517,7 @@ def service_order_scheduling(request):
             task_data = {
                 'index': _idx,
                 'type': request.POST.get(f'task_{_idx}_type', ''),
-                'scheduled': sched_val,
+                'AGENDADO': sched_val,
                 'scheduled_end': sched_end_val,
                 'start_date': request.POST.get(f'task_{_idx}_start_date', ''),
                 'end_date': request.POST.get(f'task_{_idx}_end_date', ''),
@@ -634,10 +634,10 @@ def service_order_scheduling(request):
 
             # Determinar status inicial baseado nas etapas
             first_task_type = request.POST.get('task_0_type')
-            if first_task_type == ServiceOrderTask.TaskType.BUDGET:
-                service_order.status = ServiceOrder.Status.BUDGET_SCHEDULED
+            if first_task_type == ServiceOrderTask.TaskType.ORCAMENTO:
+                service_order.status = ServiceOrder.Status.ORCAMENTO_AGENDADO
             else:
-                service_order.status = ServiceOrder.Status.WAITING_EXECUTION
+                service_order.status = ServiceOrder.Status.AGUARDANDO_EXECUCAO
             
             service_order.save()
             
@@ -801,15 +801,15 @@ def service_order_create(request, property_id):
         if form.is_valid():
             service_order = ServiceOrder.objects.create(
                 client_property=property_obj,
-                status=ServiceOrder.Status.WAITING_VISIT,
+                status=ServiceOrder.Status.AGUARDANDO_VISITA,
                 description=form.cleaned_data.get('description', ''),
                 client_observation=form.cleaned_data.get('client_observation', ''),
                 technical_notes=form.cleaned_data.get('technical_notes', '')
             )
             task = form.save(commit=False)
             task.service_order = service_order
-            task.task_type = ServiceOrderTask.TaskType.BUDGET
-            task.status = ServiceOrderTask.TaskStatus.COMPLETED
+            task.task_type = ServiceOrderTask.TaskType.ORCAMENTO
+            task.status = ServiceOrderTask.TaskStatus.CONCLUIDO
             task.scheduled_at = django.utils.timezone.now()
             task.finished_at = django.utils.timezone.now()
             task.save()
@@ -831,7 +831,7 @@ def service_order_create(request, property_id):
 
 def service_order_budget(request, order_id):
     order = get_object_or_404(ServiceOrder, id=order_id)
-    budget_task = order.tasks.filter(task_type=ServiceOrderTask.TaskType.BUDGET).first()
+    budget_task = order.tasks.filter(task_type=ServiceOrderTask.TaskType.ORCAMENTO).first()
 
     if request.method == 'POST':
         form = ServiceOrderForm(request.POST, instance=order)
@@ -841,8 +841,8 @@ def service_order_budget(request, order_id):
             form.save()
             formset.save()
             
-            if order.status in [ServiceOrder.Status.BUDGET_SCHEDULED, ServiceOrder.Status.BUDGET_DONE_WAITING_SEND] and order.items.exists():
-                order.status = ServiceOrder.Status.BUDGET_DONE_WAITING_SEND
+            if order.status in [ServiceOrder.Status.ORCAMENTO_AGENDADO, ServiceOrder.Status.ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO] and order.items.exists():
+                order.status = ServiceOrder.Status.ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO
                 order.save()
                 
             messages.success(request, 'Orçamento atualizado!')
@@ -991,7 +991,7 @@ def service_order_execution(request, order_id):
     orders_qs = get_orders_queryset(request)
     order = get_object_or_404(orders_qs, id=order_id)
     task = order.tasks.exclude(
-        status__in=[ServiceOrderTask.TaskStatus.COMPLETED, ServiceOrderTask.TaskStatus.CANCELLED]
+        status__in=[ServiceOrderTask.TaskStatus.CONCLUIDO, ServiceOrderTask.TaskStatus.CANCELADO]
     ).order_by('scheduled_at').first()
     
     if not task:
@@ -1017,7 +1017,7 @@ def task_add(request, order_id):
         if form.is_valid() and formset.is_valid():
             task = form.save(commit=False)
             task.service_order = order
-            task.status = ServiceOrderTask.TaskStatus.SCHEDULED
+            task.status = ServiceOrderTask.TaskStatus.AGENDADO
 
             # Validar disponibilidade da equipe
             scheduled_at = form.cleaned_data.get('scheduled_at')
@@ -1110,7 +1110,7 @@ def task_edit(request, task_id):
             messages.error(request, "Você não tem permissão para editar esta etapa.")
             return redirect('service_order_detail', order_id=order.id)
 
-    if task.status == ServiceOrderTask.TaskStatus.COMPLETED and not is_manager:
+    if task.status == ServiceOrderTask.TaskStatus.CONCLUIDO and not is_manager:
         messages.warning(request, "Não é possível editar uma etapa já concluída.")
         return redirect('service_order_detail', order_id=order.id)
     
@@ -1191,15 +1191,15 @@ def task_cancel(request, task_id):
     task = get_object_or_404(ServiceOrderTask, id=task_id)
     order = task.service_order
     
-    if task.status == ServiceOrderTask.TaskStatus.COMPLETED:
+    if task.status == ServiceOrderTask.TaskStatus.CONCLUIDO:
         messages.warning(request, "Não é possível cancelar uma etapa já concluída.")
         return redirect('service_order_detail', order_id=order.id)
-    
+
     if request.method == 'POST':
         form = TaskCancelForm(request.POST)
         if form.is_valid():
             cancel_reason = form.cleaned_data.get('cancel_reason')
-            task.status = ServiceOrderTask.TaskStatus.CANCELLED
+            task.status = ServiceOrderTask.TaskStatus.CANCELADO
             task.notes = f"[CANCELADO] {cancel_reason}\n\n{task.notes}"
             task.save()
             
@@ -1243,9 +1243,9 @@ def api_calendar_events(request):
 
     for task in tasks:
         colors = {
-            'BUDGET': ('#3b82f6', '#2563eb', 'ORÇ'),
-            'EXECUTION': ('#10b981', '#059669', 'EXEC'),
-            'WARRANTY': ('#f59e0b', '#d97706', 'GAR'),
+            'ORCAMENTO': ('#3b82f6', '#2563eb', 'ORÇ'),
+            'EXECUCAO': ('#10b981', '#059669', 'EXEC'),
+            'GARANTIA': ('#f59e0b', '#d97706', 'GAR'),
         }
         bg, border, prefix = colors.get(task.task_type, ('#64748b', '#475569', 'TSK'))
 
@@ -1354,7 +1354,7 @@ def api_quick_create_order(request):
     try:
         data = json.loads(request.body)
         prop = get_object_or_404(Property, id=data.get('property_id'))
-        sched_type = data.get('type', 'BUDGET')
+        sched_type = data.get('type', 'ORCAMENTO')
         scheduled_at = parse(data.get('scheduled_at'))
         scheduled_end_at = None
         if data.get('scheduled_end_at'):
@@ -1382,12 +1382,12 @@ def api_quick_create_order(request):
                         'needs_confirmation': c_type == "OUT_OF_HOURS"
                     }, status=400)
 
-        status = ServiceOrder.Status.BUDGET_SCHEDULED if sched_type == 'BUDGET' else ServiceOrder.Status.WAITING_EXECUTION
+        status = ServiceOrder.Status.ORCAMENTO_AGENDADO if sched_type == 'ORCAMENTO' else ServiceOrder.Status.AGUARDANDO_EXECUCAO
         order = ServiceOrder.objects.create(client_property=prop, status=status, description=data.get('description', ''))
         
         task = ServiceOrderTask.objects.create(
             service_order=order, task_type=sched_type, 
-            scheduled_at=scheduled_at, status=ServiceOrderTask.TaskStatus.SCHEDULED
+            scheduled_at=scheduled_at, status=ServiceOrderTask.TaskStatus.AGENDADO
         )
 
         for member in data.get('team', []):
@@ -1522,7 +1522,7 @@ def order_item_add(request, order_id):
                     elif item.service:
                         item_unit = item.service.unit_of_measure
 
-                    if item.product and item.product.unit_type == Product.UnitType.METER:
+                    if item.product and item.product.unit_type == Product.UnitType.METRO:
                         quantity_display = f'{item.quantity:.2f}'
                     else:
                         quantity_display = f'{item.quantity:.0f}'
@@ -1800,7 +1800,7 @@ def occurrence_list(request):
 
     occurrences = Occurrence.objects.all().order_by('-created_at')
     
-    status_filter = request.GET.get('status', Occurrence.OccurrenceStatus.REGISTERED)
+    status_filter = request.GET.get('status', Occurrence.OccurrenceStatus.REGISTRADA)
     if status_filter and status_filter != 'ALL':
         occurrences = occurrences.filter(status=status_filter)
         
@@ -1813,8 +1813,8 @@ def occurrence_list(request):
         'page_obj': page_obj,
         'current_status': status_filter,
         'status_choices': Occurrence.OccurrenceStatus.choices,
-        'resolved_count': Occurrence.objects.filter(status=Occurrence.OccurrenceStatus.RESOLVED).count(),
-        'registered_count': Occurrence.objects.filter(status=Occurrence.OccurrenceStatus.REGISTERED).count(),
+        'resolved_count': Occurrence.objects.filter(status=Occurrence.OccurrenceStatus.RESOLVIDA).count(),
+        'registered_count': Occurrence.objects.filter(status=Occurrence.OccurrenceStatus.REGISTRADA).count(),
     })
 
 @login_required
@@ -1829,7 +1829,7 @@ def occurrence_resolve(request, occurrence_id):
         observation = request.POST.get('observation', '')
         
         occurrence.observation = observation
-        occurrence.status = Occurrence.OccurrenceStatus.RESOLVED
+        occurrence.status = Occurrence.OccurrenceStatus.RESOLVIDA
         occurrence.save()
         
         messages.success(request, f"Ocorrência marcada como resolvida.")
@@ -1944,7 +1944,7 @@ def service_order_send_budget(request, order_id):
             message_id, tracked_conversation_id = cw.extract_message_tracking(response)
             order.chatwoot_budget_message_id = message_id
             order.chatwoot_budget_conversation_id = tracked_conversation_id or str(conversation_id)
-            order.status = ServiceOrder.Status.WAITING_APPROVAL
+            order.status = ServiceOrder.Status.AGUARDANDO_APROVACAO
             order.client_budget_response = None
             order.client_budget_responded_at = None
             order.client_budget_approved_at = None

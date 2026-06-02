@@ -15,7 +15,7 @@
                 Painel de Operação
             </h2>
             <div class="flex items-center gap-2">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider {% if task.status == 'COMPLETED' %}bg-green-100 text-green-700{% elif task.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider {% if task.status == 'CONCLUIDO' %}bg-green-100 text-green-700{% elif task.status == 'EM_ANDAMENTO' %}bg-blue-100 text-blue-700{% else %}bg-slate-100 text-slate-600{% endif %}">
                     {{ task.get_status_display }}
                 </span>
                 <p class="text-xs text-slate-500">{{ task.get_task_type_display }}</p>
@@ -27,14 +27,14 @@
     <div class="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden p-8 sticky top-4 z-40">
         <form method="post" class="space-y-6">
             {% csrf_token %}
-            {% if task.status == 'SCHEDULED' %}
+            {% if task.status == 'AGENDADO' %}
             <button type="submit" name="start_task" class="w-full bg-blue-600 text-white font-bold py-6 rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex flex-col items-center justify-center gap-2 active:scale-95 group">
                 <div class="p-4 bg-white/20 rounded-full group-hover:scale-110 transition-transform">
                     <i data-lucide="play" class="h-8 w-8 fill-current text-white"></i>
                 </div>
                 <span class="text-lg uppercase tracking-widest">Iniciar {{ task.get_task_type_display }}</span>
             </button>
-            {% elif task.status == 'IN_PROGRESS' %}
+            {% elif task.status == 'EM_ANDAMENTO' %}
             <div class="space-y-4">
                 <div class="flex items-center justify-center gap-3 text-blue-600 animate-pulse mb-6">
                     <div class="w-2 h-2 rounded-full bg-blue-600"></div>
@@ -109,7 +109,7 @@
             <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">{{ task.medias.count }} total</span>
         </div>
 
-        {% if task.status == 'IN_PROGRESS' or task.status == 'SCHEDULED' %}
+        {% if task.status == 'EM_ANDAMENTO' or task.status == 'AGENDADO' %}
         {% include 'services/components/media_dropzone.html' %}
         {% endif %}
 
@@ -147,7 +147,7 @@
                     <p class="text-sm font-bold text-slate-800">{{ item.description }}</p>
                     <p class="text-[10px] font-medium text-slate-500 uppercase tracking-wider">
                         Quantidade:
-                        {% if item.product and item.product.unit_type == 'METER' %}
+                        {% if item.product and item.product.unit_type == 'METRO' %}
                             {{ item.quantity|floatformat:2 }} mt
                         {% else %}
                             {{ item.quantity|floatformat:0 }} un

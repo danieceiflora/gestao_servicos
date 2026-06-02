@@ -59,7 +59,7 @@
                     {% for sale in sales %}
                         <tr class="hover:bg-slate-50 transition-colors">
                             <td class="px-6 py-4 text-sm text-slate-600 font-mono">
-                                #{{ sale.uuid.hex|slice:":8"|upper }}
+                                #{{ sale.number }}
                             </td>
                             <td class="px-6 py-4 text-sm text-slate-600">
                                 {{ sale.created_at|date:"d/m/Y H:i" }}
@@ -74,11 +74,11 @@
                                 R$ {{ sale.total_amount|floatformat:2 }}
                             </td>
                             <td class="px-6 py-4 text-sm">
-                                {% if sale.status == 'COMPLETED' %}
+                                {% if sale.status == 'CONCLUIDO' %}
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                         Concluída
                                     </span>
-                                {% elif sale.status == 'CANCELLED' %}
+                                {% elif sale.status == 'CANCELADO' %}
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                         Cancelada
                                     </span>
@@ -89,7 +89,7 @@
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4 text-sm text-right">
-                                <a href="{% url 'sale_detail' uuid=sale.uuid %}" class="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium">
+                                <a href="{% url 'sale_detail' number=sale.number %}" class="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium">
                                     Ver Detalhes
                                     <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>

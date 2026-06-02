@@ -6,7 +6,8 @@ from .models import (
     ServiceOrder, ServiceItem, ServiceMedia, ServiceOrderTeam,
     ServiceOrderTask, Product, ProductCategory, ServiceCategory, Service,
     ServiceChecklistItem, TaskChecklistResponse, ChecklistTemplate,
-    ChecklistResponseMedia, Sale, SaleItem, Supplier, PaymentMethod, SalePayment
+    ChecklistResponseMedia, Sale, SaleItem, Supplier, PaymentMethod, SalePayment,
+    FinancialCategory, BankAccount, Expense, ExpenseInstallment, ExpenseAttachment
 )
 
 
@@ -209,3 +210,37 @@ class SaleAdmin(admin.ModelAdmin):
     def uuid_short(self, obj):
         return str(obj.uuid.hex)[:8]
     uuid_short.short_description = "ID"
+
+@admin.register(FinancialCategory)
+class FinancialCategoryAdmin(admin.ModelAdmin):
+    list_display = ['name', 'category_type']
+    list_filter = ['category_type']
+    search_fields = ['name']
+
+
+@admin.register(BankAccount)
+class BankAccountAdmin(admin.ModelAdmin):
+    list_display = ['name', 'initial_balance']
+    search_fields = ['name']
+
+
+class ExpenseInstallmentInline(admin.TabularInline):
+    model = ExpenseInstallment
+    extra = 1
+
+class ExpenseAttachmentInline(admin.TabularInline):
+    model = ExpenseAttachment
+    extra = 1
+
+@admin.register(Expense)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display = ['description', 'supplier', 'category', 'total_amount', 'issue_date', 'is_recurrent']
+    list_filter = ['is_recurrent', 'category', 'issue_date']
+    search_fields = ['description', 'supplier__name']
+    inlines = [ExpenseInstallmentInline, ExpenseAttachmentInline]
+
+@admin.register(ExpenseInstallment)
+class ExpenseInstallmentAdmin(admin.ModelAdmin):
+    list_display = ['expense', 'installment_number', 'amount', 'due_date', 'status', 'payment_date']
+    list_filter = ['status', 'due_date', 'payment_method']
+    search_fields = ['expense__description']

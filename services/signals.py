@@ -13,11 +13,11 @@ def handle_service_order_status_change(sender, instance, created, **kwargs):
     Sinal que monitora mudanças na ServiceOrder.
     Gera cobrança automaticamente ao atingir status de pagamento ou finalização.
     """
-    if instance.status in [ServiceOrder.Status.WAITING_PAYMENT, ServiceOrder.Status.FINISHED]:
+    if instance.status in [ServiceOrder.Status.AGUARDANDO_PAGAMENTO, ServiceOrder.Status.FINALIZADO]:
         create_billing_for_os(instance)
 
     # Workflow de notificação
-    if instance.status == ServiceOrder.Status.WAITING_PAYMENT and not instance.pix_sent_at:
+    if instance.status == ServiceOrder.Status.AGUARDANDO_PAGAMENTO and not instance.pix_sent_at:
         logger.info(f"Detectada OS #{instance.number} em Aguardando Pagamento. Disparando workflow de cobrança.")
         trigger_payment_workflow(instance)
 
@@ -26,5 +26,5 @@ def handle_sale_creation(sender, instance, created, **kwargs):
     """
     Gera cobrança básica para vendas se ainda não existir.
     """
-    if instance.status == Sale.Status.COMPLETED:
+    if instance.status == Sale.Status.FINALIZADA:
         create_billing_for_sale(instance)

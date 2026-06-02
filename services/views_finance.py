@@ -7,11 +7,16 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 from decimal import Decimal
 from datetime import datetime
-from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment
-from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm
+from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client
+from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet
+from .expense_engine import generate_expense_installments
 from django.http import HttpResponse
 import csv
+import logging
 from io import BytesIO
+
+logger = logging.getLogger(__name__)
+from dateutil.relativedelta import relativedelta
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -100,8 +105,8 @@ def finance_dashboard(request):
 
     # Query allocations for completed executions in the selected period
     allocations = ServiceOrderTeam.objects.filter(
-        task__task_type=ServiceOrderTask.TaskType.EXECUTION,
-        task__status=ServiceOrderTask.TaskStatus.COMPLETED,
+        task__task_type=ServiceOrderTask.TaskType.EXECUCAO,
+        task__status=ServiceOrderTask.TaskStatus.CONCLUIDO,
         task__finished_at__gte=start_of_month,
         task__finished_at__lt=end_of_month
     ).select_related('task__service_order', 'professional', 'role').order_by('professional__name', 'task__finished_at')
@@ -358,14 +363,14 @@ def finance_professional_payments(request):
     Se for técnico, vê apenas os seus.
     """
     professional_id = request.GET.get('professional')
-    status_filter = request.GET.get('status', 'PENDING')
+    status_filter = request.GET.get('status', 'PENDENTE')
     
     payments = ServicePayment.objects.select_related(
         'order', 'order__client_property__client', 'received_by'
     ).order_by('-paid_at')
     
     # Filtro de status
-    if status_filter in ['PENDING', 'CONFIRMED']:
+    if status_filter in ['PENDENTE', 'CONFIRMED']:
         payments = payments.filter(status=status_filter)
     
     # Filtro de permissão/profissional
@@ -426,7 +431,7 @@ def finance_bulk_confirm_payments(request):
         payment_ids = request.POST.getlist('payment_ids')
         if payment_ids:
             # We iterate to ensure order.update_status() is called via save() or explicitly
-            payments = ServicePayment.objects.filter(id__in=payment_ids, status='PENDING')
+            payments = ServicePayment.objects.filter(id__in=payment_ids, status='PENDENTE')
             count = 0
             for p in payments:
                 p.status = 'CONFIRMED'
@@ -453,7 +458,7 @@ def sale_list(request):
     q = request.GET.get('q')
     if q:
         sales = sales.filter(
-            Q(uuid__icontains=q) | 
+            Q(number__icontains=q) | 
             Q(client__name__icontains=q) | 
             Q(user__username__icontains=q)
         )
@@ -488,24 +493,17 @@ def sale_create(request):
                     total = Decimal('0.00')
                     for item in items:
                         total += item.subtotal
-                        
-                        # Baixa de Estoque
-                        StockMovement.objects.create(
-                            product=item.product,
-                            quantity=item.quantity,
-                            movement_type=StockMovement.MovementType.OUT,
-                            reason=StockMovement.Reason.SALE_DIRECT,
+
+                        # Baixa de Estoque com inteligência de composição
+                        item.product.reduce_stock(
+                            item.quantity,
                             user=request.user,
+                            reason=StockMovement.Reason.VENDA_DIRETA,
                             notes=f"Venda Direta: #{sale.number}"
                         )
-                        
-                        # Atualizar estoque atual do produto
-                        product = item.product
-                        product.current_stock -= item.quantity
-                        product.save()
-                    
+
                     sale.total_amount = total - sale.discount + sale.surcharge
-                    sale.status = Sale.Status.COMPLETED
+                    sale.status = Sale.Status.FINALIZADA
                     sale.save()
                     
                     # --- Lógica de Cobrança Centralizada (Opcional) ---
@@ -526,7 +524,7 @@ def sale_create(request):
                         create_billing_for_sale(sale, installments_data)
                     
                     messages.success(request, f"Venda #{sale.number} realizada com sucesso!")
-                    return redirect('sale_detail', uuid=sale.uuid)
+                    return redirect('sale_detail', number=sale.number)
             except Exception as e:
                 import traceback
                 print(traceback.format_exc())
@@ -542,57 +540,148 @@ def sale_create(request):
         'formset': formset,
         'title': 'Nova Venda (PDV)',
         'products': Product.objects.filter(is_active=True),
+        'clients': Client.objects.all().order_by('name'),
         'payment_methods': PaymentMethod.objects.filter(ativo=True)
     }
     return render(request, 'services/sale_form.html', context)
 
 @login_required
 @user_passes_test(is_manager)
-def sale_detail(request, uuid):
-    sale = get_object_or_404(Sale, uuid=uuid)
-    return render(request, 'services/sale_detail.html', {'sale': sale})
+def sale_detail(request, number):
+    sale = get_object_or_404(Sale, number=number)
+    can_edit = sale.can_be_edited()
+    
+    if request.method == 'POST':
+        if not can_edit:
+            messages.error(request, "Esta venda não pode ser editada pois já foi finalizada ou possui parcelas no Contas a Receber.")
+            return redirect('sale_detail', number=sale.number)
+            
+        form = SaleForm(request.POST, instance=sale)
+        formset = SaleItemFormSet(request.POST, instance=sale)
+        
+        if form.is_valid() and formset.is_valid():
+            try:
+                with transaction.atomic():
+                    # 1. Estornar estoque atual antes de salvar as alterações
+                    for item in sale.items.all():
+                        item.product.increase_stock(
+                            item.quantity,
+                            user=request.user,
+                            reason=StockMovement.Reason.DEVOLUCAO,
+                            notes=f"Estorno para Reedição da Venda: #{sale.number}"
+                        )
+                    
+                    # 2. Salvar venda e novos itens
+                    sale = form.save(commit=False)
+                    sale.save()
+                    
+                    formset.instance = sale
+                    items = formset.save()
+                    
+                    # 3. Aplicar novo estoque e calcular total
+                    total = Decimal('0.00')
+                    # Recarregar itens para garantir que pegamos os salvos/atualizados
+                    for item in sale.items.all():
+                        total += item.subtotal
+                        item.product.reduce_stock(
+                            item.quantity,
+                            user=request.user,
+                            reason=StockMovement.Reason.VENDA_DIRETA,
+                            notes=f"Venda Direta (Editada): #{sale.number}"
+                        )
+
+                    sale.total_amount = total - sale.discount + sale.surcharge
+                    sale.save()
+                    
+                    # 4. Atualizar Cobrança (Billing) e Parcelas se existirem
+                    installment_dates = request.POST.getlist('installment_due_date[]')
+                    installment_amounts = request.POST.getlist('installment_amount[]')
+                    installment_methods = request.POST.getlist('installment_method_id[]')
+                    
+                    if installment_dates:
+                        installments_data = []
+                        for d, a, m in zip(installment_dates, installment_amounts, installment_methods):
+                            installments_data.append({
+                                'due_date': d,
+                                'amount': Decimal(a),
+                                'payment_method_id': m if m else None
+                            })
+                        
+                        from .utils.finance import create_billing_for_sale
+                        # create_billing_for_sale já lida com a atualização se o Billing já existir
+                        create_billing_for_sale(sale, installments_data)
+                    
+                    messages.success(request, f"Venda #{sale.number} atualizada com sucesso!")
+                    return redirect('sale_detail', number=sale.number)
+            except Exception as e:
+                import traceback
+                print(traceback.format_exc())
+                messages.error(request, f"Erro ao atualizar venda: {str(e)}")
+        else:
+            messages.error(request, "Por favor, corrija os erros no formulário.")
+    else:
+        form = SaleForm(instance=sale)
+        formset = SaleItemFormSet(instance=sale)
+    
+    # Se já tiver billing, carregar as parcelas para o template
+    initial_installments = []
+    if hasattr(sale, 'billing'):
+        for inst in sale.billing.installments.all():
+            initial_installments.append({
+                'due_date': inst.due_date.isoformat(),
+                'amount': inst.amount,
+                'method_id': inst.payment_method_id
+            })
+
+    context = {
+        'sale': sale,
+        'form': form,
+        'formset': formset,
+        'can_edit': can_edit,
+        'is_detail': True,
+        'title': f'Venda #{sale.number}',
+        'products': Product.objects.filter(is_active=True),
+        'clients': Client.objects.all().order_by('name'),
+        'payment_methods': PaymentMethod.objects.filter(ativo=True),
+        'initial_installments': initial_installments,
+    }
+    return render(request, 'services/sale_form.html', context)
 
 @login_required
 @user_passes_test(is_manager)
-def sale_cancel(request, uuid):
-    sale = get_object_or_404(Sale, uuid=uuid)
+def sale_cancel(request, number):
+    sale = get_object_or_404(Sale, number=number)
     
-    if sale.status == Sale.Status.CANCELLED:
+    if sale.status == Sale.Status.CANCELADO:
         messages.warning(request, "Esta venda já está cancelada.")
-        return redirect('sale_detail', uuid=sale.uuid)
+        return redirect('sale_detail', number=sale.number)
         
     if request.method == 'POST':
         try:
             with transaction.atomic():
-                # Reverter Estoque
+                # Reverter Estoque com inteligência de composição
                 for item in sale.items.all():
-                    StockMovement.objects.create(
-                        product=item.product,
-                        quantity=item.quantity,
-                        movement_type=StockMovement.MovementType.IN,
-                        reason=StockMovement.Reason.RETURN,
+                    item.product.increase_stock(
+                        item.quantity,
                         user=request.user,
+                        reason=StockMovement.Reason.DEVOLUCAO,
                         notes=f"Estorno Venda Cancelada: #{sale.number}"
                     )
-                    
-                    product = item.product
-                    product.current_stock += item.quantity
-                    product.save()
                 
-                sale.status = Sale.Status.CANCELLED
+                sale.status = Sale.Status.CANCELADO
                 sale.save()
 
                 # Cancelar Billing se existir
                 if hasattr(sale, 'billing'):
-                    sale.billing.status = Billing.Status.CANCELLED
+                    sale.billing.status = Billing.Status.CANCELADO
                     sale.billing.save()
-                    sale.billing.installments.update(status=Installment.Status.CANCELLED)
+                    sale.billing.installments.update(status=Installment.Status.CANCELADO)
                 
                 messages.success(request, "Venda cancelada e estoque estornado com sucesso!")
         except Exception as e:
             messages.error(request, f"Erro ao cancelar venda: {str(e)}")
             
-    return redirect('sale_detail', uuid=sale.uuid)
+    return redirect('sale_detail', number=sale.number)
 
 # --- CONTAS A RECEBER (FINANCEIRO CENTRALIZADO) ---
 
@@ -680,10 +769,10 @@ def installment_pay(request, pk):
         # Atualiza status da Parcela
         total_paid = installment.get_total_paid()
         if total_paid >= installment.amount:
-            installment.status = Installment.Status.PAID
+            installment.status = Installment.Status.PAGO
             installment.paid_at = timezone.now()
         elif total_paid > 0:
-            installment.status = Installment.Status.PARTIAL
+            installment.status = Installment.Status.PARCIAL
         
         installment.save()
         
@@ -692,15 +781,211 @@ def installment_pay(request, pk):
         all_installments = billing.installments.all()
         
         # Verifica se todas as parcelas estão pagas
-        if not all_installments.exclude(status=Installment.Status.PAID).exists():
-            billing.status = Billing.Status.PAID
-        elif all_installments.filter(status__in=[Installment.Status.PAID, Installment.Status.PARTIAL]).exists():
-            billing.status = Billing.Status.PARTIAL
+        if not all_installments.exclude(status=Installment.Status.PAGO).exists():
+            billing.status = Billing.Status.PAGO
+        elif all_installments.filter(status__in=[Installment.Status.PAGO, Installment.Status.PARCIAL]).exists():
+            billing.status = Billing.Status.PARCIAL
         else:
-            billing.status = Billing.Status.PENDING
+            billing.status = Billing.Status.PENDENTE
             
         billing.save()
         
         messages.success(request, f"Pagamento de R$ {total_this_time} registrado para a parcela {installment.installment_number}!")
         
     return redirect('billing_detail', pk=installment.billing.id)
+
+# --- CONTAS A PAGAR (DESPESAS) ---
+
+@login_required
+@user_passes_test(is_manager)
+def expense_list(request):
+    expenses = Expense.objects.all().order_by('-issue_date')
+    
+    q = request.GET.get('q')
+    if q:
+        expenses = expenses.filter(
+            Q(description__icontains=q) | 
+            Q(supplier__name__icontains=q)
+        )
+        
+    paginator = Paginator(expenses, 20)
+    page = request.GET.get('page')
+    expenses_page = paginator.get_page(page)
+    
+    context = {
+        'expenses': expenses_page,
+        'title': 'Contas a Pagar',
+        'active_menu': 'finance'
+    }
+    return render(request, 'services/finance/expense_list.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def expense_create(request):
+    if request.method == 'POST':
+        form = ExpenseForm(request.POST)
+        # Usamos um prefixo explícito para evitar problemas de colisão ou nomes automáticos complexos
+        formset = ExpenseInstallmentFormSet(request.POST, prefix='installments')
+        
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                expense = form.save()
+                instances = formset.save(commit=False)
+                for instance in instances:
+                    instance.expense = expense
+                    instance.save()
+                
+                messages.success(request, "Despesa criada com sucesso!")
+                return redirect('expense_list')
+        else:
+            if not form.is_valid():
+                logger.warning(f"ExpenseForm errors: {form.errors}")
+            if not formset.is_valid():
+                logger.warning(f"ExpenseInstallmentFormSet errors: {formset.errors}")
+    else:
+        form = ExpenseForm()
+        formset = ExpenseInstallmentFormSet(queryset=ExpenseInstallment.objects.none(), prefix='installments')
+
+    context = {
+        'form': form,
+        'formset': formset,
+        'title': 'Nova Conta a Pagar',
+        'is_edit': False,
+        'active_menu': 'finance'
+    }
+    return render(request, 'services/finance/expense_form.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def expense_edit(request, pk):
+    expense = get_object_or_404(Expense, pk=pk)
+    if request.method == 'POST':
+        form = ExpenseForm(request.POST, instance=expense)
+        formset = ExpenseInstallmentFormSet(request.POST, instance=expense, prefix='installments')
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                form.save()
+                formset.save()
+                messages.success(request, "Despesa atualizada com sucesso!")
+                return redirect('expense_list')
+    else:
+        form = ExpenseForm(instance=expense)
+        formset = ExpenseInstallmentFormSet(instance=expense, prefix='installments')
+        
+    context = {
+        'form': form,
+        'formset': formset,
+        'title': f'Editar Despesa: {expense.description}',
+        'is_edit': True
+    }
+    return render(request, 'services/finance/expense_form.html', context)
+
+@login_required
+@user_passes_test(is_manager)
+def expense_delete(request, pk):
+    expense = get_object_or_404(Expense, pk=pk)
+    if request.method == 'POST':
+        expense.delete()
+        messages.success(request, "Despesa excluída com sucesso!")
+        return redirect('expense_list')
+    return redirect('expense_list')
+
+@login_required
+@user_passes_test(is_manager)
+def render_expense_installments_preview(request):
+    try:
+        data = request.POST if request.method == 'POST' else request.GET
+        
+        # Tenta pegar o valor de vários jeitos comuns
+        total_amount_raw = data.get('total_amount', '0')
+        # Limpa possíveis caracteres indesejados (espaços, R$)
+        total_amount_raw = total_amount_raw.replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
+        try:
+            total_amount = Decimal(total_amount_raw)
+        except:
+            total_amount = Decimal('0')
+        
+        installments_count_raw = data.get('installments_count', '1')
+        try:
+            installments_count = int(installments_count_raw)
+        except:
+            installments_count = 1
+        
+        frequency = data.get('frequency', '')
+        issue_date_str = data.get('issue_date')
+        
+        logger.info(f"Parsed values: total={total_amount}, count={installments_count}, freq={frequency}, date={issue_date_str}")
+        
+        issue_date = timezone.now().date()
+        if issue_date_str:
+            try:
+                issue_date = datetime.strptime(issue_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        preview_data = []
+        if installments_count > 0:
+            # Evita divisão por zero
+            div_count = Decimal(installments_count) if installments_count > 0 else Decimal('1')
+            base_amount = (total_amount / div_count).quantize(Decimal('0.01'))
+            remainder = total_amount - (base_amount * Decimal(installments_count))
+            
+            current_date = issue_date
+            for i in range(1, installments_count + 1):
+                amount = base_amount
+                if i == installments_count:
+                    amount += remainder
+                    
+                preview_data.append({
+                    'installment_number': f"{i}/{installments_count}",
+                    'amount': amount,
+                    'due_date': current_date
+                })
+                
+                if i < installments_count:
+                    if frequency == Expense.Frequency.DIARIA:
+                        current_date += relativedelta(days=1)
+                    elif frequency == Expense.Frequency.SEMANAL:
+                        current_date += relativedelta(days=7)
+                    elif frequency == Expense.Frequency.QUINZENAL:
+                        current_date += relativedelta(days=15)
+                    elif frequency == Expense.Frequency.MENSAL:
+                        current_date += relativedelta(months=1)
+                    elif frequency == Expense.Frequency.ANUAL:
+                        current_date += relativedelta(years=1)
+                    else:
+                        current_date += relativedelta(months=1)
+
+        logger.info(f"Generated preview_data with {len(preview_data)} items")
+
+        # Usar inlineformset_factory para total consistência com o que o save espera
+        from django.forms import inlineformset_factory
+        from .forms import ExpenseInstallmentForm
+        
+        DynamicFormSet = inlineformset_factory(
+            Expense, ExpenseInstallment,
+            form=ExpenseInstallmentForm,
+            extra=installments_count,
+            can_delete=False
+        )
+        
+        formset = DynamicFormSet(
+            queryset=ExpenseInstallment.objects.none(),
+            initial=preview_data,
+            prefix='installments'
+        )
+        logger.info(f"Formset initialized with {formset.total_form_count()} forms")
+        
+    except Exception as e:
+        logger.exception(f"Erro no preview de parcelas: {str(e)}")
+        # Fallback para o formset padrão definido no forms.py
+        from .forms import ExpenseInstallmentFormSet
+        formset = ExpenseInstallmentFormSet(queryset=ExpenseInstallment.objects.none(), prefix='installments')
+        
+    return render(request, 'services/partials/expense_installments_preview.html', {
+        'formset': formset
+    })
+
+
+
+

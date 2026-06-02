@@ -46,7 +46,7 @@ test.describe('Admin - Gerenciamento de Etapas', () => {
         await expect(page.locator('h2')).toContainText('Adicionar Nova Etapa');
         
         // Preencher tipo de etapa
-        await page.selectOption('select[name="task_type"]', 'EXECUTION');
+        await page.selectOption('select[name="task_type"]', 'EXECUCAO');
         
         // Preencher data e hora (futuro)
         const futureDate = new Date();

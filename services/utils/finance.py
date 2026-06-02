@@ -18,7 +18,7 @@ def create_billing_for_os(service_order):
         service_order=service_order,
         total_amount=service_order.total_value,
         discount=service_order.discount,
-        status=Billing.Status.PENDING
+        status=Billing.Status.PENDENTE
     )
 
     # Cria a parcela única padrão
@@ -27,7 +27,7 @@ def create_billing_for_os(service_order):
         installment_number=1,
         due_date=due_date,
         amount=service_order.balance_due,
-        status=Installment.Status.PENDING
+        status=Installment.Status.PENDENTE
     )
 
     return billing
@@ -50,7 +50,7 @@ def create_billing_for_sale(sale, installments_data=None):
             sale=sale,
             total_amount=sale.total_amount,
             discount=sale.discount,
-            status=Billing.Status.PENDING
+            status=Billing.Status.PENDENTE
         )
 
     if installments_data:
@@ -61,7 +61,7 @@ def create_billing_for_sale(sale, installments_data=None):
                 due_date=data['due_date'],
                 amount=data['amount'],
                 payment_method_id=data.get('payment_method_id'),
-                status=Installment.Status.PENDING
+                status=Installment.Status.PENDENTE
             )
     else:
         # Fallback para parcela única
@@ -74,7 +74,7 @@ def create_billing_for_sale(sale, installments_data=None):
             installment_number=1,
             due_date=due_date,
             amount=sale.total_amount - sale.discount,
-            status=Installment.Status.PENDING
+            status=Installment.Status.PENDENTE
         )
 
     return billing

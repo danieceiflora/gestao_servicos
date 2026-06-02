@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'storages',
     'pwa',
+    'widget_tweaks',
     'services',
     'integracoes',
 ]

@@ -27,7 +27,7 @@
             <!-- Status Tabs Style -->
             <div class="inline-flex p-1 bg-slate-100 rounded-xl">
                 <a href="?status=PENDING{% if selected_professional %}&professional={{ selected_professional }}{% endif %}" 
-                   class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all {% if status_filter == 'PENDING' %}bg-white text-emerald-600 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+                   class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all {% if status_filter == 'PENDENTE' %}bg-white text-emerald-600 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
                     Pendentes
                 </a>
                 <a href="?status=CONFIRMED{% if selected_professional %}&professional={{ selected_professional }}{% endif %}" 
@@ -55,7 +55,7 @@
         {% csrf_token %}
         
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            {% if is_manager and status_filter == 'PENDING' %}
+            {% if is_manager and status_filter == 'PENDENTE' %}
             <!-- Bulk Action Toolbar -->
             <div id="bulk-toolbar" class="hidden bg-emerald-50 border-b border-emerald-100 p-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300">
                 <div class="flex items-center gap-3">
@@ -73,7 +73,7 @@
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-slate-50/50 border-b border-slate-100">
-                            {% if is_manager and status_filter == 'PENDING' %}
+                            {% if is_manager and status_filter == 'PENDENTE' %}
                             <th class="p-4 w-10">
                                 <input type="checkbox" id="master-checkbox" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
                             </th>
@@ -85,7 +85,7 @@
                             <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Cliente</th>
                             <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Método</th>
                             <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Valor</th>
-                            {% if status_filter == 'PENDING' or is_manager %}
+                            {% if status_filter == 'PENDENTE' or is_manager %}
                             <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Ações</th>
                             {% endif %}
                         </tr>
@@ -93,7 +93,7 @@
                     <tbody class="divide-y divide-slate-50">
                         {% for payment in payments %}
                         <tr class="hover:bg-slate-50/50 transition-colors group">
-                            {% if is_manager and status_filter == 'PENDING' %}
+                            {% if is_manager and status_filter == 'PENDENTE' %}
                             <td class="p-4">
                                 <input type="checkbox" name="payment_ids" value="{{ payment.id }}" class="payment-checkbox rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
                             </td>
@@ -126,7 +126,7 @@
                             </td>
                             <td class="p-4 text-center">
                                 <div class="flex items-center justify-center gap-1">
-                                    {% if status_filter == 'PENDING' %}
+                                    {% if status_filter == 'PENDENTE' %}
                                         {% if is_manager %}
                                             <button type="button" onclick="confirmPayment('{{ payment.id }}', '{{ payment.amount }}', '{{ payment.order.number }}')" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dar Baixa Individual">
                                                 <i data-lucide="check-circle" class="h-5 w-5"></i>
@@ -158,10 +158,10 @@
                             <td colspan="7" class="p-12 text-center">
                                 <div class="flex flex-col items-center justify-center">
                                     <div class="h-16 w-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-4">
-                                        <i data-lucide="{% if status_filter == 'PENDING' %}check-check{% else %}banknote{% endif %}" class="h-8 w-8"></i>
+                                        <i data-lucide="{% if status_filter == 'PENDENTE' %}check-check{% else %}banknote{% endif %}" class="h-8 w-8"></i>
                                     </div>
                                     <h3 class="text-lg font-bold text-slate-800">
-                                        {% if status_filter == 'PENDING' %}Tudo em dia!{% else %}Nenhum recebimento baixado{% endif %}
+                                        {% if status_filter == 'PENDENTE' %}Tudo em dia!{% else %}Nenhum recebimento baixado{% endif %}
                                     </h3>
                                     <p class="text-slate-500">Não há registros para os filtros selecionados.</p>
                                 </div>

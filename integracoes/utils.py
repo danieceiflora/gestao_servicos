@@ -85,7 +85,7 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
     
     for config in configs:
         # Validação adicional para alteração de status
-        if event_type == 'STATUS_CHANGE':
+        if event_type == 'MUDANCA_STATUS':
             # Se o status de destino da config for definido, deve bater com o novo status
             if config.to_status and str(new_status) != str(config.to_status):
                 continue

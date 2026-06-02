@@ -8,7 +8,7 @@ const OfflineApp = {
         currentView: 'list', // 'list', 'detail'
         currentTaskId: null,
         filters: {
-            status: 'all', // 'all', 'IN_PROGRESS', 'SCHEDULED', 'COMPLETED'
+            status: 'all', // 'all', 'EM_ANDAMENTO', 'AGENDADO', 'CONCLUIDO'
             hideCompleted: false
         },
         camera: {
@@ -211,7 +211,7 @@ const OfflineApp = {
         
         // Aplicar filtros
         if (this.state.filters.hideCompleted) {
-            tasks = tasks.filter(t => t.status !== 'COMPLETED');
+            tasks = tasks.filter(t => t.status !== 'CONCLUIDO');
         }
         if (this.state.filters.status !== 'all') {
             tasks = tasks.filter(t => t.status === this.state.filters.status);
@@ -224,13 +224,13 @@ const OfflineApp = {
         for (const task of tasks) {
             const itemEl = this.createTaskItem(task);
             
-            if (task.status === 'IN_PROGRESS') {
+            if (task.status === 'EM_ANDAMENTO') {
                 listInProgress.appendChild(itemEl);
                 inProgressCount++;
-            } else if (task.status === 'SCHEDULED') {
+            } else if (task.status === 'AGENDADO') {
                 listScheduled.appendChild(itemEl);
                 scheduledCount++;
-            } else if (task.status === 'COMPLETED') {
+            } else if (task.status === 'CONCLUIDO') {
                 listCompleted.appendChild(itemEl);
                 completedCount++;
             }
@@ -296,13 +296,13 @@ const OfflineApp = {
         statusBadge.className = 'task-status-badge inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap';
 
         // Estilização consistente com a seção (Status)
-        if (task.status === 'SCHEDULED') {
+        if (task.status === 'AGENDADO') {
             card.classList.add('border-l-blue-500', 'hover:border-blue-300');
             statusBadge.classList.add('bg-blue-50', 'text-blue-700');
-        } else if (task.status === 'IN_PROGRESS') {
+        } else if (task.status === 'EM_ANDAMENTO') {
             card.classList.add('border-l-amber-500', 'hover:border-amber-300');
             statusBadge.classList.add('bg-amber-50', 'text-amber-700');
-        } else if (task.status === 'COMPLETED') {
+        } else if (task.status === 'CONCLUIDO') {
             card.classList.add('border-l-emerald-500', 'hover:border-emerald-300');
             statusBadge.classList.add('bg-emerald-50', 'text-emerald-700');
         } else {
@@ -340,10 +340,10 @@ const OfflineApp = {
 
     translateStatus(status) {
         const map = {
-            'SCHEDULED': 'Agendado',
-            'IN_PROGRESS': 'Em Execução',
-            'COMPLETED': 'Finalizado',
-            'CANCELLED': 'Cancelado'
+            'AGENDADO': 'Agendado',
+            'EM_ANDAMENTO': 'Em Execução',
+            'CONCLUIDO': 'Finalizado',
+            'CANCELADO': 'Cancelado'
         };
         return map[status] || status;
     },
@@ -453,9 +453,9 @@ const OfflineApp = {
         // Status Badge
         const statusBadge = tplDetail.querySelector('.task-status-badge');
         statusBadge.textContent = this.translateStatus(task.status);
-        if (task.status === 'SCHEDULED') statusBadge.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-100');
-        else if (task.status === 'IN_PROGRESS') statusBadge.classList.add('bg-amber-50', 'text-amber-600', 'border-amber-100');
-        else if (task.status === 'COMPLETED') statusBadge.classList.add('bg-emerald-50', 'text-emerald-600', 'border-emerald-100');
+        if (task.status === 'AGENDADO') statusBadge.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-100');
+        else if (task.status === 'EM_ANDAMENTO') statusBadge.classList.add('bg-amber-50', 'text-amber-600', 'border-amber-100');
+        else if (task.status === 'CONCLUIDO') statusBadge.classList.add('bg-emerald-50', 'text-emerald-600', 'border-emerald-100');
 
         // Dados da Task
         tplDetail.querySelector('.task-type').textContent = task.task_type;
@@ -485,7 +485,7 @@ const OfflineApp = {
         const occurrenceList = tplDetail.querySelector('#occurrence-list');
         const occurrencesSection = tplDetail.querySelector('#occurrences-section-card');
 
-        const isCompleted = task.status === 'COMPLETED';
+        const isCompleted = task.status === 'CONCLUIDO';
 
         // --- Ocorrências (Sempre processado) ---
         const occCount = await this.renderOccurrences(occurrenceList, taskId);
@@ -503,11 +503,11 @@ const OfflineApp = {
             if (btnAddOccurrencePre) btnAddOccurrencePre.classList.add('hidden');
         }
 
-        if (task.status === 'SCHEDULED') {
+        if (task.status === 'AGENDADO') {
             startSection.classList.remove('hidden');
             activeSection.classList.add('hidden');
             btnStart.onclick = () => this.startTask(taskId);
-        } else if (task.status === 'IN_PROGRESS' || task.status === 'COMPLETED') {
+        } else if (task.status === 'EM_ANDAMENTO' || task.status === 'CONCLUIDO') {
             startSection.classList.add('hidden');
             
             // A seção ativa contém Checklist e Mídias
@@ -780,7 +780,7 @@ const OfflineApp = {
 
         // 1. Atualiza IndexedDB
         await db.tasks.update(taskId, {
-            status: 'COMPLETED',
+            status: 'CONCLUIDO',
             finished_at: now,
             customer_name: customerName,
             customer_signature: signatureBase64,
@@ -834,12 +834,12 @@ const OfflineApp = {
 
     translateOccType(type) {
         const map = {
-            'DELAY': 'Atraso',
-            'MATERIAL_MISSING': 'Falta de Material',
-            'CUSTOMER_ABSENT': 'Cliente Ausente',
-            'IMPEDIMENT': 'Impedimento no Local',
-            'WARRANTY_ISSUE': 'Garantia',
-            'OTHER': 'Outro'
+            'ATRASO': 'Atraso',
+            'FALTA_MATERIAL': 'Falta de Material',
+            'CLIENTE_AUSENTE': 'Cliente Ausente',
+            'IMPEDIMENTO_LOCAL': 'Impedimento no Local',
+            'ACIONAMENTO_GARANTIA': 'Garantia',
+            'OUTRO': 'Outro'
         };
         return map[type] || type;
     },
@@ -919,7 +919,7 @@ const OfflineApp = {
             category,
             occurrence_type: type,
             description,
-            status: 'REGISTERED'
+            status: 'REGISTRADA'
         });
 
         // --- Vincula mídias temporárias à ocorrência real ---
@@ -985,7 +985,7 @@ const OfflineApp = {
                 occurrence_id: occurrenceId || null,
                 type: file.type,
                 blob: file,
-                status: 'pending'
+                status: 'pendente'
             });
 
             await OfflineDB.enqueueSyncItem('MEDIA_UPLOAD', {
@@ -1111,7 +1111,7 @@ const OfflineApp = {
     async renderOfflineMedia(container, taskId, responseId, occurrenceId = null) {
         // Pega se a task já foi concluída, a fim de bloquear exclusões em tarefas finalizadas
         const task = await db.tasks.get(taskId);
-        const isCompleted = task ? task.status === 'COMPLETED' : false;
+        const isCompleted = task ? task.status === 'CONCLUIDO' : false;
 
         let query = db.media.where('task_id').equals(taskId);
         
@@ -1296,7 +1296,7 @@ const OfflineApp = {
         
         // 1. Atualiza no IndexedDB
         await db.tasks.update(taskId, {
-            status: 'IN_PROGRESS',
+            status: 'EM_ANDAMENTO',
             started_at: now
         });
 

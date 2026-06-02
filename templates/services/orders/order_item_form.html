@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function() {
         unitPriceInput.value = parseDecimal(product.price).toFixed(2);
 
         if (quantityLabel) {
-            quantityLabel.textContent = product.unit === 'METER' ? 'Quantidade (mt) *' : 'Quantidade (un) *';
+            quantityLabel.textContent = product.unit === 'METRO' ? 'Quantidade (mt) *' : 'Quantidade (un) *';
         }
 
         updateTotal();

@@ -21,14 +21,14 @@ def _clean_phone_number(phone):
 def _get_order_payment_method(service_order):
     from .models import ServiceOrderTask
     exec_task = service_order.tasks.filter(
-        task_type=ServiceOrderTask.TaskType.EXECUTION,
+        task_type=ServiceOrderTask.TaskType.EXECUCAO,
         payment_method__isnull=False
     ).order_by('scheduled_at').first()
     if exec_task and exec_task.payment_method:
         return exec_task.payment_method
 
     budget_task = service_order.tasks.filter(
-        task_type=ServiceOrderTask.TaskType.BUDGET,
+        task_type=ServiceOrderTask.TaskType.ORCAMENTO,
         payment_method__isnull=False
     ).order_by('scheduled_at').first()
     if budget_task and budget_task.payment_method:
@@ -42,7 +42,7 @@ def _get_order_payment_method(service_order):
 def _has_technician_payment(service_order):
     from .models import ServicePayment
     return service_order.payments.filter(
-        status=ServicePayment.PaymentStatus.PENDING,
+        status=ServicePayment.PaymentStatus.PENDENTE,
         amount__gt=0
     ).exists()
 
@@ -206,10 +206,10 @@ def run_payment_receipt_workflow(service_order_id):
             logger.info(f"Workflow de recibo abortado para OS #{service_order.number}: Já enviado.")
             return
             
-        if service_order.status != ServiceOrder.Status.FINISHED:
+        if service_order.status != ServiceOrder.Status.FINALIZADO:
             return
 
-        has_pending_payment = service_order.payments.filter(status='PENDING').exists() or service_order.balance_due > 0
+        has_pending_payment = service_order.payments.filter(status='PENDENTE').exists() or service_order.balance_due > 0
         has_any_payment = service_order.payments.filter(amount__gt=0).exists()
 
         if has_pending_payment or not has_any_payment:

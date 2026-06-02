@@ -145,8 +145,8 @@
                     </div>
                     <div class="flex items-center gap-3">
                         <span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
-                            {% if order.status == 'FINISHED' %}bg-emerald-50 text-emerald-600
-                            {% elif order.status == 'CANCELLED' %}bg-slate-50 text-slate-400
+                            {% if order.status == 'FINALIZADO' %}bg-emerald-50 text-emerald-600
+                            {% elif order.status == 'CANCELADO' %}bg-slate-50 text-slate-400
                             {% elif order.status == 'WAITING_APPROVAL' %}bg-amber-50 text-amber-600
                             {% else %}bg-blue-50 text-blue-600{% endif %}">
                             {{ order.get_status_display }}

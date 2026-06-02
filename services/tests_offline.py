@@ -17,7 +17,7 @@ class OfflineAPITestCase(TestCase):
         self.order = ServiceOrder.objects.create(client_property=self.property_obj)
         self.task = ServiceOrderTask.objects.create(
             service_order=self.order,
-            task_type='EXECUTION',
+            task_type='EXECUCAO',
             scheduled_at=timezone.now()
         )
         self.task.team_members.create(professional=self.professional)

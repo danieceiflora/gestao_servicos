@@ -25,6 +25,11 @@
                 <i data-lucide="package" class="h-4 w-4"></i>
                 Dados Gerais
             </button>
+            <button type="button" onclick="switchTab('componentes')" id="tab-componentes-btn" 
+                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all items-center justify-center gap-2 text-slate-500 hover:text-slate-700 hidden">
+                <i data-lucide="layers" class="h-4 w-4"></i>
+                Componentes
+            </button>
             <button type="button" onclick="switchTab('midia')" id="tab-midia-btn" 
                     class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700">
                 <i data-lucide="image" class="h-4 w-4"></i>
@@ -42,11 +47,27 @@
             </button>
         </div>
 
-        <form method="post" enctype="multipart/form-data" class="p-6 md:p-8" id="product-form">
+        <form method="post" enctype="multipart/form-data" class="p-6 md:p-8" id="product-form" onsubmit="return validateProductForm()">
             {% csrf_token %}
 
             <!-- Tab 1: Dados Gerais -->
             <div id="tab-geral" class="tab-content space-y-8">
+                <!-- Preço Principal em Destaque -->
+                <div class="bg-blue-50/50 p-6 rounded-3xl border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div class="space-y-1 text-center md:text-left">
+                        <h3 class="text-sm font-bold text-blue-900 uppercase tracking-wider">Preço de Venda Sugerido</h3>
+                        <p class="text-xs text-blue-600">Este é o valor que aparecerá no PDV e Ordens de Serviço.</p>
+                    </div>
+                    <div class="w-full md:w-64">
+                        <div class="relative group">
+                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-blue-400 font-bold text-lg group-focus-within:text-blue-600">R$</span>
+                            <div class="[&>input]:pl-12 [&>input]:py-4 [&>input]:text-2xl [&>input]:font-black [&>input]:text-blue-700 [&>input]:border-blue-200 [&>input]:bg-white [&>input]:shadow-inner [&>input]:rounded-2xl">
+                                {{ form.default_unit_price }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="md:col-span-2 space-y-2">
                         <label class="text-sm font-bold text-slate-700">Nome do Produto</label>
@@ -57,19 +78,18 @@
                     </div>
 
                     <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Categoria</label>
-                        {{ form.category }}
-                        {% if form.category.errors %}
-                        <p class="text-xs text-red-500">{{ form.category.errors.0 }}</p>
-                        {% endif %}
+                        <label class="text-sm font-bold text-slate-700">Formato</label>
+                        {{ form.format }}
                     </div>
 
                     <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Fornecedor Padrão</label>
-                        {{ form.supplier }}
-                        {% if form.supplier.errors %}
-                        <p class="text-xs text-red-500">{{ form.supplier.errors.0 }}</p>
-                        {% endif %}
+                        <label class="text-sm font-bold text-slate-700">Tipo</label>
+                        {{ form.type }}
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-bold text-slate-700">Categoria</label>
+                        {{ form.category }}
                     </div>
 
                     <div class="space-y-2">
@@ -83,11 +103,11 @@
                     </div>
 
                     <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Preço Padrão (Venda)</label>
+                        <label class="text-sm font-bold text-slate-700">Preço de Custo (Unit.)</label>
                         <div class="relative group">
-                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 font-bold text-sm group-focus-within:text-blue-500">R$</span>
-                            <div class="[&>input]:pl-11 [&>input]:font-bold [&>input]:text-blue-600">
-                                {{ form.default_unit_price }}
+                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 font-bold text-sm">R$</span>
+                            <div class="[&>input]:pl-11 [&>input]:font-bold">
+                                {{ form.preco_custo }}
                             </div>
                         </div>
                     </div>
@@ -103,7 +123,87 @@
                 </div>
             </div>
 
-            <!-- Tab 2: Mídia -->
+            <!-- Tab: Componentes -->
+            <div id="tab-componentes" class="tab-content hidden space-y-6">
+                <!-- Totais da Composição -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
+                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Custo Total dos Componentes</h4>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-500 font-bold">R$</span>
+                            <span id="display-custo-total" class="text-2xl font-black text-white">0,00</span>
+                        </div>
+                        <div class="hidden">{{ form.preco_custo_total }}</div>
+                    </div>
+                    <div class="bg-emerald-900 p-5 rounded-3xl border border-emerald-800 shadow-xl">
+                        <h4 class="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Soma das Vendas dos Componentes</h4>
+                        <div class="flex items-center justify-between">
+                            <span class="text-emerald-500 font-bold">R$</span>
+                            <span id="display-venda-total" class="text-2xl font-black text-white">0,00</span>
+                        </div>
+                        <div class="hidden">{{ form.preco_venda_total }}</div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-slate-900">Lista de Componentes (Matéria Prima)</h3>
+                        <p class="text-xs text-slate-500">Defina os itens que compõem este produto final.</p>
+                    </div>
+
+                    {{ composition_formset.management_form }}
+                    <div id="composition-formset-container" class="space-y-3">
+                        {% for cform in composition_formset %}
+                        <div class="composition-form-row flex flex-col bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group">
+                            {{ cform.id }}
+                            <div class="flex flex-col md:flex-row gap-4">
+                                <div class="flex-1 space-y-1">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase">Componente</label>
+                                    {{ cform.component }}
+                                </div>
+                                <div class="w-full md:w-32 space-y-1">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase">Quantidade</label>
+                                    {{ cform.quantity }}
+                                </div>
+                                
+                                <!-- Info Unitária -->
+                                <div class="flex flex-row md:flex-col justify-between md:justify-end gap-4 md:gap-1 text-right min-w-[120px]">
+                                    <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Valores Unit.</div>
+                                    <div class="flex flex-col">
+                                        <span class="text-[10px] text-slate-400 italic">Custo: R$ <span class="row-unit-cost font-mono">0,00</span></span>
+                                        <span class="text-[10px] text-slate-400 italic">Venda: R$ <span class="row-unit-sales font-mono">0,00</span></span>
+                                    </div>
+                                </div>
+
+                                <!-- Subtotal -->
+                                <div class="flex flex-row md:flex-col justify-between md:justify-end gap-4 md:gap-1 text-right min-w-[100px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pt-0 md:pl-4">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase">Subtotal Custo</div>
+                                    <div class="text-sm font-bold text-slate-900 font-mono">
+                                        R$ <span class="row-subtotal-cost">0,00</span>
+                                    </div>
+                                </div>
+
+                                {% if composition_formset.can_delete %}
+                                <div class="flex items-end justify-end pb-1 ml-2">
+                                    <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-red-500 transition-colors">
+                                        {{ cform.DELETE }}
+                                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                    </label>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <button type="button" onclick="addCompositionRow()" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all flex items-center justify-center gap-2 text-sm">
+                        <i data-lucide="plus" class="h-4 w-4"></i>
+                        Adicionar Componente
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab 3: Mídia -->
             <div id="tab-midia" class="tab-content hidden space-y-8">
                 <!-- Imagem do Produto Section -->
                 <div class="space-y-4">
@@ -279,11 +379,30 @@
 
 {% block extra_js %}
 <script>
+    function toggleCompositionTab() {
+        const formatSelect = document.getElementById('{{ form.format.id_for_label }}');
+        const compositionTabBtn = document.getElementById('tab-componentes-btn');
+        
+        if (formatSelect.value === 'COM_COMPOSICAO') {
+            compositionTabBtn.classList.remove('hidden');
+            compositionTabBtn.classList.add('flex');
+        } else {
+            compositionTabBtn.classList.add('hidden');
+            compositionTabBtn.classList.remove('flex');
+            // Se estiver na aba de componentes e ela sumir, volta pra geral
+            const activeTab = document.querySelector('.tab-content:not(.hidden)');
+            if (activeTab && activeTab.id === 'tab-componentes') {
+                switchTab('geral');
+            }
+        }
+    }
+
     function switchTab(tabId) {
         // Hide all contents
         document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
         // Show selected content
-        document.getElementById('tab-' + tabId).classList.remove('hidden');
+        const target = document.getElementById('tab-' + tabId);
+        if (target) target.classList.remove('hidden');
 
         // Reset all buttons
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -293,8 +412,165 @@
 
         // Highlight active button
         const activeBtn = document.getElementById('tab-' + tabId + '-btn');
-        activeBtn.classList.remove('text-slate-500', 'hover:text-slate-700');
-        activeBtn.classList.add('text-blue-600', 'bg-white', 'shadow-sm', 'border', 'border-slate-200');
+        if (activeBtn) {
+            activeBtn.classList.remove('text-slate-500', 'hover:text-slate-700');
+            activeBtn.classList.add('text-blue-600', 'bg-white', 'shadow-sm', 'border', 'border-slate-200');
+        }
+        
+        lucide.createIcons();
+    }
+
+    // Initialize state
+    document.addEventListener('DOMContentLoaded', () => {
+        toggleCompositionTab();
+        initializeComponentSelects();
+    });
+
+    // Cache para preços de componentes
+    const componentPriceCache = {};
+
+    async function calculateCompositionTotals() {
+        // Seleciona apenas as linhas que estão dentro do container correto
+        const container = document.getElementById('composition-formset-container');
+        if (!container) return;
+
+        const rows = container.querySelectorAll('.composition-form-row');
+        let totalCusto = 0;
+        let totalVenda = 0;
+
+        for (const row of rows) {
+            const deleteInput = row.querySelector('input[name$="-DELETE"]');
+            if (deleteInput && deleteInput.checked) {
+                row.classList.add('opacity-50');
+                continue;
+            } else {
+                row.classList.remove('opacity-50');
+            }
+
+            const select = row.querySelector('select.component-select');
+            const qtyInput = row.querySelector('input.quantity-input');
+            
+            const costDisplay = row.querySelector('.row-unit-cost');
+            const salesDisplay = row.querySelector('.row-unit-sales');
+            const subtotalDisplay = row.querySelector('.row-subtotal-cost');
+
+            const productId = select.value;
+            const quantity = parseFloat(qtyInput.value) || 0;
+
+            if (productId) {
+                if (!componentPriceCache[productId]) {
+                    try {
+                        const response = await fetch(`/produtos/${productId}/precos/`);
+                        const data = await response.json();
+                        componentPriceCache[productId] = data;
+                    } catch (error) {
+                        console.error('Erro ao buscar preços do componente:', error);
+                        continue;
+                    }
+                }
+
+                const prices = componentPriceCache[productId];
+                const unitCost = prices.preco_custo || 0;
+                const unitSales = prices.default_unit_price || 0;
+                const subtotal = unitCost * quantity;
+
+                // Update Row Displays
+                if (costDisplay) costDisplay.textContent = unitCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                if (salesDisplay) salesDisplay.textContent = unitSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                if (subtotalDisplay) subtotalDisplay.textContent = subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                totalCusto += subtotal;
+                totalVenda += unitSales * quantity;
+            } else {
+                // Clear row displays if no product
+                if (costDisplay) costDisplay.textContent = '0,00';
+                if (salesDisplay) salesDisplay.textContent = '0,00';
+                if (subtotalDisplay) subtotalDisplay.textContent = '0,00';
+            }
+        }
+
+        // Atualiza displays globais
+        const globalCusto = document.getElementById('display-custo-total');
+        const globalVenda = document.getElementById('display-venda-total');
+        
+        if (globalCusto) globalCusto.textContent = totalCusto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (globalVenda) globalVenda.textContent = totalVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        // Atualiza campos ocultos do form
+        const inputCusto = document.getElementById('{{ form.preco_custo_total.id_for_label }}');
+        const inputVenda = document.getElementById('{{ form.preco_venda_total.id_for_label }}');
+        const mainPrecoCusto = document.getElementById('{{ form.preco_custo.id_for_label }}');
+        
+        if (inputCusto) inputCusto.value = totalCusto.toFixed(2);
+        if (inputVenda) inputVenda.value = totalVenda.toFixed(2);
+        
+        // Se for composição, o custo do produto é a soma dos custos dos componentes
+        const formatSelect = document.getElementById('{{ form.format.id_for_label }}');
+        if (formatSelect && formatSelect.value === 'COM_COMPOSICAO' && mainPrecoCusto) {
+            mainPrecoCusto.value = totalCusto.toFixed(2);
+        }
+    }
+
+    function validateProductForm() {
+        const formatSelect = document.getElementById('{{ form.format.id_for_label }}');
+        if (formatSelect.value === 'COM_COMPOSICAO') {
+            const container = document.getElementById('composition-formset-container');
+            const rows = container.querySelectorAll('.composition-form-row');
+            let hasValidComponent = false;
+            
+            rows.forEach(row => {
+                const deleteInput = row.querySelector('input[name$="-DELETE"]');
+                const isDeleted = deleteInput ? deleteInput.checked : false;
+                const select = row.querySelector('select.component-select');
+                const qty = row.querySelector('input.quantity-input');
+                
+                if (!isDeleted && select.value && parseFloat(qty.value) > 0) {
+                    hasValidComponent = true;
+                }
+            });
+
+            if (!hasValidComponent) {
+                alert('Produtos com composição devem ter pelo menos um componente válido com quantidade maior que zero.');
+                switchTab('componentes');
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function initializeComponentSelects() {
+        calculateCompositionTotals();
+    }
+
+    function addCompositionRow() {
+        const container = document.getElementById('composition-formset-container');
+        const totalForms = document.getElementById('id_compositions-TOTAL_FORMS');
+        const rowCount = parseInt(totalForms.value);
+        
+        const templateRow = container.querySelector('.composition-form-row');
+        if (!templateRow) return;
+
+        const template = templateRow.cloneNode(true);
+        template.classList.remove('opacity-50');
+        
+        const regex = new RegExp(`compositions-(\\d|__prefix__)`, 'g');
+        template.innerHTML = template.innerHTML.replace(regex, `compositions-${rowCount}`);
+        
+        // Clear values and displays
+        template.querySelectorAll('input:not([type=hidden]), select').forEach(input => {
+            input.value = '';
+        });
+        template.querySelectorAll('.row-unit-cost, .row-unit-sales, .row-subtotal-cost').forEach(span => {
+            span.textContent = '0,00';
+        });
+        
+        const deleteCheckbox = template.querySelector('input[type=checkbox][name$="-DELETE"]');
+        if (deleteCheckbox) {
+            deleteCheckbox.checked = false;
+        }
+
+        container.appendChild(template);
+        totalForms.value = rowCount + 1;
         
         lucide.createIcons();
     }
@@ -325,7 +601,6 @@
             previewZone.classList.add('hidden');
             uploadZone.classList.remove('hidden');
             
-            // Se quisermos marcar para limpar no Django (ClearableFileInput)
             const clearCheckbox = document.getElementById('{{ form.image.id_for_label }}-clear_id');
             if (clearCheckbox) {
                 clearCheckbox.checked = true;

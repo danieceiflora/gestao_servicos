@@ -6,7 +6,7 @@ from .models import (
     ServiceMedia, ServiceItem, ServiceOrderTeam, Professional,
     ProfessionalRole, ProfessionalScheduleBlock,
     ServiceOrderTask, ServicePayment, Product, StockMovement,
-    Sale, SaleItem, Supplier, PaymentMethod
+    Sale, SaleItem, Supplier, PaymentMethod, Expense, ProductComposition, ExpenseInstallment
 )
 from integracoes.models import SystemConfig
 
@@ -221,7 +221,7 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
 
     task_type = forms.ChoiceField(
         choices=ServiceOrderTask.TaskType.choices,
-        initial=ServiceOrderTask.TaskType.BUDGET,
+        initial=ServiceOrderTask.TaskType.ORCAMENTO,
         label="Finalidade do Agendamento",
         required=False,
         widget=forms.RadioSelect(attrs={'class': 'flex gap-4 p-2 bg-slate-50 rounded-xl border border-slate-100'})
@@ -791,34 +791,89 @@ class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
         fields = [
-            'name', 'category', 'supplier', 'code', 'barcode', 'image', 'unit_type', 'default_unit_price', 'current_stock', 'is_active',
-            'ncm', 'cest', 'cfop_padrao', 'origem_mercadoria', 'csosn', 'cst_icms', 'cst_pis', 'cst_cofins',
+            'name', 'category', 'supplier', 'code', 'barcode', 'image', 
+            'unit_type', 'format', 'type', 'preco_custo', 'preco_custo_total', 
+            'preco_venda_total', 'default_unit_price', 'current_stock', 'is_active',
+            'ncm', 'cest', 'cfop_padrao', 'origem_mercadoria',
+            'csosn', 'cst_icms', 'cst_pis', 'cst_cofins',
             'aliquota_ibpt_fed', 'aliquota_ibpt_est', 'aliquota_ibpt_mun'
         ]
         widgets = {
-            'name': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'category': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'supplier': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'code': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'barcode': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'image': forms.FileInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'unit_type': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'default_unit_price': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
-            'current_stock': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
-            'is_active': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
+            'name': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'category': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'supplier': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'code': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'barcode': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'unit_type': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'format': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'onchange': 'toggleCompositionTab()'}),
+            'type': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'preco_custo': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01'}),
+            'preco_custo_total': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01', 'readonly': 'readonly'}),
+            'preco_venda_total': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01', 'readonly': 'readonly'}),
+            'default_unit_price': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01'}),
+            'current_stock': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'w-5 h-5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 transition-all cursor-pointer'}),
+            'image': forms.ClearableFileInput(attrs={'class': 'hidden', 'accept': 'image/*'}),
+
             # Fiscais
-            'ncm': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'cest': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'cfop_padrao': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'origem_mercadoria': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'csosn': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'cst_icms': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'cst_pis': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'cst_cofins': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
-            'aliquota_ibpt_fed': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
-            'aliquota_ibpt_est': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
-            'aliquota_ibpt_mun': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'ncm': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'cest': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'cfop_padrao': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'origem_mercadoria': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'csosn': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'cst_icms': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'cst_pis': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'cst_cofins': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'aliquota_ibpt_fed': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01'}),
+            'aliquota_ibpt_est': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01'}),
+            'aliquota_ibpt_mun': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01'}),
         }
+
+
+class ProductCompositionForm(forms.ModelForm):
+    class Meta:
+        model = ProductComposition
+        fields = ['component', 'quantity']
+        widgets = {
+            'component': forms.Select(attrs={
+                'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all component-select',
+                'onchange': 'calculateCompositionTotals()'
+            }),
+            'quantity': forms.NumberInput(attrs={
+                'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all quantity-input', 
+                'step': '0.01',
+                'oninput': 'calculateCompositionTotals()'
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filtra para mostrar apenas matéria prima por padrão
+        self.fields['component'].queryset = Product.objects.filter(type=Product.Type.MATERIA_PRIMA)
+        
+        # Adiciona atributos de dados para facilitar o cálculo no frontend
+        # Nota: Isso pode ser pesado se houver muitos produtos. 
+        # Para performance ideal, usaríamos AJAX no onchange do select.
+        # Mas como é restrito a MATERIA_PRIMA, vamos tentar por enquanto.
+        choices = [('', 'Selecione um componente...')]
+        for p in self.fields['component'].queryset:
+            choices.append((p.id, p.name, {
+                'data-cost': str(p.preco_custo),
+                'data-price': str(p.default_unit_price)
+            }))
+        
+        # Para o widget de Select do Django, passar os data-attrs exige customização ou JS.
+        # Vamos usar JS para buscar os dados via AJAX em vez de sobrecarregar o HTML.
+
+
+ProductCompositionFormSet = inlineformset_factory(
+    Product, ProductComposition,
+    form=ProductCompositionForm,
+    extra=1,
+    can_delete=True,
+    fk_name='parent'
+)
+
 
 class StockMovementForm(forms.ModelForm):
     class Meta:
@@ -935,3 +990,63 @@ class PaymentMethodForm(forms.ModelForm):
             'codigo_sefaz': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: 03'}),
             'ativo': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
         }
+
+# --- EXPENSE FORMS ---
+
+class ExpenseInstallmentForm(forms.ModelForm):
+    class Meta:
+        model = ExpenseInstallment
+        fields = ['installment_number', 'amount', 'due_date']
+        widgets = {
+            'installment_number': forms.TextInput(attrs={'class': 'w-full px-2 py-1 border rounded-lg bg-gray-50', 'readonly': 'readonly'}),
+            'amount': forms.NumberInput(attrs={'class': 'w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'due_date': forms.DateInput(
+                format='%Y-%m-%d',
+                attrs={'type': 'date', 'class': 'w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500'}
+            ),
+        }
+
+ExpenseInstallmentFormSet = inlineformset_factory(
+    Expense, ExpenseInstallment,
+    form=ExpenseInstallmentForm,
+    extra=0,
+    can_delete=False,
+    min_num=1,
+    validate_min=True
+)
+
+
+class ExpenseForm(forms.ModelForm):
+    class Meta:
+        model = Expense
+        fields = [
+            'supplier', 'category', 'description', 'total_amount', 
+            'issue_date', 'is_recurrent', 'frequency', 'installments_count'
+        ]
+        widgets = {
+            'supplier': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 search-select'}),
+            'category': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'description': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'total_amount': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'issue_date': forms.DateInput(
+                format='%Y-%m-%d',
+                attrs={'type': 'date', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}
+            ),
+            'is_recurrent': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
+            'frequency': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'installments_count': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'min': 1}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        is_recurrent = cleaned_data.get('is_recurrent')
+        frequency = cleaned_data.get('frequency')
+        installments_count = cleaned_data.get('installments_count')
+
+        if is_recurrent and not frequency:
+            self.add_error('frequency', 'A frequência é obrigatória para despesas recorrentes.')
+        
+        if not is_recurrent and installments_count and installments_count > 1 and not frequency:
+            self.add_error('frequency', 'A frequência é obrigatória se houver mais de uma parcela.')
+            
+        return cleaned_data

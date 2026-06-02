@@ -272,14 +272,14 @@ class BasePDFGenerator:
         if self.service_order.originator:
             return self.service_order.originator.name
         
-        budget_task = self.service_order.tasks.filter(task_type='BUDGET').first()
+        budget_task = self.service_order.tasks.filter(task_type='ORCAMENTO').first()
         if budget_task:
             first_member = budget_task.team_members.first()
             if first_member:
                 return first_member.professional.name
         
         # Fallback para o primeiro executor se não houver orçamento
-        execution_task = self.service_order.tasks.filter(task_type='EXECUTION').first()
+        execution_task = self.service_order.tasks.filter(task_type='EXECUCAO').first()
         if execution_task:
             first_member = execution_task.team_members.first()
             if first_member:
@@ -416,7 +416,7 @@ class BudgetPDFGenerator(BasePDFGenerator):
         elements = []
         tech_name = self._get_responsible_tech()
         inspection_date = "Não realizada"
-        budget_task = self.service_order.tasks.filter(task_type='BUDGET').first()
+        budget_task = self.service_order.tasks.filter(task_type='ORCAMENTO').first()
         if budget_task and budget_task.scheduled_at:
             inspection_date = budget_task.scheduled_at.strftime('%d/%m/%Y')
 
@@ -462,7 +462,7 @@ class BudgetPDFGenerator(BasePDFGenerator):
             # Unidade
             unit = "un"
             if item.product:
-                unit = "mt" if item.product.unit_type == 'METER' else "un"
+                unit = "mt" if item.product.unit_type == 'METRO' else "un"
             elif item.service:
                 unit = item.service.unit_of_measure
 
@@ -597,7 +597,7 @@ class CompletionPDFGenerator(BasePDFGenerator):
         elements = []
         status_display = self.service_order.get_status_display()
         finished_at_dt = None
-        last_execution = self.service_order.tasks.filter(task_type='EXECUTION', status='COMPLETED').order_by('-finished_at').first()
+        last_execution = self.service_order.tasks.filter(task_type='EXECUCAO', status='CONCLUIDO').order_by('-finished_at').first()
         if last_execution and last_execution.finished_at:
             finished_at_dt = last_execution.finished_at
 
@@ -644,7 +644,7 @@ class CompletionPDFGenerator(BasePDFGenerator):
             # Unidade
             unit = "un"
             if item.product:
-                unit = "mt" if item.product.unit_type == 'METER' else "un"
+                unit = "mt" if item.product.unit_type == 'METRO' else "un"
             elif item.service:
                 unit = item.service.unit_of_measure
 

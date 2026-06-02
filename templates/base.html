@@ -47,6 +47,10 @@
                             <i data-lucide="receipt" class="h-4 w-4 text-emerald-500"></i>
                             Contas a Receber
                         </a>
+                        <a href="{% url 'expense_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="ban" class="h-4 w-4 text-red-500 rotate-180"></i>
+                            Contas a Pagar
+                        </a>
                         <a href="{% url 'finance_dashboard' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
                             <i data-lucide="line-chart" class="h-4 w-4 text-slate-400"></i>
                             Comissões & Relatórios
@@ -148,7 +152,7 @@
     <!-- Mobile Bottom Navigation (IHC: Thumb Zone) -->
     {% if user.is_authenticated %}
     <nav class="lg:hidden fixed bottom-0 left-0 z-50 w-full bg-white border-t border-slate-200 safe-area-bottom">
-        <div class="grid h-16 {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}grid-cols-3{% else %}grid-cols-2{% endif %} items-center justify-around">
+        <div class="grid h-16 {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}grid-cols-5{% else %}grid-cols-2{% endif %} items-center justify-around">
             <a href="{% url 'home' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'home' %}text-slate-900{% else %}text-slate-500{% endif %}">
                 <i data-lucide="layout-dashboard" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Início</span>
@@ -160,6 +164,16 @@
             </a>
 
             {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
+            <a href="{% url 'expense_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'expense' in request.resolver_match.url_name %}text-red-600{% else %}text-slate-500{% endif %}">
+                <i data-lucide="ban" class="h-5 w-5 rotate-180"></i>
+                <span class="text-[10px] font-medium">Pagar</span>
+            </a>
+
+            <a href="{% url 'billing_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'billing' in request.resolver_match.url_name %}text-emerald-600{% else %}text-slate-500{% endif %}">
+                <i data-lucide="receipt" class="h-5 w-5"></i>
+                <span class="text-[10px] font-medium">Receber</span>
+            </a>
+
             <a href="{% url 'occurrence_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'occurrence' in request.resolver_match.url_name %}text-amber-600{% else %}text-slate-500{% endif %}">
                 <i data-lucide="alert-triangle" class="h-5 w-5"></i>
                 <span class="text-[10px] font-medium">Ocorrências</span>
@@ -169,6 +183,11 @@
     </nav>
     {% endif %}
 {% endblock %}
+
+
+
+
+ock %}
 
 
 

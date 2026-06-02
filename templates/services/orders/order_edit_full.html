@@ -172,7 +172,7 @@
                             <i data-lucide="hammer" class="h-4 w-4 text-blue-600"></i>
                             <h4 class="font-semibold text-slate-900 text-sm">Execução</h4>
                         </div>
-                        <button type="button" onclick="addMember('execution')" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
+                        <button type="button" onclick="addMember('EXECUCAO')" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
                             + Adicionar Executor
                         </button>
                     </div>
@@ -214,7 +214,7 @@
                             <i data-lucide="shield-check" class="h-4 w-4 text-emerald-600"></i>
                             <h4 class="font-semibold text-slate-900 text-sm">Garantia</h4>
                         </div>
-                        <button type="button" onclick="addMember('warranty')" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
+                        <button type="button" onclick="addMember('GARANTIA')" class="text-[10px] font-bold text-blue-600 uppercase tracking-wider hover:text-blue-700 transition-colors">
                             + Adicionar Garantia
                         </button>
                     </div>
@@ -357,7 +357,7 @@
                 executionDateDiv.classList.remove('hidden');
                 
                 // Update label text for warranty
-                if (selectedType === 'WARRANTY') {
+                if (selectedType === 'GARANTIA') {
                     executionLabelText.textContent = 'Execução de Garantia';
                 } else {
                     executionLabelText.textContent = 'Agendamento da Execução';
@@ -369,9 +369,9 @@
             
             if (selectedType === 'INSPECTION') {
                 sectionInspection.classList.remove('opacity-40');
-            } else if (selectedType === 'EXECUTION') {
+            } else if (selectedType === 'EXECUCAO') {
                 sectionExecution.classList.remove('opacity-40');
-            } else if (selectedType === 'WARRANTY') {
+            } else if (selectedType === 'GARANTIA') {
                 sectionWarranty.classList.remove('opacity-40');
             }
         }

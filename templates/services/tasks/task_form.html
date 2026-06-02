@@ -546,11 +546,11 @@
             if (!inputStarted.value) {
                 inputStarted.value = formattedNow;
                 const statusSelect = document.querySelector('select[name="status"]');
-                if (statusSelect) statusSelect.value = 'IN_PROGRESS';
+                if (statusSelect) statusSelect.value = 'EM_ANDAMENTO';
             } else if (!inputFinished.value) {
                 inputFinished.value = formattedNow;
                 const statusSelect = document.querySelector('select[name="status"]');
-                if (statusSelect) statusSelect.value = 'COMPLETED';
+                if (statusSelect) statusSelect.value = 'CONCLUIDO';
             }
 
             updateButtonState();

@@ -144,7 +144,7 @@
                                         <i data-lucide="play-circle" class="h-4 w-4"></i>
                                     </a>
                                 {% endif %}
-                                {% if order.status != 'FINISHED' and order.status != 'CANCELLED' %}
+                                {% if order.status != 'FINALIZADO' and order.status != 'CANCELADO' %}
                                     <a href="{% url 'service_order_edit' order.id %}" class="inline-flex items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-blue-50 hover:text-blue-600 h-8 w-8" title="Editar OS">
                                         <i data-lucide="edit-3" class="h-4 w-4"></i>
                                     </a>

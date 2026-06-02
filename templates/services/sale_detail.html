@@ -12,17 +12,17 @@
                 Voltar para Histórico
             </a>
             <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                Venda #{{ sale.uuid.hex|slice:":8"|upper }}
-                {% if sale.status == 'COMPLETED' %}
+                Venda #{{ sale.number }}
+                {% if sale.status == 'CONCLUIDO' %}
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Concluída</span>
-                {% elif sale.status == 'CANCELLED' %}
+                {% elif sale.status == 'CANCELADO' %}
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Cancelada</span>
                 {% endif %}
             </h1>
         </div>
         <div class="flex gap-2">
-            {% if sale.status == 'COMPLETED' %}
-            <form action="{% url 'sale_cancel' uuid=sale.uuid %}" method="POST" onsubmit="return confirm('Tem certeza que deseja cancelar esta venda? O estoque será estornado.')">
+            {% if sale.status == 'CONCLUIDO' %}
+            <form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="return confirm('Tem certeza que deseja cancelar esta venda? O estoque será estornado.')">
                 {% csrf_token %}
                 <button type="submit" class="inline-flex items-center px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors shadow-sm">
                     <i data-lucide="x-circle" class="w-4 h-4 mr-2"></i>

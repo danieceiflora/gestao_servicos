@@ -1,11 +1,20 @@
-<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider
-    {% if status == 'FINISHED' %}bg-green-100 text-green-700
-    {% elif status == 'WAITING_BUDGET' %}bg-blue-100 text-blue-700
-    {% elif status == 'BUDGET_SCHEDULED' %}bg-indigo-100 text-indigo-700
-    {% elif status == 'WAITING_APPROVAL' %}bg-amber-100 text-amber-700
-    {% elif status == 'APPROVED_WAITING_SCHEDULE' %}bg-emerald-100 text-emerald-700
-    {% elif status == 'WAITING_EXECUTION' %}bg-purple-100 text-purple-700
-    {% elif status == 'CANCELLED' %}bg-red-100 text-red-700
-    {% else %}bg-slate-100 text-slate-700{% endif %}">
-    {{ label }}
+<span class="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider
+    {% if status == 'FINALIZADO' %}bg-green-100 text-green-700
+    {% elif status == 'AGUARDANDO_VISITA' %}bg-blue-100 text-blue-700
+    {% elif status == 'ORCAMENTO_AGENDADO' %}bg-indigo-100 text-indigo-700
+    {% elif status == 'ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO' %}bg-amber-100 text-amber-700
+    {% elif status == 'AGUARDANDO_APROVACAO' %}bg-cyan-100 text-cyan-700
+    {% elif status == 'AGUARDANDO_EXECUCAO' %}bg-purple-100 text-purple-700
+    {% elif status == 'CANCELADO' %}bg-red-100 text-red-700
+    {% elif status == 'GARANTIA' %}bg-rose-100 text-rose-700
+    {% elif status == 'AGENDADO' %}bg-sky-100 text-sky-700
+    {% elif status == 'EM_ANDAMENTO' %}bg-emerald-100 text-emerald-700
+    {% elif status == 'CONCLUIDO' %}bg-green-100 text-green-700
+    {% elif status == 'PENDENTE' %}bg-slate-100 text-slate-700
+    {% elif status == 'PARCIAL' %}bg-blue-100 text-blue-700
+    {% elif status == 'PAGO' %}bg-emerald-100 text-emerald-700
+    {% elif status == 'ATRASADO' %}bg-red-100 text-red-700
+    {% else %}bg-slate-100 text-slate-700
+    {% endif %}">
+    {{ label|default:status }}
 </span>

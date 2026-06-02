@@ -64,12 +64,12 @@
                             {{ template.category }}
                         </td>
                         <td class="px-6 py-4">
-                            {% if template.status == 'APPROVED' %}
+                            {% if template.status == 'APROVADO' %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
                                 Aprovado
                             </span>
-                            {% elif template.status == 'PENDING' %}
+                            {% elif template.status == 'PENDENTE' %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
                                 <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>
                                 Pendente
@@ -187,9 +187,9 @@
         
         const badgeContainer = document.getElementById('modal-status-badge');
         let badgeHtml = '';
-        if (status === 'APPROVED') {
+        if (status === 'APROVADO') {
             badgeHtml = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">Aprovado</span>';
-        } else if (status === 'PENDING') {
+        } else if (status === 'PENDENTE') {
             badgeHtml = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Pendente</span>';
         } else {
             badgeHtml = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">${status}</span>`;

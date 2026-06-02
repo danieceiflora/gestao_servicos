@@ -59,7 +59,7 @@
                             {{ move.created_at|date:"d/m/Y H:i" }}
                         </td>
                         <td class="px-6 py-4">
-                            {% if move.movement_type == 'IN' %}
+                            {% if move.movement_type == 'ENTRADA' %}
                             <span class="inline-flex items-center gap-1 text-emerald-600 font-bold text-sm">
                                 <i data-lucide="arrow-up-circle" class="h-4 w-4"></i>
                                 Entrada
@@ -72,7 +72,7 @@
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 font-mono font-bold text-slate-900">
-                            {% if move.movement_type == 'IN' %}+{% else %}-{% endif %}{{ move.quantity }}
+                            {% if move.movement_type == 'ENTRADA' %}+{% else %}-{% endif %}{{ move.quantity }}
                         </td>
                         <td class="px-6 py-4 text-sm text-slate-600">
                             {{ move.get_reason_display }}

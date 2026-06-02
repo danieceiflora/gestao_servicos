@@ -315,8 +315,8 @@
                                 <div class="flex items-center gap-2">
                                     <span class="font-semibold text-slate-900">{{ task.get_task_type_display }}</span>
                                     <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium 
-                                        {% if task.status == 'COMPLETED' %}bg-green-100 text-green-700
-                                        {% elif task.status == 'IN_PROGRESS' %}bg-blue-100 text-blue-700
+                                        {% if task.status == 'CONCLUIDO' %}bg-green-100 text-green-700
+                                        {% elif task.status == 'EM_ANDAMENTO' %}bg-blue-100 text-blue-700
                                         {% else %}bg-slate-100 text-slate-700{% endif %}">
                                         {{ task.get_status_display }}
                                     </span>
@@ -325,7 +325,7 @@
                             </div>
                             <div class="flex items-center gap-2 md:self-start">
                                 <a href="{% url 'task_edit' task.id %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-slate-100 hover:text-slate-900 h-9 px-3 border border-slate-200 bg-white shadow-sm">Editar</a>
-                                {% if task.status == 'SCHEDULED' %}
+                                {% if task.status == 'AGENDADO' %}
                                 <a href="{% url 'task_cancel' task.id %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-red-100 text-red-600 hover:text-red-900 h-9 px-3 border border-red-200 bg-white shadow-sm">Cancelar</a>
                                 {% endif %}
                             </div>
@@ -698,7 +698,7 @@
                         <div class="space-y-1">
                             <p class="font-semibold text-slate-900">{{ item.description }}</p>
                             <p class="text-sm text-slate-500 flex items-center gap-1">
-                                {% if item.product and item.product.unit_type == 'METER' %}
+                                {% if item.product and item.product.unit_type == 'METRO' %}
                                     {{ item.quantity|floatformat:2 }} mt
                                 {% else %}
                                     {{ item.quantity|floatformat:0 }} un
@@ -1001,9 +1001,9 @@
                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Tipo de Etapa *</label>
                         <select name="task_${number-1}_type" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
                             <option value="">Selecione...</option>
-                            <option value="BUDGET">Vistoria/Orçamento</option>
-                            <option value="EXECUTION">Execução/Instalação</option>
-                            <option value="WARRANTY">Garantia</option>
+                            <option value='ORCAMENTO'>Vistoria/Orçamento</option>
+                            <option value='EXECUCAO'>Execução/Instalação</option>
+                            <option value='GARANTIA'>Garantia</option>
                         </select>
                     </div>
 

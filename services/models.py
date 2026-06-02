@@ -18,8 +18,8 @@ def quantize_money(value):
 class User(AbstractUser):
     class Roles(models.TextChoices):
         ADMIN = 'ADMIN', 'Administrador'
-        COLLABORATOR = 'COLLABORATOR', 'Colaborador'
-        MANAGER = 'MANAGER', 'Gerente'
+        COLLABORATOR = 'COLABORADOR', 'Colaborador'
+        MANAGER = 'GERENTE', 'Gerente'
 
     role = models.CharField(
         max_length=20, 
@@ -155,6 +155,9 @@ class Client(BusinessEntityBase):
 
 
 class Supplier(BusinessEntityBase):
+    phone = models.CharField(max_length=20, null=True, blank=True, verbose_name="Telefone")
+    email = models.EmailField(null=True, blank=True, verbose_name="E-mail")
+    address = models.CharField(max_length=255, null=True, blank=True, verbose_name="Endereço")
     notes = models.TextField(null=True, blank=True, verbose_name="Observações")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
 
@@ -435,8 +438,8 @@ class Service(models.Model):
 
 class ServiceChecklistItem(models.Model):
     class EvidenceType(models.TextChoices):
-        TEXT = 'TEXT', 'Texto'
-        PHOTO = 'PHOTO', 'Foto'
+        TEXTO = 'TEXTO', 'Texto'
+        FOTO = 'FOTO', 'Foto'
         VIDEO = 'VIDEO', 'Vídeo'
 
     # Pode pertencer a um serviço específico OU a um template global
@@ -448,7 +451,7 @@ class ServiceChecklistItem(models.Model):
     evidence_type = models.CharField(
         max_length=10, 
         choices=EvidenceType.choices, 
-        default=EvidenceType.TEXT,
+        default=EvidenceType.TEXTO,
         verbose_name="Tipo de Evidência"
     )
     is_required = models.BooleanField(default=True, verbose_name="Obrigatório")
@@ -480,11 +483,22 @@ class ProductCategory(models.Model):
 
 class Product(models.Model):
     class UnitType(models.TextChoices):
-        UNIT = 'UNIT', 'Unidade (un)'
-        METER = 'METER', 'Metro (mt)'
-        SQUARE_METER = 'M2', 'Metro Quadrado (m²)'
-        LITER = 'LITER', 'Litro (lt)'
-        KILO = 'KILO', 'Quilo (kg)'
+        UNIDADE = 'UNIDADE', 'Unidade (un)'
+        METRO = 'METRO', 'Metro (mt)'
+        M2 = 'M2', 'Metro Quadrado (m²)'
+        LITRO = 'LITRO', 'Litro (lt)'
+        QUILO = 'QUILO', 'Quilo (kg)'
+
+    class Format(models.TextChoices):
+        SIMPLES = 'SIMPLES', 'Simples'
+        COM_VARIACOES = 'COM_VARIACOES', 'Com variações'
+        COM_COMPOSICAO = 'COM_COMPOSICAO', 'Com composição'
+
+    class Type(models.TextChoices):
+        PRODUTO = 'PRODUTO', 'Produto'
+        SERVICO = 'SERVICO', 'Serviço'
+        PRODUTO_ACABADO = 'PRODUTO_ACABADO', 'Produto acabado'
+        MATERIA_PRIMA = 'MATERIA_PRIMA', 'Matéria prima'
 
     name = models.CharField(max_length=255, unique=True, verbose_name="Produto")
     category = models.ForeignKey(
@@ -504,7 +518,9 @@ class Product(models.Model):
     code = models.CharField(max_length=60, unique=True, null=True, blank=True, verbose_name="Código")
     barcode = models.CharField(max_length=14, blank=True, null=True, verbose_name="Código de Barras (GTIN/EAN)")
     image = models.ImageField(upload_to='products/', null=True, blank=True, verbose_name="Imagem do Produto")
-    unit_type = models.CharField(max_length=10, choices=UnitType.choices, default=UnitType.UNIT, verbose_name="Unidade de Venda")
+    unit_type = models.CharField(max_length=10, choices=UnitType.choices, default=UnitType.UNIDADE, verbose_name="Unidade de Venda")
+    format = models.CharField(max_length=20, choices=Format.choices, default=Format.SIMPLES, verbose_name="Formato")
+    type = models.CharField(max_length=20, choices=Type.choices, default=Type.PRODUTO, verbose_name="Tipo")
     
     # Dados Fiscais
     ncm = models.CharField(max_length=8, blank=True, null=True, verbose_name="NCM", help_text="Nomenclatura Comum do Mercosul (8 dígitos)")
@@ -533,6 +549,10 @@ class Product(models.Model):
     aliquota_ibpt_est = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Alíquota IBPT Estadual (%)")
     aliquota_ibpt_mun = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Alíquota IBPT Municipal (%)")
 
+    preco_custo = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Preço de Custo")
+    preco_custo_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Custo Total")
+    preco_venda_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Preço Venda Total")
+
     default_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço Padrão")
     current_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Atual")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
@@ -541,10 +561,81 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+    def reduce_stock(self, quantity, user=None, reason=None, notes=None, service_order=None):
+        """
+        Reduz o estoque do produto e, se for composto, reduz também os componentes.
+        """
+        from django.db import transaction
+        from .models import StockMovement
+        
+        with transaction.atomic():
+            # Reduz o estoque do produto principal
+            self.current_stock -= quantity
+            self.save()
+
+            # Registra a movimentação
+            StockMovement.objects.create(
+                product=self,
+                quantity=quantity,
+                movement_type=StockMovement.MovementType.SAIDA,
+                reason=reason or StockMovement.Reason.ADJUSTMENT,
+                user=user,
+                notes=notes,
+                service_order=service_order
+            )
+
+            # Se for composto, reduz os componentes recursivamente
+            if self.format == self.Format.COM_COMPOSICAO:
+                for comp in self.compositions.all():
+                    comp_qty = comp.quantity * quantity
+                    comp.component.reduce_stock(
+                        comp_qty, 
+                        user=user, 
+                        reason=reason, 
+                        notes=f"Componente de {self.name}: {notes}" if notes else f"Componente de {self.name}",
+                        service_order=service_order
+                    )
+
+    def increase_stock(self, quantity, user=None, reason=None, notes=None, service_order=None):
+        """
+        Aumenta o estoque do produto. Geralmente não aumenta componentes automaticamente
+        (pois a produção/entrada é do item final).
+        """
+        from django.db import transaction
+        from .models import StockMovement
+        
+        with transaction.atomic():
+            self.current_stock += quantity
+            self.save()
+
+            StockMovement.objects.create(
+                product=self,
+                quantity=quantity,
+                movement_type=StockMovement.MovementType.ENTRADA,
+                reason=reason or StockMovement.Reason.PURCHASE,
+                user=user,
+                notes=notes,
+                service_order=service_order
+            )
+
     class Meta:
         verbose_name = "Produto"
         verbose_name_plural = "Produtos"
         ordering = ['name']
+
+
+class ProductComposition(models.Model):
+    parent = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='compositions', verbose_name="Produto Pai")
+    component = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='used_in_compositions', verbose_name="Componente")
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Quantidade")
+
+    class Meta:
+        verbose_name = "Composição de Produto"
+        verbose_name_plural = "Composições de Produtos"
+        unique_together = ('parent', 'component')
+
+    def __str__(self):
+        return f"{self.quantity} x {self.component.name} em {self.parent.name}"
 
 
 class ImportHistory(models.Model):
@@ -585,16 +676,16 @@ class ImportItem(models.Model):
 
 class StockMovement(models.Model):
     class MovementType(models.TextChoices):
-        IN = 'IN', 'Entrada'
-        OUT = 'OUT', 'Saída'
+        ENTRADA = 'ENTRADA', 'Entrada'
+        SAIDA = 'SAIDA', 'Saída'
 
     class Reason(models.TextChoices):
-        PURCHASE = 'PURCHASE', 'Compra'
-        SALE_OS = 'SALE_OS', 'Venda OS'
-        SALE_DIRECT = 'SALE_DIRECT', 'Venda Direta (PDV)'
-        ADJUSTMENT = 'ADJUSTMENT', 'Ajuste de Estoque'
-        LOSS = 'LOSS', 'Perda/Extravio'
-        RETURN = 'RETURN', 'Devolução'
+        COMPRA = 'COMPRA', 'Compra'
+        VENDA_OS = 'VENDA_OS', 'Venda OS'
+        VENDA_DIRETA = 'VENDA_DIRETA', 'Venda Direta (PDV)'
+        AJUSTE = 'AJUSTE', 'Ajuste de Estoque'
+        PERDA = 'PERDA', 'Perda/Extravio'
+        DEVOLUCAO = 'DEVOLUCAO', 'Devolução'
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='movements', verbose_name="Produto")
     quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Quantidade")
@@ -617,10 +708,10 @@ class StockMovement(models.Model):
 
 class Billing(models.Model):
     class Status(models.TextChoices):
-        PENDING = 'PENDING', 'Pendente'
-        PARTIAL = 'PARTIAL', 'Parcialmente Pago'
-        PAID = 'PAID', 'Pago'
-        CANCELLED = 'CANCELLED', 'Cancelado'
+        PENDENTE = 'PENDENTE', 'Pendente'
+        PARCIAL = 'PARCIAL', 'Parcialmente Pago'
+        PAGO = 'PAGO', 'Pago'
+        CANCELADO = 'CANCELADO', 'Cancelado'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     number = models.PositiveIntegerField(unique=True, null=True, blank=True, verbose_name="Número da Cobrança")
@@ -632,7 +723,7 @@ class Billing(models.Model):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Bruto")
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
     
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="Status")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, verbose_name="Status")
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -661,11 +752,11 @@ class Billing(models.Model):
 
 class Installment(models.Model):
     class Status(models.TextChoices):
-        PENDING = 'PENDING', 'Pendente'
-        PARTIAL = 'PARTIAL', 'Parcial'
-        PAID = 'PAID', 'Pago'
-        OVERDUE = 'OVERDUE', 'Atrasado'
-        CANCELLED = 'CANCELLED', 'Cancelado'
+        PENDENTE = 'PENDENTE', 'Pendente'
+        PARCIAL = 'PARCIAL', 'Parcial'
+        PAGO = 'PAGO', 'Pago'
+        ATRASADO = 'ATRASADO', 'Atrasado'
+        CANCELADO = 'CANCELADO', 'Cancelado'
 
     billing = models.ForeignKey(Billing, on_delete=models.CASCADE, related_name='installments', verbose_name="Cobrança")
     installment_number = models.PositiveIntegerField(verbose_name="Nº Parcela")
@@ -673,7 +764,7 @@ class Installment(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor")
     
     payment_method = models.ForeignKey('PaymentMethod', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Forma de Pagto")
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="Status")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, verbose_name="Status")
     
     paid_at = models.DateTimeField(null=True, blank=True, verbose_name="Pago em")
     notes = models.TextField(blank=True, null=True, verbose_name="Observações")
@@ -742,20 +833,20 @@ class Sale(models.Model):
         PRONTO = 'PRONTO', 'Pronto'
         RECEBIDO = 'RECEBIDO', 'Recebido'
         VENDA_AGENCIADA = 'VENDA_AGENCIADA', 'Venda Agenciada'
-        DRAFT = 'DRAFT', 'Rascunho'
-        COMPLETED = 'COMPLETED', 'Finalizada'
+        RASCUNHO = 'RASCUNHO', 'Rascunho'
+        FINALIZADA = 'FINALIZADA', 'Finalizada'
 
     class PaymentMethod(models.TextChoices):
-        CASH = 'CASH', 'Dinheiro'
+        DINHEIRO = 'DINHEIRO', 'Dinheiro'
         PIX = 'PIX', 'Pix'
-        DEBIT_CARD = 'DEBIT_CARD', 'Cartão de Débito'
-        CREDIT_CARD = 'CREDIT_CARD', 'Cartão de Crédito'
+        CARTAO_DEBITO = 'CARTAO_DEBITO', 'Cartão de Débito'
+        CARTAO_CREDITO = 'CARTAO_CREDITO', 'Cartão de Crédito'
 
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     number = models.PositiveIntegerField(unique=True, null=True, blank=True, verbose_name="Número da Venda")
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
     user = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="Vendedor")
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, verbose_name="Status")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.RASCUNHO, verbose_name="Status")
     
     # Dados Fiscais da Venda
     indicador_presenca = models.IntegerField(default=1, verbose_name="Indicador de Presença", choices=[
@@ -817,6 +908,23 @@ class Sale(models.Model):
 
     def __str__(self):
         return f"Venda #{self.number} - {self.get_status_display()}"
+
+    def can_be_edited(self):
+        """
+        Retorna True se a venda puder ser editada.
+        Bloqueia se a venda estiver FINALIZADA ou se houver uma cobrança vinculada
+        com parcelas geradas (Contas a Receber).
+        """
+        if self.status == self.Status.FINALIZADA:
+            return False
+
+        if not hasattr(self, 'billing'):
+            return True
+
+        # Bloqueia se houver qualquer parcela não cancelada (mesmo que apenas PENDENTE)
+        return not self.billing.installments.exclude(
+            status=Installment.Status.CANCELADO
+        ).exists()
 
 
 class SaleItem(models.Model):
@@ -892,23 +1000,23 @@ class SaleItem(models.Model):
 
 class ServiceOrder(models.Model):
     class Status(models.TextChoices):
-        WAITING_VISIT = 'WAITING_VISIT', 'Aguardando visita inicial'
-        BUDGET_SCHEDULED = 'BUDGET_SCHEDULED', 'Orçamento Agendado'
-        BUDGET_DONE_WAITING_SEND = 'BUDGET_DONE_WAITING_SEND', 'Orçamento realizado, aguardando envio'
-        WAITING_APPROVAL = 'WAITING_APPROVAL', 'Orçamento enviado - aguardando aprovação'
-        APPROVED_WAITING_SCHEDULE = 'APPROVED_WAITING_SCHEDULE', 'Aprovado pelo cliente - Aguardando Agendamento de execução'
-        REJECTED_BY_CLIENT = 'REJECTED_BY_CLIENT', 'Reprovado pelo cliente'
-        WAITING_EXECUTION = 'WAITING_EXECUTION', 'Aguardando Execução'
-        WAITING_PAYMENT = 'WAITING_PAYMENT', 'Aguardando Pagamento'
-        PARTIAL_PAYMENT = 'PARTIAL_PAYMENT', 'Pagamento Parcial'
-        FINISHED = 'FINISHED', 'Finalizado'
-        CANCELLED = 'CANCELLED', 'Cancelado'
-        WARRANTY = 'WARRANTY', 'Em Garantia'
+        AGUARDANDO_VISITA = 'AGUARDANDO_VISITA', 'Aguardando visita inicial'
+        ORCAMENTO_AGENDADO = 'ORCAMENTO_AGENDADO', 'Orçamento Agendado'
+        ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO = 'ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO', 'Orçamento realizado, aguardando envio'
+        AGUARDANDO_APROVACAO = 'AGUARDANDO_APROVACAO', 'Orçamento enviado - aguardando aprovação'
+        APROVADO_AGUARDANDO_AGENDAMENTO = 'APROVADO_AGUARDANDO_AGENDAMENTO', 'Aprovado pelo cliente - Aguardando Agendamento de execução'
+        REPROVADO_PELO_CLIENTE = 'REPROVADO_PELO_CLIENTE', 'Reprovado pelo cliente'
+        AGUARDANDO_EXECUCAO = 'AGUARDANDO_EXECUCAO', 'Aguardando Execução'
+        AGUARDANDO_PAGAMENTO = 'AGUARDANDO_PAGAMENTO', 'Aguardando Pagamento'
+        PAGAMENTO_PARCIAL = 'PAGAMENTO_PARCIAL', 'Pagamento Parcial'
+        FINALIZADO = 'FINALIZADO', 'Finalizado'
+        CANCELADO = 'CANCELADO', 'Cancelado'
+        GARANTIA = 'GARANTIA', 'Em Garantia'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     number = models.PositiveIntegerField(unique=True, null=True, blank=True, verbose_name="Número da OS")
     client_property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='service_orders', verbose_name="Imóvel")
-    status = models.CharField(max_length=30, choices=Status.choices, default=Status.WAITING_VISIT, verbose_name="Status")
+    status = models.CharField(max_length=50, choices=Status.choices, default=Status.AGUARDANDO_VISITA, verbose_name="Status")
     is_recurrent = models.BooleanField(default=False, verbose_name="É Recorrente?")
     
     description = models.TextField(verbose_name="Descrição do Problema/Solicitação", blank=True)
@@ -968,13 +1076,13 @@ class ServiceOrder(models.Model):
     @property
     def total_paid(self):
         """Soma apenas pagamentos confirmados"""
-        paid_total = sum((payment.amount for payment in self.payments.filter(status='CONFIRMED')), Decimal('0'))
+        paid_total = sum((payment.amount for payment in self.payments.filter(status='CONFIRMADO')), Decimal('0'))
         return quantize_money(paid_total)
 
     @property
     def total_collected_pending(self):
         """Soma pagamentos recebidos por técnicos mas ainda não baixados pelo financeiro"""
-        pending_total = sum((payment.amount for payment in self.payments.filter(status='PENDING')), Decimal('0'))
+        pending_total = sum((payment.amount for payment in self.payments.filter(status='PENDENTE')), Decimal('0'))
         return quantize_money(pending_total)
 
     @property
@@ -993,74 +1101,64 @@ class ServiceOrder(models.Model):
         tasks = self.tasks.all()
         
         # 1. Prioridade: Garantia
-        if tasks.filter(task_type=ServiceOrderTask.TaskType.WARRANTY).exists():
-            if tasks.filter(task_type=ServiceOrderTask.TaskType.WARRANTY, status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
-                self.status = self.Status.FINISHED
+        if tasks.filter(task_type=ServiceOrderTask.TaskType.GARANTIA).exists():
+            if tasks.filter(task_type=ServiceOrderTask.TaskType.GARANTIA, status=ServiceOrderTask.TaskStatus.CONCLUIDO).exists():
+                self.status = self.Status.FINALIZADO
             else:
-                self.status = self.Status.WARRANTY
+                self.status = self.Status.GARANTIA
         
         # 2. Verificar Pagamentos
         elif self.total_paid + self.discount >= self.total_value and self.total_value > 0:
-            self.status = self.Status.FINISHED
+            self.status = self.Status.FINALIZADO
             if not self.finished_at:
                 self.finished_at = django.utils.timezone.now()
         elif self.total_paid > 0:
-            self.status = self.Status.PARTIAL_PAYMENT
+            self.status = self.Status.PAGAMENTO_PARCIAL
 
         # 3. Lógica baseada em Tasks (apenas se não for Garantia nem Pago)
         else:
-            budget_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.BUDGET)
-            exec_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.EXECUTION)
+            budget_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.ORCAMENTO)
+            exec_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.EXECUCAO)
 
             # Se todas as execuções acabaram, aguarda pagamento
-            if exec_tasks.exists() and not exec_tasks.exclude(status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
-                self.status = self.Status.WAITING_PAYMENT
+            if exec_tasks.exists() and not exec_tasks.exclude(status=ServiceOrderTask.TaskStatus.CONCLUIDO).exists():
+                self.status = self.Status.AGUARDANDO_PAGAMENTO
             
             # Se tem execução agendada ou em andamento
-            elif exec_tasks.filter(status__in=[ServiceOrderTask.TaskStatus.SCHEDULED, ServiceOrderTask.TaskStatus.IN_PROGRESS]).exists():
-                self.status = self.Status.WAITING_EXECUTION
+            elif exec_tasks.filter(status__in=[ServiceOrderTask.TaskStatus.AGENDADO, ServiceOrderTask.TaskStatus.EM_ANDAMENTO]).exists():
+                self.status = self.Status.AGUARDANDO_EXECUCAO
 
             # Se tem execução aprovada mas não agendada
             elif exec_tasks.filter(is_approved=True).exists():
-                self.status = self.Status.APPROVED_WAITING_SCHEDULE
+                self.status = self.Status.APROVADO_AGUARDANDO_AGENDAMENTO
 
             # Se orçamento foi concluído mas não aprovado
-            elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.COMPLETED).exists():
-                self.status = self.Status.BUDGET_DONE_WAITING_SEND
+            elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.CONCLUIDO).exists():
+                self.status = self.Status.ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO
 
             # Se tem orçamento agendado
-            elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.SCHEDULED).exists():
-                self.status = self.Status.BUDGET_SCHEDULED
+            elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.AGENDADO).exists():
+                self.status = self.Status.ORCAMENTO_AGENDADO
         
         # 4. GESTÃO DE ESTOQUE (Reserva -> Baixa Real)
         with transaction.atomic():
             # Baixa de estoque ao finalizar ou aguardar pagamento
-            if not self.stock_lowered and self.status in [self.Status.FINISHED, self.Status.WAITING_PAYMENT]:
+            if not self.stock_lowered and self.status in [self.Status.FINALIZADO, self.Status.AGUARDANDO_PAGAMENTO]:
                 for item in self.items.filter(product__isnull=False):
-                    product = item.product
-                    product.current_stock -= item.quantity
-                    product.save()
-                    StockMovement.objects.create(
-                        product=product,
-                        quantity=item.quantity,
-                        movement_type=StockMovement.MovementType.OUT,
-                        reason=StockMovement.Reason.SALE_OS,
+                    item.product.reduce_stock(
+                        item.quantity,
+                        reason=StockMovement.Reason.VENDA_OS,
                         service_order=self,
                         notes="Baixa automática na finalização/aguardando pagamento da OS"
                     )
                 self.stock_lowered = True
             
             # Estorno de estoque em caso de cancelamento
-            elif self.stock_lowered and self.status == self.Status.CANCELLED:
+            elif self.stock_lowered and self.status == self.Status.CANCELADO:
                 for item in self.items.filter(product__isnull=False):
-                    product = item.product
-                    product.current_stock += item.quantity
-                    product.save()
-                    StockMovement.objects.create(
-                        product=product,
-                        quantity=item.quantity,
-                        movement_type=StockMovement.MovementType.IN,
-                        reason=StockMovement.Reason.RETURN,
+                    item.product.increase_stock(
+                        item.quantity,
+                        reason=StockMovement.Reason.DEVOLUCAO,
                         service_order=self,
                         notes="Estorno automático por cancelamento da OS"
                     )
@@ -1069,7 +1167,7 @@ class ServiceOrder(models.Model):
             self.save()
 
         # Gatilhos de workflow (fora da transação de estoque se possível, ou garantindo consistência)
-        if self.status == self.Status.FINISHED:
+        if self.status == self.Status.FINALIZADO:
             from .workflow import trigger_payment_receipt_workflow
             trigger_payment_receipt_workflow(self)
 
@@ -1080,30 +1178,30 @@ class ServiceOrder(models.Model):
 
 class ServiceOrderTask(models.Model):
     class TaskType(models.TextChoices):
-        BUDGET = 'BUDGET', 'Vistoria/Orçamento'
-        EXECUTION = 'EXECUTION', 'Execução/Instalação'
-        WARRANTY = 'WARRANTY', 'Garantia'
+        ORCAMENTO = 'ORCAMENTO', 'Vistoria/Orçamento'
+        EXECUCAO = 'EXECUCAO', 'Execução/Instalação'
+        GARANTIA = 'GARANTIA', 'Garantia'
 
     class TaskStatus(models.TextChoices):
-        SCHEDULED = 'SCHEDULED', 'Agendado'
-        IN_PROGRESS = 'IN_PROGRESS', 'Em Andamento'
-        COMPLETED = 'COMPLETED', 'Concluído'
-        CANCELLED = 'CANCELLED', 'Cancelado'
-        NOT_EXECUTED = 'NOT_EXECUTED', 'Não Executado'
+        AGENDADO = 'AGENDADO', 'Agendado'
+        EM_ANDAMENTO = 'EM_ANDAMENTO', 'Em Andamento'
+        CONCLUIDO = 'CONCLUIDO', 'Concluído'
+        CANCELADO = 'CANCELADO', 'Cancelado'
+        NAO_EXECUTADO = 'NAO_EXECUTADO', 'Não Executado'
 
     PAYMENT_METHODS = [
         ('PIX', 'PIX'),
-        ('CREDIT_CARD', 'Cartão de Crédito'),
-        ('DEBIT_CARD', 'Cartão de Débito'),
-        ('CASH', 'Dinheiro'),
-        ('TRANSFER', 'Transferência Bancária'),
+        ('CARTAO_CREDITO', 'Cartão de Crédito'),
+        ('CARTAO_DEBITO', 'Cartão de Débito'),
+        ('DINHEIRO', 'Dinheiro'),
+        ('TRANSFERENCIA', 'Transferência Bancária'),
         ('BOLETO', 'Boleto'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='tasks', verbose_name="Ordem de Serviço")
-    task_type = models.CharField(max_length=20, choices=TaskType.choices, default=TaskType.EXECUTION, verbose_name="Tipo de Etapa")
-    status = models.CharField(max_length=20, choices=TaskStatus.choices, default=TaskStatus.SCHEDULED, verbose_name="Status")
+    task_type = models.CharField(max_length=20, choices=TaskType.choices, default=TaskType.EXECUCAO, verbose_name="Tipo de Etapa")
+    status = models.CharField(max_length=20, choices=TaskStatus.choices, default=TaskStatus.AGENDADO, verbose_name="Status")
     
     # Aprovação e Pagamento (específico da Task)
     is_approved = models.BooleanField(default=False, verbose_name="Aprovado pelo Cliente?")
@@ -1120,10 +1218,10 @@ class ServiceOrderTask(models.Model):
     
     # Confirmação de Agendamento via WhatsApp
     class WhatsAppConfirmationStatus(models.TextChoices):
-        SENT = 'SENT', 'Enviado'
-        WAITING = 'WAITING', 'Aguardando Confirmação'
-        CONFIRMED = 'CONFIRMED', 'Confirmado'
-        RESCHEDULE = 'RESCHEDULE', 'Reagendar'
+        ENVIADO = 'ENVIADO', 'Enviado'
+        AGUARDANDO = 'AGUARDANDO', 'Aguardando Confirmação'
+        CONFIRMADO = 'CONFIRMADO', 'Confirmado'
+        REAGENDAR = 'REAGENDAR', 'Reagendar'
 
     send_whatsapp_confirmation = models.BooleanField(default=False, verbose_name="Enviar WhatsApp de Confirmação?")
     whatsapp_confirmation_status = models.CharField(
@@ -1303,8 +1401,8 @@ class ServiceItem(models.Model):
 
 class ServicePayment(models.Model):
     class PaymentStatus(models.TextChoices):
-        PENDING = 'PENDING', 'Pendente de Baixa'
-        CONFIRMED = 'CONFIRMED', 'Baixa Realizada'
+        PENDENTE = 'PENDENTE', 'Pendente de Baixa'
+        CONFIRMADO = 'CONFIRMADO', 'Baixa Realizada'
 
     order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='payments', verbose_name="Ordem de Serviço")
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Pago")
@@ -1314,7 +1412,7 @@ class ServicePayment(models.Model):
     
     # Controle de Recebimento por Técnicos
     received_by = models.ForeignKey(Professional, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_payments', verbose_name="Recebido por")
-    status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.CONFIRMED, verbose_name="Status")
+    status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.CONFIRMADO, verbose_name="Status")
     confirmed_at = models.DateTimeField(null=True, blank=True, verbose_name="Confirmado em")
     confirmed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='confirmed_payments', verbose_name="Confirmado por")
 
@@ -1343,27 +1441,27 @@ class ServiceOrderTeam(models.Model):
 
 class Occurrence(models.Model):
     class OccurrenceCategory(models.TextChoices):
-        BLOCKING = 'BLOCKING', 'Impeditiva'
-        MATERIAL_REQUEST = 'MATERIAL_REQUEST', 'Solicitação de Material'
-        GENERAL = 'GENERAL', 'Ocorrência'
+        IMPEDITIVA = 'IMPEDITIVA', 'Impeditiva'
+        SOLICITACAO_MATERIAL = 'SOLICITACAO_MATERIAL', 'Solicitação de Material'
+        GERAL = 'GERAL', 'Ocorrência'
 
     class OccurrenceType(models.TextChoices):
-        DELAY = 'DELAY', 'Atraso'
-        MATERIAL_MISSING = 'MATERIAL_MISSING', 'Falta de Material'
-        CUSTOMER_ABSENT = 'CUSTOMER_ABSENT', 'Cliente Ausente'
-        IMPEDIMENT = 'IMPEDIMENT', 'Impedimento no Local'
-        WARRANTY_ISSUE = 'WARRANTY_ISSUE', 'Acionamento de Garantia'
-        OTHER = 'OTHER', 'Outro'
+        ATRASO = 'ATRASO', 'Atraso'
+        FALTA_MATERIAL = 'FALTA_MATERIAL', 'Falta de Material'
+        CLIENTE_AUSENTE = 'CLIENTE_AUSENTE', 'Cliente Ausente'
+        IMPEDIMENTO_LOCAL = 'IMPEDIMENTO_LOCAL', 'Impedimento no Local'
+        ACIONAMENTO_GARANTIA = 'ACIONAMENTO_GARANTIA', 'Acionamento de Garantia'
+        OUTRO = 'OUTRO', 'Outro'
 
     class OccurrenceStatus(models.TextChoices):
-        REGISTERED = 'REGISTERED', 'Registrada'
-        RESOLVED = 'RESOLVED', 'Resolvida'
+        REGISTRADA = 'REGISTRADA', 'Registrada'
+        RESOLVIDA = 'RESOLVIDA', 'Resolvida'
 
     task = models.ForeignKey(ServiceOrderTask, on_delete=models.CASCADE, related_name='occurrences', verbose_name="Etapa/Tarefa")
-    category = models.CharField(max_length=20, choices=OccurrenceCategory.choices, default=OccurrenceCategory.GENERAL, verbose_name="Categoria")
-    occurrence_type = models.CharField(max_length=20, choices=OccurrenceType.choices, default=OccurrenceType.OTHER, verbose_name="Tipo de Ocorrência")
+    category = models.CharField(max_length=20, choices=OccurrenceCategory.choices, default=OccurrenceCategory.GERAL, verbose_name="Categoria")
+    occurrence_type = models.CharField(max_length=20, choices=OccurrenceType.choices, default=OccurrenceType.OUTRO, verbose_name="Tipo de Ocorrência")
     description = models.TextField(verbose_name="Descrição")
-    status = models.CharField(max_length=20, choices=OccurrenceStatus.choices, default=OccurrenceStatus.REGISTERED, verbose_name="Status")
+    status = models.CharField(max_length=20, choices=OccurrenceStatus.choices, default=OccurrenceStatus.REGISTRADA, verbose_name="Status")
     observation = models.TextField(verbose_name="Observação (Resolução)", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
@@ -1391,10 +1489,10 @@ class ServiceMedia(models.Model):
 
 class MediaProcessingJob(models.Model):
     class Status(models.TextChoices):
-        PENDING = 'PENDING', 'Pendente'
-        PROCESSING = 'PROCESSING', 'Processando'
-        DONE = 'DONE', 'Concluído'
-        ERROR = 'ERROR', 'Erro'
+        PENDENTE = 'PENDENTE', 'Pendente'
+        PROCESSANDO = 'PROCESSANDO', 'Processando'
+        CONCLUIDO = 'CONCLUIDO', 'Concluído'
+        ERRO = 'ERRO', 'Erro'
 
     task = models.ForeignKey(ServiceOrderTask, on_delete=models.CASCADE, related_name='media_jobs', verbose_name="Etapa/Tarefa")
     response = models.ForeignKey(
@@ -1416,7 +1514,7 @@ class MediaProcessingJob(models.Model):
     raw_path = models.CharField(max_length=500, verbose_name="Arquivo bruto (local)")
     original_name = models.CharField(max_length=255, blank=True, verbose_name="Nome original")
     content_type = models.CharField(max_length=120, blank=True, verbose_name="Content-Type")
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, verbose_name="Status")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, verbose_name="Status")
     error_message = models.TextField(blank=True, verbose_name="Mensagem de erro")
     result_media_type = models.CharField(max_length=20, blank=True, verbose_name="Tipo de mídia gerada")
     result_media_id = models.PositiveIntegerField(null=True, blank=True, verbose_name="ID da mídia gerada")
@@ -1451,3 +1549,110 @@ class PushSubscription(models.Model):
 
     def __str__(self):
         return f"Push Subscription - {self.user.username}"
+
+# --- CONTAS A PAGAR ---
+
+class FinancialCategory(models.Model):
+    name = models.CharField(max_length=100, verbose_name="Nome")
+    category_type = models.CharField(
+        max_length=10, 
+        choices=[('ENTRADA', 'Entrada'), ('SAIDA', 'Saída')], 
+        default='SAIDA', 
+        verbose_name="Tipo"
+    )
+
+    class Meta:
+        verbose_name = "Categoria Financeira"
+        verbose_name_plural = "Categorias Financeiras"
+
+    def __str__(self):
+        return self.name
+
+
+class BankAccount(models.Model):
+    name = models.CharField(max_length=100, verbose_name="Nome")
+    initial_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Saldo Inicial")
+
+    class Meta:
+        verbose_name = "Conta Bancária"
+        verbose_name_plural = "Contas Bancárias"
+
+    def __str__(self):
+        return self.name
+
+
+class Expense(models.Model):
+    class Frequency(models.TextChoices):
+        DIARIA = 'DIARIA', 'Diária'
+        SEMANAL = 'SEMANAL', 'Semanal'
+        QUINZENAL = 'QUINZENAL', 'Quinzenal'
+        MENSAL = 'MENSAL', 'Mensal'
+        ANUAL = 'ANUAL', 'Anual'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    supplier = models.ForeignKey('Supplier', on_delete=models.PROTECT, verbose_name="Fornecedor")
+    category = models.ForeignKey(FinancialCategory, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Categoria")
+    description = models.CharField(max_length=255, verbose_name="Descrição")
+    total_amount = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Valor Total")
+    issue_date = models.DateField(default=timezone.now, verbose_name="Data de Emissão")
+    
+    is_recurrent = models.BooleanField(default=False, verbose_name="Recorrência")
+    frequency = models.CharField(max_length=20, choices=Frequency.choices, null=True, blank=True, verbose_name="Frequência")
+    installments_count = models.PositiveIntegerField(default=1, verbose_name="Número de Parcelas")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Despesa"
+        verbose_name_plural = "Despesas"
+
+    def __str__(self):
+        return f"{self.description} - {self.supplier.display_name}"
+
+
+class ExpenseInstallment(models.Model):
+    class Status(models.TextChoices):
+        PENDENTE = 'PENDENTE', 'Pendente'
+        PARCIAL = 'PARCIAL', 'Parcial'
+        PAGO = 'PAGO', 'Pago'
+        ATRASADO = 'ATRASADO', 'Atrasado'
+
+    class PaymentMethod(models.TextChoices):
+        PIX = 'PIX', 'Pix'
+        BOLETO = 'BOLETO', 'Boleto'
+        CARTAO_CREDITO = 'CARTAO_CREDITO', 'Cartão de Crédito'
+        DINHEIRO = 'DINHEIRO', 'Dinheiro'
+        TRANSFERENCIA = 'TRANSFERENCIA', 'Transferência/TED'
+
+    expense = models.ForeignKey(Expense, on_delete=models.CASCADE, related_name='installments', verbose_name="Despesa")
+    installment_number = models.CharField(max_length=20, verbose_name="Número da Parcela")
+    amount = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Valor da Parcela")
+    due_date = models.DateField(db_index=True, verbose_name="Data de Vencimento")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, db_index=True, verbose_name="Status")
+    
+    payment_date = models.DateField(null=True, blank=True, verbose_name="Data de Pagamento")
+    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, null=True, blank=True, verbose_name="Meio de Pagamento")
+    bank_account = models.ForeignKey(BankAccount, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Conta Bancária de Saída")
+
+    class Meta:
+        verbose_name = "Parcela de Despesa"
+        verbose_name_plural = "Parcelas de Despesa"
+        ordering = ['due_date']
+
+    def __str__(self):
+        return f"{self.expense.description} - Parcela {self.installment_number}"
+
+
+class ExpenseAttachment(models.Model):
+    expense = models.ForeignKey(Expense, on_delete=models.CASCADE, related_name='attachments', verbose_name="Despesa")
+    file = models.FileField(upload_to='expenses/%Y/%m/%d/', verbose_name="Arquivo")
+    description = models.CharField(max_length=255, blank=True, verbose_name="Descrição")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Anexo de Despesa"
+        verbose_name_plural = "Anexos de Despesa"
+
+    def __str__(self):
+        return f"Anexo para {self.expense.description}"

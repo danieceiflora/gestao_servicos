@@ -34,31 +34,31 @@ def equipe_dashboard(request):
         'service_order__client_property',
         'service_order__client_property__client'
     ).exclude(
-        status=ServiceOrderTask.TaskStatus.CANCELLED
+        status=ServiceOrderTask.TaskStatus.CANCELADO
     ).filter(
         scheduled_at__date=today
     ).order_by('-scheduled_at')
 
     total_today = tasks_qs.count()
     completed_today = tasks_qs.filter(
-        Q(status=ServiceOrderTask.TaskStatus.COMPLETED) | Q(finished_at__isnull=False)
+        Q(status=ServiceOrderTask.TaskStatus.CONCLUIDO) | Q(finished_at__isnull=False)
     ).count()
     in_progress_today = tasks_qs.filter(
-        Q(status=ServiceOrderTask.TaskStatus.IN_PROGRESS) |
+        Q(status=ServiceOrderTask.TaskStatus.EM_ANDAMENTO) |
         Q(started_at__isnull=False, finished_at__isnull=True)
     ).count()
     scheduled_today = tasks_qs.filter(
-        status=ServiceOrderTask.TaskStatus.SCHEDULED,
+        status=ServiceOrderTask.TaskStatus.AGENDADO,
         started_at__isnull=True
     ).count()
     overdue_today = tasks_qs.filter(
         scheduled_at__lt=now
     ).exclude(
-        Q(status=ServiceOrderTask.TaskStatus.COMPLETED) | Q(finished_at__isnull=False)
+        Q(status=ServiceOrderTask.TaskStatus.CONCLUIDO) | Q(finished_at__isnull=False)
     ).count()
 
     open_tasks = tasks_qs.exclude(
-        Q(status=ServiceOrderTask.TaskStatus.COMPLETED) | Q(finished_at__isnull=False)
+        Q(status=ServiceOrderTask.TaskStatus.CONCLUIDO) | Q(finished_at__isnull=False)
     )
     # Garantir que a próxima tarefa seja a mais próxima do horário atual (ordem crescente para este cálculo)
     next_task = open_tasks.order_by('scheduled_at').filter(scheduled_at__gte=now).first() or open_tasks.order_by('scheduled_at').first()
@@ -107,8 +107,8 @@ def equipe_task_start(request, task_id):
         if not task.started_at:
             task.started_at = timezone.now()
             # Se você usar o status IN_PROGRESS no seu Model:
-            if hasattr(ServiceOrderTask.TaskStatus, 'IN_PROGRESS'):
-                task.status = ServiceOrderTask.TaskStatus.IN_PROGRESS
+            if hasattr(ServiceOrderTask.TaskStatus, 'EM_ANDAMENTO'):
+                task.status = ServiceOrderTask.TaskStatus.EM_ANDAMENTO
             task.save()
             messages.success(request, 'Execução da etapa iniciada!')
         else:
@@ -120,7 +120,7 @@ def equipe_task_start(request, task_id):
 @login_required
 def equipe_task_finish(request, task_id):
     """
-    Registra o fim do trabalho da etapa, alterando o status para 'COMPLETED'.
+    Registra o fim do trabalho da etapa, alterando o status para 'CONCLUIDO'.
     Valida se o checklist obrigatório foi preenchido.
     """
     tasks_qs = get_collaborator_tasks(request.user)
@@ -175,7 +175,7 @@ def equipe_task_finish(request, task_id):
                 pass
 
         task.finished_at = timezone.now()
-        task.status = ServiceOrderTask.TaskStatus.COMPLETED
+        task.status = ServiceOrderTask.TaskStatus.CONCLUIDO
         task.save()
         
         if hasattr(task.service_order, 'update_status'):
@@ -199,7 +199,7 @@ def equipe_task_checklist_update(request, task_id):
         response = get_object_or_404(TaskChecklistResponse, id=response_id, task=task)
         item = response.item
         
-        completed = request.POST.get('completed') == 'true' or request.POST.get('completed') == 'on'
+        completed = request.POST.get('CONCLUIDO') == 'true' or request.POST.get('CONCLUIDO') == 'on'
         queued = False
         
         # Atualiza texto se houver
@@ -218,7 +218,7 @@ def equipe_task_checklist_update(request, task_id):
                         raw_path=raw_path,
                         original_name=file_info.name,
                         content_type=file_info.content_type,
-                        status=MediaProcessingJob.Status.PENDING,
+                        status=MediaProcessingJob.Status.PENDENTE,
                     )
                     queued = True
                 except Exception as e:
@@ -232,7 +232,7 @@ def equipe_task_checklist_update(request, task_id):
         response.save()
         
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-            return JsonResponse({'success': True, 'completed': response.completed, 'queued': queued})
+            return JsonResponse({'success': True, 'CONCLUIDO': response.completed, 'queued': queued})
             
         messages.success(request, 'Check-list atualizado!')
     
@@ -250,7 +250,7 @@ def equipe_checklist_media_delete(request, media_id):
             messages.error(request, 'Permissão negada.')
             return redirect('equipe_task_list')
 
-    if task.status == ServiceOrderTask.TaskStatus.COMPLETED:
+    if task.status == ServiceOrderTask.TaskStatus.CONCLUIDO:
         messages.error(request, 'Etapa já finalizada.')
     else:
         media.delete()
@@ -281,7 +281,7 @@ def equipe_task_add_media(request, task_id):
                         raw_path=raw_path,
                         original_name=file_info.name,
                         content_type=file_info.content_type,
-                        status=MediaProcessingJob.Status.PENDING,
+                        status=MediaProcessingJob.Status.PENDENTE,
                     )
                     queued_count += 1
                 messages.success(request, f'{queued_count} arquivo(s) enviados para processamento.')
@@ -316,7 +316,7 @@ def equipe_media_delete(request, media_id):
             messages.error(request, 'Você não tem permissão para modificar esta OS.')
             return redirect('equipe_task_list')
 
-    if task.status == 'Concluído':
+    if task.status == 'CONCLUIDO':
         messages.error(request, 'Não é possível excluir mídias de uma OS finalizada.')
         return redirect('equipe_task_detail', task_id=task.id)
 
@@ -352,7 +352,7 @@ def equipe_task_add_occurrence(request, task_id):
                             raw_path=raw_path,
                             original_name=file_info.name,
                             content_type=file_info.content_type,
-                            status=MediaProcessingJob.Status.PENDING,
+                            status=MediaProcessingJob.Status.PENDENTE,
                         )
             except Exception as e:
                 import logging
@@ -380,8 +380,8 @@ def equipe_task_add_occurrence(request, task_id):
                 print(f"Erro no push: {e}")
                 traceback.print_exc()
 
-            if category == Occurrence.OccurrenceCategory.BLOCKING:
-                task.status = ServiceOrderTask.TaskStatus.NOT_EXECUTED
+            if category == Occurrence.OccurrenceCategory.IMPEDITIVA:
+                task.status = ServiceOrderTask.TaskStatus.NAO_EXECUTADO
                 task.save()
                 
                 if request.headers.get('x-requested-with') == 'XMLHttpRequest':
@@ -425,7 +425,7 @@ def equipe_task_add_payment(request, task_id):
                 messages.error(request, 'O valor do pagamento deve ser maior que zero.')
                 return redirect('equipe_task_detail', task_id=task.id)
                 
-            if method not in ['CASH', 'CREDIT_CARD']:
+            if method not in ['DINHEIRO', 'CARTAO_CREDITO']:
                 messages.error(request, 'Método de pagamento inválido para registro em campo.')
                 return redirect('equipe_task_detail', task_id=task.id)
             
@@ -441,7 +441,7 @@ def equipe_task_add_payment(request, task_id):
                 payment_method=method,
                 paid_at=timezone.now(),
                 received_by=professional,
-                status=ServicePayment.PaymentStatus.PENDING,
+                status=ServicePayment.PaymentStatus.PENDENTE,
                 notes=f"[Registrado pelo Técnico]: {notes}" if notes else "Registrado pelo técnico"
             )
             
@@ -459,7 +459,7 @@ def equipe_payment_delete(request, payment_id):
     payment = get_object_or_404(ServicePayment, id=payment_id)
     
     # Segurança: Apenas se estiver pendente e for o próprio técnico (ou admin)
-    if payment.status != ServicePayment.PaymentStatus.PENDING:
+    if payment.status != ServicePayment.PaymentStatus.PENDENTE:
         messages.error(request, "Este pagamento já foi processado e não pode ser excluído.")
         return redirect('equipe_task_detail', task_id=request.GET.get('task_id', payment.order.tasks.first().id))
 
@@ -489,7 +489,7 @@ def equipe_payment_edit(request, payment_id):
     payment = get_object_or_404(ServicePayment, id=payment_id)
     task_id = request.GET.get('task_id')
     
-    if payment.status != ServicePayment.PaymentStatus.PENDING:
+    if payment.status != ServicePayment.PaymentStatus.PENDENTE:
         messages.error(request, "Este pagamento já foi processado e não pode ser editado.")
         return redirect('equipe_task_detail', task_id=task_id) if task_id else redirect('home')
 
@@ -501,7 +501,7 @@ def equipe_payment_edit(request, payment_id):
             
             if amount <= 0:
                 messages.error(request, 'O valor deve ser maior que zero.')
-            elif method not in ['CASH', 'CREDIT_CARD']:
+            elif method not in ['DINHEIRO', 'CARTAO_CREDITO']:
                 messages.error(request, 'Método inválido.')
             else:
                 payment.amount = amount
@@ -546,7 +546,7 @@ def api_equipe_agenda_do_dia(request):
         'service_order',
         'service_order__client_property',
         'service_order__client_property__client'
-    ).exclude(status=ServiceOrderTask.TaskStatus.CANCELLED).distinct().order_by('-scheduled_at')
+    ).exclude(status=ServiceOrderTask.TaskStatus.CANCELADO).distinct().order_by('-scheduled_at')
 
     data = {
         'date': today.isoformat(),
@@ -583,7 +583,7 @@ def api_equipe_agenda_do_dia(request):
                         'description': item.description,
                         'evidence_type': item.evidence_type,
                         'is_required': item.is_required,
-                        'completed': resp.completed,
+                        'CONCLUIDO': resp.completed,
                         'text_response': resp.text_response or ''
                     })
                     seen_ids.add(item.id)

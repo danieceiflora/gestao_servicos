@@ -30,9 +30,9 @@
                     class="mt-1 w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
                 >
                     <option value="all" {% if status_filter == 'all' %}selected{% endif %}>Todos</option>
-                    <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>Em execução</option>
-                    <option value="scheduled" {% if status_filter == 'scheduled' %}selected{% endif %}>Agendadas</option>
-                    <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Concluídas</option>
+                    <option value='EM_ANDAMENTO' {% if status_filter == 'EM_ANDAMENTO' %}selected{% endif %}>Em execução</option>
+                    <option value='AGENDADO' {% if status_filter == 'AGENDADO' %}selected{% endif %}>Agendadas</option>
+                    <option value='CONCLUIDO' {% if status_filter == 'CONCLUIDO' %}selected{% endif %}>Concluídas</option>
                 </select>
             </div>
             <div class="md:col-span-3 flex items-end">

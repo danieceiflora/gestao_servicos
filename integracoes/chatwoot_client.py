@@ -192,7 +192,7 @@ class ChatwootClient:
             data = response.json()
             if data.get('data'):
                 for t in data['data']:
-                    if t['status'] == 'APPROVED': return t
+                    if t['status'] == 'APROVADO': return t
         except: pass
         return None
 

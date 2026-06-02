@@ -39,7 +39,7 @@ def handle_dynamic_notifications(sender, instance, created, **kwargs):
     try:
         if created:
             # Gatilho de Criação
-            dispatch_dynamic_notification(instance, 'CREATE')
+            dispatch_dynamic_notification(instance, 'CRIAR')
         else:
             # Gatilho de Alteração de Status
             old_status = getattr(instance, '_old_status', None)
@@ -49,7 +49,7 @@ def handle_dynamic_notifications(sender, instance, created, **kwargs):
             if new_status and old_status != new_status:
                 dispatch_dynamic_notification(
                     instance, 
-                    'STATUS_CHANGE', 
+                    'MUDANCA_STATUS', 
                     old_status=old_status
                 )
     except Exception as e:

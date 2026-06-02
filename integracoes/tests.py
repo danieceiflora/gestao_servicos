@@ -88,13 +88,13 @@ class BudgetResponseLabelTests(TestCase):
     def test_sets_order_status_when_budget_approved(self):
         self.assertEqual(
             _resolve_order_status_from_budget_decision(True),
-            ServiceOrder.Status.APPROVED_WAITING_SCHEDULE
-        )
+            status=ServiceOrder.Status.APROVADO_AGUARDANDO_AGENDAMENTO
+            )
 
     def test_sets_order_status_when_budget_rejected(self):
         self.assertEqual(
             _resolve_order_status_from_budget_decision(False),
-            ServiceOrder.Status.REJECTED_BY_CLIENT
+            ServiceOrder.Status.REPROVADO_PELO_CLIENTE
         )
 
 

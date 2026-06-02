@@ -1,0 +1,52 @@
+{% load widget_tweaks %}
+
+<div id="installments-container" class="mt-4 border rounded-lg overflow-hidden">
+    {{ formset.management_form }}
+    
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parcela</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor (R$)</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimento Previsto</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {% for form in formset %}
+            <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {{ form.installment_number }}
+                    {% for error in form.installment_number.errors %}
+                        <p class="text-red-500 text-xs">{{ error }}</p>
+                    {% endfor %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {% render_field form.amount class="w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500" step="0.01" %}
+                    {% for error in form.amount.errors %}
+                        <p class="text-red-500 text-xs">{{ error }}</p>
+                    {% endfor %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {% render_field form.due_date class="w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500" type="date" %}
+                    {% for error in form.due_date.errors %}
+                        <p class="text-red-500 text-xs">{{ error }}</p>
+                    {% endfor %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3" class="px-6 py-4 text-sm text-gray-500 text-center">
+                    Preencha os campos para gerar parcelas.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div class="bg-blue-50 p-4 border-t">
+        <p class="text-sm text-blue-700">
+            <i class="fas fa-info-circle mr-1"></i>
+            Você pode ajustar os valores e datas acima manualmente se necessário.
+        </p>
+    </div>
+</div>

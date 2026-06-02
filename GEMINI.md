@@ -66,8 +66,9 @@ npm run watch
 ## 📏 Convenções de Desenvolvimento
 
 ### ⚙️ Backend (Django Specialist)
-1.  **Models:** Sempre use `UUIDField` para IDs de modelos que serão expostos publicamente (ex: `ServiceOrder`).
-2.  **Naming:** Campos `ForeignKey` devem ter `related_name` explícito. Use `verbose_name` em Português (pt-BR).
+1.  **Idioma:** Todas as referências internas e externas (URLs, Status de Modelos, Mensagens, Variáveis de UI) DEVEM ser escritas em **Português do Brasil (pt-BR)**. Evite termos em inglês exceto se forem padrões técnicos universais e inevitáveis.
+2.  **Models:** Sempre use `UUIDField` para IDs de modelos que serão expostos publicamente (ex: `ServiceOrder`).
+3.  **Naming:** Campos `ForeignKey` devem ter `related_name` explícito. Use `verbose_name` em Português (pt-BR).
 3.  **Lógica:** Isole integrações externas (como WhatsApp) em camadas de serviço ou utilitários para manter as views limpas.
 4.  **Localização:** O projeto está configurado para `America/Sao_Paulo` e `pt-br`.
 

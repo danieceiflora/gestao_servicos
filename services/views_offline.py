@@ -160,7 +160,7 @@ def api_tecnico_bootstrap(request):
                     'id': r.id,
                     'task_id': str(r.task_id),
                     'item_id': r.item_id,
-                    'completed': r.completed,
+                    'CONCLUIDO': r.completed,
                     'text_response': r.text_response,
                 } for r in responses
             ],
@@ -268,7 +268,7 @@ def api_tecnico_sync_push(request):
                 
                 # 1. Início de Tarefa
                 if change_type == 'TASK_START':
-                    task.status = ServiceOrderTask.TaskStatus.IN_PROGRESS
+                    task.status = ServiceOrderTask.TaskStatus.EM_ANDAMENTO
                     if payload.get('started_at'):
                         task.started_at = payload.get('started_at')
                     task.save()
@@ -277,7 +277,7 @@ def api_tecnico_sync_push(request):
                 # 2. Finalização de Tarefa
                 elif change_type == 'TASK_FINISH':
                     finish_data = payload.get('data', {})
-                    task.status = ServiceOrderTask.TaskStatus.COMPLETED
+                    task.status = ServiceOrderTask.TaskStatus.CONCLUIDO
                     task.finished_at = payload.get('finished_at') or timezone.now()
                     task.customer_name = finish_data.get('customer_name')
                     
@@ -327,20 +327,20 @@ def api_tecnico_sync_push(request):
                                 ).first()
 
                                 # No fluxo mobile simplificado, damos baixa na primeira parcela pendente
-                                installment = billing.installments.filter(status=Installment.Status.PENDING).first()
+                                installment = billing.installments.filter(status=Installment.Status.PENDENTE).first()
                                 if installment:
                                     installment.amount = amount
                                     installment.payment_method = payment_method
-                                    installment.status = Installment.Status.PAID
+                                    installment.status = Installment.Status.PAGO
                                     installment.paid_at = task.finished_at or timezone.now()
                                     installment.save()
                                     
                                     # Recalcula status da cobrança
-                                    total_paid = billing.installments.filter(status=Installment.Status.PAID).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+                                    total_paid = billing.installments.filter(status=Installment.Status.PAGO).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
                                     if total_paid >= (billing.total_amount - billing.discount):
-                                        billing.status = Billing.Status.PAID
+                                        billing.status = Billing.Status.PAGO
                                     else:
-                                        billing.status = Billing.Status.PARTIAL
+                                        billing.status = Billing.Status.PARCIAL
                                     billing.save()
 
                                 # Mantém compatibilidade com ServicePayment legado para relatórios antigos se necessário
@@ -354,7 +354,7 @@ def api_tecnico_sync_push(request):
                                     payment_method=method_code,
                                     paid_at=task.finished_at or timezone.now(),
                                     received_by=professional,
-                                    status=ServicePayment.PaymentStatus.CONFIRMED, # Técnico recebeu na mão
+                                    status=ServicePayment.PaymentStatus.CONFIRMADO, # Técnico recebeu na mão
                                     notes=f"[Sinc Centralizado]: Vinculado à Cobrança #{billing.number}"
                                 )
                         except Exception as pay_err:
@@ -371,8 +371,8 @@ def api_tecnico_sync_push(request):
                     response_id = item_data.get('response_id')
                     if response_id:
                         response = get_object_or_404(TaskChecklistResponse, id=response_id)
-                        if 'completed' in item_data:
-                            response.completed = item_data['completed']
+                        if 'CONCLUIDO' in item_data:
+                            response.completed = item_data['CONCLUIDO']
                         if 'text_response' in item_data:
                             response.text_response = item_data['text_response']
                         response.save()
@@ -386,7 +386,7 @@ def api_tecnico_sync_push(request):
                         category=occ_data.get('category', Occurrence.OccurrenceCategory.GENERAL),
                         occurrence_type=occ_data.get('occurrence_type', Occurrence.OccurrenceType.OTHER),
                         description=occ_data.get('description', ''),
-                        status=Occurrence.OccurrenceStatus.REGISTERED
+                        status=Occurrence.OccurrenceStatus.REGISTRADA
                     )
                     # Se houver um ID temporário local, podemos retornar para o cliente se necessário
                     # Mas o importante é que mídias vinculadas a esta ocorrência usem o ID real depois.
@@ -444,7 +444,7 @@ def api_tecnico_upload_media(request, task_id):
             raw_path=raw_path,
             original_name=file_info.name,
             content_type=file_info.content_type,
-            status=MediaProcessingJob.Status.PENDING,
+            status=MediaProcessingJob.Status.PENDENTE,
         )
 
         return JsonResponse(

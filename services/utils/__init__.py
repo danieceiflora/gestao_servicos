@@ -45,7 +45,7 @@ def check_professional_availability(professional, timestamp, scheduled_end_at=No
     # Buscar tasks agendadas onde o profissional está alocado que podem conflitar
     conflicts = ServiceOrderTask.objects.filter(
         team_members__professional=professional,
-        status__in=[ServiceOrderTask.TaskStatus.SCHEDULED, ServiceOrderTask.TaskStatus.IN_PROGRESS],
+        status__in=[ServiceOrderTask.TaskStatus.AGENDADO, ServiceOrderTask.TaskStatus.EM_ANDAMENTO],
     ).select_related('service_order__client_property__client')
     
     # Excluir a task atual se estiver editando

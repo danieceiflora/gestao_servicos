@@ -7,22 +7,44 @@ from django.urls import reverse_lazy
 from django.db.models import Q
 import csv
 import io
-from decimal import Decimal
-from django.http import HttpResponse
-from django.db import transaction
-from openpyxl import load_workbook
 import hashlib
-from .models import Product, StockMovement, User, ImportHistory, ImportItem
-from .forms import ProductForm, StockMovementForm, ProductImportForm
-
+from decimal import Decimal
+from openpyxl import load_workbook
+from django.http import HttpResponse, JsonResponse
+from django.db import transaction
+from .models import Product, StockMovement, ImportHistory, ImportItem
 from integracoes.models import SystemConfig
-
-def is_manager(user):
-    return user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
+from .forms import ProductForm, StockMovementForm, ProductImportForm, ProductCompositionFormSet
 
 class ManagerRequiredMixin(UserPassesTestMixin):
     def test_func(self):
-        return is_manager(self.request.user)
+        return self.request.user.is_authenticated and self.request.user.is_manager
+
+def is_manager(user):
+    return user.is_authenticated and user.is_manager
+
+@login_required
+def get_product_prices(request, pk):
+    product = get_object_or_404(Product, pk=pk)
+    return JsonResponse({
+        'preco_custo': float(product.preco_custo),
+        'default_unit_price': float(product.default_unit_price)
+    })
+
+@login_required
+def search_materia_prima(request):
+    q = request.GET.get('q', '')
+    products = Product.objects.filter(
+        Q(name__icontains=q) | Q(code__icontains=q),
+        type=Product.Type.MATERIA_PRIMA,
+        is_active=True
+    )[:10]
+    
+    results = [
+        {'id': p.id, 'text': f"{p.name} ({p.code or 'S/C'})"} 
+        for p in products
+    ]
+    return JsonResponse({'results': results})
 
 class ProductListView(LoginRequiredMixin, ListView):
     model = Product
@@ -49,11 +71,26 @@ class ProductCreateView(LoginRequiredMixin, ManagerRequiredMixin, CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['tax_regime'] = SystemConfig.load().tax_regime
+        if self.request.POST:
+            context['composition_formset'] = ProductCompositionFormSet(self.request.POST)
+        else:
+            context['composition_formset'] = ProductCompositionFormSet()
         return context
 
     def form_valid(self, form):
+        context = self.get_context_data()
+        composition_formset = context['composition_formset']
+        
+        with transaction.atomic():
+            self.object = form.save()
+            if composition_formset.is_valid():
+                composition_formset.instance = self.object
+                composition_formset.save()
+            else:
+                return self.form_invalid(form)
+                
         messages.success(self.request, "Produto cadastrado com sucesso.")
-        return super().form_valid(form)
+        return redirect(self.success_url)
 
 class ProductUpdateView(LoginRequiredMixin, ManagerRequiredMixin, UpdateView):
     model = Product
@@ -64,11 +101,26 @@ class ProductUpdateView(LoginRequiredMixin, ManagerRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['tax_regime'] = SystemConfig.load().tax_regime
+        if self.request.POST:
+            context['composition_formset'] = ProductCompositionFormSet(self.request.POST, instance=self.object)
+        else:
+            context['composition_formset'] = ProductCompositionFormSet(instance=self.object)
         return context
 
     def form_valid(self, form):
+        context = self.get_context_data()
+        composition_formset = context['composition_formset']
+        
+        with transaction.atomic():
+            self.object = form.save()
+            if composition_formset.is_valid():
+                composition_formset.instance = self.object
+                composition_formset.save()
+            else:
+                return self.form_invalid(form)
+                
         messages.success(self.request, "Produto atualizado com sucesso.")
-        return super().form_valid(form)
+        return redirect(self.success_url)
 
 class StockMovementCreateView(LoginRequiredMixin, ManagerRequiredMixin, CreateView):
     model = StockMovement
@@ -78,16 +130,24 @@ class StockMovementCreateView(LoginRequiredMixin, ManagerRequiredMixin, CreateVi
 
     def form_valid(self, form):
         movement = form.save(commit=False)
-        movement.user = self.request.user
-        
         product = movement.product
-        if movement.movement_type == StockMovement.MovementType.IN:
-            product.current_stock += movement.quantity
-        else:
-            product.current_stock -= movement.quantity
         
-        product.save()
-        movement.save()
+        if movement.movement_type == StockMovement.MovementType.ENTRADA:
+            product.increase_stock(
+                movement.quantity,
+                user=self.request.user,
+                reason=movement.reason,
+                notes=movement.notes,
+                service_order=movement.service_order
+            )
+        else:
+            product.reduce_stock(
+                movement.quantity,
+                user=self.request.user,
+                reason=movement.reason,
+                notes=movement.notes,
+                service_order=movement.service_order
+            )
         
         messages.success(self.request, f"Movimentação de {movement.get_movement_type_display()} realizada com sucesso.")
         return redirect(self.success_url)
@@ -265,7 +325,7 @@ def product_import(request):
                                 continue
 
                             tipo_str = str(row.get('tipo_entrada_saida') or 'ENTRADA').upper().strip()
-                            mov_type = StockMovement.MovementType.IN if tipo_str in ['ENTRADA', 'E', 'IN'] else StockMovement.MovementType.OUT
+                            mov_type = StockMovement.MovementType.ENTRADA if tipo_str in ['ENTRADA', 'E'] else StockMovement.MovementType.SAIDA
                             
                             reason_str = str(row.get('motivo') or 'AJUSTE').upper().strip()
                             reason = reason_map.get(reason_str, StockMovement.Reason.ADJUSTMENT)
@@ -273,21 +333,25 @@ def product_import(request):
                             notes = row.get('notas') or f"Importação em massa ({filename})"
 
                             old_stock = float(product.current_stock)
-                            if mov_type == StockMovement.MovementType.IN:
-                                product.current_stock += Decimal(str(qty))
+                            if mov_type == StockMovement.MovementType.ENTRADA:
+                                product.increase_stock(
+                                    Decimal(str(qty)),
+                                    user=request.user,
+                                    reason=reason,
+                                    notes=notes
+                                )
                             else:
-                                product.current_stock -= Decimal(str(qty))
-                            product.save()
+                                product.reduce_stock(
+                                    Decimal(str(qty)),
+                                    user=request.user,
+                                    reason=reason,
+                                    notes=notes
+                                )
 
-                            StockMovement.objects.create(
-                                product=product, quantity=qty, movement_type=mov_type,
-                                reason=reason, user=request.user, import_history=audit, notes=notes
-                            )
-                            
                             ImportItem.objects.create(
                                 import_history=audit, row_number=index, identifier=identifier,
                                 product=product, action="Estoque", 
-                                details=f"{'Acrescentado' if mov_type == 'IN' else 'Removido'} {qty} ({reason_str}). Saldo: {old_stock} -> {product.current_stock}"
+                                details=f"{'Acrescentado' if mov_type == StockMovement.MovementType.ENTRADA else 'Removido'} {qty} ({reason_str}). Saldo: {old_stock} -> {product.current_stock}"
                             )
                             movements_count += 1
                             updated_count += 1

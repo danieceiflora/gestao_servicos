@@ -39,13 +39,13 @@ class Command(BaseCommand):
             job = (
                 MediaProcessingJob.objects
                 .select_for_update(skip_locked=True)
-                .filter(status=MediaProcessingJob.Status.PENDING)
+                .filter(status=MediaProcessingJob.Status.PENDENTE)
                 .order_by('created_at')
                 .first()
             )
             if not job:
                 return None
-            job.status = MediaProcessingJob.Status.PROCESSING
+            job.status = MediaProcessingJob.Status.PROCESSANDO
             job.save(update_fields=['status', 'updated_at'])
             return job
 
@@ -79,7 +79,7 @@ class Command(BaseCommand):
                         job.result_media_type = 'task'
 
                 job.result_media_id = media.id
-                job.status = MediaProcessingJob.Status.DONE
+                job.status = MediaProcessingJob.Status.CONCLUIDO
                 job.processed_at = timezone.now()
                 job.error_message = ''
                 job.save(update_fields=[
@@ -97,6 +97,6 @@ class Command(BaseCommand):
                 except OSError:
                     pass
         except Exception as exc:
-            job.status = MediaProcessingJob.Status.ERROR
+            job.status = MediaProcessingJob.Status.ERRO
             job.error_message = str(exc)
             job.save(update_fields=['status', 'error_message', 'updated_at'])

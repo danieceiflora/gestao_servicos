@@ -16,11 +16,11 @@
             <div>
                 <h1 class="text-3xl font-black text-slate-900 tracking-tighter">Cobrança #{{ billing.number }}</h1>
                 <div class="flex items-center gap-2 mt-2">
-                    {% if billing.status == 'PENDING' %}
+                    {% if billing.status == 'PENDENTE' %}
                         <span class="px-3 py-1 rounded-full text-xs font-black uppercase bg-amber-100 text-amber-700 border border-amber-200">Pendente</span>
-                    {% elif billing.status == 'PARTIAL' %}
+                    {% elif billing.status == 'PARCIAL' %}
                         <span class="px-3 py-1 rounded-full text-xs font-black uppercase bg-blue-100 text-blue-700 border border-blue-200">Parcial</span>
-                    {% elif billing.status == 'PAID' %}
+                    {% elif billing.status == 'PAGO' %}
                         <span class="px-3 py-1 rounded-full text-xs font-black uppercase bg-emerald-100 text-emerald-700 border border-emerald-200">Quitada</span>
                     {% else %}
                         <span class="px-3 py-1 rounded-full text-xs font-black uppercase bg-slate-100 text-slate-500 border border-slate-200">{{ billing.get_status_display }}</span>
@@ -48,7 +48,7 @@
                         <p class="text-[9px] font-black text-red-400 uppercase tracking-widest mb-0.5">Saldo Devedor Total</p>
                         <p class="text-xl font-black text-red-600 tracking-tighter">R$ {{ balance|floatformat:2 }}</p>
                     </div>
-                {% elif billing.status == 'PAID' %}
+                {% elif billing.status == 'PAGO' %}
                     <div class="mt-4 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl text-right">
                         <p class="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Status</p>
                         <p class="text-xl font-black text-emerald-600 tracking-tighter text-right">RECEBIMENTO INTEGRAL</p>
@@ -64,9 +64,9 @@
         
         <div class="grid grid-cols-1 gap-4">
             {% for inst in installments %}
-            <div class="bg-white rounded-2xl border-2 {% if inst.status == 'PAID' %}border-emerald-100 bg-emerald-50/10{% elif inst.status == 'OVERDUE' %}border-red-100 bg-red-50/10{% else %}border-slate-100{% endif %} p-6 flex flex-col md:flex-row items-center justify-between gap-6 transition-all hover:shadow-md">
+            <div class="bg-white rounded-2xl border-2 {% if inst.status == 'PAGO' %}border-emerald-100 bg-emerald-50/10{% elif inst.status == 'ATRASADO' %}border-red-100 bg-red-50/10{% else %}border-slate-100{% endif %} p-6 flex flex-col md:flex-row items-center justify-between gap-6 transition-all hover:shadow-md">
                 <div class="flex items-center gap-6">
-                    <div class="w-12 h-12 rounded-xl {% if inst.status == 'PAID' %}bg-emerald-500 text-white shadow-lg shadow-emerald-500/20{% else %}bg-slate-100 text-slate-400{% endif %} flex items-center justify-center font-black text-lg">
+                    <div class="w-12 h-12 rounded-xl {% if inst.status == 'PAGO' %}bg-emerald-500 text-white shadow-lg shadow-emerald-500/20{% else %}bg-slate-100 text-slate-400{% endif %} flex items-center justify-center font-black text-lg">
                         {{ inst.installment_number }}
                     </div>
                     <div>
@@ -95,16 +95,16 @@
                         {% endwith %}
                     </div>
 
-                    {% if inst.status == 'PAID' %}
+                    {% if inst.status == 'PAGO' %}
                         <div class="flex flex-col items-end">
                             <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-700">Quitada</span>
                             <p class="text-[9px] text-slate-400 font-medium mt-1">em {{ inst.paid_at|date:"d/m/Y H:i" }}</p>
                         </div>
-                    {% elif inst.status == 'CANCELLED' %}
+                    {% elif inst.status == 'CANCELADO' %}
                         <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-400">Cancelada</span>
                     {% else %}
                         <button type="button" onclick="openPayModal('{{ inst.id }}', '{{ inst.amount }}', '{{ inst.installment_number }}', '{{ inst.get_total_paid|stringformat:'.2f' }}')" class="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-95">
-                            {% if inst.status == 'PARTIAL' %}CONTINUAR RECEBIMENTO{% else %}BAIXAR PARCELA{% endif %}
+                            {% if inst.status == 'PARCIAL' %}CONTINUAR RECEBIMENTO{% else %}BAIXAR PARCELA{% endif %}
                         </button>
                     {% endif %}
                 </div>
@@ -206,7 +206,7 @@
         currentInstallmentAmount = parseFloat(amount.replace(',', '.'));
         currentAlreadyPaid = parseFloat(alreadyPaid.replace(',', '.'));
         
-        form.action = `/finance/installments/${id}/pay/`;
+        form.action = `/financeiro/parcelas/${id}/pagar/`;
         
         const remaining = currentInstallmentAmount - currentAlreadyPaid;
         

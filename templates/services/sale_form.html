@@ -105,16 +105,42 @@
                 <i data-lucide="shopping-bag" class="w-5 h-5"></i>
             </div>
             <div>
-                <h1 class="text-lg font-bold text-slate-900 tracking-tight leading-none">Novo Pedido</h1>
-                <p class="text-[10px] text-slate-500 font-medium mt-1 uppercase tracking-wider">Venda de Produtos</p>
+                <h1 class="text-lg font-bold text-slate-900 tracking-tight leading-none">
+                    {% if is_detail %}Venda #{{ sale.number }}{% else %}Novo Pedido{% endif %}
+                </h1>
+                <p class="text-[10px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
+                    {% if is_detail %}
+                        {% if sale.status == 'CANCELADO' %}
+                            <span class="text-red-500 font-bold">Venda Cancelada</span>
+                        {% elif not can_edit %}
+                            <span class="text-amber-600 font-bold">Bloqueada para Edição (Finalizada ou com Parcelas)</span>
+                        {% else %}
+                            Edição de Venda
+                        {% endif %}
+                    {% else %}
+                        Venda de Produtos
+                    {% endif %}
+                </p>
             </div>
         </div>
         <div class="flex items-center gap-3">
-            <a href="{% url 'sale_list' %}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-md transition-colors">Cancelar</a>
+            <a href="{% url 'sale_list' %}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-md transition-colors">Voltar</a>
+            
+            {% if is_detail and sale.status != 'CANCELADO' %}
+            <form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="return confirm('Tem certeza que deseja cancelar esta venda? O estoque será estornado.')">
+                {% csrf_token %}
+                <button type="submit" class="px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-100 rounded-md transition-colors flex items-center gap-2">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i> CANCELAR VENDA
+                </button>
+            </form>
+            {% endif %}
+
+            {% if not is_detail or can_edit %}
             <button type="submit" form="sale-form" id="submit-btn" class="bg-slate-900 text-white px-5 py-2 rounded-md font-bold text-xs hover:bg-slate-800 transition-all flex items-center gap-2 shadow-sm active:scale-[0.98]">
                 <i data-lucide="check-circle" class="w-4 h-4"></i>
-                <span id="submit-text">FINALIZAR VENDA</span>
+                <span id="submit-text">{% if is_detail %}SALVAR ALTERAÇÕES{% else %}FINALIZAR VENDA{% endif %}</span>
             </button>
+            {% endif %}
         </div>
     </div>
 
@@ -175,7 +201,31 @@
             <div class="grid grid-cols-1 md:grid-cols-12 gap-6 px-6 py-4 border-b border-slate-100 shrink-0 bg-slate-50/30">
                 <div class="md:col-span-8">
                     <label class="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Cliente / Consumidor</label>
-                    {{ form.client }}
+                    <div class="relative">
+                        <input type="text" id="client-search" autocomplete="off" placeholder="Buscar cliente por nome ou documento..." 
+                               class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 outline-none transition-all font-semibold text-slate-700"
+                               {% if form.instance.client %}value="{{ form.instance.client.display_name }}"{% endif %}>
+                        <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
+                        
+                        <div id="client-search-results" class="absolute z-50 w-full mt-2 bg-white border border-slate-200 shadow-2xl rounded-xl hidden max-h-[300px] overflow-y-auto custom-scrollbar p-1">
+                            {% for client in clients %}
+                            <div class="client-item p-3 hover:bg-slate-50 cursor-pointer flex justify-between items-center rounded-lg transition-colors border-b border-slate-50 last:border-0" 
+                                 data-id="{{ client.id }}" 
+                                 data-name="{{ client.display_name }}"
+                                 data-doc="{{ client.document }}"
+                                 onclick="selectClient(this)">
+                                <div>
+                                    <div class="text-[12px] font-bold text-slate-800">{{ client.display_name }}</div>
+                                    <div class="text-[10px] text-slate-500 font-medium">{{ client.document }}</div>
+                                </div>
+                                <i data-lucide="user" class="w-4 h-4 text-slate-200"></i>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="hidden">
+                            {{ form.client }}
+                        </div>
+                    </div>
                     {% if form.client.errors %}
                     <p class="text-[10px] text-red-500 font-bold mt-1 ml-1 uppercase">{{ form.client.errors.0 }}</p>
                     {% endif %}
@@ -493,6 +543,56 @@
     const productSearch = document.getElementById('product-search');
     const searchResults = document.getElementById('search-results');
 
+    // Busca de Clientes
+    const clientSearch = document.getElementById('client-search');
+    const clientSearchResults = document.getElementById('client-search-results');
+    const clientSelect = document.getElementById('id_client');
+
+    clientSearch.addEventListener('input', function(e) {
+        const term = e.target.value.toLowerCase();
+        const items = document.querySelectorAll('.client-item');
+
+        if (term.length > 0) {
+            clientSearchResults.classList.remove('hidden');
+            items.forEach(item => {
+                const name = item.dataset.name.toLowerCase();
+                const doc = item.dataset.doc.toLowerCase();
+                if (name.includes(term) || doc.includes(term)) {
+                    item.classList.remove('hidden');
+                } else {
+                    item.classList.add('hidden');
+                }
+            });
+        } else {
+            clientSearchResults.classList.add('hidden');
+        }
+    });
+
+    function selectClient(element) {
+        const id = element.dataset.id;
+        const name = element.dataset.name;
+        
+        clientSearch.value = name;
+        clientSelect.value = id;
+        clientSearchResults.classList.add('hidden');
+        
+        // Estilização de sucesso no input
+        clientSearch.classList.add('border-green-500', 'bg-green-50/30');
+        setTimeout(() => {
+            clientSearch.classList.remove('border-green-500', 'bg-green-50/30');
+        }, 2000);
+    }
+
+    // Fechar resultados ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (!clientSearch.contains(e.target) && !clientSearchResults.contains(e.target)) {
+            clientSearchResults.classList.add('hidden');
+        }
+        if (!productSearch.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.classList.add('hidden');
+        }
+    });
+
     productSearch.addEventListener('input', function(e) {
         const term = e.target.value.toLowerCase();
         const items = document.querySelectorAll('.product-item');
@@ -684,6 +784,58 @@
     surchargeInput.addEventListener('input', updateTotals);
     
     document.addEventListener('DOMContentLoaded', () => {
+        // Inicializar busca de cliente se já houver valor
+        if (clientSelect.value && !clientSearch.value) {
+            const selectedOption = clientSelect.querySelector(`option[value="${clientSelect.value}"]`);
+            if (selectedOption) {
+                clientSearch.value = selectedOption.textContent.trim();
+            }
+        }
+
+        // Carregar parcelas iniciais se existirem (edição)
+        {% if initial_installments %}
+        const tableBody = document.getElementById('installments-table-body');
+        tableBody.innerHTML = '';
+        {% for inst in initial_installments %}
+        const row = document.createElement('tr');
+        row.className = "hover:bg-slate-50 transition-colors";
+        row.innerHTML = `
+            <td class="px-8 py-4 text-xs font-bold text-slate-500">{{ forloop.counter }}ª Parcela</td>
+            <td class="px-4 py-4">
+                <div class="table-input-border w-40">
+                    <input type="date" name="installment_due_date[]" value="{{ inst.due_date }}" class="text-xs font-bold text-slate-700" {% if is_detail and not can_edit %}disabled{% endif %}>
+                </div>
+            </td>
+            <td class="px-4 py-4">
+                <div class="table-input-border w-full">
+                    <select name="installment_method_id[]" class="text-xs font-bold text-slate-700 p-1" {% if is_detail and not can_edit %}disabled{% endif %}>
+                        <option value="">Selecione...</option>
+                        {% for pm in payment_methods %}
+                        <option value="{{ pm.id }}" {% if inst.method_id == pm.id %}selected{% endif %}>{{ pm.descricao }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </td>
+            <td class="px-8 py-4 text-right">
+                <div class="table-input-border w-32 ml-auto">
+                    <input type="number" step="0.01" name="installment_amount[]" value="{{ inst.amount|stringformat:'.2f' }}" oninput="validateInstallmentSum()" class="text-right font-black text-slate-900" {% if is_detail and not can_edit %}disabled{% endif %}>
+                </div>
+            </td>
+        `;
+        tableBody.appendChild(row);
+        {% endfor %}
+        validateInstallmentSum();
+        {% endif %}
+
+        // Bloquear campos se não puder editar
+        {% if is_detail and not can_edit %}
+        document.querySelectorAll('#sale-form input, #sale-form select, #sale-form button:not([data-tab-btn]):not(.tab-btn)').forEach(el => {
+            if (el.id !== 'submit-btn') el.disabled = true;
+        });
+        document.getElementById('product-search').disabled = true;
+        document.getElementById('client-search').disabled = true;
+        {% endif %}
+
         {% if formset.errors %}
             switchTab('items');
         {% elif form.errors %}
@@ -717,9 +869,11 @@
         // Feedback de carregamento
         const btn = document.getElementById('submit-btn');
         const text = document.getElementById('submit-text');
-        btn.disabled = true;
-        btn.classList.add('opacity-50', 'cursor-not-allowed');
-        text.textContent = 'FINALIZANDO...';
+        if (btn && text) {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            text.textContent = '{% if is_detail %}SALVANDO...{% else %}FINALIZANDO...{% endif %}';
+        }
     });
 </script>
 {% endblock %}
