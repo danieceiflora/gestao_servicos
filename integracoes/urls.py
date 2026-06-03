@@ -21,4 +21,5 @@ urlpatterns = [
     
     # HTMX Endpoints para Dinamismo
     path('notificacoes/ajax/detalhes-modelo/', views.ajax_get_template_details, name='ajax_get_template_details'),
+    path('notificacoes/ajax/campos-modelo/', views.ajax_get_model_fields, name='ajax_get_model_fields'),
 ]

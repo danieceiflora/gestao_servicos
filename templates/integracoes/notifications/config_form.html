@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    <form method="post" class="space-y-6">
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
         {% csrf_token %}
         
         <!-- Bloco 1: Identificação -->
@@ -41,6 +41,10 @@
                 <div class="space-y-2">
                     <label class="text-sm font-bold text-slate-700">Modelo</label>
                     <select name="model_name" id="model_select" required
+                            hx-get="{% url 'integracoes:ajax_get_model_fields' %}"
+                            hx-target="#dynamic_phone_field_container"
+                            hx-trigger="change, load delay:50ms"
+                            hx-vals='{"current_val": "{{ config.phone_field_path|default:'client_property.client' }}"}'
                             class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
                         {% for val, label in model_choices %}
                         <option value="{{ val }}" {% if config.model_name == val %}selected{% endif %}>{{ label }}</option>
@@ -60,7 +64,7 @@
             </div>
 
             <!-- Status (Opcional, aparece apenas para STATUS_CHANGE) -->
-            <div id="status_fields" class="grid md:grid-cols-2 gap-4 {% if config.event_type != 'STATUS_CHANGE' %}hidden{% endif %}">
+            <div id="status_fields" class="grid md:grid-cols-2 gap-4 {% if config.event_type != 'MUDANCA_STATUS' %}hidden{% endif %}">
                 <div class="space-y-2">
                     <label class="text-sm font-bold text-slate-700">Vindo do Status (De)</label>
                     <input type="text" name="from_status" value="{{ config.from_status|default:'' }}" placeholder="Qualquer"
@@ -74,7 +78,40 @@
             </div>
         </div>
 
-        <!-- Bloco 3: Template e Variáveis -->
+        <!-- Bloco 3: Destinatário -->
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Destinatário (Para quem?)</h2>
+            
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Tipo de Envio</label>
+                    <select name="recipient_type" id="recipient_type_select" required
+                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                        {% for val, label in recipient_choices %}
+                        <option value="{{ val }}" {% if config.recipient_type == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Campo para Número Fixo -->
+                <div id="fixed_phone_field" class="space-y-2 {% if config.recipient_type != 'FIXED' %}hidden{% endif %}">
+                    <label class="text-sm font-bold text-slate-700">Número de Telefone</label>
+                    <input type="text" name="fixed_phone" value="{{ config.fixed_phone|default:'' }}" placeholder="Ex: 5567999999999" required
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                </div>
+
+                <!-- Campo para Caminho Dinâmico -->
+                <div id="dynamic_phone_field" class="space-y-2 {% if config.recipient_type == 'FIXED' %}hidden{% endif %}">
+                    <label class="text-sm font-bold text-slate-700">Variável do Modelo</label>
+                    <div id="dynamic_phone_field_container">
+                        <!-- Carregado via AJAX -->
+                        <div class="animate-pulse h-10 bg-slate-100 rounded-lg"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bloco 4: Template e Variáveis -->
         <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
             <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Conteúdo e Mapeamento</h2>
             
@@ -86,19 +123,13 @@
                             hx-target="#template_details"
                             hx-trigger="change, load delay:100ms"
                             hx-include="#model_select"
+                            hx-vals='{"config_id": "{{ config.id|default:'' }}"}'
                             class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
                         <option value="">Selecione um template...</option>
                         {% for t in templates %}
                         <option value="{{ t.name }}" {% if config.template_name == t.name %}selected{% endif %}>{{ t.name }} ({{ t.language }})</option>
                         {% endfor %}
                     </select>
-                </div>
-
-                <div class="space-y-2">
-                    <label class="text-sm font-bold text-slate-700">Caminho do Telefone</label>
-                    <input type="text" name="phone_field_path" value="{{ config.phone_field_path|default:'client_property.client' }}" required
-                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono text-slate-600 focus:outline-none focus:border-slate-900 transition-all">
-                    <p class="text-[10px] text-slate-400">Caminho até o objeto Cliente que possui o telefone.</p>
                 </div>
             </div>
 
@@ -126,12 +157,50 @@
         const statusFields = document.getElementById('status_fields');
         const modelSelect = document.getElementById('model_select');
         const templateSelect = document.getElementById('template_select');
+        const recipientTypeSelect = document.getElementById('recipient_type_select');
+        const fixedPhoneField = document.getElementById('fixed_phone_field');
+        const dynamicPhoneField = document.getElementById('dynamic_phone_field');
 
-        eventSelect.addEventListener('change', function() {
-            if (this.value === 'STATUS_CHANGE') {
+        function toggleStatusFields() {
+            if (eventSelect.value === 'MUDANCA_STATUS') {
                 statusFields.classList.remove('hidden');
+                statusFields.querySelectorAll('input, select').forEach(el => el.disabled = false);
             } else {
                 statusFields.classList.add('hidden');
+                statusFields.querySelectorAll('input, select').forEach(el => el.disabled = true);
+            }
+        }
+
+        function toggleRecipientFields() {
+            if (recipientTypeSelect.value === 'FIXED') {
+                fixedPhoneField.classList.remove('hidden');
+                fixedPhoneField.querySelectorAll('input, select').forEach(el => el.disabled = false);
+                
+                dynamicPhoneField.classList.add('hidden');
+                dynamicPhoneField.querySelectorAll('input, select').forEach(el => el.disabled = true);
+            } else {
+                fixedPhoneField.classList.add('hidden');
+                fixedPhoneField.querySelectorAll('input, select').forEach(el => el.disabled = true);
+                
+                dynamicPhoneField.classList.remove('hidden');
+                dynamicPhoneField.querySelectorAll('input, select').forEach(el => el.disabled = false);
+            }
+        }
+
+        eventSelect.addEventListener('change', toggleStatusFields);
+        recipientTypeSelect.addEventListener('change', toggleRecipientFields);
+
+        // Inicializar estados
+        toggleStatusFields();
+        toggleRecipientFields();
+
+        // Garantir que campos carregados via HTMX respeitem o estado de desativado
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            if (evt.detail.target.id === 'dynamic_phone_field_container') {
+                const isFixed = recipientTypeSelect.value === 'FIXED';
+                evt.detail.target.querySelectorAll('input, select').forEach(el => {
+                    el.disabled = isFixed;
+                });
             }
         });
 

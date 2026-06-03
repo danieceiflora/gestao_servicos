@@ -5,6 +5,55 @@ from .chatwoot_client import ChatwootClient
 
 logger = logging.getLogger(__name__)
 
+from django.apps import apps
+from django.db.models import Model, ForeignKey
+
+def get_mappable_fields(model_name, max_depth=2):
+    """
+    Usa introspecção para retornar campos e relacionamentos úteis para mapeamento.
+    Retorna uma lista de tuplas (caminho, label).
+    """
+    try:
+        model = apps.get_model('services', model_name)
+    except LookupError:
+        return []
+
+    mappable = []
+
+    def _get_fields(current_model, prefix='', depth=0):
+        if depth > max_depth:
+            return
+
+        # 1. Campos Reais do Banco
+        for field in current_model._meta.fields:
+            path = f"{prefix}{field.name}"
+            label = f"{prefix.replace('__', ' > ') if prefix else ''}{field.verbose_name or field.name}"
+            
+            # Pula campos internos ou IDs se não forem o primário
+            if field.name in ['id', 'created_at', 'updated_at'] and depth > 0:
+                continue
+                
+            mappable.append((path.replace('__', '.'), label))
+
+            # Se for ForeignKey, desce um nível (se depth permitir)
+            if isinstance(field, ForeignKey) and depth < max_depth:
+                _get_fields(field.related_model, prefix=f"{path}__", depth=depth+1)
+
+        # 2. Properties Úteis (manualmente selecionadas ou via convenção)
+        # Para evitar recursão infinita ou bagunça, pegamos apenas propriedades comuns
+        common_props = ['total_value', 'display_name', 'full_address', 'balance_due', 'total_paid', 'number']
+        for attr_name in dir(current_model):
+            if attr_name in common_props or attr_name.startswith('get_') and attr_name.endswith('_display'):
+                # Verifica se é property ou método sem argumentos
+                attr = getattr(current_model, attr_name)
+                if isinstance(attr, property) or callable(attr):
+                    path = f"{prefix}{attr_name}"
+                    label = f"{prefix.replace('__', ' > ') if prefix else ''}{attr_name.replace('_', ' ').title()}"
+                    mappable.append((path.replace('__', '.'), label))
+
+    _get_fields(model)
+    return sorted(list(set(mappable)), key=lambda x: x[1])
+
 def resolve_field_path(instance, path):
     """
     Resolve um caminho de campo separado por pontos (ex: 'client_property.client.name').
@@ -68,6 +117,8 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
     """
     Encontra e dispara notificações baseadas na configuração.
     """
+    from services.utils.pdf_generator import BudgetPDFGenerator, CompletionPDFGenerator
+    
     model_name = instance.__class__.__name__
     new_status = getattr(instance, 'status', None)
     
@@ -95,8 +146,13 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
                 continue
 
         # 1. Resolver Destinatário
-        target_obj = resolve_field_path(instance, config.phone_field_path)
-        phone = get_client_phone(target_obj)
+        if config.recipient_type == 'FIXED':
+            phone = config.fixed_phone
+            contact_name = "Gerente/Sistema"
+        else:
+            target_obj = resolve_field_path(instance, config.phone_field_path)
+            phone = get_client_phone(target_obj)
+            contact_name = resolve_field_path(target_obj, 'name') or resolve_field_path(target_obj, 'display_name') or "Cliente"
         
         if not phone:
             logger.warning(f"Notificação '{config.name}' ignorada: Telefone não encontrado para {instance}")
@@ -108,12 +164,39 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
         mapping_vars = config.variables.all().order_by('index')
         for var in mapping_vars:
             val = resolve_field_path(instance, var.field_path)
+            # Formatar data/hora se necessário
+            if hasattr(val, 'strftime'):
+                val = val.strftime('%d/%m/%Y %H:%M')
             variables.append(str(val) if val is not None else "")
 
-        # 3. Enviar via Chatwoot/WhatsApp
+        # 3. Resolver Mídia do Cabeçalho (Header)
+        attachment = None
+        if config.header_media_type != 'NONE':
+            # Precisamos do ServiceOrder para gerar os PDFs
+            order = instance if model_name == 'ServiceOrder' else getattr(instance, 'service_order', None)
+            
+            try:
+                if config.header_media_type == 'BUDGET_PDF' and order:
+                    pdf_gen = BudgetPDFGenerator(order)
+                    pdf_content = pdf_gen.generate()
+                    attachment = (f"Orcamento_{order.number}.pdf", pdf_content, "application/pdf")
+                
+                elif config.header_media_type == 'REPORT_PDF' and order:
+                    pdf_gen = CompletionPDFGenerator(order)
+                    pdf_content = pdf_gen.generate()
+                    attachment = (f"Relatorio_{order.number}.pdf", pdf_content, "application/pdf")
+                
+                elif config.header_media_type == 'STATIC_PDF' and config.static_media_file:
+                    file_name = config.static_media_file.name.split('/')[-1]
+                    # Abrir o arquivo para leitura
+                    with config.static_media_file.open('rb') as f:
+                        attachment = (file_name, f.read(), "application/pdf")
+            except Exception as e:
+                logger.error(f"Erro ao gerar/carregar mídia para regra {config.name}: {e}")
+
+        # 4. Enviar via Chatwoot/WhatsApp
         try:
             # Busca ou cria contato no Chatwoot
-            contact_name = resolve_field_path(target_obj, 'name') or resolve_field_path(target_obj, 'display_name') or "Cliente"
             cw_contact = client.create_contact(str(contact_name), phone)
             
             if cw_contact:
@@ -122,7 +205,8 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
                     client.send_template(
                         conversation_id=conv['id'],
                         template_name=config.template_name,
-                        variables=variables
+                        variables=variables,
+                        attachment=attachment
                     )
                     logger.info(f"Notificação dinâmica '{config.name}' enviada para {phone}")
         except Exception as e:

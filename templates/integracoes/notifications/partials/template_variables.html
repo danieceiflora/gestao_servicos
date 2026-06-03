@@ -1,46 +1,96 @@
+{% load stock_tags %}
 <div class="space-y-4">
-    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-        <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Preview do Corpo do Template</label>
-        <p class="text-sm text-slate-700 font-serif leading-relaxed italic">"{{ body_text }}"</p>
+    {% if error %}
+    <div class="p-4 bg-amber-50 border border-amber-100 rounded-xl text-amber-800 text-sm flex items-center gap-2">
+        <i data-lucide="alert-circle" class="h-4 w-4"></i>
+        {{ error }}
+    </div>
+    {% else %}
+    <!-- Preview do Texto -->
+    <div class="p-4 bg-slate-50 border border-slate-100 rounded-xl">
+        <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 block">Visualização do Template</label>
+        <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ body_text }}</p>
     </div>
 
-    <div class="space-y-4">
-        <label class="text-sm font-bold text-slate-700 flex items-center gap-2">
-            Mapeamento de Variáveis
-            <span class="px-2 py-0.5 rounded-full bg-slate-100 text-[10px] text-slate-500 font-mono">{{ vars_count|length }} detectadas</span>
-        </label>
+    {% if has_media_header %}
+    <!-- Mídia do Cabeçalho -->
+    <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
+        <div class="flex items-center gap-2 text-blue-800">
+            <i data-lucide="image" class="h-4 w-4"></i>
+            <span class="text-sm font-bold">Mídia do Cabeçalho ({{ header_format }})</span>
+        </div>
+        <p class="text-xs text-blue-600">Este template exige uma mídia no cabeçalho. Selecione a origem:</p>
         
+        <div class="grid gap-4">
+            <div class="space-y-2">
+                <select name="header_media_type" id="header_media_type" 
+                        class="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white">
+                    {% for val, label in header_media_choices %}
+                    <option value="{{ val }}" {% if config.header_media_type == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Campo de Upload Estático (Sempre visível se STATIC_PDF selecionado) -->
+            <div id="static_file_container" class="{% if config.header_media_type != 'STATIC_PDF' %}hidden{% endif %} space-y-2">
+                <label class="text-[10px] font-bold uppercase text-blue-500">Upload do PDF Estático</label>
+                <input type="file" name="static_media_file" accept=".pdf,image/*"
+                       class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                {% if config.static_media_file %}
+                <p class="text-[10px] text-slate-400">Arquivo atual: {{ config.static_media_file.name }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <script>
+        document.getElementById('header_media_type').addEventListener('change', function() {
+            const container = document.getElementById('static_file_container');
+            if (this.value === 'STATIC_PDF') {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        });
+    </script>
+    {% endif %}
+
+    <!-- Mapeamento de Variáveis -->
+    {% if vars_count %}
+    <div class="space-y-4">
+        <label class="text-sm font-bold text-slate-700">Mapeamento de Variáveis</label>
         <div class="grid gap-3">
             {% for i in vars_count %}
-            <div class="flex flex-col md:flex-row md:items-center gap-3 p-3 border border-slate-100 rounded-xl bg-white">
-                <div class="flex items-center gap-2 min-w-[100px]">
-                    <span class="h-6 w-6 rounded bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center">
-                        {{ i }}
-                    </span>
-                    <span class="text-xs font-mono text-slate-400">\{{ {{ i }} \}}</span>
+            <div class="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+                <div class="flex-none h-8 w-8 flex items-center justify-center rounded-lg bg-slate-900 text-white text-xs font-bold">
+                    {{ i }}
                 </div>
-                
-                <div class="flex-1">
-                    <input type="hidden" name="var_index[]" value="{{ i }}">
-                    <select class="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs focus:ring-1 focus:ring-slate-900 transition-all"
-                            onchange="this.nextElementSibling.value = this.value">
-                        <option value="">-- Selecionar Sugestão --</option>
-                        {% for field_path, field_label in suggested_fields %}
-                        <option value="{{ field_path }}">{{ field_label }} ({{ field_path }})</option>
+                <div class="flex-grow">
+                    {% with current_path=existing_vars|get_item:i %}
+                    <select name="var_path[]" required
+                            class="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:border-slate-900 transition-all">
+                        <option value="">Selecione um campo...</option>
+                        {% for path, label in suggested_fields %}
+                        <option value="{{ path }}" {% if current_path == path %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
-                        <option value="custom">-- Outro campo (digitar) --</option>
                     </select>
-                    <input type="text" name="var_path[]" placeholder="Caminho do campo (ex: client.name)" 
-                           class="mt-2 w-full rounded-lg border border-slate-100 px-3 py-1.5 text-xs font-mono text-slate-500 focus:border-slate-400 outline-none transition-all">
+                    <input type="hidden" name="var_index[]" value="{{ i }}">
+                    {% endwith %}
                 </div>
             </div>
             {% endfor %}
         </div>
     </div>
+    {% else %}
+    <div class="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-lg text-xs">
+        <i data-lucide="info" class="h-4 w-4"></i>
+        Este template não possui variáveis ({{1}}, {{2}}, etc).
+    </div>
+    {% endif %}
+    {% endif %}
 </div>
 
 <script>
-    // Inicializar Lucide se necessário (já que HTMX injetou conteúdo novo)
+    // Inicializar ícones se necessário (Lucide)
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }

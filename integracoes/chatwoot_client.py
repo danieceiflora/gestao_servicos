@@ -418,7 +418,16 @@ class ChatwootClient:
             if attachment or header_variables:
                 content_attributes["template_params"]["processed_params"]["header"] = {}
                 if attachment:
-                    content_attributes["template_params"]["processed_params"]["header"]["media_type"] = "document"
+                    # Detectar tipo de mídia pela extensão
+                    file_name = attachment[0].lower()
+                    if any(file_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp']):
+                        m_type = "image"
+                    elif any(file_name.endswith(ext) for ext in ['.mp4', '.mov', '.avi']):
+                        m_type = "video"
+                    else:
+                        m_type = "document"
+                        
+                    content_attributes["template_params"]["processed_params"]["header"]["media_type"] = m_type
                     if uploaded_header_media_url:
                         content_attributes["template_params"]["processed_params"]["header"]["media_url"] = uploaded_header_media_url
                         content_attributes["template_params"]["processed_params"]["header"]["media_name"] = attachment[0]

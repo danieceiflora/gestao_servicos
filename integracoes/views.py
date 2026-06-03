@@ -615,32 +615,13 @@ def notification_config_list(request):
     configs = NotificationConfig.objects.all()
     return render(request, 'integracoes/notifications/config_list.html', {'configs': configs})
 
-def _get_model_fields(model_name):
-    """Retorna campos comuns para o mapeamento baseados no modelo."""
-    fields = {
-        'ServiceOrder': [
-            ('number', 'Número da OS'),
-            ('client_property.client.name', 'Nome do Cliente'),
-            ('client_property.client.display_name', 'Nome Fantasia/Exibição'),
-            ('client_property.address', 'Endereço do Serviço'),
-            ('total_value', 'Valor Total'),
-            ('balance_due', 'Saldo Devedor'),
-            ('description', 'Descrição do Problema'),
-        ],
-        'ServiceOrderTask': [
-            ('service_order.number', 'Número da OS'),
-            ('service_order.client_property.client.name', 'Nome do Cliente'),
-            ('get_task_type_display', 'Tipo da Etapa'),
-            ('scheduled_at', 'Data/Hora Agendada'),
-        ],
-        'Sale': [
-            ('uuid.hex', 'ID da Venda'),
-            ('client.name', 'Nome do Cliente'),
-            ('total_amount', 'Valor Total'),
-            ('get_status_display', 'Status'),
-        ]
-    }
-    return fields.get(model_name, [])
+from .utils import get_mappable_fields
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def notification_config_list(request):
+    configs = NotificationConfig.objects.all()
+    return render(request, 'integracoes/notifications/config_list.html', {'configs': configs})
 
 @login_required
 @user_passes_test(lambda u: u.is_staff)
@@ -656,12 +637,19 @@ def notification_config_create(request):
         from_status = request.POST.get('from_status')
         to_status = request.POST.get('to_status')
         template_name = request.POST.get('template_name')
+        recipient_type = request.POST.get('recipient_type')
+        fixed_phone = request.POST.get('fixed_phone')
         phone_path = request.POST.get('phone_field_path')
+        header_media_type = request.POST.get('header_media_type', 'NONE')
+        static_media_file = request.FILES.get('static_media_file')
         
         config = NotificationConfig.objects.create(
             name=name, model_name=model_name, event_type=event_type,
             from_status=from_status, to_status=to_status,
-            template_name=template_name, phone_field_path=phone_path
+            template_name=template_name, recipient_type=recipient_type,
+            fixed_phone=fixed_phone, phone_field_path=phone_path,
+            header_media_type=header_media_type,
+            static_media_file=static_media_file
         )
         
         # Salvar variáveis
@@ -678,7 +666,7 @@ def notification_config_create(request):
         'templates': templates,
         'model_choices': NotificationConfig.MODEL_CHOICES,
         'event_choices': NotificationConfig.EVENT_CHOICES,
-        'status_choices': ServiceOrder.Status.choices + Sale.Status.choices # Simplificado
+        'recipient_choices': NotificationConfig.RECIPIENT_CHOICES,
     })
 
 @login_required
@@ -696,11 +684,22 @@ def notification_config_edit(request, pk):
         config.from_status = request.POST.get('from_status')
         config.to_status = request.POST.get('to_status')
         config.template_name = request.POST.get('template_name')
+        config.recipient_type = request.POST.get('recipient_type')
+        config.fixed_phone = request.POST.get('fixed_phone')
         config.phone_field_path = request.POST.get('phone_field_path')
         config.is_active = request.POST.get('is_active') == 'on'
+        
+        header_media_type = request.POST.get('header_media_type')
+        if header_media_type:
+            config.header_media_type = header_media_type
+        
+        static_media_file = request.FILES.get('static_media_file')
+        if static_media_file:
+            config.static_media_file = static_media_file
+            
         config.save()
         
-        # Atualizar variáveis (deleta e recria para simplificar)
+        # Atualizar variáveis
         config.variables.all().delete()
         indices = request.POST.getlist('var_index[]')
         paths = request.POST.getlist('var_path[]')
@@ -716,6 +715,7 @@ def notification_config_edit(request, pk):
         'templates': templates,
         'model_choices': NotificationConfig.MODEL_CHOICES,
         'event_choices': NotificationConfig.EVENT_CHOICES,
+        'recipient_choices': NotificationConfig.RECIPIENT_CHOICES,
         'variables': config.variables.all().order_by('index')
     })
 
@@ -731,8 +731,8 @@ def notification_config_delete(request, pk):
 @login_required
 def ajax_get_template_details(request):
     """Retorna o corpo do template e campos de variáveis via AJAX/HTMX."""
-    template_name = request.GET.get('name')
-    model_name = request.GET.get('model')
+    template_name = request.GET.get('template_name')
+    model_name = request.GET.get('model_name')
     
     config_obj = SystemConfig.load()
     api = MetaCloudAPI(config_obj.meta_waba_id, config_obj.meta_access_token)
@@ -740,7 +740,13 @@ def ajax_get_template_details(request):
     
     template = next((t for t in templates if t['name'] == template_name), None)
     if not template:
-        return JsonResponse({'error': 'Template não encontrado'}, status=404)
+        # Tenta buscar por ID se o nome falhar
+        template = next((t for t in templates if t.get('id') == template_name), None)
+        
+    if not template:
+        return render(request, 'integracoes/notifications/partials/template_variables.html', {
+            'error': 'Template não encontrado ou não selecionado.'
+        })
         
     body_comp = next((c for c in template.get('components', []) if c['type'] == 'BODY'), None)
     body_text = body_comp.get('text', '') if body_comp else ''
@@ -748,14 +754,47 @@ def ajax_get_template_details(request):
     # Encontrar variáveis {{n}}
     vars_count = len(re.findall(r"\{\{\d+\}\}", body_text))
     
-    # Sugestões de campos para o modelo
-    suggested_fields = _get_model_fields(model_name)
+    # Detectar Mídia no Cabeçalho
+    header_comp = next((c for c in template.get('components', []) if c['type'] == 'HEADER'), None)
+    header_format = header_comp.get('format') if header_comp else None
+    has_media_header = header_format in ['IMAGE', 'VIDEO', 'DOCUMENT']
     
+    # Introspecção dinâmica de campos do modelo
+    suggested_fields = get_mappable_fields(model_name)
+    
+    # Tenta carregar mapeamentos existentes se estiver editando
+    config_id = request.GET.get('config_id')
+    existing_vars = {}
+    config = None
+    if config_id and config_id.isdigit():
+        config = NotificationConfig.objects.filter(id=config_id).first()
+        existing_vars = {v.index: v.field_path for v in NotificationVariable.objects.filter(config_id=config_id)}
+
     return render(request, 'integracoes/notifications/partials/template_variables.html', {
         'body_text': body_text,
         'vars_count': range(1, vars_count + 1),
-        'suggested_fields': suggested_fields
+        'has_media_header': has_media_header,
+        'header_format': header_format,
+        'suggested_fields': suggested_fields,
+        'existing_vars': existing_vars,
+        'config': config,
+        'header_media_choices': NotificationConfig.HEADER_MEDIA_CHOICES
     })
+
+@login_required
+def ajax_get_model_fields(request):
+    """Retorna apenas os campos do modelo para o seletor de telefone."""
+    model_name = request.GET.get('model_name')
+    suggested_fields = get_mappable_fields(model_name)
+    
+    # Tenta pegar o valor atual se estiver editando
+    current_val = request.GET.get('current_val', 'client_property.client')
+    
+    return render(request, 'integracoes/notifications/partials/model_fields_select.html', {
+        'suggested_fields': suggested_fields,
+        'current_val': current_val
+    })
+
 
 @login_required
 @user_passes_test(lambda u: u.is_staff)

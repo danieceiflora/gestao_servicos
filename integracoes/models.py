@@ -116,12 +116,56 @@ class NotificationConfig(models.Model):
     )
     
     # Template e Destinatário
+    RECIPIENT_CHOICES = [
+        ('DYNAMIC', 'Campo Dinâmico (Variável do Modelo)'),
+        ('FIXED', 'Número Fixo (Sempre o mesmo)'),
+    ]
+    
+    recipient_type = models.CharField(
+        'Tipo de Destinatário', 
+        max_length=20, 
+        choices=RECIPIENT_CHOICES, 
+        default='DYNAMIC'
+    )
+    
+    fixed_phone = models.CharField(
+        'Telefone Fixo', 
+        max_length=20, 
+        blank=True, 
+        null=True, 
+        help_text='Somente se o tipo for Número Fixo. Ex: 5567999999999'
+    )
+
     template_name = models.CharField('Nome do Template na Meta', max_length=100, help_text='Ex: boas_vindas_cliente')
+    
+    # Suporte a Mídia no Cabeçalho (Header)
+    HEADER_MEDIA_CHOICES = [
+        ('NONE', 'Nenhum'),
+        ('BUDGET_PDF', 'Orçamento (PDF Gerado)'),
+        ('REPORT_PDF', 'Relatório de Execução (PDF Gerado)'),
+        ('STATIC_PDF', 'PDF Estático (Upload)'),
+    ]
+    header_media_type = models.CharField(
+        'Tipo de Mídia no Cabeçalho', 
+        max_length=20, 
+        choices=HEADER_MEDIA_CHOICES, 
+        default='NONE'
+    )
+    static_media_file = models.FileField(
+        'Arquivo Estático', 
+        upload_to='notifications/static/', 
+        blank=True, 
+        null=True,
+        help_text='Somente se o tipo for PDF Estático'
+    )
+
     phone_field_path = models.CharField(
         'Caminho para o Cliente/Telefone', 
         max_length=255, 
-        default='client',
-        help_text='Caminho para chegar no objeto Cliente. Ex: client_property.client para OS, ou client para Venda.'
+        default='client_property.client',
+        blank=True, 
+        null=True,
+        help_text='Caminho para chegar no objeto Cliente ou campo de Telefone. Ex: client_property.client para OS.'
     )
     
     is_active = models.BooleanField('Ativo', default=True)

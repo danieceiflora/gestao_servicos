@@ -5,7 +5,6 @@
   :root, :host {
     --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
       "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
       "Courier New", monospace;
     --color-red-50: oklch(97.1% 0.013 17.38);
@@ -1097,6 +1096,9 @@
   }
   .shrink-0 {
     flex-shrink: 0;
+  }
+  .flex-grow {
+    flex-grow: 1;
   }
   .caption-bottom {
     caption-side: bottom;
@@ -2472,9 +2474,6 @@
   }
   .font-mono {
     font-family: var(--font-mono);
-  }
-  .font-serif {
-    font-family: var(--font-serif);
   }
   .text-2xl {
     font-size: var(--text-2xl);

@@ -1,0 +1,8 @@
+<select name="phone_field_path" required
+        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+    <option value="">Selecione o campo de telefone...</option>
+    {% for path, label in suggested_fields %}
+    <option value="{{ path }}" {% if current_val == path %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+</select>
+<p class="text-[10px] text-slate-400 mt-1">Caminho dinâmico para o objeto que contém o telefone.</p>
