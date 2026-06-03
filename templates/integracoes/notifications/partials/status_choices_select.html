@@ -1,0 +1,27 @@
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="status-selection-container">
+    <!-- Filtro de Status (Origem) -->
+    <div>
+        <label for="from_status" class="block text-sm font-medium text-gray-700 mb-1">Status de Origem (Filtro)</label>
+        <select name="from_status" id="from_status" 
+                class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            <option value="">Qualquer status (Curinga)</option>
+            {% for code, label in choices %}
+                <option value="{{ code }}" {% if from_val == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <p class="text-xs text-gray-500 mt-1 italic">Disparar apenas se vier deste status anterior.</p>
+    </div>
+
+    <!-- Status de Destino (Gatilho) -->
+    <div>
+        <label for="to_status" class="block text-sm font-medium text-gray-700 mb-1">Status de Destino (Gatilho)</label>
+        <select name="to_status" id="to_status" required
+                class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 border-blue-200">
+            <option value="">Selecione o status alvo...</option>
+            {% for code, label in choices %}
+                <option value="{{ code }}" {% if to_val == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <p class="text-xs text-blue-600 mt-1 font-medium italic">A regra será disparada quando o registro assumir este status.</p>
+    </div>
+</div>

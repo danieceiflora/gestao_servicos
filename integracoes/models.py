@@ -101,18 +101,18 @@ class NotificationConfig(models.Model):
     
     # Filtros de Status (apenas para EVENT_TYPE == 'MUDANCA_STATUS')
     from_status = models.CharField(
-        'Status de Origem', 
+        'Status de Origem (Filtro)', 
         max_length=50, 
         blank=True, 
         null=True, 
-        help_text='Deixe em branco para disparar vindo de qualquer status'
+        help_text='Opcional: Disparar apenas se vier deste status. Deixe vazio para qualquer origem.'
     )
     to_status = models.CharField(
-        'Status de Destino', 
+        'Status de Destino (Gatilho)', 
         max_length=50, 
         blank=True, 
         null=True,
-        help_text='O status que o registro deve assumir para disparar a regra'
+        help_text='Obrigatório: O status que o registro deve assumir para disparar a regra.'
     )
     
     # Template e Destinatário

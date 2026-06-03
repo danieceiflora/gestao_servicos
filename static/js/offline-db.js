@@ -316,7 +316,7 @@ const OfflineDB = {
             // 1. Envia mudanças de texto em lote
             if (textChanges.length > 0) {
                 try {
-                    const response = await fetch('/api/tecnico/sync/push/', {
+                    const response = await fetch('/api/tecnico/sincronizar/push/', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

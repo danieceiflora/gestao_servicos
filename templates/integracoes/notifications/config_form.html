@@ -63,17 +63,18 @@
                 </div>
             </div>
 
-            <!-- Status (Opcional, aparece apenas para STATUS_CHANGE) -->
-            <div id="status_fields" class="grid md:grid-cols-2 gap-4 {% if config.event_type != 'MUDANCA_STATUS' %}hidden{% endif %}">
-                <div class="space-y-2">
-                    <label class="text-sm font-bold text-slate-700">Vindo do Status (De)</label>
-                    <input type="text" name="from_status" value="{{ config.from_status|default:'' }}" placeholder="Qualquer"
-                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
-                </div>
-                <div class="space-y-2">
-                    <label class="text-sm font-bold text-slate-700">Para o Status (Ate)</label>
-                    <input type="text" name="to_status" value="{{ config.to_status|default:'' }}" placeholder="Obrigatório"
-                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+            <!-- Status (Carregado dinamicamente via HTMX baseado no Modelo) -->
+            <div id="status_fields" 
+                 hx-get="{% url 'integracoes:ajax_get_status_choices' %}"
+                 hx-trigger="change from:#model_select, load from:#model_select delay:100ms"
+                 hx-target="this"
+                 hx-include="#model_select"
+                 hx-vals='{"from_val": "{{ config.from_status|default:'' }}", "to_val": "{{ config.to_status|default:'' }}"}'
+                 class="space-y-4 {% if config.event_type != 'MUDANCA_STATUS' %}hidden{% endif %}">
+                <!-- Carregado via AJAX: partials/status_choices_select.html -->
+                <div class="animate-pulse flex space-x-4">
+                    <div class="h-10 bg-slate-100 rounded w-full"></div>
+                    <div class="h-10 bg-slate-100 rounded w-full"></div>
                 </div>
             </div>
         </div>
@@ -201,6 +202,9 @@
                 evt.detail.target.querySelectorAll('input, select').forEach(el => {
                     el.disabled = isFixed;
                 });
+            }
+            if (evt.detail.target.id === 'status_fields') {
+                toggleStatusFields();
             }
         });
 

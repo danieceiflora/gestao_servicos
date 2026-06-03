@@ -795,6 +795,27 @@ def ajax_get_model_fields(request):
         'current_val': current_val
     })
 
+@login_required
+def ajax_get_status_choices(request):
+    """Retorna as opções de status para um determinado modelo."""
+    model_name = request.GET.get('model_name')
+    from_val = request.GET.get('from_val')
+    to_val = request.GET.get('to_val')
+    
+    choices = []
+    if model_name == 'ServiceOrder':
+        choices = ServiceOrder.Status.choices
+    elif model_name == 'ServiceOrderTask':
+        choices = ServiceOrderTask.TaskStatus.choices
+    elif model_name == 'Sale':
+        choices = Sale.Status.choices
+        
+    return render(request, 'integracoes/notifications/partials/status_choices_select.html', {
+        'choices': choices,
+        'from_val': from_val,
+        'to_val': to_val
+    })
+
 
 @login_required
 @user_passes_test(lambda u: u.is_staff)
