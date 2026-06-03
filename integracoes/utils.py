@@ -8,11 +8,29 @@ logger = logging.getLogger(__name__)
 from django.apps import apps
 from django.db.models import Model, ForeignKey
 
-def get_mappable_fields(model_name, max_depth=2):
+def get_mappable_fields(model_name, max_depth=3, only_phones=False):
     """
     Usa introspecção para retornar campos e relacionamentos úteis para mapeamento.
-    Retorna uma lista de tuplas (caminho, label).
+    Se only_phones=True, retorna uma lista curada e com labels amigáveis.
     """
+    if only_phones:
+        # Lista curada para facilitar a vida do usuário no seletor de destinatário
+        if model_name == 'ServiceOrder':
+            return [
+                ('client_property.client.phones.first.phone', 'Telefone do Cliente'),
+                ('originator.phone', 'Telefone do Vendedor/Originador'),
+            ]
+        elif model_name == 'ServiceOrderTask':
+            return [
+                ('service_order.client_property.client.phones.first.phone', 'Telefone do Cliente'),
+                ('service_order.originator.phone', 'Telefone do Vendedor/Originador'),
+            ]
+        elif model_name == 'Sale':
+            return [
+                ('client.phones.first.phone', 'Telefone do Cliente'),
+                ('user.phone', 'Telefone do Vendedor'),
+            ]
+
     try:
         model = apps.get_model('services', model_name)
     except LookupError:
@@ -39,17 +57,24 @@ def get_mappable_fields(model_name, max_depth=2):
             if isinstance(field, ForeignKey) and depth < max_depth:
                 _get_fields(field.related_model, prefix=f"{path}__", depth=depth+1)
 
-        # 2. Properties Úteis (manualmente selecionadas ou via convenção)
-        # Para evitar recursão infinita ou bagunça, pegamos apenas propriedades comuns
-        common_props = ['total_value', 'display_name', 'full_address', 'balance_due', 'total_paid', 'number']
+        # 2. Casos Especiais: Telefones de Clientes (Relacionamento Reverso ou Especifico)
+        if current_model.__name__ == 'Client':
+            mappable.append((f"{prefix}phones.first.phone".replace('__', '.'), f"{prefix.replace('__', ' > ') if prefix else ''}Telefone/Whatsapp"))
+
+        # 3. Properties Úteis (manualmente selecionadas ou via convenção)
+        common_props = ['total_value', 'display_name', 'full_address', 'balance_due', 'total_paid', 'number', 'phone']
         for attr_name in dir(current_model):
             if attr_name in common_props or attr_name.startswith('get_') and attr_name.endswith('_display'):
                 # Verifica se é property ou método sem argumentos
-                attr = getattr(current_model, attr_name)
-                if isinstance(attr, property) or callable(attr):
-                    path = f"{prefix}{attr_name}"
-                    label = f"{prefix.replace('__', ' > ') if prefix else ''}{attr_name.replace('_', ' ').title()}"
-                    mappable.append((path.replace('__', '.'), label))
+                try:
+                    attr = getattr(current_model, attr_name)
+                    if isinstance(attr, property) or callable(attr):
+                        path = f"{prefix}{attr_name}"
+                        label_name = attr_name.replace('get_', '').replace('_display', '').replace('_', ' ').title()
+                        label = f"{prefix.replace('__', ' > ') if prefix else ''}{label_name}"
+                        mappable.append((path.replace('__', '.'), label))
+                except:
+                    continue
 
     _get_fields(model)
     return sorted(list(set(mappable)), key=lambda x: x[1])

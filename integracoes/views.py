@@ -785,10 +785,10 @@ def ajax_get_template_details(request):
 def ajax_get_model_fields(request):
     """Retorna apenas os campos do modelo para o seletor de telefone."""
     model_name = request.GET.get('model_name')
-    suggested_fields = get_mappable_fields(model_name)
+    suggested_fields = get_mappable_fields(model_name, only_phones=True)
     
     # Tenta pegar o valor atual se estiver editando
-    current_val = request.GET.get('current_val', 'client_property.client')
+    current_val = request.GET.get('current_val', 'client_property.client.phones.first.phone')
     
     return render(request, 'integracoes/notifications/partials/model_fields_select.html', {
         'suggested_fields': suggested_fields,
