@@ -64,7 +64,7 @@
                             {{ template.category }}
                         </td>
                         <td class="px-6 py-4">
-                            {% if template.status == 'APROVADO' %}
+                            {% if template.status == 'APPROVED' %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
                                 Aprovado
@@ -187,7 +187,7 @@
         
         const badgeContainer = document.getElementById('modal-status-badge');
         let badgeHtml = '';
-        if (status === 'APROVADO') {
+        if (status === 'APPROVED') {
             badgeHtml = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">Aprovado</span>';
         } else if (status === 'PENDENTE') {
             badgeHtml = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Pendente</span>';

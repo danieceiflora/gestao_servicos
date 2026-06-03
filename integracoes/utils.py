@@ -15,20 +15,21 @@ def get_mappable_fields(model_name, max_depth=3, only_phones=False):
     """
     if only_phones:
         # Lista curada para facilitar a vida do usuário no seletor de destinatário
+        # Note: Paramos no objeto que possui o telefone, o get_client_phone resolverá o resto.
         if model_name == 'ServiceOrder':
             return [
-                ('client_property.client.phones.first.phone', 'Telefone do Cliente'),
-                ('originator.phone', 'Telefone do Vendedor/Originador'),
+                ('client_property.client', 'Telefone do Cliente'),
+                ('originator', 'Telefone do Vendedor/Originador'),
             ]
         elif model_name == 'ServiceOrderTask':
             return [
-                ('service_order.client_property.client.phones.first.phone', 'Telefone do Cliente'),
-                ('service_order.originator.phone', 'Telefone do Vendedor/Originador'),
+                ('service_order.client_property.client', 'Telefone do Cliente'),
+                ('service_order.originator', 'Telefone do Vendedor/Originador'),
             ]
         elif model_name == 'Sale':
             return [
-                ('client.phones.first.phone', 'Telefone do Cliente'),
-                ('user.phone', 'Telefone do Vendedor'),
+                ('client', 'Telefone do Cliente'),
+                ('user', 'Telefone do Vendedor'),
             ]
 
     try:
@@ -90,21 +91,33 @@ def resolve_field_path(instance, path):
     parts = path.split('.')
     current = instance
     for part in parts:
+        if current is None:
+            return None
+        
         try:
-            if current is None:
-                return None
-            
             # Tenta pegar como atributo
             value = getattr(current, part)
             
             # Se for um callable (como uma property ou método simples sem args)
-            if callable(value) and not isinstance(value, Model):
-                current = value()
+            # Mas não se for uma classe de Model (caso de ForeignKey sem instância?)
+            if callable(value) and not isinstance(value, type) and not isinstance(value, Model):
+                try:
+                    current = value()
+                except Exception as e:
+                    logger.warning(f"Erro ao chamar '{part}' em {current}: {e}")
+                    return None
             else:
                 current = value
-        except (AttributeError, TypeError, ValueError):
-            logger.warning(f"Não foi possível resolver '{part}' em {current} para o caminho '{path}'")
+        except AttributeError:
+            # Tenta ver se é um manager (reverse relationship) que não foi pego pelo getattr
+            if hasattr(current, '_meta'):
+                # Talvez seja um campo que não existe na instância mas existe no modelo?
+                logger.warning(f"Campo '{part}' não encontrado em {current} (Tipo: {type(current)})")
             return None
+        except Exception as e:
+            logger.warning(f"Erro ao resolver '{part}' em {current}: {e}")
+            return None
+            
     return current
 
 def get_client_phone(client_obj):
