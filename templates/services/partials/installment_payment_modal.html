@@ -1,0 +1,268 @@
+{% load static %}
+<div id="installment-payment-modal-content">
+
+    {% if payment_just_added %}
+    <div class="mb-5 flex items-start gap-3 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3.5">
+        <div class="shrink-0 mt-0.5 h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center">
+            <i data-lucide="check" class="h-3 w-3 text-white"></i>
+        </div>
+        <div>
+            <p class="text-sm font-semibold text-emerald-800">Pagamento registrado com sucesso!</p>
+            <p class="text-xs text-emerald-600 mt-0.5">O saldo da parcela foi atualizado automaticamente.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if discount_just_applied %}
+    <div class="mb-5 flex items-start gap-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3.5">
+        <div class="shrink-0 mt-0.5 h-5 w-5 rounded-full bg-amber-500 flex items-center justify-center">
+            <i data-lucide="tag" class="h-3 w-3 text-white"></i>
+        </div>
+        <div>
+            <p class="text-sm font-semibold text-amber-800">Desconto/Isenção aplicado com sucesso!</p>
+            <p class="text-xs text-amber-600 mt-0.5">A parcela foi quitada sem registro de pagamento financeiro.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Cabeçalho da parcela -->
+    <div class="mb-5">
+        <h2 class="text-lg font-semibold text-slate-900">
+            Baixa de Pagamento
+        </h2>
+        <p class="text-sm text-slate-500 mt-0.5">
+            {% if installment.recurrence_rule %}
+                {{ installment.recurrence_rule.description }} — {{ installment.recurrence_rule.supplier.display_name }}
+            {% else %}
+                {{ installment.expense.description }} — {{ installment.expense.supplier.display_name }}
+            {% endif %}
+            &nbsp;·&nbsp; Parcela {{ installment.installment_label }}
+            {% if installment.document_ref %}
+            <span class="ml-2 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                <i data-lucide="file-text" class="h-3 w-3"></i>
+                {{ installment.document_ref }}
+            </span>
+            {% endif %}
+        </p>
+
+        <!-- Resumo financeiro -->
+        <div class="mt-3 grid grid-cols-3 gap-3">
+            <div class="rounded-lg bg-slate-50 border border-slate-200 p-3 text-center">
+                <p class="text-xs text-slate-500 font-medium">Total da parcela</p>
+                <p class="text-base font-bold text-slate-900 mt-1">R$ {{ installment.amount|floatformat:2 }}</p>
+            </div>
+            <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-center">
+                <p class="text-xs text-emerald-700 font-medium">Pago</p>
+                <p class="text-base font-bold text-emerald-700 mt-1">R$ {{ installment.amount_paid|floatformat:2 }}</p>
+            </div>
+            <div class="rounded-lg {% if installment.amount_remaining > 0 %}bg-orange-50 border-orange-200{% else %}bg-emerald-50 border-emerald-200{% endif %} border p-3 text-center">
+                <p class="text-xs {% if installment.amount_remaining > 0 %}text-orange-700{% else %}text-emerald-700{% endif %} font-medium">Saldo</p>
+                <p class="text-base font-bold {% if installment.amount_remaining > 0 %}text-orange-700{% else %}text-emerald-700{% endif %} mt-1">R$ {{ installment.amount_remaining|floatformat:2 }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de baixas existentes -->
+    {% with payments=installment.payments.all %}
+    {% if payments %}
+    <div class="mb-5">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Baixas registradas</p>
+        <div class="divide-y divide-slate-100 rounded-lg border border-slate-200 overflow-hidden">
+            {% for pay in payments %}
+            <div class="flex items-center justify-between gap-3 px-4 py-3 bg-white text-sm">
+                <div class="flex items-center gap-3 min-w-0">
+                    {% if pay.is_discount %}
+                    <div class="shrink-0 h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
+                        <i data-lucide="tag" class="h-3.5 w-3.5 text-amber-600"></i>
+                    </div>
+                    {% else %}
+                    <div class="shrink-0 h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                        <i data-lucide="check" class="h-3.5 w-3.5 text-emerald-600"></i>
+                    </div>
+                    {% endif %}
+                    <div class="min-w-0">
+                        <p class="font-semibold {% if pay.is_discount %}text-amber-800{% else %}text-slate-900{% endif %}">
+                            R$ {{ pay.amount|floatformat:2 }}
+                            {% if pay.is_discount %}<span class="ml-1 text-xs font-normal text-amber-600">Desconto/Isenção</span>{% endif %}
+                        </p>
+                        <p class="text-xs text-slate-500">
+                            {% if pay.is_discount %}
+                                {{ pay.payment_date|date:"d/m/Y" }}&nbsp;·&nbsp;{{ pay.discount_reason }}
+                            {% else %}
+                                {{ pay.payment_date|date:"d/m/Y" }}
+                                {% if pay.payment_method %}&nbsp;·&nbsp; {{ pay.get_payment_method_display }}{% endif %}
+                                {% if pay.bank_account %}&nbsp;·&nbsp; {{ pay.bank_account.name }}{% endif %}
+                            {% endif %}
+                        </p>
+                        {% if not pay.is_discount and pay.notes %}<p class="text-xs text-slate-400 truncate">{{ pay.notes }}</p>{% endif %}
+                        {% if pay.attachments.all %}
+                        <div class="mt-1 flex flex-wrap gap-1">
+                            {% for att in pay.attachments.all %}
+                            <a href="{{ MEDIA_URL }}{{ att.file }}" target="_blank"
+                               class="inline-flex items-center gap-1 rounded-md bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs text-blue-700 hover:bg-blue-100">
+                                <i data-lucide="paperclip" class="h-3 w-3"></i>
+                                {{ att.description|default:"Comprovante" }}
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <form method="post"
+                      action="{% url 'installment_payment_delete' pay.pk %}"
+                      hx-post="{% url 'installment_payment_delete' pay.pk %}"
+                      hx-target="#installment-payment-modal-content"
+                      hx-swap="outerHTML"
+                      onsubmit="return confirm('Remover esta baixa?')">
+                    {% csrf_token %}
+                    <button type="submit" class="shrink-0 inline-flex items-center justify-center rounded-md hover:bg-red-50 h-8 w-8 text-slate-400 hover:text-red-500 transition-colors">
+                        <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Formulário de nova baixa -->
+    {% if installment.amount_remaining > 0 %}
+    <div>
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Registrar baixa</p>
+        <form method="post" enctype="multipart/form-data"
+              action="{% url 'installment_payment_add' installment.pk %}"
+              hx-post="{% url 'installment_payment_add' installment.pk %}"
+              hx-target="#installment-payment-modal-content"
+              hx-swap="outerHTML"
+              class="space-y-4">
+            {% csrf_token %}
+
+            <div class="grid grid-cols-2 gap-3">
+                <!-- Valor -->
+                <div>
+                    <label class="text-xs font-medium text-slate-700 block mb-1">Valor pago <span class="text-red-500">*</span></label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">R$</span>
+                        <input type="text" name="amount"
+                               value="{{ installment.amount_remaining|floatformat:2 }}"
+                               placeholder="0,00"
+                               required
+                               class="flex h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
+                    </div>
+                </div>
+
+                <!-- Data -->
+                <div>
+                    <label class="text-xs font-medium text-slate-700 block mb-1">Data do pagamento <span class="text-red-500">*</span></label>
+                    <input type="date" name="payment_date"
+                           value="{{ today|date:'Y-m-d' }}"
+                           required
+                           class="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <!-- Meio de pagamento -->
+                <div>
+                    <label class="text-xs font-medium text-slate-700 block mb-1">Meio de pagamento</label>
+                    <select name="payment_method"
+                            class="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
+                        <option value="">— Selecione —</option>
+                        {% for value, label in payment_method_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Conta de origem -->
+                <div>
+                    <label class="text-xs font-medium text-slate-700 block mb-1">Conta de origem</label>
+                    <select name="bank_account"
+                            class="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
+                        <option value="">— Selecione —</option>
+                        {% for account in bank_accounts %}
+                        <option value="{{ account.pk }}">{{ account.name }}{% if account.bank %} — {{ account.bank }}{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Observação -->
+            <div>
+                <label class="text-xs font-medium text-slate-700 block mb-1">Observação</label>
+                <textarea name="notes" rows="2" placeholder="Ex: Pago via boleto, referência #1234"
+                          class="flex w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 resize-none"></textarea>
+            </div>
+
+            <!-- Nº Documento -->
+            <div>
+                <label class="text-xs font-medium text-slate-700 block mb-1">Nº Documento <span class="text-xs text-slate-400">(NF, Boleto, PIX...)</span></label>
+                <input type="text" name="document_ref"
+                       value="{{ installment.document_ref }}"
+                       placeholder="Ex: NF-1234, Boleto 00190..."
+                       class="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
+            </div>
+
+            <!-- Comprovante -->
+            <div>
+                <label class="text-xs font-medium text-slate-700 block mb-1">Comprovante <span class="text-xs text-slate-400">(PDF, imagem)</span></label>
+                <input type="file" name="attachment" accept=".pdf,.jpg,.jpeg,.png,.webp"
+                       class="flex w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-500 file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200">
+                <input type="text" name="attachment_description" placeholder="Descrição opcional do comprovante"
+                       class="mt-1.5 flex h-9 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-400">
+            </div>
+
+            <button type="submit"
+                    class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 h-10 px-4 transition-colors">
+                <i data-lucide="check-circle" class="mr-2 h-4 w-4"></i>
+                Registrar Baixa
+            </button>
+        </form>
+
+        <!-- Seção de Desconto / Isenção -->
+        <div class="mt-5 pt-4 border-t border-slate-100">
+            <details class="group">
+                <summary class="flex items-center gap-2 cursor-pointer select-none list-none text-xs font-medium text-amber-700 hover:text-amber-900">
+                    <i data-lucide="tag" class="h-3.5 w-3.5 shrink-0"></i>
+                    Aplicar Desconto ou Isenção
+                    <i data-lucide="chevron-down" class="h-3.5 w-3.5 ml-auto transition-transform group-open:rotate-180"></i>
+                </summary>
+                <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <p class="text-xs text-amber-700 mb-3">Use quando a conta foi isenta, cancelada ou dispensada de pagamento. O saldo será zerado sem registrar saída financeira.</p>
+                    <form method="post"
+                          action="{% url 'installment_apply_discount' installment.pk %}"
+                          hx-post="{% url 'installment_apply_discount' installment.pk %}"
+                          hx-target="#installment-payment-modal-content"
+                          hx-swap="outerHTML"
+                          class="space-y-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="amount" value="{{ installment.amount_remaining|floatformat:2 }}">
+                        <div>
+                            <label class="text-xs font-medium text-amber-800 block mb-1">Motivo <span class="text-red-500">*</span></label>
+                            <input type="text" name="discount_reason"
+                                   placeholder="Ex: Conta isenta neste mês, negociação com fornecedor..."
+                                   required
+                                   class="flex h-10 w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+                        </div>
+                        <button type="submit"
+                                class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 h-10 px-4 transition-colors">
+                            <i data-lucide="tag" class="mr-2 h-4 w-4"></i>
+                            Quitar por Desconto (R$ {{ installment.amount_remaining|floatformat:2 }})
+                        </button>
+                    </form>
+                </div>
+            </details>
+        </div>
+    </div>
+    {% else %}
+    <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
+        <i data-lucide="check-circle-2" class="h-6 w-6 text-emerald-600 mx-auto mb-2"></i>
+        <p class="text-sm font-medium text-emerald-700">Parcela totalmente paga</p>
+    </div>
+    {% endif %}
+</div>
+<script>
+    // Re-initialize lucide icons after HTMX swap
+    if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+</script>

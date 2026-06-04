@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900">Configurações Financeiras</h1>
+            <p class="text-sm text-slate-500">Parâmetros globais do módulo financeiro.</p>
+        </div>
+        <a href="{% url 'expense_list' %}" class="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
+            Voltar para Contas a Pagar
+        </a>
+    </div>
+
+    <form method="post" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        {% csrf_token %}
+        <div class="p-6 space-y-6">
+            <div class="space-y-2">
+                <label for="{{ form.days_before_generation.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                    Dias de antecedência para geração de parcelas
+                </label>
+                {% render_field form.days_before_generation %}
+                <p class="text-xs text-slate-400">
+                    O sistema gerará os registros de contas a pagar este número de dias antes do vencimento.
+                    Exemplo: com valor 7, uma conta que vence dia 30 será criada no dia 23.
+                </p>
+                {% if form.days_before_generation.errors %}
+                <span class="text-xs text-red-500">{{ form.days_before_generation.errors|striptags }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="border-t border-slate-200 bg-slate-50 p-4 sm:px-6 flex items-center justify-between">
+            <a href="{% url 'expense_list' %}" class="text-sm font-medium text-slate-500 hover:text-slate-900">Cancelar</a>
+            <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-900/90 h-10 px-6">
+                <i data-lucide="save" class="h-4 w-4 mr-2"></i>
+                Salvar Configurações
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

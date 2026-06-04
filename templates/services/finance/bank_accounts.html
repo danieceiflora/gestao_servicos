@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900">Contas Bancárias</h1>
+            <p class="text-sm text-slate-500">Gerencie suas contas e acompanhe o saldo calculado.</p>
+        </div>
+        <a href="{% url 'bank_account_create' %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-900/90 h-10 px-4 py-2">
+            <i data-lucide="plus" class="mr-2 h-4 w-4"></i>
+            Nova Conta
+        </a>
+    </div>
+
+    <!-- Grid de contas -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for acc in accounts %}
+        <div class="rounded-xl border {% if acc.is_active %}border-slate-200 bg-white{% else %}border-slate-100 bg-slate-50 opacity-60{% endif %} shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-start justify-between">
+                <div>
+                    <p class="font-semibold text-slate-900">{{ acc.name }}</p>
+                    <p class="text-xs text-slate-500">{{ acc.get_account_type_display }}{% if acc.bank %} · {{ acc.bank }}{% endif %}</p>
+                </div>
+                {% if not acc.is_active %}
+                <span class="inline-flex items-center rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600">Inativa</span>
+                {% endif %}
+            </div>
+            <div class="px-5 py-4 grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-xs text-slate-500 mb-0.5">Saldo inicial</p>
+                    <p class="text-sm font-medium text-slate-700">R$ {{ acc.initial_balance|floatformat:2 }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 mb-0.5">Saldo atual</p>
+                    <p class="text-base font-bold {% if acc.current_balance >= 0 %}text-emerald-700{% else %}text-red-700{% endif %}">
+                        R$ {{ acc.current_balance|floatformat:2 }}
+                    </p>
+                </div>
+            </div>
+            <div class="px-5 pb-4 flex items-center gap-2">
+                <a href="{% url 'bank_account_edit' acc.pk %}"
+                   class="flex-1 inline-flex items-center justify-center rounded-md text-sm font-medium border border-slate-200 bg-white hover:bg-slate-100 h-9 px-3">
+                    <i data-lucide="edit" class="mr-1.5 h-3.5 w-3.5"></i>
+                    Editar
+                </a>
+                <form method="post" action="{% url 'bank_account_toggle' acc.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium border h-9 px-3
+                        {% if acc.is_active %}border-slate-200 bg-white text-slate-500 hover:bg-slate-100{% else %}border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100{% endif %}">
+                        {% if acc.is_active %}Desativar{% else %}Ativar{% endif %}
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-3 rounded-xl border border-dashed border-slate-300 p-10 text-center text-slate-500">
+            <i data-lucide="landmark" class="h-10 w-10 mx-auto mb-3 text-slate-400"></i>
+            <p class="text-base font-medium">Nenhuma conta cadastrada</p>
+            <a href="{% url 'bank_account_create' %}" class="mt-2 inline-block text-sm text-blue-600 hover:underline">Criar primeira conta</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

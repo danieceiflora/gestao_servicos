@@ -7,10 +7,10 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 from decimal import Decimal
 from datetime import datetime
-from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client
-from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet
+from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory
+from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet, FinanceSettingsForm
 from .expense_engine import generate_expense_installments
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 import csv
 import logging
 from io import BytesIO
@@ -799,21 +799,89 @@ def installment_pay(request, pk):
 @login_required
 @user_passes_test(is_manager)
 def expense_list(request):
-    expenses = Expense.objects.all().order_by('-issue_date')
-    
-    q = request.GET.get('q')
+    from datetime import timedelta, date as date_type
+    q = request.GET.get('q', '')
+    status_filter = request.GET.get('status', '')
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    category_id = request.GET.get('category', '').strip()
+
+    # Atualiza automaticamente parcelas vencidas e não pagas para status ATRASADO
+    today_auto = timezone.localdate()
+    ExpenseInstallment.objects.filter(
+        due_date__lt=today_auto,
+        status__in=[ExpenseInstallment.Status.PENDENTE, ExpenseInstallment.Status.PARCIAL],
+    ).update(status=ExpenseInstallment.Status.ATRASADO)
+
+    installments = ExpenseInstallment.objects.select_related(
+        'expense', 'expense__supplier', 'expense__category',
+        'recurrence_rule', 'recurrence_rule__supplier'
+    ).order_by('due_date')
+
     if q:
-        expenses = expenses.filter(
-            Q(description__icontains=q) | 
-            Q(supplier__name__icontains=q)
+        installments = installments.filter(
+            Q(expense__description__icontains=q) |
+            Q(expense__supplier__name__icontains=q) |
+            Q(expense__supplier__display_name__icontains=q) |
+            Q(recurrence_rule__description__icontains=q) |
+            Q(recurrence_rule__supplier__name__icontains=q) |
+            Q(document_ref__icontains=q)
         )
-        
-    paginator = Paginator(expenses, 20)
+
+    if status_filter:
+        installments = installments.filter(status=status_filter)
+
+    if date_from:
+        try:
+            installments = installments.filter(due_date__gte=date_type.fromisoformat(date_from))
+        except ValueError:
+            pass
+
+    if date_to:
+        try:
+            installments = installments.filter(due_date__lte=date_type.fromisoformat(date_to))
+        except ValueError:
+            pass
+
+    if category_id:
+        installments = installments.filter(
+            Q(expense__category_id=category_id) | Q(recurrence_rule__category_id=category_id)
+        )
+
+    today = timezone.localdate()
+
+    # Totalizadores para o contexto (antes de paginar)
+    overdue_qs = ExpenseInstallment.objects.filter(
+        due_date__lt=today,
+        status__in=[ExpenseInstallment.Status.PENDENTE, ExpenseInstallment.Status.ATRASADO, ExpenseInstallment.Status.PARCIAL],
+    )
+    overdue_count = overdue_qs.count()
+    overdue_total = sum(inst.amount_remaining for inst in overdue_qs) if overdue_count else Decimal('0')
+
+    paginator = Paginator(installments, 25)
     page = request.GET.get('page')
-    expenses_page = paginator.get_page(page)
-    
+    installments_page = paginator.get_page(page)
+
+    recurrence_rules = RecurrenceRule.objects.select_related('supplier', 'category').order_by('-created_at')
+    bank_accounts = BankAccount.objects.filter(is_active=True).order_by('name')
+    categories = FinancialCategory.objects.all().order_by('name')
+
     context = {
-        'expenses': expenses_page,
+        'installments': installments_page,
+        'recurrence_rules': recurrence_rules,
+        'bank_accounts': bank_accounts,
+        'categories': categories,
+        'status_choices': ExpenseInstallment.Status.choices,
+        'payment_method_choices': ExpenseInstallment.PaymentMethod.choices,
+        'current_status': status_filter,
+        'current_q': q,
+        'current_date_from': date_from,
+        'current_date_to': date_to,
+        'current_category': category_id,
+        'today': today,
+        'warning_date': today + timedelta(days=7),
+        'overdue_count': overdue_count,
+        'overdue_total': overdue_total,
         'title': 'Contas a Pagar',
         'active_menu': 'finance'
     }
@@ -824,24 +892,43 @@ def expense_list(request):
 def expense_create(request):
     if request.method == 'POST':
         form = ExpenseForm(request.POST)
-        # Usamos um prefixo explícito para evitar problemas de colisão ou nomes automáticos complexos
         formset = ExpenseInstallmentFormSet(request.POST, prefix='installments')
-        
-        if form.is_valid() and formset.is_valid():
-            with transaction.atomic():
-                expense = form.save()
-                instances = formset.save(commit=False)
-                for instance in instances:
-                    instance.expense = expense
-                    instance.save()
-                
+
+        if form.is_valid():
+            is_recurrent = form.cleaned_data.get('is_recurrent')
+
+            if is_recurrent:
+                with transaction.atomic():
+                    rule = RecurrenceRule.objects.create(
+                        supplier=form.cleaned_data['supplier'],
+                        category=form.cleaned_data.get('category'),
+                        description=form.cleaned_data['description'],
+                        amount=form.cleaned_data['total_amount'],
+                        frequency=form.cleaned_data['frequency'],
+                        start_date=form.cleaned_data['issue_date'],
+                        end_date=form.cleaned_data.get('end_date'),
+                        created_by=request.user,
+                    )
+                    expense = form.save(commit=False)
+                    expense.installments_count = 0
+                    expense.recurrence_rule = rule
+                    expense.save()
+                messages.success(request, "Despesa recorrente criada com sucesso!")
+                return redirect('expense_list')
+
+            elif formset.is_valid():
+                with transaction.atomic():
+                    expense = form.save()
+                    instances = formset.save(commit=False)
+                    for instance in instances:
+                        instance.expense = expense
+                        instance.save()
                 messages.success(request, "Despesa criada com sucesso!")
                 return redirect('expense_list')
-        else:
-            if not form.is_valid():
-                logger.warning(f"ExpenseForm errors: {form.errors}")
-            if not formset.is_valid():
+            else:
                 logger.warning(f"ExpenseInstallmentFormSet errors: {formset.errors}")
+        else:
+            logger.warning(f"ExpenseForm errors: {form.errors}")
     else:
         form = ExpenseForm()
         formset = ExpenseInstallmentFormSet(queryset=ExpenseInstallment.objects.none(), prefix='installments')
@@ -859,24 +946,62 @@ def expense_create(request):
 @user_passes_test(is_manager)
 def expense_edit(request, pk):
     expense = get_object_or_404(Expense, pk=pk)
+    rule = expense.recurrence_rule
+
     if request.method == 'POST':
         form = ExpenseForm(request.POST, instance=expense)
         formset = ExpenseInstallmentFormSet(request.POST, instance=expense, prefix='installments')
-        if form.is_valid() and formset.is_valid():
-            with transaction.atomic():
-                form.save()
-                formset.save()
+
+        if form.is_valid():
+            is_recurrent = form.cleaned_data.get('is_recurrent')
+
+            if is_recurrent:
+                with transaction.atomic():
+                    if rule:
+                        rule.supplier = form.cleaned_data['supplier']
+                        rule.category = form.cleaned_data.get('category')
+                        rule.description = form.cleaned_data['description']
+                        rule.amount = form.cleaned_data['total_amount']
+                        rule.frequency = form.cleaned_data['frequency']
+                        rule.start_date = form.cleaned_data['issue_date']
+                        rule.end_date = form.cleaned_data.get('end_date')
+                        rule.save()
+                    else:
+                        rule = RecurrenceRule.objects.create(
+                            supplier=form.cleaned_data['supplier'],
+                            category=form.cleaned_data.get('category'),
+                            description=form.cleaned_data['description'],
+                            amount=form.cleaned_data['total_amount'],
+                            frequency=form.cleaned_data['frequency'],
+                            start_date=form.cleaned_data['issue_date'],
+                            end_date=form.cleaned_data.get('end_date'),
+                            created_by=request.user,
+                        )
+                    saved = form.save(commit=False)
+                    saved.installments_count = 0
+                    saved.recurrence_rule = rule
+                    saved.save()
+                messages.success(request, "Despesa recorrente atualizada com sucesso!")
+                return redirect('expense_list')
+
+            elif formset.is_valid():
+                with transaction.atomic():
+                    form.save()
+                    formset.save()
                 messages.success(request, "Despesa atualizada com sucesso!")
                 return redirect('expense_list')
+            else:
+                logger.warning(f"ExpenseInstallmentFormSet errors: {formset.errors}")
     else:
         form = ExpenseForm(instance=expense)
         formset = ExpenseInstallmentFormSet(instance=expense, prefix='installments')
-        
+
     context = {
         'form': form,
         'formset': formset,
         'title': f'Editar Despesa: {expense.description}',
-        'is_edit': True
+        'is_edit': True,
+        'active_menu': 'finance'
     }
     return render(request, 'services/finance/expense_form.html', context)
 
@@ -885,10 +1010,272 @@ def expense_edit(request, pk):
 def expense_delete(request, pk):
     expense = get_object_or_404(Expense, pk=pk)
     if request.method == 'POST':
+        if expense.recurrence_rule_id:
+            messages.error(request, "Não é possível excluir uma despesa vinculada a uma recorrência. Desative a recorrência primeiro na aba Recorrências.")
+            return redirect('expense_list')
+        if expense.installments.exists():
+            messages.error(request, "Não é possível excluir uma despesa que possui parcelas registradas.")
+            return redirect('expense_list')
         expense.delete()
         messages.success(request, "Despesa excluída com sucesso!")
         return redirect('expense_list')
     return redirect('expense_list')
+
+@login_required
+@user_passes_test(is_manager)
+def expense_installment_status_update(request, pk):
+    installment = get_object_or_404(ExpenseInstallment, pk=pk)
+    if request.method == 'POST':
+        new_status = request.POST.get('status')
+        valid = {s[0] for s in ExpenseInstallment.Status.choices}
+        if new_status in valid:
+            installment.status = new_status
+            if new_status == ExpenseInstallment.Status.PAGO and not installment.payment_date:
+                installment.payment_date = timezone.localdate()
+            installment.save()
+            messages.success(request, f"Parcela marcada como {installment.get_status_display()}.")
+    from django.utils.http import url_has_allowed_host_and_scheme
+    next_url = request.POST.get('next', '')
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        return redirect(next_url)
+    return redirect('expense_list')
+
+
+@login_required
+@user_passes_test(is_manager)
+def installment_payment_modal(request, pk, _payment_just_added=False, _discount_just_applied=False):
+    installment = get_object_or_404(
+        ExpenseInstallment.objects.select_related(
+            'expense', 'expense__supplier',
+            'recurrence_rule', 'recurrence_rule__supplier',
+        ).prefetch_related('payments__bank_account', 'payments__created_by', 'payments__attachments'),
+        pk=pk
+    )
+    bank_accounts = BankAccount.objects.filter(is_active=True).order_by('name')
+    context = {
+        'installment': installment,
+        'bank_accounts': bank_accounts,
+        'payment_method_choices': ExpenseInstallment.PaymentMethod.choices,
+        'today': timezone.localdate(),
+        'payment_just_added': _payment_just_added,
+        'discount_just_applied': _discount_just_applied,
+        'MEDIA_URL': '/media/',
+    }
+    return render(request, 'services/partials/installment_payment_modal.html', context)
+
+
+@login_required
+@user_passes_test(is_manager)
+def installment_payment_add(request, pk):
+    from decimal import InvalidOperation
+    installment = get_object_or_404(ExpenseInstallment, pk=pk)
+    if request.method == 'POST':
+        amount_raw = request.POST.get('amount', '').strip().replace(',', '.')
+        try:
+            amount = Decimal(amount_raw)
+            if amount <= 0:
+                raise ValueError
+        except (ValueError, InvalidOperation):
+            messages.error(request, "Valor inválido.")
+            if request.headers.get('HX-Request'):
+                return installment_payment_modal(request, pk)
+            return redirect('expense_list')
+
+        payment_date_str = request.POST.get('payment_date', '')
+        try:
+            payment_date = datetime.strptime(payment_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            payment_date = timezone.localdate()
+
+        payment_method = request.POST.get('payment_method') or None
+        bank_account_id = request.POST.get('bank_account') or None
+        notes = request.POST.get('notes', '')
+
+        bank_account = None
+        if bank_account_id:
+            try:
+                bank_account = BankAccount.objects.get(pk=bank_account_id, is_active=True)
+            except BankAccount.DoesNotExist:
+                pass
+
+        payment_obj = InstallmentPayment.objects.create(
+            installment=installment,
+            amount=amount,
+            payment_date=payment_date,
+            payment_method=payment_method,
+            bank_account=bank_account,
+            notes=notes,
+            created_by=request.user,
+        )
+
+        # Salva número de documento na parcela se informado
+        document_ref = request.POST.get('document_ref', '').strip()
+        if document_ref:
+            installment.document_ref = document_ref
+            installment.save(update_fields=['document_ref'])
+
+        # Salva comprovante de pagamento se enviado
+        attachment_file = request.FILES.get('attachment')
+        if attachment_file:
+            PaymentAttachment.objects.create(
+                payment=payment_obj,
+                file=attachment_file,
+                description=request.POST.get('attachment_description', '').strip(),
+            )
+
+        installment.recalculate_status()
+
+        if request.headers.get('HX-Request'):
+            return installment_payment_modal(request, pk, _payment_just_added=True)
+
+    if request.headers.get('HX-Request'):
+        return installment_payment_modal(request, pk)
+
+    from django.utils.http import url_has_allowed_host_and_scheme
+    next_url = request.POST.get('next', '')
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        return redirect(next_url)
+    return redirect('expense_list')
+
+
+@login_required
+@user_passes_test(is_manager)
+def installment_payment_delete(request, payment_pk):
+    payment = get_object_or_404(InstallmentPayment, pk=payment_pk)
+    installment = payment.installment
+    if request.method == 'POST':
+        payment.delete()
+        installment.recalculate_status()
+        messages.success(request, "Baixa removida com sucesso.")
+
+    if request.headers.get('HX-Request'):
+        return installment_payment_modal(request, installment.pk)
+
+    from django.utils.http import url_has_allowed_host_and_scheme
+    next_url = request.POST.get('next', '')
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        return redirect(next_url)
+    return redirect('expense_list')
+
+
+@login_required
+@user_passes_test(is_manager)
+def expense_installments_export(request):
+    """Exporta parcelas filtradas como planilha Excel."""
+    qs = ExpenseInstallment.objects.select_related(
+        'expense', 'expense__supplier', 'expense__category',
+        'recurrence_rule', 'recurrence_rule__supplier',
+    ).order_by('due_date')
+
+    q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    category_id = request.GET.get('category', '').strip()
+
+    if q:
+        qs = qs.filter(
+            Q(expense__supplier__display_name__icontains=q) |
+            Q(expense__description__icontains=q) |
+            Q(document_ref__icontains=q)
+        )
+    if status:
+        qs = qs.filter(status=status)
+    if date_from:
+        try:
+            from datetime import date as date_type
+            qs = qs.filter(due_date__gte=date_type.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import date as date_type
+            qs = qs.filter(due_date__lte=date_type.fromisoformat(date_to))
+        except ValueError:
+            pass
+    if category_id:
+        qs = qs.filter(expense__category_id=category_id)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Contas a Pagar"
+
+    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=10)
+    center = Alignment(horizontal="center", vertical="center")
+    thin = Side(style="thin", color="D1D5DB")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    headers = ["Vencimento", "Fornecedor", "Descrição", "Categoria", "Parcela", "Nº Doc.", "Valor (R$)", "Pago (R$)", "Saldo (R$)", "Status"]
+    ws.append(headers)
+    for col_idx, _ in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center
+        cell.border = border
+
+    col_widths = [14, 28, 32, 20, 10, 16, 14, 14, 14, 12]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
+
+    status_labels = dict(ExpenseInstallment.Status.choices)
+    for inst in qs:
+        supplier = ''
+        description = ''
+        category = ''
+        if inst.recurrence_rule:
+            supplier = inst.recurrence_rule.supplier.display_name
+            description = inst.recurrence_rule.description
+            if inst.recurrence_rule.category:
+                category = inst.recurrence_rule.category.name
+        elif inst.expense:
+            supplier = inst.expense.supplier.display_name
+            description = inst.expense.description
+            if inst.expense.category:
+                category = inst.expense.category.name
+
+        row = [
+            inst.due_date.strftime('%d/%m/%Y'),
+            supplier,
+            description,
+            category,
+            inst.installment_label,
+            inst.document_ref or '',
+            float(inst.amount),
+            float(inst.amount_paid),
+            float(inst.amount_remaining),
+            status_labels.get(inst.status, inst.status),
+        ]
+        ws.append(row)
+        row_idx = ws.max_row
+        for col_idx in range(1, len(headers) + 1):
+            ws.cell(row=row_idx, column=col_idx).border = border
+        for col_idx in [7, 8, 9]:
+            ws.cell(row=row_idx, column=col_idx).number_format = '#,##0.00'
+
+    # Totals row
+    total_row = ws.max_row + 1
+    ws.cell(row=total_row, column=1, value="TOTAL").font = Font(bold=True)
+    ws.cell(row=total_row, column=7, value=sum(float(i.amount) for i in qs)).number_format = '#,##0.00'
+    ws.cell(row=total_row, column=8, value=sum(float(i.amount_paid) for i in qs)).number_format = '#,##0.00'
+    ws.cell(row=total_row, column=9, value=sum(float(i.amount_remaining) for i in qs)).number_format = '#,##0.00'
+    for col_idx in [1, 7, 8, 9]:
+        ws.cell(row=total_row, column=col_idx).font = Font(bold=True)
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    from django.utils.timezone import now
+    filename = f"contas_a_pagar_{now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
 
 @login_required
 @user_passes_test(is_manager)
@@ -987,5 +1374,428 @@ def render_expense_installments_preview(request):
     })
 
 
+# --- FORECAST API ---
 
+def _fmt_installment_label(num, rule=None, due_date=None):
+    if num and '/' in num:
+        parts = num.split('/')
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            return f"{parts[0]} de {parts[1]}"
+    if rule and due_date:
+        end = rule.end_date or (rule.start_date + relativedelta(years=5))
+        all_dates = rule.get_due_dates_in_range(rule.start_date, end)
+        try:
+            pos = all_dates.index(due_date) + 1
+            total = len(all_dates)
+            return f"{pos} de {total}" if rule.end_date else f"#{pos}"
+        except ValueError:
+            pass
+    return num or '—'
+
+
+@login_required
+@user_passes_test(is_manager)
+def expense_forecast_api(request):
+    start_str = request.GET.get('start')
+    end_str = request.GET.get('end')
+
+    if not start_str or not end_str:
+        return JsonResponse({'error': 'Parâmetros start e end são obrigatórios'}, status=400)
+
+    try:
+        from datetime import date
+        start = date.fromisoformat(start_str)
+        end = date.fromisoformat(end_str)
+    except ValueError:
+        return JsonResponse({'error': 'Formato de data inválido. Use YYYY-MM-DD'}, status=400)
+
+    # 1. Registros reais no período
+    real_qs = ExpenseInstallment.objects.filter(
+        due_date__range=(start, end)
+    ).select_related('expense', 'expense__supplier', 'expense__category', 'recurrence_rule')
+
+    real_data = []
+    generated_keys = set()
+
+    for inst in real_qs:
+        supplier_name = ''
+        description = ''
+        if inst.recurrence_rule:
+            supplier_name = inst.recurrence_rule.supplier.display_name
+            description = inst.recurrence_rule.description
+            generated_keys.add((inst.recurrence_rule_id, inst.recurrence_due_date))
+        elif inst.expense:
+            supplier_name = inst.expense.supplier.display_name
+            description = inst.expense.description
+
+        real_data.append({
+            'id': inst.id,
+            'type': 'real',
+            'description': description,
+            'supplier': supplier_name,
+            'amount': str(inst.amount),
+            'due_date': inst.due_date.isoformat(),
+            'status': inst.status,
+            'installment_number': inst.installment_number,
+            'installment_label': _fmt_installment_label(
+                inst.installment_number,
+                rule=inst.recurrence_rule,
+                due_date=inst.recurrence_due_date,
+            ),
+        })
+
+    # 2. Projeções de regras de recorrência
+    rules = RecurrenceRule.objects.filter(is_active=True).select_related('supplier', 'category')
+    projected_data = []
+
+    for rule in rules:
+        rule_end = rule.end_date or (rule.start_date + relativedelta(years=5))
+        all_rule_dates = rule.get_due_dates_in_range(rule.start_date, rule_end)
+        due_dates = rule.get_due_dates_in_range(start, end)
+        for due_date in due_dates:
+            if (rule.id, due_date) not in generated_keys:
+                try:
+                    pos = all_rule_dates.index(due_date) + 1
+                    total = len(all_rule_dates)
+                    label = f"{pos} de {total}" if rule.end_date else f"#{pos}"
+                except ValueError:
+                    label = '—'
+                projected_data.append({
+                    'id': None,
+                    'type': 'projected',
+                    'description': rule.description,
+                    'supplier': rule.supplier.display_name,
+                    'amount': str(rule.amount),
+                    'due_date': due_date.isoformat(),
+                    'status': 'PREVISTO',
+                    'installment_number': label,
+                    'installment_label': label,
+                    'rule_id': str(rule.id),
+                })
+
+    all_entries = sorted(real_data + projected_data, key=lambda x: x['due_date'])
+    return JsonResponse({'results': all_entries, 'count': len(all_entries)})
+
+
+# --- CONFIGURAÇÕES FINANCEIRAS ---
+
+@login_required
+@user_passes_test(is_manager)
+def finance_settings_view(request):
+    obj, _ = FinanceSettings.objects.get_or_create(pk=1)
+    form = FinanceSettingsForm(request.POST or None, instance=obj)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Configurações financeiras salvas.')
+        return redirect('finance_settings')
+    return render(request, 'services/finance/finance_settings.html', {
+        'form': form,
+        'title': 'Configurações Financeiras',
+        'active_menu': 'finance',
+    })
+
+
+# --- RECORRÊNCIAS ---
+
+@login_required
+@user_passes_test(is_manager)
+def recurrence_rule_toggle(request, pk):
+    rule = get_object_or_404(RecurrenceRule, pk=pk)
+    if request.method == 'POST':
+        rule.is_active = not rule.is_active
+        rule.save()
+        status = 'ativada' if rule.is_active else 'desativada'
+        messages.success(request, f'Recorrência {status} com sucesso.')
+    return redirect('expense_list')
+
+
+@login_required
+@user_passes_test(is_manager)
+def recurrence_materialize(request, rule_pk):
+    """Materializa antecipadamente uma parcela prevista de uma recorrência."""
+    if request.method != 'POST':
+        return redirect('expense_list')
+
+    rule = get_object_or_404(RecurrenceRule, pk=rule_pk, is_active=True)
+    due_date_str = request.POST.get('due_date', '')
+
+    try:
+        from datetime import date as date_type
+        due_date = date_type.fromisoformat(due_date_str)
+    except (ValueError, TypeError):
+        messages.error(request, 'Data de vencimento inválida.')
+        return redirect('expense_list')
+
+    rule_end = rule.end_date or (rule.start_date + relativedelta(years=5))
+    valid_dates = rule.get_due_dates_in_range(rule.start_date, rule_end)
+    if due_date not in valid_dates:
+        messages.error(request, 'A data informada não é uma ocorrência válida desta recorrência.')
+        return redirect('expense_list')
+
+    existing = ExpenseInstallment.objects.filter(
+        recurrence_rule=rule,
+        recurrence_due_date=due_date,
+    ).first()
+
+    if existing:
+        messages.info(request, 'Esta parcela já foi gerada anteriormente.')
+        if request.headers.get('HX-Request'):
+            return installment_payment_modal(request, existing.pk)
+        return redirect('expense_list')
+
+    template_expense = rule.expense_templates.first()
+    if not template_expense:
+        messages.error(request, 'Nenhuma despesa modelo associada a esta recorrência.')
+        return redirect('expense_list')
+
+    installment = ExpenseInstallment.objects.create(
+        expense=template_expense,
+        recurrence_rule=rule,
+        recurrence_due_date=due_date,
+        installment_number=due_date.strftime('%m/%Y'),
+        due_date=due_date,
+        amount=rule.amount,
+        status=ExpenseInstallment.Status.PENDENTE,
+    )
+
+    if request.headers.get('HX-Request'):
+        return installment_payment_modal(request, installment.pk)
+
+    messages.success(request, f'Parcela de {rule.description} ({due_date.strftime("%d/%m/%Y")}) gerada com sucesso.')
+    return redirect('expense_list')
+
+
+@login_required
+@user_passes_test(is_manager)
+def installment_apply_discount(request, pk):
+    """Quita uma parcela por desconto/isenção sem registrar pagamento real."""
+    if request.method != 'POST':
+        return redirect('expense_list')
+
+    installment = get_object_or_404(ExpenseInstallment, pk=pk)
+
+    if installment.amount_remaining <= Decimal('0'):
+        if request.headers.get('HX-Request'):
+            return installment_payment_modal(request, pk)
+        return redirect('expense_list')
+
+    discount_reason = request.POST.get('discount_reason', '').strip()
+    if not discount_reason:
+        if request.headers.get('HX-Request'):
+            return installment_payment_modal(request, pk)
+        messages.error(request, 'Informe o motivo do desconto/isenção.')
+        return redirect('expense_list')
+
+    from decimal import InvalidOperation
+    amount_str = request.POST.get('amount', '').replace(',', '.').strip()
+    try:
+        amount = Decimal(amount_str) if amount_str else installment.amount_remaining
+        if amount <= Decimal('0') or amount > installment.amount_remaining:
+            raise ValueError
+    except (ValueError, InvalidOperation):
+        amount = installment.amount_remaining
+
+    InstallmentPayment.objects.create(
+        installment=installment,
+        amount=amount,
+        payment_date=timezone.localdate(),
+        is_discount=True,
+        discount_reason=discount_reason,
+        created_by=request.user,
+    )
+    installment.recalculate_status()
+
+    if request.headers.get('HX-Request'):
+        return installment_payment_modal(request, pk, _discount_just_applied=True)
+    return redirect('expense_list')
+
+
+@login_required
+@user_passes_test(is_manager)
+def expense_cashflow(request):
+    """Página de Fluxo de Caixa: saldo atual das contas + projeção de entradas e saídas."""
+    from dateutil.relativedelta import relativedelta
+    from django.db.models import Sum
+    from decimal import Decimal
+    import calendar
+
+    today = timezone.localdate()
+    months_ahead = 3
+
+    # Período de análise: mês atual + próximos 3 meses
+    period_start = today.replace(day=1)
+    period_end = (period_start + relativedelta(months=months_ahead + 1)) - relativedelta(days=1)
+
+    # Contas bancárias com saldo atual
+    bank_accounts = BankAccount.objects.filter(is_active=True).order_by('name')
+    total_bank_balance = Decimal('0')
+    for acc in bank_accounts:
+        total_bank_balance += acc.current_balance
+
+    # Saídas previstas por mês (parcelas a pagar)
+    outflows_qs = ExpenseInstallment.objects.filter(
+        due_date__range=(period_start, period_end),
+        status__in=[ExpenseInstallment.Status.PENDENTE, ExpenseInstallment.Status.PARCIAL, ExpenseInstallment.Status.ATRASADO],
+    ).select_related('expense', 'expense__supplier', 'recurrence_rule', 'recurrence_rule__supplier')
+
+    # Entradas previstas por mês (contas a receber - Installments pendentes)
+    try:
+        from .models import Installment as BillingInstallment
+        inflows_qs = BillingInstallment.objects.filter(
+            due_date__range=(period_start, period_end),
+            status__in=['PENDENTE', 'PARCIAL', 'ATRASADO'],
+        )
+        has_billing = True
+    except Exception:
+        inflows_qs = []
+        has_billing = False
+
+    # Monta estrutura mensal
+    months = []
+    for i in range(months_ahead + 1):
+        month_start = period_start + relativedelta(months=i)
+        month_end = (month_start + relativedelta(months=1)) - relativedelta(days=1)
+
+        month_outflows = [
+            inst for inst in outflows_qs
+            if month_start <= inst.due_date <= month_end
+        ]
+        month_inflows = []
+        if has_billing:
+            month_inflows = [
+                inst for inst in inflows_qs
+                if month_start <= inst.due_date <= month_end
+            ]
+
+        total_out = sum(inst.amount_remaining for inst in month_outflows)
+        total_in = sum(
+            (inst.amount - (inst.amount_paid if hasattr(inst, 'amount_paid') else Decimal('0')))
+            for inst in month_inflows
+        ) if month_inflows else Decimal('0')
+
+        months.append({
+            'label': month_start.strftime('%B/%Y'),
+            'month_start': month_start,
+            'month_end': month_end,
+            'outflows': month_outflows[:20],
+            'inflows': month_inflows[:20],
+            'total_out': total_out,
+            'total_in': total_in,
+            'net': total_in - total_out,
+        })
+
+    # Parcelas atrasadas
+    overdue = ExpenseInstallment.objects.filter(
+        due_date__lt=today,
+        status__in=[ExpenseInstallment.Status.PENDENTE, ExpenseInstallment.Status.PARCIAL, ExpenseInstallment.Status.ATRASADO],
+    ).select_related('expense', 'expense__supplier', 'recurrence_rule', 'recurrence_rule__supplier').order_by('due_date')[:15]
+
+    overdue_total = sum(inst.amount_remaining for inst in overdue)
+
+    context = {
+        'bank_accounts': bank_accounts,
+        'total_bank_balance': total_bank_balance,
+        'months': months,
+        'today': today,
+        'overdue': overdue,
+        'overdue_total': overdue_total,
+        'has_billing': has_billing,
+        'active_menu': 'finance',
+        'title': 'Fluxo de Caixa',
+    }
+    return render(request, 'services/finance/cashflow.html', context)
+
+
+@login_required
+@user_passes_test(is_manager)
+def bank_account_list(request):
+    accounts = BankAccount.objects.all().order_by('name')
+    context = {
+        'accounts': accounts,
+        'title': 'Contas Bancárias',
+        'active_menu': 'finance',
+    }
+    return render(request, 'services/finance/bank_accounts.html', context)
+
+
+@login_required
+@user_passes_test(is_manager)
+def bank_account_create(request):
+    from django import forms as dj_forms
+
+    class BankAccountForm(dj_forms.ModelForm):
+        class Meta:
+            model = BankAccount
+            fields = ['name', 'bank', 'account_type', 'initial_balance', 'is_active']
+
+    if request.method == 'POST':
+        form = BankAccountForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Conta bancária criada com sucesso.')
+            return redirect('bank_account_list')
+    else:
+        form = BankAccountForm()
+
+    return render(request, 'services/finance/bank_account_form.html', {
+        'form': form,
+        'title': 'Nova Conta Bancária',
+        'is_edit': False,
+        'active_menu': 'finance',
+    })
+
+
+@login_required
+@user_passes_test(is_manager)
+def bank_account_edit(request, pk):
+    from django import forms as dj_forms
+    account = get_object_or_404(BankAccount, pk=pk)
+
+    class BankAccountForm(dj_forms.ModelForm):
+        class Meta:
+            model = BankAccount
+            fields = ['name', 'bank', 'account_type', 'initial_balance', 'is_active']
+
+    if request.method == 'POST':
+        form = BankAccountForm(request.POST, instance=account)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Conta bancária atualizada.')
+            return redirect('bank_account_list')
+    else:
+        form = BankAccountForm(instance=account)
+
+    return render(request, 'services/finance/bank_account_form.html', {
+        'form': form,
+        'title': f'Editar: {account.name}',
+        'is_edit': True,
+        'active_menu': 'finance',
+        'account': account,
+    })
+
+
+@login_required
+@user_passes_test(is_manager)
+def bank_account_toggle(request, pk):
+    account = get_object_or_404(BankAccount, pk=pk)
+    if request.method == 'POST':
+        account.is_active = not account.is_active
+        account.save(update_fields=['is_active'])
+        status = 'ativada' if account.is_active else 'desativada'
+        messages.success(request, f'Conta "{account.name}" {status}.')
+    return redirect('bank_account_list')
+
+
+@login_required
+@user_passes_test(is_manager)
+def payment_attachment_delete(request, pk):
+    attachment = get_object_or_404(PaymentAttachment, pk=pk)
+    installment_pk = attachment.payment.installment_id
+    if request.method == 'POST':
+        attachment.file.delete(save=False)
+        attachment.delete()
+        messages.success(request, 'Comprovante removido.')
+    if request.headers.get('HX-Request'):
+        return installment_payment_modal(request, installment_pk)
+    return redirect('expense_list')
 

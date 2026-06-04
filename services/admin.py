@@ -7,7 +7,8 @@ from .models import (
     ServiceOrderTask, Product, ProductCategory, ServiceCategory, Service,
     ServiceChecklistItem, TaskChecklistResponse, ChecklistTemplate,
     ChecklistResponseMedia, Sale, SaleItem, Supplier, PaymentMethod, SalePayment,
-    FinancialCategory, BankAccount, Expense, ExpenseInstallment, ExpenseAttachment
+    FinancialCategory, BankAccount, Expense, ExpenseInstallment, ExpenseAttachment,
+    RecurrenceRule, FinanceSettings
 )
 
 
@@ -244,3 +245,16 @@ class ExpenseInstallmentAdmin(admin.ModelAdmin):
     list_display = ['expense', 'installment_number', 'amount', 'due_date', 'status', 'payment_date']
     list_filter = ['status', 'due_date', 'payment_method']
     search_fields = ['expense__description']
+
+
+@admin.register(RecurrenceRule)
+class RecurrenceRuleAdmin(admin.ModelAdmin):
+    list_display = ['description', 'supplier', 'amount', 'frequency', 'start_date', 'end_date', 'is_active']
+    list_filter = ['frequency', 'is_active']
+    search_fields = ['description', 'supplier__name']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(FinanceSettings)
+class FinanceSettingsAdmin(admin.ModelAdmin):
+    list_display = ['days_before_generation', 'updated_at']

@@ -6,7 +6,8 @@ from .models import (
     ServiceMedia, ServiceItem, ServiceOrderTeam, Professional,
     ProfessionalRole, ProfessionalScheduleBlock,
     ServiceOrderTask, ServicePayment, Product, StockMovement,
-    Sale, SaleItem, Supplier, PaymentMethod, Expense, ProductComposition, ExpenseInstallment
+    Sale, SaleItem, Supplier, PaymentMethod, Expense, ProductComposition, ExpenseInstallment,
+    FinanceSettings
 )
 from integracoes.models import SystemConfig
 
@@ -1017,10 +1018,19 @@ ExpenseInstallmentFormSet = inlineformset_factory(
 
 
 class ExpenseForm(forms.ModelForm):
+    INPUT_CLASS = 'flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
+
+    end_date = forms.DateField(
+        required=False,
+        label='Data de Fim da Recorrência',
+        help_text='Deixe em branco para recorrência sem data de fim.',
+        widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+    )
+
     class Meta:
         model = Expense
         fields = [
-            'supplier', 'category', 'description', 'total_amount', 
+            'supplier', 'category', 'description', 'total_amount',
             'issue_date', 'is_recurrent', 'frequency', 'installments_count'
         ]
         widgets = {
@@ -1037,6 +1047,13 @@ class ExpenseForm(forms.ModelForm):
             'installments_count': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'min': 1}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Pré-popula end_date ao editar uma despesa com regra de recorrência
+        if self.instance and self.instance.pk and self.instance.recurrence_rule:
+            self.fields['end_date'].initial = self.instance.recurrence_rule.end_date
+        self.fields['end_date'].widget.attrs['class'] = self.INPUT_CLASS
+
     def clean(self):
         cleaned_data = super().clean()
         is_recurrent = cleaned_data.get('is_recurrent')
@@ -1045,8 +1062,21 @@ class ExpenseForm(forms.ModelForm):
 
         if is_recurrent and not frequency:
             self.add_error('frequency', 'A frequência é obrigatória para despesas recorrentes.')
-        
+
         if not is_recurrent and installments_count and installments_count > 1 and not frequency:
             self.add_error('frequency', 'A frequência é obrigatória se houver mais de uma parcela.')
-            
+
         return cleaned_data
+
+
+class FinanceSettingsForm(forms.ModelForm):
+    class Meta:
+        model = FinanceSettings
+        fields = ['days_before_generation']
+        widgets = {
+            'days_before_generation': forms.NumberInput(attrs={
+                'class': 'flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2',
+                'min': 1,
+                'max': 90,
+            }),
+        }

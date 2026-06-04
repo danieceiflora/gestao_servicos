@@ -11,13 +11,13 @@
 
     <form method="post" enctype="multipart/form-data" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" id="expense-form">
         {% csrf_token %}
-        
+
         <!-- Tab Navigation -->
         <div class="border-b border-slate-200 bg-slate-50/50 px-4 pt-4 flex gap-4 overflow-x-auto">
             <button type="button" onclick="switchTab('tab-geral', this)" class="tab-btn pb-3 text-sm font-medium border-b-2 border-slate-900 text-slate-900 whitespace-nowrap">
                 Informações Gerais
             </button>
-            <button type="button" onclick="switchTab('tab-parcelas', this)" class="tab-btn pb-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 whitespace-nowrap">
+            <button type="button" onclick="switchTab('tab-parcelas', this)" id="btn-tab-parcelas" class="tab-btn pb-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 whitespace-nowrap">
                 Parcelas e Anexos
             </button>
         </div>
@@ -25,20 +25,19 @@
         <div class="p-6">
             <!-- Aba 1: Informações Gerais -->
             <div id="tab-geral" class="tab-content block space-y-6">
-                <!-- Mostra os erros gerais de form aqui (opcional) -->
                 {% if form.non_field_errors %}
                 <div class="rounded-md bg-red-50 p-4 border border-red-200">
                     <div class="text-sm text-red-700">{{ form.non_field_errors }}</div>
                 </div>
                 {% endif %}
-                
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-2">
                         <label for="{{ form.supplier.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">Fornecedor *</label>
                         {% render_field form.supplier class="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" %}
                         {% if form.supplier.errors %}<span class="text-xs text-red-500">{{ form.supplier.errors|striptags }}</span>{% endif %}
                     </div>
-                    
+
                     <div class="space-y-2">
                         <label for="{{ form.category.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">Categoria</label>
                         {% render_field form.category class="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" %}
@@ -50,16 +49,16 @@
                         {% render_field form.description class="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" %}
                         {% if form.description.errors %}<span class="text-xs text-red-500">{{ form.description.errors|striptags }}</span>{% endif %}
                     </div>
-                    
+
                     <div class="space-y-2">
                         <label for="{{ form.total_amount.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">Valor Total (R$) *</label>
                         {% url 'render_expense_installments_preview' as preview_url %}
                         {% render_field form.total_amount class="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" hx-post=preview_url hx-target="#installments-preview" hx-trigger="change, keyup delay:500ms" hx-include="#expense-form" %}
                         {% if form.total_amount.errors %}<span class="text-xs text-red-500">{{ form.total_amount.errors|striptags }}</span>{% endif %}
                     </div>
-                    
+
                     <div class="space-y-2">
-                        <label for="{{ form.issue_date.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">Data de Emissão *</label>
+                        <label for="{{ form.issue_date.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">Data de Início *</label>
                         {% render_field form.issue_date class="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" hx-post=preview_url hx-target="#installments-preview" hx-trigger="change" hx-include="#expense-form" %}
                         {% if form.issue_date.errors %}<span class="text-xs text-red-500">{{ form.issue_date.errors|striptags }}</span>{% endif %}
                     </div>
@@ -67,35 +66,52 @@
 
                 <div class="pt-4 border-t border-slate-100">
                     <h3 class="text-sm font-semibold text-slate-900 mb-4">Configuração de Parcelas / Recorrência</h3>
-                    
+
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Checkbox recorrente -->
                         <div class="space-y-2 flex flex-col justify-center pt-6">
                             <label class="flex items-center space-x-2 cursor-pointer">
-                                {% render_field form.is_recurrent class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900" %}
+                                {% render_field form.is_recurrent class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900" id="id_is_recurrent" %}
                                 <span class="text-sm font-medium text-slate-700">É recorrente?</span>
                             </label>
                         </div>
-                        
+
+                        <!-- Frequência (sempre visível) -->
                         <div class="space-y-2">
                             <label for="{{ form.frequency.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">Frequência</label>
                             {% render_field form.frequency class="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" %}
                         </div>
 
-                        <div class="space-y-2">
+                        <!-- Nº de Parcelas — oculto quando recorrente -->
+                        <div class="space-y-2" id="field-installments-count">
                             <label for="{{ form.installments_count.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">Nº de Parcelas *</label>
                             {% render_field form.installments_count class="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" %}
                         </div>
+
+                        <!-- Data de Fim — visível apenas quando recorrente -->
+                        <div class="space-y-2 md:col-span-2 hidden" id="field-end-date">
+                            <label for="{{ form.end_date.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">Data de Fim da Recorrência</label>
+                            {% render_field form.end_date class="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" %}
+                            <p class="text-xs text-slate-400">Deixe em branco para recorrência sem data de fim.</p>
+                        </div>
+                    </div>
+
+                    <!-- Banner informativo quando recorrente -->
+                    <div id="recurrence-info" class="hidden mt-4 rounded-lg bg-blue-50 border border-blue-200 p-4 text-sm text-blue-700 flex items-start gap-2">
+                        <i data-lucide="info" class="h-4 w-4 mt-0.5 shrink-0"></i>
+                        <span>Despesas recorrentes não geram parcelas imediatamente. O sistema criará os registros automaticamente alguns dias antes de cada vencimento, conforme a configuração.</span>
                     </div>
                 </div>
 
-                <div class="flex justify-end pt-4">
+                <div class="flex justify-end pt-4" id="btn-gerar-parcelas">
                     {% url 'render_expense_installments_preview' as preview_url %}
-                    <button type="button" 
+                    <button type="button"
                             hx-post="{{ preview_url }}"
                             hx-target="#installments-preview"
                             hx-include="#expense-form"
                             hx-trigger="click"
-                            onclick="switchTab('tab-parcelas', document.querySelector('button[onclick*=\'tab-parcelas\']'))"
+                            hx-indicator="#installments-spinner"
+                            hx-on::after-request="switchTab('tab-parcelas', document.getElementById('btn-tab-parcelas'))"
                             class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-900/90 h-10 px-6">
                         Gerar Parcelas
                         <i data-lucide="chevron-right" class="h-4 w-4 ml-2"></i>
@@ -108,12 +124,17 @@
                 <div>
                     <h3 class="text-sm font-semibold text-slate-900 mb-2">Revisão de Parcelas</h3>
                     <p class="text-sm text-slate-500 mb-4">Confira e ajuste os valores e datas de vencimento conforme necessário.</p>
-                    
-                    <div id="installments-preview">
+
+                    <div id="installments-preview" class="relative">
+                        <div id="installments-spinner" class="htmx-indicator absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/80">
+                            <svg class="h-6 w-6 animate-spin text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                            </svg>
+                        </div>
                         {% if formset %}
                             {% include 'services/partials/expense_installments_preview.html' %}
                         {% else %}
-                            <!-- Preview HTMX Rendered Here -->
                             <div class="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-500 flex items-center gap-2">
                                 <i data-lucide="info" class="h-4 w-4"></i>
                                 Clique em "Gerar Parcelas" para configurar o parcelamento.
@@ -125,13 +146,13 @@
                 <div class="pt-4 border-t border-slate-100">
                     <h3 class="text-sm font-semibold text-slate-900 mb-2">Anexos</h3>
                     <p class="text-sm text-slate-500 mb-4">Adicione comprovantes, notas fiscais ou boletos relacionados a esta despesa.</p>
-                    
+
                     <div class="flex items-center justify-center w-full">
                         <label for="dropzone-file" class="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
                             <div class="flex flex-col items-center justify-center pt-5 pb-6 text-slate-500">
-                                <i data-lucide="upload-cloud" class="h-8 w-8 mb-2"></i>
-                                <p class="mb-1 text-sm"><span class="font-semibold">Clique para enviar</span> ou arraste o arquivo</p>
-                                <p class="text-xs text-slate-400">PDF, PNG, JPG (MAX. 5MB)</p>
+                                <i data-lucide="upload-cloud" class="h-8 w-8 mb-2" id="dropzone-icon"></i>
+                                <p class="mb-1 text-sm" id="dropzone-label"><span class="font-semibold">Clique para enviar</span> ou arraste o arquivo</p>
+                                <p class="text-xs text-slate-400" id="dropzone-hint">PDF, PNG, JPG (MAX. 5MB)</p>
                             </div>
                             <input id="dropzone-file" type="file" name="attachment" class="hidden" />
                         </label>
@@ -150,67 +171,97 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Rodapé -->
-        <div class="border-t border-slate-200 bg-slate-50 p-4 sm:px-6 flex items-center justify-start gap-3">
+
+        <!-- Rodapé com botão salvar direto (recorrente) -->
+        <div class="border-t border-slate-200 bg-slate-50 p-4 sm:px-6 flex items-center justify-between gap-3">
             <a href="{% url 'expense_list' %}" class="text-sm font-medium text-slate-500 hover:text-slate-900">
                 Cancelar e sair
             </a>
+            <button type="submit" id="btn-salvar-recorrente" class="hidden inline-flex items-center justify-center rounded-md text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 h-10 px-6 shadow-sm">
+                <i data-lucide="save" class="h-4 w-4 mr-2"></i>
+                Salvar Recorrência
+            </button>
         </div>
     </form>
 </div>
 
-<!-- Script Vanilla JS para Tabs -->
 <script>
     function switchTab(tabId, btn) {
-        // Esconde todos os conteúdos
         document.querySelectorAll('.tab-content').forEach(el => {
             el.classList.add('hidden');
             el.classList.remove('block');
         });
-        
-        // Remove estado ativo de todos os botões
         document.querySelectorAll('.tab-btn').forEach(el => {
             el.classList.remove('border-slate-900', 'text-slate-900');
             el.classList.add('border-transparent', 'text-slate-500');
         });
-        
-        // Ativa o conteúdo
         const target = document.getElementById(tabId);
         target.classList.remove('hidden');
         target.classList.add('block');
-        
-        // Ativa o botão
         if (btn) {
             btn.classList.remove('border-transparent', 'text-slate-500');
             btn.classList.add('border-slate-900', 'text-slate-900');
         }
     }
 
-    function generateAndNext() {
-        // 1. Muda para a aba de parcelas imediatamente
-        const tabBtn = document.querySelector('button[onclick*="tab-parcelas"]');
-        switchTab('tab-parcelas', tabBtn);
-        
-        // Scroll para o topo da aba
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    function toggleRecurrentFields() {
+        const isRecurrent = document.getElementById('id_is_recurrent').checked;
+        const fieldInstallments = document.getElementById('field-installments-count');
+        const fieldEndDate = document.getElementById('field-end-date');
+        const btnGerarParcelas = document.getElementById('btn-gerar-parcelas');
+        const btnTabParcelas = document.getElementById('btn-tab-parcelas');
+        const recurrenceInfo = document.getElementById('recurrence-info');
+        const btnSalvarRecorrente = document.getElementById('btn-salvar-recorrente');
+        const freqLabel = document.querySelector('label[for="{{ form.frequency.id_for_label }}"]');
 
-        // 2. Dispara o HTMX para gerar o preview das parcelas
-        const amountInput = document.getElementById("id_total_amount");
-        if (amountInput && typeof htmx !== 'undefined') {
-            htmx.trigger(amountInput, "change");
-        } else if (amountInput && window.htmx) {
-            window.htmx.trigger(amountInput, "change");
+        if (isRecurrent) {
+            fieldInstallments.classList.add('hidden');
+            fieldEndDate.classList.remove('hidden');
+            btnGerarParcelas.classList.add('hidden');
+            btnTabParcelas.classList.add('hidden');
+            recurrenceInfo.classList.remove('hidden');
+            btnSalvarRecorrente.classList.remove('hidden');
+            if (freqLabel) freqLabel.textContent = 'Frequência da Recorrência';
+        } else {
+            fieldInstallments.classList.remove('hidden');
+            fieldEndDate.classList.add('hidden');
+            btnGerarParcelas.classList.remove('hidden');
+            btnTabParcelas.classList.remove('hidden');
+            recurrenceInfo.classList.add('hidden');
+            btnSalvarRecorrente.classList.add('hidden');
+            if (freqLabel) freqLabel.textContent = 'Intervalo entre Parcelas';
         }
     }
-    
-    // Dispara a simulação inicial via htmx se for uma edição
-    document.addEventListener("DOMContentLoaded", function() {
-        if ("{{ is_edit|lower }}" === "true") {
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const checkbox = document.getElementById('id_is_recurrent');
+        if (checkbox) {
+            checkbox.addEventListener('change', toggleRecurrentFields);
+            toggleRecurrentFields();
+        }
+
+        if ("{{ is_edit|lower }}" === "true" && !document.getElementById('id_is_recurrent').checked) {
             const amountInput = document.getElementById("{{ form.total_amount.id_for_label }}");
             if (amountInput && window.htmx) {
                 htmx.trigger(amountInput, "change");
             }
+        }
+
+        // Feedback visual ao selecionar arquivo
+        const fileInput = document.getElementById('dropzone-file');
+        if (fileInput) {
+            fileInput.addEventListener('change', function () {
+                const file = this.files[0];
+                const label = document.getElementById('dropzone-label');
+                const hint = document.getElementById('dropzone-hint');
+                if (file) {
+                    label.innerHTML = '<span class="font-semibold text-emerald-600">' + file.name + '</span>';
+                    hint.textContent = (file.size / 1024).toFixed(1) + ' KB';
+                } else {
+                    label.innerHTML = '<span class="font-semibold">Clique para enviar</span> ou arraste o arquivo';
+                    hint.textContent = 'PDF, PNG, JPG (MAX. 5MB)';
+                }
+            });
         }
     });
 </script>

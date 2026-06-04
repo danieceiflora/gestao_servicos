@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-lg mx-auto space-y-6">
+    <div class="flex items-center gap-3">
+        <a href="{% url 'bank_account_list' %}" class="inline-flex items-center justify-center rounded-md hover:bg-slate-100 h-9 w-9 text-slate-500">
+            <i data-lucide="arrow-left" class="h-4 w-4"></i>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-slate-900">{{ title }}</h1>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-6">
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+
+            {% for field in form %}
+            <div>
+                <label class="text-sm font-medium text-slate-700 block mb-1.5">
+                    {{ field.label }}
+                    {% if field.field.required %}<span class="text-red-500">*</span>{% endif %}
+                </label>
+                {% if field.field.widget.input_type == 'checkbox' %}
+                <div class="flex items-center gap-2">
+                    {{ field }}
+                    <span class="text-sm text-slate-600">{{ field.label }}</span>
+                </div>
+                {% else %}
+                <div class="[&>input]:flex [&>input]:h-10 [&>input]:w-full [&>input]:rounded-md [&>input]:border [&>input]:border-slate-300 [&>input]:bg-white [&>input]:px-3 [&>input]:py-2 [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-2 [&>input]:focus-visible:ring-slate-400 [&>select]:flex [&>select]:h-10 [&>select]:w-full [&>select]:rounded-md [&>select]:border [&>select]:border-slate-300 [&>select]:bg-white [&>select]:px-3 [&>select]:py-2 [&>select]:text-sm [&>select]:focus-visible:outline-none [&>select]:focus-visible:ring-2 [&>select]:focus-visible:ring-slate-400">
+                    {{ field }}
+                </div>
+                {% endif %}
+                {% if field.errors %}
+                <p class="mt-1 text-xs text-red-600">{{ field.errors|join:", " }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <div class="flex gap-3 pt-2">
+                <button type="submit" class="flex-1 inline-flex items-center justify-center rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 h-10 px-4">
+                    {% if is_edit %}Salvar alterações{% else %}Criar conta{% endif %}
+                </button>
+                <a href="{% url 'bank_account_list' %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-slate-200 bg-white hover:bg-slate-100 h-10 px-4">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

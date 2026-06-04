@@ -2,146 +2,629 @@
 {% load static %}
 
 {% block content %}
+<!-- Modal de Baixa de Pagamento -->
+<dialog id="payment-dialog"
+        class="rounded-xl shadow-2xl border border-slate-200 p-0 w-full max-w-lg backdrop:bg-slate-900/50 backdrop:backdrop-blur-sm"
+        style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);margin:0;">
+    <div class="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100">
+        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Contas a Pagar</span>
+        <button type="button" onclick="document.getElementById('payment-dialog').close()"
+                class="inline-flex items-center justify-center rounded-md hover:bg-slate-100 h-8 w-8 text-slate-400">
+            <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+    </div>
+    <div id="payment-modal-body" class="p-6">
+        <!-- conteúdo injetado via HTMX -->
+    </div>
+</dialog>
+
 <div class="space-y-6">
+    {% if overdue_count %}
+    <div class="flex items-start gap-3 rounded-lg bg-red-50 border border-red-200 px-4 py-3.5">
+        <div class="shrink-0 mt-0.5">
+            <i data-lucide="alert-triangle" class="h-5 w-5 text-red-500"></i>
+        </div>
+        <div class="flex-1">
+            <p class="text-sm font-semibold text-red-800">{{ overdue_count }} parcela{{ overdue_count|pluralize }} em atraso — Total: R$ {{ overdue_total|floatformat:2 }}</p>
+            <p class="text-xs text-red-600 mt-0.5">Há parcelas vencidas e ainda não pagas. Regularize o quanto antes para evitar juros.</p>
+        </div>
+        <a href="?status=ATRASADO" class="shrink-0 inline-flex items-center justify-center rounded-md bg-red-100 hover:bg-red-200 h-8 px-3 text-xs font-medium text-red-700">
+            Ver atrasadas
+        </a>
+    </div>
+    {% endif %}
+
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold tracking-tight text-slate-900">Contas a Pagar</h1>
             <p class="text-sm text-slate-500">Gestão de despesas e pagamentos a fornecedores.</p>
         </div>
-        <div>
-            <a href="{% url 'expense_create' %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-slate-900 text-white hover:bg-slate-900/90 h-10 px-4 py-2">
+        <div class="flex items-center gap-2">
+            <a href="{% url 'finance_settings' %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-slate-200 bg-white hover:bg-slate-100 h-10 px-4 py-2 text-slate-600">
+                <i data-lucide="settings" class="mr-2 h-4 w-4"></i>
+                Configurações
+            </a>
+            <a href="{% url 'expense_cashflow' %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-slate-200 bg-white hover:bg-slate-100 h-10 px-4 py-2 text-slate-600">
+                <i data-lucide="trending-up" class="mr-2 h-4 w-4"></i>
+                Fluxo de Caixa
+            </a>
+            <a href="{% url 'expense_installments_export' %}?{{ request.GET.urlencode }}"
+               class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 h-10 px-4 py-2 text-emerald-700">
+                <i data-lucide="download" class="mr-2 h-4 w-4"></i>
+                Exportar Excel
+            </a>
+            <a href="{% url 'expense_create' %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-900/90 h-10 px-4 py-2">
                 <i data-lucide="plus" class="mr-2 h-4 w-4"></i>
                 Nova Despesa
             </a>
         </div>
     </div>
 
-    <!-- Filtros e Busca -->
-    <div class="rounded-xl border border-slate-200 bg-white text-slate-950 shadow-sm">
-        <div class="p-4 sm:p-6 border-b border-slate-100">
-            <form method="get" class="flex flex-col sm:flex-row gap-4">
-                <div class="flex-1">
-                    <label for="q" class="sr-only">Buscar</label>
-                    <div class="relative">
-                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"></i>
-                        <input type="text" name="q" id="q" value="{{ request.GET.q|default:'' }}" placeholder="Buscar por descrição ou fornecedor..." class="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 pl-9 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900 h-10 px-4 py-2">
-                        Filtrar
-                    </button>
-                    {% if request.GET.q %}
-                    <a href="{% url 'expense_list' %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-slate-200 bg-white text-red-500 hover:bg-red-50 hover:text-red-600 h-10 px-4 py-2" title="Limpar Filtros">
-                        <i data-lucide="x" class="h-4 w-4"></i>
-                    </a>
-                    {% endif %}
-                </div>
-            </form>
-        </div>
+    <!-- Tabs -->
+    <div class="border-b border-slate-200 flex gap-4 overflow-x-auto">
+        <button type="button" onclick="switchSection('section-despesas', this)" id="btn-despesas"
+            class="section-btn pb-3 text-sm font-medium border-b-2 border-slate-900 text-slate-900 whitespace-nowrap">
+            Parcelas
+        </button>
+        <button type="button" onclick="switchSection('section-recorrencias', this)" id="btn-recorrencias"
+            class="section-btn pb-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 whitespace-nowrap">
+            Recorrências
+        </button>
+        <button type="button" onclick="switchSection('section-previsao', this)" id="btn-previsao"
+            class="section-btn pb-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 whitespace-nowrap">
+            Previsão de Vencimentos
+        </button>
+    </div>
 
-        <!-- Desktop Table -->
-        <div class="hidden md:block overflow-x-auto">
-            <table class="w-full caption-bottom text-sm">
-                <thead class="[&_tr]:border-b bg-slate-50/50">
-                    <tr class="border-b transition-colors hover:bg-slate-100/50 data-[state=selected]:bg-slate-100">
-                        <th class="h-12 px-4 text-left align-middle font-medium text-slate-500">Emissão</th>
-                        <th class="h-12 px-4 text-left align-middle font-medium text-slate-500">Fornecedor</th>
-                        <th class="h-12 px-4 text-left align-middle font-medium text-slate-500">Descrição</th>
-                        <th class="h-12 px-4 text-right align-middle font-medium text-slate-500">Valor Total</th>
-                        <th class="h-12 px-4 text-center align-middle font-medium text-slate-500">Parcelas</th>
-                        <th class="h-12 px-4 text-center align-middle font-medium text-slate-500">Ações</th>
-                    </tr>
-                </thead>
-                <tbody class="[&_tr:last-child]:border-0">
-                    {% for expense in expenses %}
-                    <tr class="border-b border-slate-100 transition-colors hover:bg-slate-50/50 data-[state=selected]:bg-slate-100">
-                        <td class="p-4 align-middle whitespace-nowrap text-slate-600">{{ expense.issue_date|date:"d/m/Y" }}</td>
-                        <td class="p-4 align-middle font-medium text-slate-900">{{ expense.supplier.name|default:expense.supplier.display_name }}</td>
-                        <td class="p-4 align-middle text-slate-600 truncate max-w-[200px]">{{ expense.description }}</td>
-                        <td class="p-4 align-middle text-right font-medium text-slate-900">R$ {{ expense.total_amount|floatformat:2 }}</td>
-                        <td class="p-4 align-middle text-center">
-                            <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-slate-100 text-slate-900">
-                                {{ expense.installments_count }}x
-                            </span>
-                        </td>
-                        <td class="p-4 align-middle text-center">
-                            <div class="flex items-center justify-center gap-2">
-                                <a href="{% url 'expense_edit' expense.pk %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-slate-100 hover:text-slate-900 h-8 w-8 text-slate-500" title="Editar">
-                                    <i data-lucide="edit" class="h-4 w-4"></i>
-                                </a>
-                                <!-- Podemos adicionar um botão de delete se necessário -->
-                            </div>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="p-8 text-center text-slate-500">
-                            <div class="flex flex-col items-center justify-center gap-2">
-                                <i data-lucide="inbox" class="h-8 w-8 text-slate-400"></i>
-                                <p>Nenhuma despesa encontrada.</p>
-                            </div>
-                        </td>
-                    </tr>
+    <!-- ======= SEÇÃO: PARCELAS ======= -->
+    <div id="section-despesas" class="section-content">
+        <div class="rounded-xl border border-slate-200 bg-white text-slate-950 shadow-sm">
+            <!-- Filtros -->
+            <div class="p-4 sm:p-6 border-b border-slate-100 space-y-3">
+                <form method="get" class="space-y-3">
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <div class="flex-1 relative">
+                            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"></i>
+                            <input type="text" name="q" id="q" value="{{ current_q }}" placeholder="Buscar por fornecedor, descrição ou Nº doc..."
+                                class="flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 pl-9 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2">
+                            {% if current_status %}<input type="hidden" name="status" value="{{ current_status }}">{% endif %}
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <input type="date" name="date_from" value="{{ current_date_from }}" title="Vencimento de"
+                                class="flex h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 w-36">
+                            <input type="date" name="date_to" value="{{ current_date_to }}" title="Vencimento até"
+                                class="flex h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 w-36">
+                            <select name="category" class="flex h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
+                                <option value="">Todas categorias</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.pk }}" {% if current_category == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-slate-200 bg-white hover:bg-slate-100 h-10 px-4">
+                                Filtrar
+                            </button>
+                            {% if current_q or current_status or current_date_from or current_date_to or current_category %}
+                            <a href="{% url 'expense_list' %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-slate-200 bg-white text-red-500 hover:bg-red-50 h-10 px-3">
+                                <i data-lucide="x" class="h-4 w-4"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+                <!-- Chips de status -->
+                <div class="flex flex-wrap gap-2">
+                    <a href="?{% if current_q %}q={{ current_q }}{% endif %}"
+                       class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors
+                              {% if not current_status %}bg-slate-900 text-white border-slate-900{% else %}bg-white text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}">
+                        Todos
+                    </a>
+                    {% for value, label in status_choices %}
+                    <a href="?status={{ value }}{% if current_q %}&q={{ current_q }}{% endif %}"
+                       class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors
+                              {% if current_status == value %}
+                                {% if value == 'PAGO' %}bg-emerald-600 text-white border-emerald-600
+                                {% elif value == 'ATRASADO' %}bg-red-600 text-white border-red-600
+                                {% elif value == 'PARCIAL' %}bg-orange-500 text-white border-orange-500
+                                {% else %}bg-yellow-500 text-white border-yellow-500{% endif %}
+                              {% else %}
+                                {% if value == 'PAGO' %}text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100
+                                {% elif value == 'ATRASADO' %}text-red-700 border-red-200 bg-red-50 hover:bg-red-100
+                                {% elif value == 'PARCIAL' %}text-orange-700 border-orange-200 bg-orange-50 hover:bg-orange-100
+                                {% else %}text-yellow-700 border-yellow-200 bg-yellow-50 hover:bg-yellow-100{% endif %}
+                              {% endif %}">
+                        {{ label }}
+                    </a>
                     {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                </div>
+            </div>
 
-        <!-- Mobile List -->
-        <div class="grid gap-4 p-4 md:hidden">
-            {% for expense in expenses %}
-            <div class="flex flex-col gap-3 rounded-lg border border-slate-200 p-4">
-                <div class="flex items-start justify-between">
-                    <div>
-                        <p class="font-medium text-slate-900">{{ expense.supplier.name|default:expense.supplier.display_name }}</p>
-                        <p class="text-sm text-slate-500">{{ expense.issue_date|date:"d/m/Y" }}</p>
+            <!-- Desktop Table -->
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full caption-bottom text-sm">
+                    <thead class="bg-slate-50/50">
+                        <tr class="border-b">
+                            <th class="h-12 px-4 text-left align-middle font-medium text-slate-500">Vencimento</th>
+                            <th class="h-12 px-4 text-left align-middle font-medium text-slate-500">Fornecedor</th>
+                            <th class="h-12 px-4 text-left align-middle font-medium text-slate-500">Descrição</th>
+                            <th class="h-12 px-4 text-center align-middle font-medium text-slate-500">Parcela</th>
+                            <th class="h-12 px-4 text-left align-middle font-medium text-slate-500">Nº Doc.</th>
+                            <th class="h-12 px-4 text-right align-middle font-medium text-slate-500">Valor</th>
+                            <th class="h-12 px-4 text-center align-middle font-medium text-slate-500">Status</th>
+                            <th class="h-12 px-4 text-center align-middle font-medium text-slate-500">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody class="[&_tr:last-child]:border-0">
+                        {% for inst in installments %}
+                        <tr class="border-b border-slate-100 transition-colors hover:bg-slate-50/50
+                                   {% if inst.due_date < today and inst.status != 'PAGO' %}bg-red-50/40{% endif %}">
+                            <td class="p-4 align-middle whitespace-nowrap
+                                       {% if inst.due_date < today and inst.status != 'PAGO' %}text-red-600 font-semibold
+                                       {% elif inst.due_date <= warning_date and inst.status != 'PAGO' %}text-amber-600 font-medium
+                                       {% else %}text-slate-600{% endif %}">
+                                {{ inst.due_date|date:"d/m/Y" }}
+                                {% if inst.due_date < today and inst.status != 'PAGO' %}
+                                <span class="ml-1 text-xs" title="Vencida">⚠</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-4 align-middle font-medium text-slate-900">{{ inst.expense.supplier.display_name }}</td>
+                            <td class="p-4 align-middle text-slate-600 truncate max-w-[200px]">{{ inst.expense.description }}</td>
+                            <td class="p-4 align-middle text-center">
+                                <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                                    {{ inst.installment_label }}
+                                </span>
+                            </td>
+                            <td class="p-4 align-middle text-xs text-slate-500">{{ inst.document_ref|default:"—" }}</td>
+                            <td class="p-4 align-middle text-right font-semibold text-slate-900">R$ {{ inst.amount|floatformat:2 }}</td>
+                            <td class="p-4 align-middle text-center">
+                                <span class="inline-block text-xs font-semibold rounded-full px-3 py-1 border
+                                    {% if inst.status == 'PAGO' %}bg-emerald-100 text-emerald-700 border-emerald-200
+                                    {% elif inst.status == 'ATRASADO' %}bg-red-100 text-red-700 border-red-200
+                                    {% elif inst.status == 'PARCIAL' %}bg-orange-100 text-orange-700 border-orange-200
+                                    {% else %}bg-yellow-100 text-yellow-700 border-yellow-200{% endif %}">
+                                    {{ inst.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="p-4 align-middle text-center">
+                                <div class="flex items-center justify-center gap-1">
+                                    {% if inst.status != 'PAGO' %}
+                                    <button type="button"
+                                            hx-get="{% url 'installment_payment_modal' inst.pk %}"
+                                            hx-target="#payment-modal-body"
+                                            hx-swap="innerHTML"
+                                            hx-on::after-request="document.getElementById('payment-dialog').showModal(); if(typeof lucide!=='undefined'){lucide.createIcons();}"
+                                            class="inline-flex items-center justify-center rounded-md bg-emerald-50 hover:bg-emerald-100 h-8 px-2 text-emerald-700 text-xs font-medium gap-1 border border-emerald-200"
+                                            title="Dar baixa">
+                                        <i data-lucide="circle-check-big" class="h-3.5 w-3.5"></i>
+                                        Baixa
+                                    </button>
+                                    {% else %}
+                                    <button type="button"
+                                            hx-get="{% url 'installment_payment_modal' inst.pk %}"
+                                            hx-target="#payment-modal-body"
+                                            hx-swap="innerHTML"
+                                            hx-on::after-request="document.getElementById('payment-dialog').showModal(); if(typeof lucide!=='undefined'){lucide.createIcons();}"
+                                            class="inline-flex items-center justify-center rounded-md hover:bg-slate-100 h-8 px-2 text-slate-500 text-xs gap-1"
+                                            title="Ver baixas">
+                                        <i data-lucide="receipt" class="h-3.5 w-3.5"></i>
+                                    </button>
+                                    {% endif %}
+                                    <a href="{% url 'expense_edit' inst.expense.pk %}" class="inline-flex items-center justify-center rounded-md hover:bg-slate-100 h-8 w-8 text-slate-500" title="Editar despesa">
+                                        <i data-lucide="edit" class="h-4 w-4"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="p-8 text-center text-slate-500">
+                                <div class="flex flex-col items-center gap-2">
+                                    <i data-lucide="inbox" class="h-8 w-8 text-slate-400"></i>
+                                    <p>Nenhuma parcela encontrada.</p>
+                                    <a href="{% url 'expense_create' %}" class="text-sm text-blue-600 hover:underline">Criar nova despesa</a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile List -->
+            <div class="grid gap-4 p-4 md:hidden">
+                {% for inst in installments %}
+                <div class="flex flex-col gap-3 rounded-lg border p-4
+                            {% if inst.due_date < today and inst.status != 'PAGO' %}border-red-200 bg-red-50/30
+                            {% else %}border-slate-200{% endif %}">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="font-medium text-slate-900 truncate">{{ inst.expense.supplier.display_name }}</p>
+                            <p class="text-sm text-slate-500 truncate">{{ inst.expense.description }}</p>
+                        </div>
+                        <span class="font-bold text-slate-900 shrink-0">R$ {{ inst.amount|floatformat:2 }}</span>
                     </div>
-                    <span class="font-bold text-slate-900">R$ {{ expense.total_amount|floatformat:2 }}</span>
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="{% if inst.due_date < today and inst.status != 'PAGO' %}text-red-600 font-semibold{% elif inst.due_date <= warning_date and inst.status != 'PAGO' %}text-amber-600 font-medium{% else %}text-slate-500{% endif %}">
+                            Vence: {{ inst.due_date|date:"d/m/Y" }}{% if inst.due_date < today and inst.status != 'PAGO' %} ⚠{% endif %}
+                        </span>
+                        <span class="rounded-full bg-slate-100 px-2.5 py-0.5 font-medium text-slate-600">{{ inst.installment_label }}</span>
+                    </div>
+                    <div class="flex items-center justify-between border-t border-slate-100 pt-3">
+                        <span class="inline-block text-xs font-semibold rounded-full px-3 py-1 border
+                            {% if inst.status == 'PAGO' %}bg-emerald-100 text-emerald-700 border-emerald-200
+                            {% elif inst.status == 'ATRASADO' %}bg-red-100 text-red-700 border-red-200
+                            {% elif inst.status == 'PARCIAL' %}bg-orange-100 text-orange-700 border-orange-200
+                            {% else %}bg-yellow-100 text-yellow-700 border-yellow-200{% endif %}">
+                            {{ inst.get_status_display }}
+                        </span>
+                        <div class="flex items-center gap-2">
+                            {% if inst.status != 'PAGO' %}
+                            <button type="button"
+                                    hx-get="{% url 'installment_payment_modal' inst.pk %}"
+                                    hx-target="#payment-modal-body"
+                                    hx-swap="innerHTML"
+                                    hx-on::after-request="document.getElementById('payment-dialog').showModal(); if(typeof lucide!=='undefined'){lucide.createIcons();}"
+                                    class="inline-flex items-center justify-center rounded-md bg-emerald-50 hover:bg-emerald-100 h-8 px-3 text-emerald-700 text-xs font-medium gap-1 border border-emerald-200">
+                                <i data-lucide="circle-check-big" class="h-3.5 w-3.5"></i>
+                                Baixa
+                            </button>
+                            {% else %}
+                            <button type="button"
+                                    hx-get="{% url 'installment_payment_modal' inst.pk %}"
+                                    hx-target="#payment-modal-body"
+                                    hx-swap="innerHTML"
+                                    hx-on::after-request="document.getElementById('payment-dialog').showModal(); if(typeof lucide!=='undefined'){lucide.createIcons();}"
+                                    class="inline-flex items-center justify-center rounded-md hover:bg-slate-100 h-8 px-2 text-slate-500 text-xs gap-1">
+                                <i data-lucide="receipt" class="h-3.5 w-3.5"></i>
+                                Ver baixas
+                            </button>
+                            {% endif %}
+                            <a href="{% url 'expense_edit' inst.expense.pk %}" class="text-sm font-medium text-blue-600 hover:text-blue-800">Editar</a>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <p class="text-sm text-slate-600 line-clamp-2">{{ expense.description }}</p>
+                {% empty %}
+                <div class="p-8 text-center text-slate-500">
+                    <p>Nenhuma parcela encontrada.</p>
                 </div>
-                <div class="flex items-center justify-between border-t border-slate-100 pt-3">
-                    <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-slate-100 text-slate-900">
-                        {{ expense.installments_count }} parcela(s)
-                    </span>
-                    <a href="{% url 'expense_edit' expense.pk %}" class="text-sm font-medium text-blue-600 hover:text-blue-800">
-                        Editar
-                    </a>
-                </div>
+                {% endfor %}
             </div>
-            {% empty %}
-            <div class="p-8 text-center text-slate-500">
-                <p>Nenhuma despesa encontrada.</p>
-            </div>
-            {% endfor %}
-        </div>
 
-        <!-- Paginator -->
-        {% if expenses.has_other_pages %}
-        <div class="p-4 border-t border-slate-100">
-            <nav class="flex items-center justify-between">
-                <p class="text-sm text-slate-500">
-                    Mostrando <span class="font-medium text-slate-900">{{ expenses.start_index }}</span> a <span class="font-medium text-slate-900">{{ expenses.end_index }}</span> de <span class="font-medium text-slate-900">{{ expenses.paginator.count }}</span>
-                </p>
-                <div class="flex gap-1">
-                    {% if expenses.has_previous %}
-                    <a href="?page={{ expenses.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-slate-100 hover:text-slate-900 h-8 w-8">
-                        <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                    </a>
-                    {% endif %}
-                    
-                    {% if expenses.has_next %}
-                    <a href="?page={{ expenses.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-slate-100 hover:text-slate-900 h-8 w-8">
-                        <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                    </a>
-                    {% endif %}
-                </div>
-            </nav>
+            <!-- Paginator -->
+            {% if installments.has_other_pages %}
+            <div class="p-4 border-t border-slate-100">
+                <nav class="flex items-center justify-between">
+                    <p class="text-sm text-slate-500">
+                        Mostrando <span class="font-medium text-slate-900">{{ installments.start_index }}</span>
+                        a <span class="font-medium text-slate-900">{{ installments.end_index }}</span>
+                        de <span class="font-medium text-slate-900">{{ installments.paginator.count }}</span>
+                    </p>
+                    <div class="flex gap-1">
+                        {% if installments.has_previous %}
+                        <a href="?page={{ installments.previous_page_number }}{% if current_q %}&q={{ current_q }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                           class="inline-flex items-center justify-center rounded-md hover:bg-slate-100 h-8 w-8">
+                            <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                        </a>
+                        {% endif %}
+                        {% if installments.has_next %}
+                        <a href="?page={{ installments.next_page_number }}{% if current_q %}&q={{ current_q }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}"
+                           class="inline-flex items-center justify-center rounded-md hover:bg-slate-100 h-8 w-8">
+                            <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                </nav>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
+    </div>
+
+    <!-- ======= SEÇÃO: RECORRÊNCIAS ======= -->
+    <div id="section-recorrencias" class="section-content hidden">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-4 sm:p-6 border-b border-slate-100">
+                <h2 class="text-sm font-semibold text-slate-900">Regras de Recorrência Ativas</h2>
+                <p class="text-sm text-slate-500 mt-1">Despesas configuradas para geração automática periódica.</p>
+            </div>
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full caption-bottom text-sm">
+                    <thead class="bg-slate-50/50">
+                        <tr class="border-b">
+                            <th class="h-12 px-4 text-left align-middle font-medium text-slate-500">Descrição</th>
+                            <th class="h-12 px-4 text-left align-middle font-medium text-slate-500">Fornecedor</th>
+                            <th class="h-12 px-4 text-right align-middle font-medium text-slate-500">Valor</th>
+                            <th class="h-12 px-4 text-center align-middle font-medium text-slate-500">Frequência</th>
+                            <th class="h-12 px-4 text-center align-middle font-medium text-slate-500">Próx. Vencimento</th>
+                            <th class="h-12 px-4 text-center align-middle font-medium text-slate-500">Fim</th>
+                            <th class="h-12 px-4 text-center align-middle font-medium text-slate-500">Status</th>
+                            <th class="h-12 px-4 text-center align-middle font-medium text-slate-500">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody class="[&_tr:last-child]:border-0">
+                        {% for rule in recurrence_rules %}
+                        <tr class="border-b border-slate-100 hover:bg-slate-50/50">
+                            <td class="p-4 align-middle font-medium text-slate-900">{{ rule.description }}</td>
+                            <td class="p-4 align-middle text-slate-600">{{ rule.supplier.display_name }}</td>
+                            <td class="p-4 align-middle text-right font-medium text-slate-900">R$ {{ rule.amount|floatformat:2 }}</td>
+                            <td class="p-4 align-middle text-center text-slate-600">{{ rule.get_frequency_display }}</td>
+                            <td class="p-4 align-middle text-center font-medium {% if rule.is_active %}text-slate-900{% else %}text-slate-400{% endif %}">
+                                {{ rule.next_due_date|date:"d/m/Y"|default:"—" }}
+                            </td>
+                            <td class="p-4 align-middle text-center text-slate-500">{{ rule.end_date|date:"d/m/Y"|default:"Sem fim" }}</td>
+                            <td class="p-4 align-middle text-center">
+                                {% if rule.is_active %}
+                                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-700">Ativa</span>
+                                {% else %}
+                                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-500">Inativa</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-4 align-middle text-center">
+                                <form method="post" action="{% url 'recurrence_rule_toggle' rule.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-xs font-medium {% if rule.is_active %}text-red-500 hover:text-red-700{% else %}text-emerald-600 hover:text-emerald-800{% endif %}">
+                                        {% if rule.is_active %}Desativar{% else %}Ativar{% endif %}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="p-8 text-center text-slate-500">
+                                <div class="flex flex-col items-center gap-2">
+                                    <i data-lucide="repeat" class="h-8 w-8 text-slate-400"></i>
+                                    <p>Nenhuma regra de recorrência cadastrada.</p>
+                                    <a href="{% url 'expense_create' %}" class="text-sm text-blue-600 hover:underline">Criar uma despesa recorrente</a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile: Recorrências -->
+            <div class="grid gap-4 p-4 md:hidden">
+                {% for rule in recurrence_rules %}
+                <div class="flex flex-col gap-3 rounded-lg border border-slate-200 p-4">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="font-medium text-slate-900 truncate">{{ rule.description }}</p>
+                            <p class="text-sm text-slate-500">{{ rule.supplier.display_name }}</p>
+                        </div>
+                        <span class="font-bold text-slate-900 shrink-0">R$ {{ rule.amount|floatformat:2 }}</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                        <span class="rounded bg-slate-100 px-2 py-0.5 font-medium text-slate-700">{{ rule.get_frequency_display }}</span>
+                        {% if rule.next_due_date %}
+                        <span>Próx.: <strong class="text-slate-700">{{ rule.next_due_date|date:"d/m/Y" }}</strong></span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center justify-between border-t border-slate-100 pt-3">
+                        {% if rule.is_active %}
+                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-700">Ativa</span>
+                        {% else %}
+                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-500">Inativa</span>
+                        {% endif %}
+                        <form method="post" action="{% url 'recurrence_rule_toggle' rule.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="text-xs font-medium {% if rule.is_active %}text-red-500 hover:text-red-700{% else %}text-emerald-600 hover:text-emerald-800{% endif %}">
+                                {% if rule.is_active %}Desativar{% else %}Ativar{% endif %}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="p-8 text-center text-slate-500">
+                    <i data-lucide="repeat" class="h-8 w-8 text-slate-400 mx-auto mb-2"></i>
+                    <p>Nenhuma regra cadastrada.</p>
+                    <a href="{% url 'expense_create' %}" class="text-sm text-blue-600 hover:underline">Criar uma despesa recorrente</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ======= SEÇÃO: PREVISÃO DE VENCIMENTOS ======= -->
+    <div id="section-previsao" class="section-content hidden">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-4 sm:p-6 border-b border-slate-100">
+                <h2 class="text-sm font-semibold text-slate-900 mb-3">Consultar Vencimentos por Período</h2>
+                <div class="flex flex-col sm:flex-row gap-4 items-end">
+                    <div class="space-y-1">
+                        <label class="text-xs font-medium text-slate-600">Data Início</label>
+                        <input type="date" id="forecast-start" class="flex h-10 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2" />
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-medium text-slate-600">Data Fim</label>
+                        <input type="date" id="forecast-end" class="flex h-10 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2" />
+                    </div>
+                    <button onclick="loadForecast()" class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-900/90 h-10 px-5">
+                        <i data-lucide="search" class="h-4 w-4 mr-2"></i>
+                        Consultar
+                    </button>
+                </div>
+            </div>
+
+            <div id="forecast-results">
+                <div class="p-8 text-center text-slate-400 text-sm flex flex-col items-center gap-2">
+                    <i data-lucide="calendar-search" class="h-8 w-8 text-slate-300"></i>
+                    <p>Selecione um período e clique em Consultar para ver os vencimentos.</p>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+
+<script>
+    function switchSection(sectionId, btn) {
+        document.querySelectorAll('.section-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.section-btn').forEach(el => {
+            el.classList.remove('border-slate-900', 'text-slate-900');
+            el.classList.add('border-transparent', 'text-slate-500');
+        });
+        document.getElementById(sectionId).classList.remove('hidden');
+        if (btn) {
+            btn.classList.remove('border-transparent', 'text-slate-500');
+            btn.classList.add('border-slate-900', 'text-slate-900');
+        }
+        if (sectionId === 'section-previsao') loadForecast();
+    }
+
+    function getCsrfToken() {
+        return document.cookie.split(';').map(c => c.trim())
+            .find(c => c.startsWith('csrftoken='))?.split('=')[1] || '';
+    }
+
+    async function loadForecast() {
+        const start = document.getElementById('forecast-start').value;
+        const end = document.getElementById('forecast-end').value;
+        const container = document.getElementById('forecast-results');
+
+        if (!start || !end) {
+            container.innerHTML = '<div class="p-6 text-center text-red-500 text-sm">Selecione as datas de início e fim.</div>';
+            return;
+        }
+
+        container.innerHTML = '<div class="p-8 text-center text-slate-400 text-sm">Carregando...</div>';
+
+        try {
+            const res = await fetch(`{% url 'expense_forecast_api' %}?start=${start}&end=${end}`);
+            const data = await res.json();
+            renderForecast(data.results);
+        } catch (e) {
+            container.innerHTML = '<div class="p-6 text-center text-red-500 text-sm">Erro ao carregar previsão.</div>';
+        }
+    }
+
+    function renderForecast(entries) {
+        const container = document.getElementById('forecast-results');
+
+        if (!entries || entries.length === 0) {
+            container.innerHTML = '<div class="p-8 text-center text-slate-400 text-sm">Nenhum vencimento encontrado no período.</div>';
+            return;
+        }
+
+        const statusLabels = {
+            'PENDENTE': '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700">Pendente</span>',
+            'PAGO': '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">Pago</span>',
+            'ATRASADO': '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">Atrasado</span>',
+            'PARCIAL': '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-700">Parcial</span>',
+            'PREVISTO': '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-500">Previsto</span>',
+        };
+
+        const csrf = getCsrfToken();
+
+        const rows = entries.map(e => {
+            const typeIcon = e.type === 'projected'
+                ? '<i data-lucide="clock" class="h-3 w-3 inline mr-1 text-slate-400"></i>'
+                : '<i data-lucide="check-circle" class="h-3 w-3 inline mr-1 text-emerald-500"></i>';
+
+            const [year, month, day] = e.due_date.split('-');
+            const dateFmt = `${day}/${month}/${year}`;
+            const amountFmt = 'R$ ' + parseFloat(e.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            const rowClass = e.type === 'projected' ? 'bg-slate-50/60' : '';
+            const labelBadge = (e.installment_label && e.installment_label !== '—')
+                ? `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">${e.installment_label}</span>`
+                : '<span class="text-slate-400 text-xs">—</span>';
+
+            let actionCell = '';
+            if (e.type === 'projected' && e.rule_id) {
+                actionCell = `
+                <form method="post"
+                      hx-post="/financeiro/recorrencias/${e.rule_id}/materializar/"
+                      hx-target="#payment-modal-body"
+                      hx-swap="innerHTML"
+                      hx-on::after-request="if(event.detail.successful){document.getElementById('payment-dialog').showModal();if(typeof lucide!=='undefined'){lucide.createIcons();}}"
+                      class="inline">
+                    <input type="hidden" name="csrfmiddlewaretoken" value="${csrf}">
+                    <input type="hidden" name="due_date" value="${e.due_date}">
+                    <button type="submit"
+                            class="inline-flex items-center justify-center rounded-md bg-blue-50 hover:bg-blue-100 h-8 px-2 text-blue-700 text-xs font-medium gap-1 border border-blue-200">
+                        <i data-lucide="calendar-check" class="h-3.5 w-3.5"></i>
+                        Confirmar
+                    </button>
+                </form>`;
+            } else if (e.type === 'real' && e.id) {
+                actionCell = `
+                <button type="button"
+                        hx-get="/financeiro/contas-a-pagar/parcelas/${e.id}/baixa/"
+                        hx-target="#payment-modal-body"
+                        hx-swap="innerHTML"
+                        hx-on::after-request="document.getElementById('payment-dialog').showModal();if(typeof lucide!=='undefined'){lucide.createIcons();}"
+                        class="inline-flex items-center justify-center rounded-md bg-emerald-50 hover:bg-emerald-100 h-8 px-2 text-emerald-700 text-xs font-medium gap-1 border border-emerald-200">
+                    <i data-lucide="circle-check-big" class="h-3.5 w-3.5"></i>
+                    Baixa
+                </button>`;
+            }
+
+            return `<tr class="border-b border-slate-100 hover:bg-slate-50 ${rowClass}">
+                <td class="p-4 align-middle whitespace-nowrap text-slate-600">${dateFmt}</td>
+                <td class="p-4 align-middle font-medium text-slate-900">${e.supplier}</td>
+                <td class="p-4 align-middle text-slate-600">${e.description}</td>
+                <td class="p-4 align-middle text-center">${labelBadge}</td>
+                <td class="p-4 align-middle text-right font-medium text-slate-900">${amountFmt}</td>
+                <td class="p-4 align-middle text-center">${statusLabels[e.status] || e.status}</td>
+                <td class="p-4 align-middle text-center text-xs text-slate-400">${typeIcon}${e.type === 'projected' ? 'Previsto' : 'Gerado'}</td>
+                <td class="p-4 align-middle text-center">${actionCell}</td>
+            </tr>`;
+        }).join('');
+
+        const totalReal = entries.filter(e => e.type === 'real').reduce((s, e) => s + parseFloat(e.amount), 0);
+        const totalProjected = entries.filter(e => e.type === 'projected').reduce((s, e) => s + parseFloat(e.amount), 0);
+        const fmt = v => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+
+        container.innerHTML = `
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50/50">
+                    <tr class="border-b">
+                        <th class="h-11 px-4 text-left align-middle font-medium text-slate-500">Vencimento</th>
+                        <th class="h-11 px-4 text-left align-middle font-medium text-slate-500">Fornecedor</th>
+                        <th class="h-11 px-4 text-left align-middle font-medium text-slate-500">Descrição</th>
+                        <th class="h-11 px-4 text-center align-middle font-medium text-slate-500">Parcela</th>
+                        <th class="h-11 px-4 text-right align-middle font-medium text-slate-500">Valor</th>
+                        <th class="h-11 px-4 text-center align-middle font-medium text-slate-500">Status</th>
+                        <th class="h-11 px-4 text-center align-middle font-medium text-slate-500">Tipo</th>
+                        <th class="h-11 px-4 text-center align-middle font-medium text-slate-500">Ação</th>
+                    </tr>
+                </thead>
+                <tbody class="[&_tr:last-child]:border-0">${rows}</tbody>
+                <tfoot class="text-sm">
+                    <tr class="border-t border-slate-200 bg-slate-50">
+                        <td colspan="4" class="px-4 py-2 font-medium text-slate-600">
+                            <span class="inline-flex items-center gap-1"><svg class="h-3 w-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clip-rule="evenodd"/></svg>Gerado (confirmado)</span>
+                        </td>
+                        <td class="px-4 py-2 text-right font-semibold text-emerald-700">${fmt(totalReal)}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                    <tr class="border-t border-slate-200 bg-slate-50">
+                        <td colspan="4" class="px-4 py-2 font-medium text-slate-600">
+                            <span class="inline-flex items-center gap-1"><svg class="h-3 w-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M12 6v6l4 2"/></svg>Previsto (projetado)</span>
+                        </td>
+                        <td class="px-4 py-2 text-right font-semibold text-slate-500">${fmt(totalProjected)}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                    <tr class="border-t-2 border-slate-300 bg-slate-100">
+                        <td colspan="4" class="px-4 py-3 font-bold text-slate-800">Total geral do período</td>
+                        <td class="px-4 py-3 text-right font-bold text-slate-900">${fmt(totalReal + totalProjected)}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>`;
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        if (typeof htmx !== 'undefined') htmx.process(container);
+    }
+
+    // Inicializa datas com mês atual
+    document.addEventListener('DOMContentLoaded', function () {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+        document.getElementById('forecast-start').value = `${y}-${m}-01`;
+        document.getElementById('forecast-end').value = `${y}-${m}-${lastDay}`;
+    });
+</script>
 {% endblock %}

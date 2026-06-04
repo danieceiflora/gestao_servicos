@@ -1570,15 +1570,119 @@ class FinancialCategory(models.Model):
 
 
 class BankAccount(models.Model):
+    class AccountType(models.TextChoices):
+        CORRENTE = 'CORRENTE', 'Conta Corrente'
+        POUPANCA = 'POUPANCA', 'Conta Poupança'
+        CAIXA = 'CAIXA', 'Caixa'
+        INVESTIMENTO = 'INVESTIMENTO', 'Investimento'
+
     name = models.CharField(max_length=100, verbose_name="Nome")
+    bank = models.CharField(max_length=100, blank=True, verbose_name="Banco")
+    account_type = models.CharField(
+        max_length=20, choices=AccountType.choices,
+        default=AccountType.CORRENTE, verbose_name="Tipo"
+    )
     initial_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Saldo Inicial")
+    is_active = models.BooleanField(default=True, verbose_name="Ativa")
 
     class Meta:
         verbose_name = "Conta Bancária"
         verbose_name_plural = "Contas Bancárias"
+        ordering = ['name']
 
     def __str__(self):
+        if self.bank:
+            return f"{self.name} — {self.bank}"
         return self.name
+
+    @property
+    def current_balance(self):
+        from django.db.models import Sum
+        from decimal import Decimal
+        paid_out = InstallmentPayment.objects.filter(
+            bank_account=self,
+            is_discount=False,
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        return self.initial_balance - paid_out
+
+
+class FinanceSettings(models.Model):
+    days_before_generation = models.PositiveIntegerField(
+        default=7,
+        verbose_name="Dias de antecedência para geração",
+        help_text="Quantos dias antes do vencimento o sistema deve gerar o registro de contas a pagar"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configurações Financeiras"
+        verbose_name_plural = "Configurações Financeiras"
+
+    def __str__(self):
+        return f"Configurações Financeiras (geração com {self.days_before_generation} dias de antecedência)"
+
+
+class RecurrenceRule(models.Model):
+    class Frequency(models.TextChoices):
+        DIARIA = 'DIARIA', 'Diária'
+        SEMANAL = 'SEMANAL', 'Semanal'
+        QUINZENAL = 'QUINZENAL', 'Quinzenal'
+        MENSAL = 'MENSAL', 'Mensal'
+        ANUAL = 'ANUAL', 'Anual'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    supplier = models.ForeignKey('Supplier', on_delete=models.PROTECT, verbose_name="Fornecedor")
+    category = models.ForeignKey(FinancialCategory, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Categoria")
+    description = models.CharField(max_length=255, verbose_name="Descrição")
+    amount = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Valor")
+    frequency = models.CharField(max_length=20, choices=Frequency.choices, verbose_name="Frequência")
+    start_date = models.DateField(verbose_name="Data de Início")
+    end_date = models.DateField(null=True, blank=True, verbose_name="Data de Fim")
+    is_active = models.BooleanField(default=True, verbose_name="Ativa")
+    created_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Criado por")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Regra de Recorrência"
+        verbose_name_plural = "Regras de Recorrência"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.description} ({self.get_frequency_display()}) — {self.supplier.display_name}"
+
+    def get_due_dates_in_range(self, start, end):
+        """Calcula as datas de vencimento dentro do intervalo sem persistir nada."""
+        from dateutil.relativedelta import relativedelta
+        delta_map = {
+            'DIARIA':    relativedelta(days=1),
+            'SEMANAL':   relativedelta(weeks=1),
+            'QUINZENAL': relativedelta(weeks=2),
+            'MENSAL':    relativedelta(months=1),
+            'ANUAL':     relativedelta(years=1),
+        }
+        delta = delta_map.get(self.frequency)
+        if not delta:
+            return []
+
+        dates = []
+        current = self.start_date
+        rule_end = self.end_date or end
+
+        while current <= min(end, rule_end):
+            if current >= start:
+                dates.append(current)
+            current += delta
+
+        return dates
+
+    @property
+    def next_due_date(self):
+        from django.utils import timezone
+        from dateutil.relativedelta import relativedelta
+        today = timezone.localdate()
+        dates = self.get_due_dates_in_range(today, today + relativedelta(years=2))
+        return dates[0] if dates else None
 
 
 class Expense(models.Model):
@@ -1599,6 +1703,10 @@ class Expense(models.Model):
     is_recurrent = models.BooleanField(default=False, verbose_name="Recorrência")
     frequency = models.CharField(max_length=20, choices=Frequency.choices, null=True, blank=True, verbose_name="Frequência")
     installments_count = models.PositiveIntegerField(default=1, verbose_name="Número de Parcelas")
+    recurrence_rule = models.ForeignKey(
+        'RecurrenceRule', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='expense_templates', verbose_name="Regra de Recorrência"
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1630,10 +1738,20 @@ class ExpenseInstallment(models.Model):
     amount = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Valor da Parcela")
     due_date = models.DateField(db_index=True, verbose_name="Data de Vencimento")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, db_index=True, verbose_name="Status")
-    
+
+    recurrence_rule = models.ForeignKey(
+        RecurrenceRule, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='generated_installments', verbose_name="Regra de Recorrência"
+    )
+    recurrence_due_date = models.DateField(null=True, blank=True, db_index=True, verbose_name="Data de Ocorrência da Recorrência")
+
     payment_date = models.DateField(null=True, blank=True, verbose_name="Data de Pagamento")
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, null=True, blank=True, verbose_name="Meio de Pagamento")
     bank_account = models.ForeignKey(BankAccount, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Conta Bancária de Saída")
+    document_ref = models.CharField(
+        max_length=100, blank=True,
+        verbose_name="Nº Documento (NF/Boleto/PIX)"
+    )
 
     class Meta:
         verbose_name = "Parcela de Despesa"
@@ -1642,6 +1760,52 @@ class ExpenseInstallment(models.Model):
 
     def __str__(self):
         return f"{self.expense.description} - Parcela {self.installment_number}"
+
+    @property
+    def installment_label(self):
+        """Returns '1 de 3' for regular installments or '1 de 20' for bounded recurrences."""
+        from dateutil.relativedelta import relativedelta as rdelta
+        num = self.installment_number
+        if num and '/' in num:
+            parts = num.split('/')
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                return f"{parts[0]} de {parts[1]}"
+        if self.recurrence_rule_id and self.recurrence_due_date:
+            rule = self.recurrence_rule
+            end = rule.end_date or (rule.start_date + rdelta(years=5))
+            all_dates = rule.get_due_dates_in_range(rule.start_date, end)
+            try:
+                pos = all_dates.index(self.recurrence_due_date) + 1
+                total = len(all_dates)
+                return f"{pos} de {total}" if rule.end_date else f"#{pos}"
+            except ValueError:
+                pass
+        return num or '—'
+
+    @property
+    def amount_paid(self):
+        from decimal import Decimal
+        from django.db.models import Sum
+        return self.payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    @property
+    def amount_remaining(self):
+        from decimal import Decimal
+        remaining = self.amount - self.amount_paid
+        return remaining if remaining > Decimal('0') else Decimal('0')
+
+    def recalculate_status(self):
+        from decimal import Decimal
+        paid = self.amount_paid
+        if paid >= self.amount:
+            self.status = self.Status.PAGO
+        elif paid > Decimal('0'):
+            self.status = self.Status.PARCIAL
+        elif self.due_date < timezone.localdate():
+            self.status = self.Status.ATRASADO
+        else:
+            self.status = self.Status.PENDENTE
+        self.save(update_fields=['status'])
 
 
 class ExpenseAttachment(models.Model):
@@ -1656,3 +1820,57 @@ class ExpenseAttachment(models.Model):
 
     def __str__(self):
         return f"Anexo para {self.expense.description}"
+
+
+class InstallmentPayment(models.Model):
+    installment = models.ForeignKey(
+        ExpenseInstallment, on_delete=models.CASCADE,
+        related_name='payments', verbose_name="Parcela"
+    )
+    amount = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Valor Pago")
+    payment_date = models.DateField(verbose_name="Data do Pagamento")
+    payment_method = models.CharField(
+        max_length=20, choices=ExpenseInstallment.PaymentMethod.choices,
+        null=True, blank=True, verbose_name="Meio de Pagamento"
+    )
+    bank_account = models.ForeignKey(
+        BankAccount, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='installment_payments', verbose_name="Conta de Origem"
+    )
+    notes = models.TextField(blank=True, verbose_name="Observação")
+    is_discount = models.BooleanField(default=False, verbose_name="É Desconto/Isenção")
+    discount_reason = models.CharField(max_length=255, blank=True, verbose_name="Motivo do Desconto")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        'User', on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name="Registrado por"
+    )
+
+    class Meta:
+        verbose_name = "Baixa de Parcela"
+        verbose_name_plural = "Baixas de Parcela"
+        ordering = ['payment_date', 'created_at']
+
+    def __str__(self):
+        return f"Baixa R$ {self.amount} em {self.payment_date}"
+
+
+class PaymentAttachment(models.Model):
+    payment = models.ForeignKey(
+        InstallmentPayment, on_delete=models.CASCADE,
+        related_name='attachments', verbose_name="Baixa"
+    )
+    file = models.FileField(
+        upload_to='payment_attachments/%Y/%m/%d/',
+        verbose_name="Arquivo"
+    )
+    description = models.CharField(max_length=255, blank=True, verbose_name="Descrição")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Comprovante de Pagamento"
+        verbose_name_plural = "Comprovantes de Pagamento"
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"Comprovante de {self.payment}"
