@@ -144,6 +144,8 @@ class BusinessEntityBase(models.Model):
 
 
 class Client(BusinessEntityBase):
+    credit_limit = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Limite de Crédito (R$)")
+
     def __str__(self):
         doc = self.document or "Sem documento"
         return f"{self.display_name} ({doc})"
@@ -555,6 +557,11 @@ class Product(models.Model):
 
     default_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço Padrão")
     current_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Atual")
+    min_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Mínimo")
+    weight = models.DecimalField(max_digits=8, decimal_places=3, default=0, verbose_name="Peso Bruto (kg)")
+    width = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Largura (cm)")
+    height = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Altura (cm)")
+    depth = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Profundidade (cm)")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -636,6 +643,52 @@ class ProductComposition(models.Model):
 
     def __str__(self):
         return f"{self.quantity} x {self.component.name} em {self.parent.name}"
+
+
+class ProductVariant(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants', verbose_name="Produto")
+    name = models.CharField(max_length=100, verbose_name="Nome da Variação (ex: Azul P, Vermelho GG)")
+    code = models.CharField(max_length=60, blank=True, null=True, unique=True, verbose_name="Código")
+    barcode = models.CharField(max_length=14, blank=True, null=True, verbose_name="EAN/Código de Barras")
+    additional_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Diferença de Preço (R$)")
+    current_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Atual")
+    min_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Mínimo")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+
+    def reduce_stock(self, quantity, user=None, reason=None, notes=None):
+        from django.db import transaction
+        with transaction.atomic():
+            self.current_stock -= quantity
+            self.save()
+            StockMovement.objects.create(
+                product=self.product,
+                quantity=quantity,
+                movement_type=StockMovement.MovementType.SAIDA,
+                reason=reason or StockMovement.Reason.VENDA_DIRETA,
+                user=user,
+                notes=notes,
+            )
+
+    def increase_stock(self, quantity, user=None, reason=None, notes=None):
+        from django.db import transaction
+        with transaction.atomic():
+            self.current_stock += quantity
+            self.save()
+            StockMovement.objects.create(
+                product=self.product,
+                quantity=quantity,
+                movement_type=StockMovement.MovementType.ENTRADA,
+                reason=reason or StockMovement.Reason.DEVOLUCAO,
+                user=user,
+                notes=notes,
+            )
+
+    def __str__(self):
+        return f"{self.product.name} — {self.name}"
+
+    class Meta:
+        verbose_name = "Variação de Produto"
+        verbose_name_plural = "Variações de Produto"
 
 
 class ImportHistory(models.Model):
@@ -885,6 +938,27 @@ class Sale(models.Model):
     surcharge = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Acréscimo")
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, null=True, blank=True, verbose_name="Forma de Pagamento")
     service_order = models.ForeignKey('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='sales', verbose_name="OS Vinculada")
+
+    # Controle de Fluxo
+    stock_reduced = models.BooleanField(default=False, verbose_name="Estoque Baixado")
+
+    # Campos Comerciais
+    external_po_number = models.CharField(max_length=100, blank=True, null=True, verbose_name="N° Pedido do Cliente (PO)")
+    delivery_date = models.DateField(null=True, blank=True, verbose_name="Prazo de Entrega")
+    commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Comissão do Vendedor (%)")
+    notes_internal = models.TextField(blank=True, null=True, verbose_name="Observações Internas")
+    notes_customer = models.TextField(blank=True, null=True, verbose_name="Observações para o Cliente")
+
+    # Endereço de Entrega
+    delivery_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Destinatário")
+    delivery_cep = models.CharField(max_length=9, blank=True, null=True, verbose_name="CEP Entrega")
+    delivery_address = models.CharField(max_length=255, blank=True, null=True, verbose_name="Logradouro Entrega")
+    delivery_number = models.CharField(max_length=20, blank=True, null=True, verbose_name="Número Entrega")
+    delivery_complement = models.CharField(max_length=255, blank=True, null=True, verbose_name="Complemento Entrega")
+    delivery_neighborhood = models.CharField(max_length=100, blank=True, null=True, verbose_name="Bairro Entrega")
+    delivery_city = models.CharField(max_length=100, blank=True, null=True, verbose_name="Cidade Entrega")
+    delivery_state = models.CharField(max_length=2, blank=True, null=True, verbose_name="UF Entrega")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -934,6 +1008,8 @@ class SaleItem(models.Model):
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Unitário")
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Subtotal (Líquido)")
+    variant = models.ForeignKey('ProductVariant', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Variação")
+    cost_price_ato = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço de Custo no ato")
 
     # Dados Fiscais "Congelados" no ato da venda
     ncm_ato = models.CharField(max_length=8, blank=True, null=True, verbose_name="NCM no ato")
@@ -983,6 +1059,7 @@ class SaleItem(models.Model):
                 
                 tem_st = bool(self.product.cest)
                 self.cfop_aplicado = fiscal_logic.get_cfop(origem_uf, destino_uf, tem_st)
+                self.cost_price_ato = self.product.preco_custo
 
             # Cálculo de Impostos IBPT (sempre atualiza baseado no subtotal atual)
             self.vlr_tributos_ibpt = fiscal_logic.calculate_ibpt(
@@ -993,6 +1070,40 @@ class SaleItem(models.Model):
             )
 
         super().save(*args, **kwargs)
+
+
+class SaleReturn(models.Model):
+    class Status(models.TextChoices):
+        PENDENTE = 'PENDENTE', 'Pendente'
+        APROVADA = 'APROVADA', 'Aprovada'
+        CANCELADA = 'CANCELADA', 'Cancelada'
+
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='returns', verbose_name="Venda")
+    user = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="Registrado por")
+    reason = models.TextField(verbose_name="Motivo da Devolução")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, verbose_name="Status")
+    total_refund = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Valor Total Devolvido")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Devolução #{self.pk} — Venda #{self.sale.number}"
+
+    class Meta:
+        verbose_name = "Devolução de Venda"
+        verbose_name_plural = "Devoluções de Venda"
+        ordering = ['-created_at']
+
+
+class SaleReturnItem(models.Model):
+    sale_return = models.ForeignKey(SaleReturn, on_delete=models.CASCADE, related_name='items', verbose_name="Devolução")
+    sale_item = models.ForeignKey(SaleItem, on_delete=models.CASCADE, verbose_name="Item da Venda")
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Quantidade Devolvida")
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Valor Restituído")
+    restock = models.BooleanField(default=True, verbose_name="Retornar ao Estoque")
+
+    class Meta:
+        verbose_name = "Item da Devolução"
+        verbose_name_plural = "Itens da Devolução"
 
 
 # --- ORDENS DE SERVIÇO ---

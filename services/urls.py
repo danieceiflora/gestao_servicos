@@ -50,8 +50,14 @@ urlpatterns = [
     # --- VENDAS (PDV) ---
     path('vendas/', views_finance.sale_list, name='sale_list'),
     path('vendas/criar/', views_finance.sale_create, name='sale_create'),
+    path('vendas/exportar/', views_finance.sale_export_csv, name='sale_export_csv'),
+    path('vendas/devolucoes/<int:return_id>/aprovar/', views_finance.sale_return_approve, name='sale_return_approve'),
+    path('vendas/devolucoes/<int:return_id>/cancelar/', views_finance.sale_return_cancel, name='sale_return_cancel'),
     path('vendas/<int:number>/', views_finance.sale_detail, name='sale_detail'),
     path('vendas/<int:number>/cancelar/', views_finance.sale_cancel, name='sale_cancel'),
+    path('vendas/<int:number>/duplicar/', views_finance.sale_duplicate, name='sale_duplicate'),
+    path('vendas/<int:number>/devolucao/', views_finance.sale_return_create, name='sale_return_create'),
+    path('api/produtos/<int:product_id>/estoque/', views_finance.api_product_stock, name='api_product_stock'),
     
     # --- ESTOQUE ---
     path('produtos/', views_stock.ProductListView.as_view(), name='product_list'),

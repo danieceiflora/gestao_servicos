@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 from decimal import Decimal
 from datetime import datetime
-from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory
+from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory, SaleReturn, SaleReturnItem, ProductVariant
 from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet, FinanceSettingsForm
 from .expense_engine import generate_expense_installments
 from django.http import HttpResponse, JsonResponse
@@ -453,23 +453,66 @@ def finance_bulk_confirm_payments(request):
 @user_passes_test(is_manager)
 def sale_list(request):
     sales = Sale.objects.all().select_related('client', 'user').order_by('-created_at')
-    
-    # Filtros
-    q = request.GET.get('q')
+
+    q = request.GET.get('q', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    seller_id = request.GET.get('seller', '').strip()
+
     if q:
         sales = sales.filter(
-            Q(number__icontains=q) | 
-            Q(client__name__icontains=q) | 
-            Q(user__username__icontains=q)
+            Q(number__icontains=q) |
+            Q(client__name__icontains=q) |
+            Q(user__username__icontains=q) |
+            Q(user__first_name__icontains=q) |
+            Q(external_po_number__icontains=q)
         )
-        
+
+    if status_filter:
+        sales = sales.filter(status=status_filter)
+
+    if date_from:
+        try:
+            sales = sales.filter(created_at__date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
+        except ValueError:
+            pass
+
+    if date_to:
+        try:
+            sales = sales.filter(created_at__date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
+        except ValueError:
+            pass
+
+    if seller_id:
+        sales = sales.filter(user_id=seller_id)
+
+    finalized_statuses = [Sale.Status.FINALIZADA, Sale.Status.ATENDIDO, Sale.Status.RECEBIDO]
+    kpi_qs = sales.filter(status__in=finalized_statuses)
+    total_vendido = kpi_qs.aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
+    count_vendas = kpi_qs.count()
+    ticket_medio = (total_vendido / count_vendas) if count_vendas > 0 else Decimal('0.00')
+    count_rascunhos = sales.filter(status=Sale.Status.RASCUNHO).count()
+
+    sellers = User.objects.filter(id__in=Sale.objects.values_list('user_id', flat=True)).distinct()
+
     paginator = Paginator(sales, 20)
-    page = request.GET.get('page')
-    sales_page = paginator.get_page(page)
-    
+    sales_page = paginator.get_page(request.GET.get('page'))
+
     context = {
         'sales': sales_page,
         'title': 'Histórico de Vendas',
+        'total_vendido': total_vendido,
+        'count_vendas': count_vendas,
+        'ticket_medio': ticket_medio,
+        'count_rascunhos': count_rascunhos,
+        'sellers': sellers,
+        'all_statuses': Sale.Status.choices,
+        'q': q,
+        'status_filter': status_filter,
+        'date_from': date_from,
+        'date_to': date_to,
+        'seller_id': seller_id,
     }
     return render(request, 'services/sale_list.html', context)
 
@@ -483,47 +526,50 @@ def sale_create(request):
         if form.is_valid() and formset.is_valid():
             try:
                 with transaction.atomic():
+                    is_draft = request.POST.get('save_as_draft') == '1'
+
                     sale = form.save(commit=False)
                     sale.user = request.user
                     sale.save()
-                    
+
                     formset.instance = sale
                     items = formset.save()
-                    
+
                     total = Decimal('0.00')
                     for item in items:
                         total += item.subtotal
-
-                        # Baixa de Estoque com inteligência de composição
-                        item.product.reduce_stock(
-                            item.quantity,
-                            user=request.user,
-                            reason=StockMovement.Reason.VENDA_DIRETA,
-                            notes=f"Venda Direta: #{sale.number}"
-                        )
+                        if not is_draft:
+                            target = item.variant if item.variant else item.product
+                            target.reduce_stock(
+                                item.quantity,
+                                user=request.user,
+                                reason=StockMovement.Reason.VENDA_DIRETA,
+                                notes=f"Venda Direta: #{sale.number}"
+                            )
 
                     sale.total_amount = total - sale.discount + sale.surcharge
-                    sale.status = Sale.Status.FINALIZADA
+                    sale.status = Sale.Status.RASCUNHO if is_draft else Sale.Status.FINALIZADA
+                    sale.stock_reduced = not is_draft
                     sale.save()
-                    
-                    # --- Lógica de Cobrança Centralizada (Opcional) ---
-                    installment_dates = request.POST.getlist('installment_due_date[]')
-                    installment_amounts = request.POST.getlist('installment_amount[]')
-                    installment_methods = request.POST.getlist('installment_method_id[]')
-                    
-                    if installment_dates:
-                        installments_data = []
-                        for d, a, m in zip(installment_dates, installment_amounts, installment_methods):
-                            installments_data.append({
-                                'due_date': d,
-                                'amount': Decimal(a),
-                                'payment_method_id': m if m else None
-                            })
-                        
-                        from .utils.finance import create_billing_for_sale
-                        create_billing_for_sale(sale, installments_data)
-                    
-                    messages.success(request, f"Venda #{sale.number} realizada com sucesso!")
+
+                    if not is_draft:
+                        installment_dates = request.POST.getlist('installment_due_date[]')
+                        installment_amounts = request.POST.getlist('installment_amount[]')
+                        installment_methods = request.POST.getlist('installment_method_id[]')
+
+                        if installment_dates:
+                            installments_data = []
+                            for d, a, m in zip(installment_dates, installment_amounts, installment_methods):
+                                installments_data.append({
+                                    'due_date': d,
+                                    'amount': Decimal(a),
+                                    'payment_method_id': m if m else None
+                                })
+                            from .utils.finance import create_billing_for_sale
+                            create_billing_for_sale(sale, installments_data)
+
+                    action = "salvo como rascunho" if is_draft else "realizada com sucesso"
+                    messages.success(request, f"Venda #{sale.number} {action}!")
                     return redirect('sale_detail', number=sale.number)
             except Exception as e:
                 import traceback
@@ -562,55 +608,57 @@ def sale_detail(request, number):
         if form.is_valid() and formset.is_valid():
             try:
                 with transaction.atomic():
-                    # 1. Estornar estoque atual antes de salvar as alterações
-                    for item in sale.items.all():
-                        item.product.increase_stock(
-                            item.quantity,
-                            user=request.user,
-                            reason=StockMovement.Reason.DEVOLUCAO,
-                            notes=f"Estorno para Reedição da Venda: #{sale.number}"
-                        )
-                    
-                    # 2. Salvar venda e novos itens
+                    is_draft = request.POST.get('save_as_draft') == '1'
+
+                    if sale.stock_reduced:
+                        for item in sale.items.all():
+                            target = item.variant if item.variant else item.product
+                            target.increase_stock(
+                                item.quantity,
+                                user=request.user,
+                                reason=StockMovement.Reason.DEVOLUCAO,
+                                notes=f"Estorno para Reedição da Venda: #{sale.number}"
+                            )
+
                     sale = form.save(commit=False)
                     sale.save()
-                    
+
                     formset.instance = sale
                     items = formset.save()
-                    
-                    # 3. Aplicar novo estoque e calcular total
+
                     total = Decimal('0.00')
-                    # Recarregar itens para garantir que pegamos os salvos/atualizados
                     for item in sale.items.all():
                         total += item.subtotal
-                        item.product.reduce_stock(
-                            item.quantity,
-                            user=request.user,
-                            reason=StockMovement.Reason.VENDA_DIRETA,
-                            notes=f"Venda Direta (Editada): #{sale.number}"
-                        )
+                        if not is_draft:
+                            target = item.variant if item.variant else item.product
+                            target.reduce_stock(
+                                item.quantity,
+                                user=request.user,
+                                reason=StockMovement.Reason.VENDA_DIRETA,
+                                notes=f"Venda Direta (Editada): #{sale.number}"
+                            )
 
                     sale.total_amount = total - sale.discount + sale.surcharge
+                    sale.status = Sale.Status.RASCUNHO if is_draft else Sale.Status.FINALIZADA
+                    sale.stock_reduced = not is_draft
                     sale.save()
-                    
-                    # 4. Atualizar Cobrança (Billing) e Parcelas se existirem
-                    installment_dates = request.POST.getlist('installment_due_date[]')
-                    installment_amounts = request.POST.getlist('installment_amount[]')
-                    installment_methods = request.POST.getlist('installment_method_id[]')
-                    
-                    if installment_dates:
-                        installments_data = []
-                        for d, a, m in zip(installment_dates, installment_amounts, installment_methods):
-                            installments_data.append({
-                                'due_date': d,
-                                'amount': Decimal(a),
-                                'payment_method_id': m if m else None
-                            })
-                        
-                        from .utils.finance import create_billing_for_sale
-                        # create_billing_for_sale já lida com a atualização se o Billing já existir
-                        create_billing_for_sale(sale, installments_data)
-                    
+
+                    if not is_draft:
+                        installment_dates = request.POST.getlist('installment_due_date[]')
+                        installment_amounts = request.POST.getlist('installment_amount[]')
+                        installment_methods = request.POST.getlist('installment_method_id[]')
+
+                        if installment_dates:
+                            installments_data = []
+                            for d, a, m in zip(installment_dates, installment_amounts, installment_methods):
+                                installments_data.append({
+                                    'due_date': d,
+                                    'amount': Decimal(a),
+                                    'payment_method_id': m if m else None
+                                })
+                            from .utils.finance import create_billing_for_sale
+                            create_billing_for_sale(sale, installments_data)
+
                     messages.success(request, f"Venda #{sale.number} atualizada com sucesso!")
                     return redirect('sale_detail', number=sale.number)
             except Exception as e:
@@ -644,6 +692,7 @@ def sale_detail(request, number):
         'clients': Client.objects.all().order_by('name'),
         'payment_methods': PaymentMethod.objects.filter(ativo=True),
         'initial_installments': initial_installments,
+        'returns': sale.returns.all().prefetch_related('items__sale_item__product') if hasattr(sale, 'returns') else [],
     }
     return render(request, 'services/sale_form.html', context)
 
@@ -659,16 +708,19 @@ def sale_cancel(request, number):
     if request.method == 'POST':
         try:
             with transaction.atomic():
-                # Reverter Estoque com inteligência de composição
-                for item in sale.items.all():
-                    item.product.increase_stock(
-                        item.quantity,
-                        user=request.user,
-                        reason=StockMovement.Reason.DEVOLUCAO,
-                        notes=f"Estorno Venda Cancelada: #{sale.number}"
-                    )
-                
+                # Reverter Estoque apenas se já tinha sido baixado
+                if sale.stock_reduced:
+                    for item in sale.items.all():
+                        target = item.variant if item.variant else item.product
+                        target.increase_stock(
+                            item.quantity,
+                            user=request.user,
+                            reason=StockMovement.Reason.DEVOLUCAO,
+                            notes=f"Estorno Venda Cancelada: #{sale.number}"
+                        )
+
                 sale.status = Sale.Status.CANCELADO
+                sale.stock_reduced = False
                 sale.save()
 
                 # Cancelar Billing se existir
@@ -676,12 +728,239 @@ def sale_cancel(request, number):
                     sale.billing.status = Billing.Status.CANCELADO
                     sale.billing.save()
                     sale.billing.installments.update(status=Installment.Status.CANCELADO)
-                
+
                 messages.success(request, "Venda cancelada e estoque estornado com sucesso!")
         except Exception as e:
             messages.error(request, f"Erro ao cancelar venda: {str(e)}")
             
     return redirect('sale_detail', number=sale.number)
+
+@login_required
+@user_passes_test(is_manager)
+def sale_duplicate(request, number):
+    original = get_object_or_404(Sale, number=number)
+    with transaction.atomic():
+        new_sale = Sale.objects.create(
+            client=original.client,
+            user=request.user,
+            status=Sale.Status.RASCUNHO,
+            discount=original.discount,
+            surcharge=original.surcharge,
+            indicador_presenca=original.indicador_presenca,
+            modalidade_frete=original.modalidade_frete,
+            forma_pagamento_sefaz=original.forma_pagamento_sefaz,
+            notes_internal=original.notes_internal,
+            notes_customer=original.notes_customer,
+            payment_method=original.payment_method,
+            commission_rate=original.commission_rate,
+            external_po_number=original.external_po_number,
+            delivery_name=original.delivery_name,
+            delivery_cep=original.delivery_cep,
+            delivery_address=original.delivery_address,
+            delivery_number=original.delivery_number,
+            delivery_complement=original.delivery_complement,
+            delivery_neighborhood=original.delivery_neighborhood,
+            delivery_city=original.delivery_city,
+            delivery_state=original.delivery_state,
+            stock_reduced=False,
+        )
+        for item in original.items.all():
+            SaleItem.objects.create(
+                sale=new_sale,
+                product=item.product,
+                variant=item.variant,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                discount=item.discount,
+            )
+        total = sum(i.subtotal for i in new_sale.items.all())
+        new_sale.total_amount = total - new_sale.discount + new_sale.surcharge
+        new_sale.save()
+
+    messages.success(request, f"Venda #{original.number} duplicada como Rascunho #{new_sale.number}!")
+    return redirect('sale_detail', number=new_sale.number)
+
+
+@login_required
+@user_passes_test(is_manager)
+def api_product_stock(request, product_id):
+    try:
+        product = Product.objects.get(pk=product_id, is_active=True)
+        variants = []
+        if product.format == Product.Format.COM_VARIACOES:
+            variants = list(product.variants.filter(is_active=True).values('id', 'name', 'current_stock', 'min_stock', 'additional_price'))
+        return JsonResponse({
+            'stock': float(product.current_stock),
+            'min_stock': float(product.min_stock),
+            'cost': float(product.preco_custo),
+            'price': float(product.default_unit_price),
+            'has_variants': product.format == Product.Format.COM_VARIACOES,
+            'variants': variants,
+        })
+    except Product.DoesNotExist:
+        return JsonResponse({'error': 'Produto não encontrado'}, status=404)
+
+
+@login_required
+@user_passes_test(is_manager)
+def sale_export_csv(request):
+    sales = Sale.objects.all().select_related('client', 'user').order_by('-created_at')
+
+    q = request.GET.get('q', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    seller_id = request.GET.get('seller', '').strip()
+
+    if q:
+        sales = sales.filter(Q(number__icontains=q) | Q(client__name__icontains=q) | Q(user__username__icontains=q))
+    if status_filter:
+        sales = sales.filter(status=status_filter)
+    if date_from:
+        try:
+            sales = sales.filter(created_at__date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            sales = sales.filter(created_at__date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
+        except ValueError:
+            pass
+    if seller_id:
+        sales = sales.filter(user_id=seller_id)
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="vendas.csv"'
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow(['N°', 'Data', 'Cliente', 'Vendedor', 'Total', 'Desconto', 'Acréscimo', 'Status', 'PO Cliente', 'Prazo Entrega', 'Comissão %'])
+    for sale in sales:
+        writer.writerow([
+            sale.number,
+            sale.created_at.strftime('%d/%m/%Y %H:%M'),
+            sale.client.display_name if sale.client else 'Consumidor Final',
+            sale.user.get_full_name() or sale.user.username,
+            str(sale.total_amount).replace('.', ','),
+            str(sale.discount).replace('.', ','),
+            str(sale.surcharge).replace('.', ','),
+            sale.get_status_display(),
+            sale.external_po_number or '',
+            sale.delivery_date.strftime('%d/%m/%Y') if sale.delivery_date else '',
+            str(sale.commission_rate).replace('.', ','),
+        ])
+    return response
+
+
+@login_required
+@user_passes_test(is_manager)
+def sale_return_create(request, number):
+    sale = get_object_or_404(Sale, number=number)
+
+    if sale.status == Sale.Status.CANCELADO:
+        messages.error(request, "Não é possível criar devolução para venda cancelada.")
+        return redirect('sale_detail', number=number)
+
+    if request.method == 'POST':
+        reason = request.POST.get('reason', '').strip()
+        if not reason:
+            messages.error(request, "Informe o motivo da devolução.")
+            return redirect('sale_return_create', number=number)
+
+        item_ids = request.POST.getlist('item_id[]')
+        quantities = request.POST.getlist('quantity[]')
+        restocks = request.POST.getlist('restock[]')
+
+        items_to_return = []
+        total_refund = Decimal('0.00')
+
+        for item_id, qty_str in zip(item_ids, quantities):
+            try:
+                qty = Decimal(qty_str)
+                if qty <= 0:
+                    continue
+                sale_item = sale.items.get(pk=item_id)
+                if qty > sale_item.quantity:
+                    messages.error(request, f"Quantidade de devolução para {sale_item.product.name} excede a quantidade vendida.")
+                    return redirect('sale_return_create', number=number)
+                refund = (sale_item.unit_price - sale_item.discount / sale_item.quantity) * qty
+                items_to_return.append((sale_item, qty, refund, str(item_id) in restocks))
+                total_refund += refund
+            except (ValueError, SaleItem.DoesNotExist):
+                continue
+
+        if not items_to_return:
+            messages.error(request, "Selecione ao menos um item para devolver.")
+            return redirect('sale_return_create', number=number)
+
+        with transaction.atomic():
+            sale_return = SaleReturn.objects.create(
+                sale=sale,
+                user=request.user,
+                reason=reason,
+                total_refund=total_refund,
+                status=SaleReturn.Status.PENDENTE,
+            )
+            for sale_item, qty, refund, do_restock in items_to_return:
+                SaleReturnItem.objects.create(
+                    sale_return=sale_return,
+                    sale_item=sale_item,
+                    quantity=qty,
+                    refund_amount=refund,
+                    restock=do_restock,
+                )
+
+        messages.success(request, "Devolução registrada com sucesso! Aguardando aprovação.")
+        return redirect('sale_detail', number=number)
+
+    context = {
+        'sale': sale,
+        'title': f'Devolução — Venda #{sale.number}',
+    }
+    return render(request, 'services/sale_return_form.html', context)
+
+
+@login_required
+@user_passes_test(is_manager)
+def sale_return_approve(request, return_id):
+    sale_return = get_object_or_404(SaleReturn, pk=return_id)
+
+    if sale_return.status != SaleReturn.Status.PENDENTE:
+        messages.warning(request, "Esta devolução já foi processada.")
+        return redirect('sale_detail', number=sale_return.sale.number)
+
+    if request.method == 'POST':
+        with transaction.atomic():
+            for return_item in sale_return.items.all():
+                if return_item.restock:
+                    target = return_item.sale_item.variant if return_item.sale_item.variant else return_item.sale_item.product
+                    target.increase_stock(
+                        return_item.quantity,
+                        user=request.user,
+                        reason=StockMovement.Reason.DEVOLUCAO,
+                        notes=f"Devolução #{sale_return.pk} — Venda #{sale_return.sale.number}"
+                    )
+            sale_return.status = SaleReturn.Status.APROVADA
+            sale_return.save()
+        messages.success(request, f"Devolução #{sale_return.pk} aprovada e estoque atualizado.")
+
+    return redirect('sale_detail', number=sale_return.sale.number)
+
+
+@login_required
+@user_passes_test(is_manager)
+def sale_return_cancel(request, return_id):
+    sale_return = get_object_or_404(SaleReturn, pk=return_id)
+
+    if sale_return.status != SaleReturn.Status.PENDENTE:
+        messages.warning(request, "Esta devolução já foi processada.")
+        return redirect('sale_detail', number=sale_return.sale.number)
+
+    if request.method == 'POST':
+        sale_return.status = SaleReturn.Status.CANCELADA
+        sale_return.save()
+        messages.success(request, f"Devolução #{sale_return.pk} cancelada.")
+
+    return redirect('sale_detail', number=sale_return.sale.number)
+
 
 # --- CONTAS A RECEBER (FINANCEIRO CENTRALIZADO) ---
 

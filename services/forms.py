@@ -932,7 +932,11 @@ class SaleForm(forms.ModelForm):
         model = Sale
         fields = [
             'client', 'status', 'discount', 'surcharge',
-            'indicador_presenca', 'modalidade_frete', 'forma_pagamento_sefaz'
+            'indicador_presenca', 'modalidade_frete', 'forma_pagamento_sefaz',
+            'external_po_number', 'delivery_date', 'commission_rate',
+            'notes_internal', 'notes_customer',
+            'delivery_name', 'delivery_cep', 'delivery_address', 'delivery_number',
+            'delivery_complement', 'delivery_neighborhood', 'delivery_city', 'delivery_state',
         ]
         widgets = {
             'client': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white search-select'}),
@@ -942,6 +946,19 @@ class SaleForm(forms.ModelForm):
             'indicador_presenca': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'modalidade_frete': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'forma_pagamento_sefaz': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'external_po_number': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'N° do pedido do cliente'}),
+            'delivery_date': forms.DateInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'type': 'date'}),
+            'commission_rate': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'notes_internal': forms.Textarea(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'rows': 3, 'placeholder': 'Observações internas (não aparecem para o cliente)'}),
+            'notes_customer': forms.Textarea(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'rows': 3, 'placeholder': 'Observações para o cliente (aparecem no recibo/PDF)'}),
+            'delivery_name': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Nome do destinatário'}),
+            'delivery_cep': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': '00000-000'}),
+            'delivery_address': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Rua, Av...'}),
+            'delivery_number': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'N°'}),
+            'delivery_complement': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Apto, Sala...'}),
+            'delivery_neighborhood': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Bairro'}),
+            'delivery_city': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Cidade'}),
+            'delivery_state': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'UF', 'maxlength': '2'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -950,6 +967,14 @@ class SaleForm(forms.ModelForm):
         self.fields['due_days'].initial = config.billing_default_due_days
         self.fields['discount'].required = False
         self.fields['surcharge'].required = False
+        self.fields['commission_rate'].required = False
+        self.fields['external_po_number'].required = False
+        self.fields['delivery_date'].required = False
+        self.fields['notes_internal'].required = False
+        self.fields['notes_customer'].required = False
+        for field in ['delivery_name', 'delivery_cep', 'delivery_address', 'delivery_number',
+                      'delivery_complement', 'delivery_neighborhood', 'delivery_city', 'delivery_state']:
+            self.fields[field].required = False
 
 class SaleItemForm(forms.ModelForm):
     class Meta:
