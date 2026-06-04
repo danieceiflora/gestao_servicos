@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Configurações de Vendas{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
+
+    {# Header #}
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="bg-slate-900 text-white p-2 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-black tracking-tight text-slate-900 leading-none">Configurações de Vendas</h1>
+                <p class="text-xs text-slate-500 mt-1">Parâmetros globais do módulo de vendas</p>
+            </div>
+        </div>
+        <a href="{% url 'sale_list' %}" class="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            Voltar para Vendas
+        </a>
+    </div>
+
+    {# Mensagens #}
+    {% if messages %}
+    {% for message in messages %}
+    <div class="p-4 rounded-xl text-sm font-semibold flex items-center gap-2
+        {% if message.tags == 'error' %}bg-red-50 text-red-700 border border-red-200
+        {% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {% if message.tags == 'error' %}
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            {% else %}
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            {% endif %}
+        </svg>
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <form method="POST" class="space-y-4">
+        {% csrf_token %}
+
+        {# Cobrança Automática #}
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+                <h2 class="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    Cobrança Automática
+                </h2>
+                <p class="text-xs text-slate-500 mt-1">Define em qual status a venda gera automaticamente um registro de cobrança no Contas a Receber.</p>
+            </div>
+            <div class="p-6">
+                <div class="space-y-2">
+                    <label for="{{ form.billing_trigger_status.id_for_label }}"
+                           class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        Gerar cobrança quando o status da venda for
+                    </label>
+                    <div class="relative">
+                        {{ form.billing_trigger_status }}
+                    </div>
+                    {% if form.billing_trigger_status.errors %}
+                    <p class="text-xs text-red-500 font-medium">{{ form.billing_trigger_status.errors.0 }}</p>
+                    {% endif %}
+                    <p class="text-[11px] text-slate-400 leading-relaxed">
+                        Selecione <strong class="text-slate-600">Somente Manual</strong> para desativar a criação automática de cobranças —
+                        você poderá criá-las manualmente pela tela de Contas a Receber.
+                    </p>
+                </div>
+
+                {# Info sobre o status atual #}
+                <div class="mt-6 bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
+                    <div class="bg-blue-500 text-white p-1.5 rounded-lg shrink-0 mt-0.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-[11px] font-bold text-blue-900 uppercase tracking-wide">Como funciona</p>
+                        <p class="text-[11px] text-blue-800 mt-1 leading-relaxed">
+                            Toda vez que uma venda for salva ou atualizada para o status selecionado,
+                            o sistema criará automaticamente os registros de parcelas no módulo de
+                            <strong>Contas a Receber</strong> com base nas parcelas configuradas na venda.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Rodapé com ações #}
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center justify-between">
+            <a href="{% url 'sale_list' %}" class="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="inline-flex items-center gap-2 bg-slate-900 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Salvar Configurações
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

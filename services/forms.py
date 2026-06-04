@@ -7,7 +7,7 @@ from .models import (
     ProfessionalRole, ProfessionalScheduleBlock,
     ServiceOrderTask, ServicePayment, Product, StockMovement,
     Sale, SaleItem, Supplier, PaymentMethod, Expense, ProductComposition, ExpenseInstallment,
-    FinanceSettings
+    FinanceSettings, SaleSettings
 )
 from integracoes.models import SystemConfig
 
@@ -1103,5 +1103,16 @@ class FinanceSettingsForm(forms.ModelForm):
                 'class': 'flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2',
                 'min': 1,
                 'max': 90,
+            }),
+        }
+
+
+class SaleSettingsForm(forms.ModelForm):
+    class Meta:
+        model = SaleSettings
+        fields = ['billing_trigger_status']
+        widgets = {
+            'billing_trigger_status': forms.Select(attrs={
+                'class': 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 pr-8',
             }),
         }

@@ -1733,6 +1733,36 @@ class FinanceSettings(models.Model):
         return f"Configurações Financeiras (geração com {self.days_before_generation} dias de antecedência)"
 
 
+class SaleSettings(models.Model):
+    class BillingTrigger(models.TextChoices):
+        MANUAL = 'MANUAL', 'Somente Manual (não gerar automaticamente)'
+        EM_ANDAMENTO = 'EM_ANDAMENTO', 'Em Andamento'
+        PRONTO = 'PRONTO', 'Pronto'
+        ATENDIDO = 'ATENDIDO', 'Atendido'
+        RECEBIDO = 'RECEBIDO', 'Recebido'
+        VENDA_AGENCIADA = 'VENDA_AGENCIADA', 'Venda Agenciada'
+        FINALIZADA = 'FINALIZADA', 'Finalizada'
+
+    billing_trigger_status = models.CharField(
+        max_length=20,
+        choices=BillingTrigger.choices,
+        default=BillingTrigger.FINALIZADA,
+        verbose_name="Gerar cobrança automática quando a venda atingir o status",
+    )
+
+    class Meta:
+        verbose_name = "Configurações de Vendas"
+        verbose_name_plural = "Configurações de Vendas"
+
+    def __str__(self):
+        return f"Configurações de Vendas"
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class RecurrenceRule(models.Model):
     class Frequency(models.TextChoices):
         DIARIA = 'DIARIA', 'Diária'

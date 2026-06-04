@@ -7,8 +7,8 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 from decimal import Decimal
 from datetime import datetime
-from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory, SaleReturn, SaleReturnItem, ProductVariant
-from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet, FinanceSettingsForm
+from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory, SaleReturn, SaleReturnItem, ProductVariant, SaleSettings
+from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet, FinanceSettingsForm, SaleSettingsForm
 from .expense_engine import generate_expense_installments
 from django.http import HttpResponse, JsonResponse
 import csv
@@ -874,7 +874,7 @@ def sale_return_create(request, number):
 
         for item_id, qty_str in zip(item_ids, quantities):
             try:
-                qty = Decimal(qty_str)
+                qty = Decimal(str(qty_str).replace(',', '.').strip())
                 if qty <= 0:
                     continue
                 sale_item = sale.items.get(pk=item_id)
@@ -1771,6 +1771,22 @@ def finance_settings_view(request):
         'form': form,
         'title': 'Configurações Financeiras',
         'active_menu': 'finance',
+    })
+
+
+@login_required
+@user_passes_test(is_manager)
+def sale_settings_view(request):
+    obj = SaleSettings.get()
+    form = SaleSettingsForm(request.POST or None, instance=obj)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Configurações de vendas salvas com sucesso.')
+        return redirect('sale_settings')
+    return render(request, 'services/sale_settings.html', {
+        'form': form,
+        'settings': obj,
+        'active_menu': 'sales',
     })
 
 
