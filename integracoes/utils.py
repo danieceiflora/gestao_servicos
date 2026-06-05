@@ -31,6 +31,17 @@ def get_mappable_fields(model_name, max_depth=3, only_phones=False):
                 ('client', 'Telefone do Cliente'),
                 ('user', 'Telefone do Vendedor'),
             ]
+        elif model_name == 'Billing':
+            return [
+                ('client', 'Telefone do Cliente'),
+            ]
+        elif model_name == 'Installment':
+            return [
+                ('billing.client', 'Telefone do Cliente'),
+            ]
+        elif model_name == 'ExpenseInstallment':
+            # Despesas não têm cliente — usar Número Fixo (destinatário interno)
+            return []
 
     try:
         model = apps.get_model('services', model_name)
@@ -63,7 +74,10 @@ def get_mappable_fields(model_name, max_depth=3, only_phones=False):
             mappable.append((f"{prefix}phones.first.phone".replace('__', '.'), f"{prefix.replace('__', ' > ') if prefix else ''}Telefone/Whatsapp"))
 
         # 3. Properties Úteis (manualmente selecionadas ou via convenção)
-        common_props = ['total_value', 'display_name', 'full_address', 'balance_due', 'total_paid', 'number', 'phone']
+        common_props = [
+            'total_value', 'display_name', 'full_address', 'balance_due', 'total_paid', 'number', 'phone',
+            'amount_paid', 'amount_remaining', 'installment_label', 'get_remaining_balance', 'get_total_paid',
+        ]
         for attr_name in dir(current_model):
             if attr_name in common_props or attr_name.startswith('get_') and attr_name.endswith('_display'):
                 # Verifica se é property ou método sem argumentos

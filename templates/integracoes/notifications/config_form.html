@@ -63,8 +63,14 @@
                 </div>
             </div>
 
+            <!-- Hint contextual para eventos de pagamento -->
+            <div id="payment_event_hint" class="hidden p-3 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700 flex items-start gap-2">
+                <i data-lucide="info" class="h-4 w-4 mt-0.5 shrink-0"></i>
+                <span>Este evento é disparado automaticamente quando um pagamento é registrado na parcela. Não é necessário configurar status.</span>
+            </div>
+
             <!-- Status (Carregado dinamicamente via HTMX baseado no Modelo) -->
-            <div id="status_fields" 
+            <div id="status_fields"
                  hx-get="{% url 'integracoes:ajax_get_status_choices' %}"
                  hx-trigger="change from:#model_select, load from:#model_select delay:100ms"
                  hx-target="this"
@@ -82,6 +88,10 @@
         <!-- Bloco 3: Destinatário -->
         <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
             <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Destinatário (Para quem?)</h2>
+            <div id="expense_recipient_hint" class="hidden p-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-700 flex items-start gap-2">
+                <i data-lucide="alert-triangle" class="h-4 w-4 mt-0.5 shrink-0"></i>
+                <span>Despesas (C. a Pagar) não possuem cliente associado. Use <strong>Número Fixo</strong> para notificar um responsável interno.</span>
+            </div>
             
             <div class="grid md:grid-cols-2 gap-4">
                 <div class="space-y-2">
@@ -156,19 +166,27 @@
     document.addEventListener('DOMContentLoaded', function() {
         const eventSelect = document.getElementById('event_select');
         const statusFields = document.getElementById('status_fields');
+        const paymentEventHint = document.getElementById('payment_event_hint');
         const modelSelect = document.getElementById('model_select');
         const templateSelect = document.getElementById('template_select');
         const recipientTypeSelect = document.getElementById('recipient_type_select');
         const fixedPhoneField = document.getElementById('fixed_phone_field');
         const dynamicPhoneField = document.getElementById('dynamic_phone_field');
 
+        const EVENT_WITH_STATUS = ['MUDANCA_STATUS'];
+        const EVENT_PAYMENT = ['PAGAMENTO_PARCIAL', 'PAGAMENTO_INTEGRAL'];
+
         function toggleStatusFields() {
-            if (eventSelect.value === 'MUDANCA_STATUS') {
+            const evt = eventSelect.value;
+            if (EVENT_WITH_STATUS.includes(evt)) {
                 statusFields.classList.remove('hidden');
                 statusFields.querySelectorAll('input, select').forEach(el => el.disabled = false);
+                paymentEventHint.classList.add('hidden');
             } else {
                 statusFields.classList.add('hidden');
                 statusFields.querySelectorAll('input, select').forEach(el => el.disabled = true);
+                paymentEventHint.classList.toggle('hidden', !EVENT_PAYMENT.includes(evt));
+                if (typeof lucide !== 'undefined') lucide.createIcons();
             }
         }
 
@@ -188,12 +206,22 @@
             }
         }
 
+        const expenseRecipientHint = document.getElementById('expense_recipient_hint');
+
+        function toggleExpenseHint() {
+            const isExpense = modelSelect.value === 'ExpenseInstallment';
+            expenseRecipientHint.classList.toggle('hidden', !isExpense);
+            if (isExpense && typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
         eventSelect.addEventListener('change', toggleStatusFields);
         recipientTypeSelect.addEventListener('change', toggleRecipientFields);
+        modelSelect.addEventListener('change', toggleExpenseHint);
 
         // Inicializar estados
         toggleStatusFields();
         toggleRecipientFields();
+        toggleExpenseHint();
 
         // Garantir que campos carregados via HTMX respeitem o estado de desativado
         document.body.addEventListener('htmx:afterSwap', function(evt) {

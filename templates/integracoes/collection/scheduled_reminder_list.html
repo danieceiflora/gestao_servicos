@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">Lembretes Agendados</h1>
+      <p class="text-sm text-slate-500 mt-1">Envios únicos por data — sem escalada. Ex: lembrete 1 dia antes do vencimento.</p>
+    </div>
+    <a href="{% url 'integracoes:scheduled_reminder_create' %}"
+       class="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors">
+      <i data-lucide="plus" class="h-4 w-4"></i>
+      Novo Lembrete
+    </a>
+  </div>
+
+  <!-- Info box -->
+  <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
+    <i data-lucide="info" class="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5"></i>
+    <div class="text-sm text-blue-800 space-y-1">
+      <p><strong>Como funciona:</strong> O cron diário calcula a data-alvo (<code>hoje − offset_dias</code>) e envia para todas as parcelas com aquele vencimento que ainda não receberam o lembrete. O envio acontece <strong>uma única vez por parcela</strong>. Falhas são retentadas no dia seguinte.</p>
+      <p class="text-blue-600 font-mono text-xs">0 8 * * * python manage.py send_scheduled_reminders</p>
+    </div>
+  </div>
+
+  <!-- Reminders table -->
+  {% if reminders %}
+  <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 border-b border-slate-200">
+        <tr>
+          <th class="text-left px-4 py-3 font-semibold text-slate-700">Nome</th>
+          <th class="text-left px-4 py-3 font-semibold text-slate-700">Gatilho</th>
+          <th class="text-left px-4 py-3 font-semibold text-slate-700">Template</th>
+          <th class="text-left px-4 py-3 font-semibold text-slate-700">Variáveis</th>
+          <th class="text-left px-4 py-3 font-semibold text-slate-700">Status</th>
+          <th class="text-right px-4 py-3 font-semibold text-slate-700">Ações</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for r in reminders %}
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="px-4 py-3 font-medium text-slate-900">{{ r.name }}</td>
+          <td class="px-4 py-3">
+            {% if r.offset_days < 0 %}
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+              <i data-lucide="clock" class="h-3 w-3"></i>
+              {{ r.offset_days|cut:"-" }} dia(s) antes
+            </span>
+            {% elif r.offset_days == 0 %}
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+              <i data-lucide="calendar" class="h-3 w-3"></i>
+              No vencimento
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+              <i data-lucide="alert-circle" class="h-3 w-3"></i>
+              {{ r.offset_days }} dia(s) após
+            </span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 font-mono text-xs text-slate-600">{{ r.template_name }}</td>
+          <td class="px-4 py-3 text-slate-500">{{ r.variables.count }} variável(is)</td>
+          <td class="px-4 py-3">
+            {% if r.is_active %}
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Ativo
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+              <span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>Inativo
+            </span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-right">
+            <div class="flex items-center justify-end gap-2">
+              <a href="{% url 'integracoes:scheduled_reminder_edit' r.pk %}"
+                 class="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-colors" title="Editar">
+                <i data-lucide="pencil" class="h-4 w-4"></i>
+              </a>
+              <form method="post" action="{% url 'integracoes:scheduled_reminder_delete' r.pk %}"
+                    onsubmit="return confirm('Remover o lembrete \'{{ r.name }}\'?')">
+                {% csrf_token %}
+                <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors" title="Excluir">
+                  <i data-lucide="trash-2" class="h-4 w-4"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="bg-white border border-slate-200 rounded-xl p-12 text-center">
+    <div class="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+      <i data-lucide="bell" class="h-6 w-6 text-slate-400"></i>
+    </div>
+    <p class="text-slate-600 font-medium">Nenhum lembrete configurado</p>
+    <p class="text-slate-400 text-sm mt-1">Crie um lembrete para envios automáticos antes ou após o vencimento.</p>
+    <a href="{% url 'integracoes:scheduled_reminder_create' %}"
+       class="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors">
+      <i data-lucide="plus" class="h-4 w-4"></i>
+      Criar primeiro lembrete
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- Recent logs -->
+  {% if recent_logs %}
+  <div>
+    <h2 class="text-base font-semibold text-slate-800 mb-3">Últimos Envios</h2>
+    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Lembrete</th>
+            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Cliente</th>
+            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Telefone</th>
+            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Enviado em</th>
+            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for log in recent_logs %}
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-2.5 font-medium text-slate-800">{{ log.reminder.name }}</td>
+            <td class="px-4 py-2.5 text-slate-600">
+              {% with client=log.installment.billing.client %}
+                {{ client.name|default:client.display_name|default:"—" }}
+              {% endwith %}
+            </td>
+            <td class="px-4 py-2.5 font-mono text-xs text-slate-500">{{ log.phone|default:"—" }}</td>
+            <td class="px-4 py-2.5 text-slate-500 text-xs">{{ log.sent_at|date:"d/m/Y H:i" }}</td>
+            <td class="px-4 py-2.5">
+              {% if log.status == 'SENT' %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                <i data-lucide="check" class="h-3 w-3"></i> Enviado
+              </span>
+              {% else %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700" title="{{ log.notes }}">
+                <i data-lucide="x" class="h-3 w-3"></i> Falhou
+              </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

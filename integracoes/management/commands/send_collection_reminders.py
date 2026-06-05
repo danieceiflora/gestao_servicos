@@ -1,0 +1,166 @@
+import logging
+from datetime import timedelta
+
+from django.core.management.base import BaseCommand
+from django.utils import timezone
+
+from integracoes.models import (
+    CollectionSequence, CollectionStep,
+    CollectionInstallmentState, CollectionLog,
+)
+from integracoes.chatwoot_client import ChatwootClient
+from integracoes.utils import resolve_field_path, get_client_phone
+from services.models import Installment
+
+logger = logging.getLogger(__name__)
+
+
+class Command(BaseCommand):
+    help = 'Envia lembretes de cobrança conforme as réguas configuradas. Rodar diariamente via cron.'
+
+    def add_arguments(self, parser):
+        parser.add_argument('--dry-run', action='store_true',
+                            help='Simula o envio sem despachar mensagens ou gravar logs.')
+
+    def handle(self, *args, **options):
+        dry_run = options['dry_run']
+        today = timezone.localdate()
+
+        if dry_run:
+            self.stdout.write(self.style.WARNING('[DRY-RUN] Nenhuma mensagem será enviada.'))
+
+        sequences = CollectionSequence.objects.filter(is_active=True).prefetch_related('steps__variables')
+        self.stdout.write(f'[Régua de Cobrança] {today} — {sequences.count()} régua(s) ativa(s).')
+
+        cw_client = ChatwootClient()
+        sent = failed = skipped = 0
+
+        for sequence in sequences:
+            max_due_date = today - timedelta(days=sequence.start_after_days_overdue)
+            min_due_date = today - timedelta(days=sequence.stop_after_days_overdue)
+
+            installments = (
+                Installment.objects
+                .filter(
+                    due_date__lte=max_due_date,
+                    due_date__gte=min_due_date,
+                    status__in=['PENDENTE', 'PARCIAL', 'ATRASADO'],
+                )
+                .select_related('billing__client')
+                .prefetch_related('billing__client__phones')
+            )
+
+            for installment in installments:
+                state, _ = CollectionInstallmentState.objects.get_or_create(
+                    installment=installment,
+                    defaults={'sequence': sequence, 'current_occurrence': 0},
+                )
+
+                if state.sequence_id != sequence.id:
+                    skipped += 1
+                    continue
+
+                if state.is_paused:
+                    skipped += 1
+                    continue
+
+                if state.current_occurrence >= sequence.max_occurrences:
+                    skipped += 1
+                    continue
+
+                if state.next_eligible_date and today < state.next_eligible_date:
+                    skipped += 1
+                    continue
+
+                step = sequence.steps.filter(
+                    occurrence__gt=state.current_occurrence
+                ).order_by('occurrence').first()
+                if step is None:
+                    skipped += 1
+                    continue
+
+                phone = self._resolve_phone(installment)
+                if not phone:
+                    logger.warning('Régua "%s": parcela #%s sem telefone — ignorada.', sequence.name, installment.pk)
+                    skipped += 1
+                    continue
+
+                variables = self._resolve_variables(step, installment)
+                contact_name = self._resolve_contact_name(installment)
+                effective_interval = max(sequence.min_interval_days, step.wait_days_before_next)
+
+                if dry_run:
+                    self.stdout.write(
+                        f'  [DRY-RUN] "{sequence.name}" ocorrência #{step.occurrence} → '
+                        f'parcela #{installment.pk} (vence {installment.due_date}) → {phone} vars={variables}'
+                    )
+                    sent += 1
+                    continue
+
+                try:
+                    cw_contact = cw_client.create_contact(contact_name, phone)
+                    if not cw_contact:
+                        raise ValueError('Contato não criado no Chatwoot')
+
+                    conv = cw_client.get_or_create_conversation(cw_contact['id'])
+                    if not conv:
+                        raise ValueError('Conversa não criada no Chatwoot')
+
+                    cw_client.send_template(
+                        conversation_id=conv['id'],
+                        template_name=step.template_name,
+                        variables=variables,
+                    )
+
+                    CollectionLog.objects.create(
+                        installment=installment,
+                        step=step,
+                        occurrence_number=step.occurrence,
+                        phone=phone,
+                        status=CollectionLog.Status.SENT,
+                    )
+
+                    state.current_occurrence = step.occurrence
+                    state.last_sent_at = today
+                    state.next_eligible_date = today + timedelta(days=effective_interval)
+                    state.save(update_fields=['current_occurrence', 'last_sent_at', 'next_eligible_date'])
+
+                    logger.info('Régua "%s" #%s enviada para %s (parcela #%s)',
+                                sequence.name, step.occurrence, phone, installment.pk)
+                    sent += 1
+
+                except Exception as exc:
+                    logger.error('Erro na régua "%s" #%s parcela #%s: %s',
+                                 sequence.name, step.occurrence, installment.pk, exc)
+                    CollectionLog.objects.create(
+                        installment=installment,
+                        step=step,
+                        occurrence_number=step.occurrence,
+                        phone=phone or '',
+                        status=CollectionLog.Status.FAILED,
+                        notes=str(exc),
+                    )
+                    failed += 1
+
+        self.stdout.write(
+            self.style.SUCCESS(f'Concluído. Enviados: {sent} | Ignorados: {skipped} | Falhas: {failed}')
+        )
+
+    def _resolve_phone(self, installment):
+        client = getattr(getattr(installment, 'billing', None), 'client', None)
+        return get_client_phone(client)
+
+    def _resolve_contact_name(self, installment):
+        client = getattr(getattr(installment, 'billing', None), 'client', None)
+        if client:
+            return getattr(client, 'name', None) or getattr(client, 'display_name', None) or 'Cliente'
+        return 'Cliente'
+
+    def _resolve_variables(self, step, installment):
+        variables = []
+        for var in step.variables.order_by('index'):
+            val = resolve_field_path(installment, var.field_path)
+            if hasattr(val, 'strftime'):
+                val = val.strftime('%d/%m/%Y')
+            variables.append(str(val) if val is not None else '')
+        return variables

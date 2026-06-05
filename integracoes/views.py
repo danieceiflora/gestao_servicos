@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 from .models import WebhookEvent, SystemConfig
 from .chatwoot_client import ChatwootClient
-from services.models import ServiceOrder, ServiceOrderTask, Sale
+from services.models import ServiceOrder, ServiceOrderTask, Sale, Billing, Installment, ExpenseInstallment
 
 logger = logging.getLogger(__name__)
 
@@ -607,13 +607,13 @@ class MetaCloudAPI:
             logger.error(f"Error deleting template: {e}")
             return {"error": str(e)}
 
-from .models import WebhookEvent, SystemConfig, NotificationConfig, NotificationVariable
-
-@login_required
-@user_passes_test(lambda u: u.is_staff)
-def notification_config_list(request):
-    configs = NotificationConfig.objects.all()
-    return render(request, 'integracoes/notifications/config_list.html', {'configs': configs})
+from .models import (
+    WebhookEvent, SystemConfig,
+    NotificationConfig, NotificationVariable,
+    CollectionSequence, CollectionStep, CollectionStepVariable,
+    CollectionInstallmentState, CollectionLog,
+    ScheduledReminder, ScheduledReminderVariable, ScheduledReminderLog,
+)
 
 from .utils import get_mappable_fields
 
@@ -762,13 +762,19 @@ def ajax_get_template_details(request):
     # Introspecção dinâmica de campos do modelo
     suggested_fields = get_mappable_fields(model_name)
     
-    # Tenta carregar mapeamentos existentes se estiver editando
+    # Carrega mapeamentos existentes
     config_id = request.GET.get('config_id')
+    step_id = request.GET.get('step_id')
+    reminder_id = request.GET.get('reminder_id')
     existing_vars = {}
     config = None
     if config_id and config_id.isdigit():
         config = NotificationConfig.objects.filter(id=config_id).first()
         existing_vars = {v.index: v.field_path for v in NotificationVariable.objects.filter(config_id=config_id)}
+    elif step_id and step_id.isdigit():
+        existing_vars = {v.index: v.field_path for v in CollectionStepVariable.objects.filter(step_id=step_id)}
+    elif reminder_id and reminder_id.isdigit():
+        existing_vars = {v.index: v.field_path for v in ScheduledReminderVariable.objects.filter(reminder_id=reminder_id)}
 
     return render(request, 'integracoes/notifications/partials/template_variables.html', {
         'body_text': body_text,
@@ -809,6 +815,12 @@ def ajax_get_status_choices(request):
         choices = ServiceOrderTask.TaskStatus.choices
     elif model_name == 'Sale':
         choices = Sale.Status.choices
+    elif model_name == 'Billing':
+        choices = Billing.Status.choices
+    elif model_name == 'Installment':
+        choices = Installment.Status.choices
+    elif model_name == 'ExpenseInstallment':
+        choices = ExpenseInstallment.Status.choices
         
     return render(request, 'integracoes/notifications/partials/status_choices_select.html', {
         'choices': choices,
@@ -1174,3 +1186,248 @@ def webhook_receiver(request, provider):
             "status": "error",
             "message": str(e)
         }, status=400)
+
+
+# --- RÉGUA DE COBRANÇA ---
+
+def _get_meta_templates():
+    config_obj = SystemConfig.load()
+    api = MetaCloudAPI(config_obj.meta_waba_id, config_obj.meta_access_token)
+    return api.get_templates().get('data', [])
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def collection_sequence_list(request):
+    sequences = CollectionSequence.objects.prefetch_related('steps__logs').all()
+    recent_logs = (
+        CollectionLog.objects
+        .select_related('installment__billing__client', 'step__sequence')
+        .order_by('-sent_at')[:50]
+    )
+    return render(request, 'integracoes/collection/sequence_list.html', {
+        'sequences': sequences,
+        'recent_logs': recent_logs,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def collection_sequence_create(request):
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        start_after = int(request.POST.get('start_after_days_overdue', 1))
+        stop_after = int(request.POST.get('stop_after_days_overdue', 60))
+        max_occ = int(request.POST.get('max_occurrences', 3))
+        min_interval = int(request.POST.get('min_interval_days', 5))
+
+        seq = CollectionSequence.objects.create(
+            name=name,
+            start_after_days_overdue=start_after,
+            stop_after_days_overdue=stop_after,
+            max_occurrences=max_occ,
+            min_interval_days=min_interval,
+        )
+        messages.success(request, f'Régua "{name}" criada! Adicione as etapas abaixo.')
+        return redirect('integracoes:collection_sequence_edit', pk=seq.pk)
+
+    return render(request, 'integracoes/collection/sequence_form.html', {})
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def collection_sequence_edit(request, pk):
+    sequence = get_object_or_404(CollectionSequence, pk=pk)
+
+    if request.method == 'POST':
+        sequence.name = request.POST.get('name')
+        sequence.start_after_days_overdue = int(request.POST.get('start_after_days_overdue', 1))
+        sequence.stop_after_days_overdue = int(request.POST.get('stop_after_days_overdue', 60))
+        sequence.max_occurrences = int(request.POST.get('max_occurrences', 3))
+        sequence.min_interval_days = int(request.POST.get('min_interval_days', 5))
+        sequence.is_active = request.POST.get('is_active') == 'on'
+        sequence.save()
+        messages.success(request, 'Régua atualizada!')
+        return redirect('integracoes:collection_sequence_list')
+
+    steps = sequence.steps.prefetch_related('variables').all()
+    return render(request, 'integracoes/collection/sequence_form.html', {
+        'sequence': sequence,
+        'steps': steps,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def collection_sequence_delete(request, pk):
+    sequence = get_object_or_404(CollectionSequence, pk=pk)
+    if request.method == 'POST':
+        sequence.delete()
+        messages.success(request, 'Régua removida.')
+    return redirect('integracoes:collection_sequence_list')
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def collection_step_create(request, seq_pk):
+    sequence = get_object_or_404(CollectionSequence, pk=seq_pk)
+    templates = _get_meta_templates()
+    next_occurrence = sequence.steps.count() + 1
+
+    if request.method == 'POST':
+        occurrence = int(request.POST.get('occurrence', next_occurrence))
+        label = request.POST.get('label', '')
+        template_name = request.POST.get('template_name')
+        wait_days = int(request.POST.get('wait_days_before_next', 7))
+
+        step = CollectionStep.objects.create(
+            sequence=sequence,
+            occurrence=occurrence,
+            label=label,
+            template_name=template_name,
+            wait_days_before_next=wait_days,
+        )
+
+        indices = request.POST.getlist('var_index[]')
+        paths = request.POST.getlist('var_path[]')
+        for i, path in zip(indices, paths):
+            if path:
+                CollectionStepVariable.objects.create(step=step, index=i, field_path=path)
+
+        messages.success(request, f'Etapa #{occurrence} adicionada!')
+        return redirect('integracoes:collection_sequence_edit', pk=seq_pk)
+
+    return render(request, 'integracoes/collection/step_form.html', {
+        'sequence': sequence,
+        'templates': templates,
+        'next_occurrence': next_occurrence,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def collection_step_edit(request, pk):
+    step = get_object_or_404(CollectionStep, pk=pk)
+    templates = _get_meta_templates()
+
+    if request.method == 'POST':
+        step.occurrence = int(request.POST.get('occurrence', step.occurrence))
+        step.label = request.POST.get('label', '')
+        step.template_name = request.POST.get('template_name')
+        step.wait_days_before_next = int(request.POST.get('wait_days_before_next', 7))
+        step.save()
+
+        step.variables.all().delete()
+        indices = request.POST.getlist('var_index[]')
+        paths = request.POST.getlist('var_path[]')
+        for i, path in zip(indices, paths):
+            if path:
+                CollectionStepVariable.objects.create(step=step, index=i, field_path=path)
+
+        messages.success(request, f'Etapa #{step.occurrence} atualizada!')
+        return redirect('integracoes:collection_sequence_edit', pk=step.sequence_id)
+
+    return render(request, 'integracoes/collection/step_form.html', {
+        'step': step,
+        'sequence': step.sequence,
+        'templates': templates,
+        'next_occurrence': step.occurrence,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def collection_step_delete(request, pk):
+    step = get_object_or_404(CollectionStep, pk=pk)
+    seq_pk = step.sequence_id
+    if request.method == 'POST':
+        step.delete()
+        messages.success(request, 'Etapa removida.')
+    return redirect('integracoes:collection_sequence_edit', pk=seq_pk)
+
+
+# --- LEMBRETES AGENDADOS ---
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def scheduled_reminder_list(request):
+    reminders = ScheduledReminder.objects.prefetch_related('variables').all()
+    recent_logs = (
+        ScheduledReminderLog.objects
+        .select_related('installment__billing__client', 'reminder')
+        .order_by('-sent_at')[:50]
+    )
+    return render(request, 'integracoes/collection/scheduled_reminder_list.html', {
+        'reminders': reminders,
+        'recent_logs': recent_logs,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def scheduled_reminder_create(request):
+    templates = _get_meta_templates()
+
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        offset_days = int(request.POST.get('offset_days', -1))
+        template_name = request.POST.get('template_name')
+
+        reminder = ScheduledReminder.objects.create(
+            name=name,
+            offset_days=offset_days,
+            template_name=template_name,
+        )
+
+        indices = request.POST.getlist('var_index[]')
+        paths = request.POST.getlist('var_path[]')
+        for i, path in zip(indices, paths):
+            if path:
+                ScheduledReminderVariable.objects.create(reminder=reminder, index=i, field_path=path)
+
+        messages.success(request, f'Lembrete "{name}" criado!')
+        return redirect('integracoes:scheduled_reminder_list')
+
+    return render(request, 'integracoes/collection/scheduled_reminder_form.html', {
+        'templates': templates,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def scheduled_reminder_edit(request, pk):
+    reminder = get_object_or_404(ScheduledReminder, pk=pk)
+    templates = _get_meta_templates()
+
+    if request.method == 'POST':
+        reminder.name = request.POST.get('name')
+        reminder.offset_days = int(request.POST.get('offset_days', -1))
+        reminder.template_name = request.POST.get('template_name')
+        reminder.is_active = request.POST.get('is_active') == 'on'
+        reminder.save()
+
+        reminder.variables.all().delete()
+        indices = request.POST.getlist('var_index[]')
+        paths = request.POST.getlist('var_path[]')
+        for i, path in zip(indices, paths):
+            if path:
+                ScheduledReminderVariable.objects.create(reminder=reminder, index=i, field_path=path)
+
+        messages.success(request, 'Lembrete atualizado!')
+        return redirect('integracoes:scheduled_reminder_list')
+
+    return render(request, 'integracoes/collection/scheduled_reminder_form.html', {
+        'reminder': reminder,
+        'templates': templates,
+        'variables': reminder.variables.all(),
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def scheduled_reminder_delete(request, pk):
+    reminder = get_object_or_404(ScheduledReminder, pk=pk)
+    if request.method == 'POST':
+        reminder.delete()
+        messages.success(request, 'Lembrete removido.')
+    return redirect('integracoes:scheduled_reminder_list')

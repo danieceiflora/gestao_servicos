@@ -66,14 +66,24 @@
                 </div>
                 <div class="flex-grow">
                     {% with current_path=existing_vars|get_item:i %}
-                    <select name="var_path[]" required
-                            class="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:border-slate-900 transition-all">
-                        <option value="">Selecione um campo...</option>
-                        {% for path, label in suggested_fields %}
-                        <option value="{{ path }}" {% if current_path == path %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
                     <input type="hidden" name="var_index[]" value="{{ i }}">
+                    <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
+                        <input type="hidden" name="var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
+                        <input type="text"
+                               class="sel-search w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:border-slate-900 transition-all"
+                               placeholder="Digite para buscar campo..."
+                               autocomplete="off">
+                        <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto z-50 hidden">
+                            <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50" data-value="" data-label="">Selecione um campo...</div>
+                            {% for path, label in suggested_fields %}
+                            <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-slate-50"
+                                 data-value="{{ path }}" data-label="{{ label }}">
+                                <span class="text-slate-700">{{ label }}</span>
+                                <span class="ml-2 text-[11px] text-slate-400 font-mono">{{ path }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
                     {% endwith %}
                 </div>
             </div>
@@ -90,8 +100,67 @@
 </div>
 
 <script>
-    // Inicializar ícones se necessário (Lucide)
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
+    if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+
+    function initSearchableSelects(root) {
+        root.querySelectorAll('.searchable-select').forEach(function(container) {
+            const searchInput = container.querySelector('.sel-search');
+            const dropdown = container.querySelector('.sel-dropdown');
+            const hiddenValue = container.querySelector('.sel-hidden-value');
+            const allOpts = container.querySelectorAll('.sel-opt');
+
+            // Restore label for saved value
+            const savedVal = hiddenValue.value;
+            if (savedVal) {
+                const match = [...allOpts].find(o => o.dataset.value === savedVal);
+                if (match) searchInput.value = match.dataset.label;
+            }
+
+            function filterOpts(query) {
+                const q = query.toLowerCase();
+                allOpts.forEach(function(opt) {
+                    const label = (opt.dataset.label || '').toLowerCase();
+                    const val = (opt.dataset.value || '').toLowerCase();
+                    opt.classList.toggle('hidden', !!q && !label.includes(q) && !val.includes(q));
+                });
+            }
+
+            searchInput.addEventListener('focus', function() {
+                dropdown.classList.remove('hidden');
+                filterOpts('');
+            });
+            searchInput.addEventListener('input', function() {
+                dropdown.classList.remove('hidden');
+                filterOpts(this.value);
+                // Clear hidden value while user is typing
+                hiddenValue.value = '';
+            });
+            searchInput.addEventListener('blur', function() {
+                // Restore last valid label if input was cleared
+                setTimeout(function() {
+                    if (!hiddenValue.value) searchInput.value = '';
+                    dropdown.classList.add('hidden');
+                }, 150);
+            });
+
+            allOpts.forEach(function(opt) {
+                opt.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    hiddenValue.value = this.dataset.value;
+                    searchInput.value = this.dataset.label || '';
+                    dropdown.classList.add('hidden');
+                    filterOpts('');
+                });
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!container.contains(e.target)) dropdown.classList.add('hidden');
+            });
+        });
     }
+
+    initSearchableSelects(document.currentScript.closest('.space-y-4') || document);
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        initSearchableSelects(evt.detail.target);
+    });
 </script>

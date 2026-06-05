@@ -1,13 +1,20 @@
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
-from services.models import ServiceOrder, ServiceOrderTask, Sale
+from services.models import (
+    ServiceOrder, ServiceOrderTask, Sale,
+    Billing, Installment, SalePayment,
+    ExpenseInstallment, InstallmentPayment,
+)
 from .utils import dispatch_dynamic_notification
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Lista de modelos que suportam notificações dinâmicas
-DYNAMIC_NOTIFICATION_MODELS = [ServiceOrder, ServiceOrderTask, Sale]
+# Modelos que recebem os gatilhos padrão CRIAR e MUDANCA_STATUS
+DYNAMIC_NOTIFICATION_MODELS = [
+    ServiceOrder, ServiceOrderTask, Sale,
+    Billing, Installment, ExpenseInstallment,
+]
 
 @receiver(pre_save)
 def capture_old_status(sender, instance, **kwargs):
@@ -55,3 +62,50 @@ def handle_dynamic_notifications(sender, instance, created, **kwargs):
     except Exception as e:
         # Falhas no envio não devem travar o salvamento do registro principal
         logger.error(f"Erro ao processar notificações dinâmicas para {sender.__name__}: {e}")
+
+
+@receiver(post_save, sender=SalePayment)
+def handle_sale_payment_notifications(sender, instance, created, **kwargs):
+    """
+    Dispara PAGAMENTO_PARCIAL ou PAGAMENTO_INTEGRAL quando um SalePayment é registrado.
+    O cálculo é feito pelo saldo real (inclui este pagamento), independente do status salvo.
+    """
+    if not created:
+        return
+    installment = instance.installment
+    if not installment:
+        return
+    try:
+        total_paid = installment.get_total_paid()
+        if total_paid >= installment.amount:
+            event = 'PAGAMENTO_INTEGRAL'
+        elif total_paid > 0:
+            event = 'PAGAMENTO_PARCIAL'
+        else:
+            return
+        dispatch_dynamic_notification(installment, event)
+    except Exception as e:
+        logger.error(f"Erro ao processar notificação de pagamento de parcela #{installment.pk}: {e}")
+
+
+@receiver(post_save, sender=InstallmentPayment)
+def handle_expense_payment_notifications(sender, instance, created, **kwargs):
+    """
+    Dispara PAGAMENTO_PARCIAL ou PAGAMENTO_INTEGRAL quando um InstallmentPayment (C. a Pagar) é registrado.
+    """
+    if not created:
+        return
+    expense_installment = instance.installment
+    if not expense_installment:
+        return
+    try:
+        total_paid = expense_installment.amount_paid
+        if total_paid >= expense_installment.amount:
+            event = 'PAGAMENTO_INTEGRAL'
+        elif total_paid > 0:
+            event = 'PAGAMENTO_PARCIAL'
+        else:
+            return
+        dispatch_dynamic_notification(expense_installment, event)
+    except Exception as e:
+        logger.error(f"Erro ao processar notificação de pagamento de despesa #{expense_installment.pk}: {e}")

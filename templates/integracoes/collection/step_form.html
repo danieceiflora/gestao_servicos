@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+    {# ===== Cabeçalho com back button ===== #}
+    <div class="mb-8 flex items-center gap-4">
+        <a href="{% url 'integracoes:collection_sequence_edit' sequence.pk %}"
+           class="h-10 w-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+           title="Voltar para a régua">
+            <i data-lucide="chevron-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+                {% if step %}Editar Etapa #{{ step.occurrence }}{% else %}Nova Etapa — {{ sequence.name }}{% endif %}
+            </h1>
+            <p class="text-sm text-slate-500">
+                Régua: <span class="font-medium text-slate-700">{{ sequence.name }}</span>
+            </p>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        {# ===== Bloco 1: Posição e Identificação ===== #}
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Identificação da Etapa</h2>
+
+            <div class="grid sm:grid-cols-3 gap-4">
+
+                {# Occurrence #}
+                <div class="space-y-2">
+                    <label for="id_occurrence" class="text-sm font-bold text-slate-700">Ocorrência</label>
+                    <input type="number" name="occurrence" id="id_occurrence"
+                           value="{{ step.occurrence|default:next_occurrence }}"
+                           min="1" max="50" required
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <p class="text-xs text-slate-400">Posição na sequência (1 = primeira cobrança).</p>
+                </div>
+
+                {# Label #}
+                <div class="sm:col-span-2 space-y-2">
+                    <label for="id_label" class="text-sm font-bold text-slate-700">Descrição (Tom)</label>
+                    <input type="text" name="label" id="id_label"
+                           value="{{ step.label|default:'' }}"
+                           placeholder="Ex: Tom amigável, Cobrança firme, Aviso formal"
+                           required
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                </div>
+            </div>
+        </div>
+
+        {# ===== Bloco 2: Template WhatsApp ===== #}
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Mensagem (Template WhatsApp)</h2>
+
+            {# Aviso sobre variáveis #}
+            <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-500 flex items-start gap-2">
+                <i data-lucide="info" class="h-4 w-4 mt-0.5 shrink-0 text-slate-400"></i>
+                <span>As variáveis são mapeadas a partir do modelo <strong class="text-slate-700">Parcela de Cobrança (Installment)</strong>. Use campos como <code class="bg-white border border-slate-200 rounded px-1">amount</code>, <code class="bg-white border border-slate-200 rounded px-1">due_date</code>, <code class="bg-white border border-slate-200 rounded px-1">billing.client.name</code>.</span>
+            </div>
+
+            {# Seleção de Template #}
+            <div class="space-y-2">
+                <label for="template_select" class="text-sm font-bold text-slate-700">Template WhatsApp (Meta)</label>
+                <select name="template_name" id="template_select" required
+                        hx-get="{% url 'integracoes:ajax_get_template_details' %}"
+                        hx-target="#template_details"
+                        hx-trigger="change, load delay:100ms"
+                        hx-vals='{"model_name": "Installment", "step_id": "{{ step.id|default:'' }}"}'
+                        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <option value="">Selecione um template...</option>
+                    {% for t in templates %}
+                    <option value="{{ t.name }}"
+                            {% if step.template_name == t.name %}selected{% endif %}>
+                        {{ t.name }} ({{ t.language }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {# Área de preview/variáveis carregada via HTMX #}
+            <div id="template_details" class="space-y-6 pt-4 border-t border-slate-100">
+                <div class="animate-pulse flex flex-col space-y-4">
+                    <div class="h-4 bg-slate-100 rounded w-3/4"></div>
+                    <div class="h-20 bg-slate-50 rounded"></div>
+                </div>
+            </div>
+        </div>
+
+        {# ===== Bloco 3: Intervalo de Espera ===== #}
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-5">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Intervalo para Próxima Cobrança</h2>
+
+            <div class="grid sm:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                    <label for="id_wait_days" class="text-sm font-bold text-slate-700">
+                        Aguardar antes do próximo
+                        <span class="font-normal text-slate-400">(dias)</span>
+                    </label>
+                    <input type="number" name="wait_days_before_next" id="id_wait_days"
+                           value="{{ step.wait_days_before_next|default:7 }}"
+                           min="0" max="365"
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <p class="text-xs text-slate-400">
+                        O intervalo efetivo é o maior entre o valor acima e o mínimo configurado na régua ({{ sequence.min_interval_days }} dias).
+                    </p>
+                </div>
+
+                {# Exibição dinâmica do intervalo efetivo #}
+                <div class="flex flex-col justify-center">
+                    <div id="effective_interval_display"
+                         class="p-4 rounded-xl border transition-all bg-slate-50 border-slate-200">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Intervalo efetivo</p>
+                        <p class="text-2xl font-bold text-slate-900">
+                            <span id="effective_value">{{ step.wait_days_before_next|default:7 }}</span>
+                            <span class="text-sm font-normal text-slate-400 ml-1">dias</span>
+                        </p>
+                        <p id="effective_note" class="text-xs mt-1.5 hidden text-amber-600 flex items-center gap-1">
+                            <i data-lucide="alert-triangle" class="h-3 w-3"></i>
+                            Mínimo da régua ({{ sequence.min_interval_days }}d) aplicado
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ===== Botões ===== #}
+        <div class="flex items-center justify-end gap-3 pt-2">
+            <a href="{% url 'integracoes:collection_sequence_edit' sequence.pk %}"
+               class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-8 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10">
+                {% if step %}Salvar Alterações{% else %}Criar Etapa{% endif %}
+            </button>
+        </div>
+
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const waitInput = document.getElementById('id_wait_days');
+    const effectiveValueEl = document.getElementById('effective_value');
+    const effectiveNoteEl = document.getElementById('effective_note');
+    const effectiveDisplayEl = document.getElementById('effective_interval_display');
+    const minInterval = {{ sequence.min_interval_days }};
+
+    function updateEffectiveInterval() {
+        const raw = parseInt(waitInput.value, 10);
+        const waitVal = isNaN(raw) || raw < 0 ? 0 : raw;
+        const effective = Math.max(minInterval, waitVal);
+
+        effectiveValueEl.textContent = effective;
+
+        if (effective > waitVal) {
+            // Mínimo da régua aplicado — destaque âmbar
+            effectiveDisplayEl.classList.remove('bg-slate-50', 'border-slate-200');
+            effectiveDisplayEl.classList.add('bg-amber-50', 'border-amber-200');
+            effectiveNoteEl.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            effectiveDisplayEl.classList.remove('bg-amber-50', 'border-amber-200');
+            effectiveDisplayEl.classList.add('bg-slate-50', 'border-slate-200');
+            effectiveNoteEl.classList.add('hidden');
+        }
+    }
+
+    waitInput.addEventListener('input', updateEffectiveInterval);
+    updateEffectiveInterval();
+});
+</script>
+{% endblock %}

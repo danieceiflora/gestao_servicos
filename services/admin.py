@@ -8,7 +8,7 @@ from .models import (
     ServiceChecklistItem, TaskChecklistResponse, ChecklistTemplate,
     ChecklistResponseMedia, Sale, SaleItem, Supplier, PaymentMethod, SalePayment,
     FinancialCategory, BankAccount, Expense, ExpenseInstallment, ExpenseAttachment,
-    RecurrenceRule, FinanceSettings
+    RecurrenceRule, FinanceSettings, Billing, Installment,
 )
 
 
@@ -258,3 +258,39 @@ class RecurrenceRuleAdmin(admin.ModelAdmin):
 @admin.register(FinanceSettings)
 class FinanceSettingsAdmin(admin.ModelAdmin):
     list_display = ['days_before_generation', 'updated_at']
+
+
+# --- Contas a Receber ---
+
+class InstallmentInline(admin.TabularInline):
+    model = Installment
+    extra = 0
+    fields = ['installment_number', 'due_date', 'amount', 'payment_method', 'status', 'paid_at']
+    readonly_fields = ['paid_at']
+    show_change_link = True
+
+
+@admin.register(Billing)
+class BillingAdmin(admin.ModelAdmin):
+    list_display = ['number', 'client', 'total_amount', 'discount', 'status', 'created_at']
+    list_filter = ['status', 'created_at']
+    search_fields = ['number', 'client__name', 'client__cpf']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [InstallmentInline]
+    fieldsets = (
+        ('Cobrança', {
+            'fields': ('client', 'sale', 'service_order', 'total_amount', 'discount', 'status'),
+        }),
+        ('Datas', {
+            'fields': ('created_at', 'updated_at'),
+        }),
+    )
+
+
+@admin.register(Installment)
+class InstallmentAdmin(admin.ModelAdmin):
+    list_display = ['billing', 'installment_number', 'due_date', 'amount', 'status', 'payment_method', 'paid_at']
+    list_filter = ['status', 'due_date', 'payment_method']
+    search_fields = ['billing__number', 'billing__client__name']
+    readonly_fields = ['paid_at']
+    autocomplete_fields = ['billing']

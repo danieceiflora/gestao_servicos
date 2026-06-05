@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+    <div class="mb-8 flex items-center gap-4">
+        <a href="{% url 'integracoes:scheduled_reminder_list' %}"
+           class="h-10 w-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+           title="Voltar">
+            <i data-lucide="chevron-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+                {% if reminder %}Editar Lembrete{% else %}Novo Lembrete Agendado{% endif %}
+            </h1>
+            <p class="text-sm text-slate-500">Envio único — dispara uma vez por parcela na data calculada.</p>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Identificação -->
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Identificação</h2>
+
+            <div class="grid sm:grid-cols-3 gap-4">
+                <div class="sm:col-span-2 space-y-2">
+                    <label for="id_name" class="text-sm font-bold text-slate-700">Nome</label>
+                    <input type="text" name="name" id="id_name"
+                           value="{{ reminder.name|default:'' }}"
+                           placeholder="Ex: Lembrete pré-vencimento, Aviso de vencimento hoje"
+                           required
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                </div>
+
+                <div class="space-y-2">
+                    <label for="id_offset_days" class="text-sm font-bold text-slate-700">
+                        Offset (dias)
+                    </label>
+                    <input type="number" name="offset_days" id="id_offset_days"
+                           value="{{ reminder.offset_days|default:-1 }}"
+                           min="-365" max="365"
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <p id="offset_hint" class="text-xs text-slate-400"></p>
+                </div>
+            </div>
+
+            <!-- Preview do gatilho -->
+            <div id="trigger_preview" class="p-3 rounded-xl border text-sm font-medium transition-all"></div>
+
+            {% if reminder %}
+            <div class="flex items-center gap-3 pt-2">
+                <input type="checkbox" name="is_active" id="id_is_active"
+                       {% if reminder.is_active %}checked{% endif %}
+                       class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900">
+                <label for="id_is_active" class="text-sm font-medium text-slate-700">Ativo</label>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Template WhatsApp -->
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Mensagem (Template WhatsApp)</h2>
+
+            <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-500 flex items-start gap-2">
+                <i data-lucide="info" class="h-4 w-4 mt-0.5 shrink-0 text-slate-400"></i>
+                <span>As variáveis são mapeadas a partir do modelo <strong class="text-slate-700">Parcela de Cobrança (Installment)</strong>. Use campos como <code class="bg-white border border-slate-200 rounded px-1">amount</code>, <code class="bg-white border border-slate-200 rounded px-1">due_date</code>, <code class="bg-white border border-slate-200 rounded px-1">billing.client.name</code>.</span>
+            </div>
+
+            <div class="space-y-2">
+                <label for="template_select" class="text-sm font-bold text-slate-700">Template WhatsApp (Meta)</label>
+                <select name="template_name" id="template_select" required
+                        hx-get="{% url 'integracoes:ajax_get_template_details' %}"
+                        hx-target="#template_details"
+                        hx-trigger="change, load delay:100ms"
+                        hx-vals='{"model_name": "Installment", "reminder_id": "{{ reminder.id|default:'' }}"}'
+                        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <option value="">Selecione um template...</option>
+                    {% for t in templates %}
+                    <option value="{{ t.name }}"
+                            {% if reminder.template_name == t.name %}selected{% endif %}>
+                        {{ t.name }} ({{ t.language }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="template_details" class="space-y-6 pt-4 border-t border-slate-100">
+                <div class="animate-pulse flex flex-col space-y-4">
+                    <div class="h-4 bg-slate-100 rounded w-3/4"></div>
+                    <div class="h-20 bg-slate-50 rounded"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ações -->
+        <div class="flex items-center justify-end gap-3 pt-2">
+            <a href="{% url 'integracoes:scheduled_reminder_list' %}"
+               class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-8 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10">
+                {% if reminder %}Salvar Alterações{% else %}Criar Lembrete{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const offsetInput = document.getElementById('id_offset_days');
+    const hintEl = document.getElementById('offset_hint');
+    const previewEl = document.getElementById('trigger_preview');
+
+    function updatePreview() {
+        const val = parseInt(offsetInput.value, 10);
+        if (isNaN(val)) return;
+
+        if (val < 0) {
+            const n = Math.abs(val);
+            hintEl.textContent = `Parcelas com vencimento em ${n} dia(s)`;
+            previewEl.textContent = `Dispara ${n} dia(s) antes do vencimento — parcelas ainda em aberto`;
+            previewEl.className = 'p-3 rounded-xl border text-sm font-medium transition-all bg-emerald-50 border-emerald-200 text-emerald-800';
+        } else if (val === 0) {
+            hintEl.textContent = 'Parcelas com vencimento hoje';
+            previewEl.textContent = 'Dispara no dia do vencimento';
+            previewEl.className = 'p-3 rounded-xl border text-sm font-medium transition-all bg-blue-50 border-blue-200 text-blue-800';
+        } else {
+            hintEl.textContent = `Parcelas que venceram há ${val} dia(s)`;
+            previewEl.textContent = `Dispara ${val} dia(s) após o vencimento — parcelas em atraso`;
+            previewEl.className = 'p-3 rounded-xl border text-sm font-medium transition-all bg-amber-50 border-amber-200 text-amber-800';
+        }
+    }
+
+    offsetInput.addEventListener('input', updatePreview);
+    updatePreview();
+});
+</script>
+{% endblock %}

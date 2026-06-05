@@ -1,7 +1,10 @@
 import json
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import WebhookEvent, SystemConfig, NotificationConfig, NotificationVariable
+from .models import (
+    WebhookEvent, SystemConfig, NotificationConfig, NotificationVariable,
+    ScheduledReminder, ScheduledReminderVariable, ScheduledReminderLog,
+)
 
 class NotificationVariableInline(admin.TabularInline):
     model = NotificationVariable
@@ -95,3 +98,42 @@ class WebhookEventAdmin(admin.ModelAdmin):
                 return str(obj.headers)
         return "-"
     formatted_headers.short_description = 'Cabeçalhos Formatados'
+
+
+# --- Lembretes Agendados ---
+
+class ScheduledReminderVariableInline(admin.TabularInline):
+    model = ScheduledReminderVariable
+    extra = 1
+    fields = ['index', 'field_path']
+
+
+@admin.register(ScheduledReminder)
+class ScheduledReminderAdmin(admin.ModelAdmin):
+    list_display = ['name', 'offset_days', 'template_name', 'is_active', 'created_at']
+    list_filter = ['is_active']
+    search_fields = ['name', 'template_name']
+    inlines = [ScheduledReminderVariableInline]
+    fieldsets = (
+        ('Identificação', {
+            'fields': ('name', 'is_active'),
+        }),
+        ('Gatilho', {
+            'fields': ('offset_days',),
+            'description': 'Negativo = antes do vencimento. Zero = no vencimento. Positivo = após o vencimento.',
+        }),
+        ('Mensagem', {
+            'fields': ('template_name',),
+        }),
+    )
+
+
+@admin.register(ScheduledReminderLog)
+class ScheduledReminderLogAdmin(admin.ModelAdmin):
+    list_display = ['reminder', 'installment', 'phone', 'status', 'sent_at']
+    list_filter = ['status', 'sent_at', 'reminder']
+    search_fields = ['reminder__name', 'phone', 'installment__billing__number']
+    readonly_fields = ['reminder', 'installment', 'phone', 'status', 'notes', 'sent_at']
+
+    def has_add_permission(self, request):
+        return False

@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+    {# ===== Cabeçalho com back button ===== #}
+    <div class="mb-8 flex items-center gap-4">
+        <a href="{% url 'integracoes:collection_sequence_list' %}"
+           class="h-10 w-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+           title="Voltar para lista">
+            <i data-lucide="chevron-left" class="h-5 w-5"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+                {% if sequence %}Editar Régua: {{ sequence.name }}{% else %}Nova Régua{% endif %}
+            </h1>
+            <p class="text-sm text-slate-500">
+                {% if sequence %}Ajuste as configurações globais desta sequência de cobrança.{% else %}Configure uma nova sequência automática de cobranças por WhatsApp.{% endif %}
+            </p>
+        </div>
+    </div>
+
+    {# ===== Formulário de configuração da sequência ===== #}
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        {# Bloco: Identificação #}
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Identificação</h2>
+
+            <div class="space-y-2">
+                <label for="id_name" class="text-sm font-bold text-slate-700">Nome da Régua</label>
+                <input type="text" name="name" id="id_name"
+                       value="{{ sequence.name|default:'' }}"
+                       placeholder="Ex: Cobrança Padrão — Clientes PF"
+                       required
+                       class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+            </div>
+
+            {# Checkbox is_active apenas no edit #}
+            {% if sequence %}
+            <div class="flex items-center gap-2 pt-1">
+                <input type="checkbox" name="is_active" id="id_is_active"
+                       {% if sequence.is_active %}checked{% endif %}
+                       class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20">
+                <label for="id_is_active" class="text-sm font-medium text-slate-700">Régua ativa</label>
+            </div>
+            {% endif %}
+        </div>
+
+        {# Bloco: Regras de Disparo #}
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Regras de Disparo</h2>
+
+            <div class="grid sm:grid-cols-2 gap-4">
+
+                {# start_after_days_overdue #}
+                <div class="space-y-2">
+                    <label for="id_start_after" class="text-sm font-bold text-slate-700">
+                        Iniciar após
+                        <span class="font-normal text-slate-400">(dias em atraso)</span>
+                    </label>
+                    <input type="number" name="start_after_days_overdue" id="id_start_after"
+                           value="{{ sequence.start_after_days_overdue|default:1 }}"
+                           min="0" max="365"
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <p class="text-xs text-slate-400">Só inicia cobranças após X dias em atraso.</p>
+                </div>
+
+                {# stop_after_days_overdue #}
+                <div class="space-y-2">
+                    <label for="id_stop_after" class="text-sm font-bold text-slate-700">
+                        Parar após
+                        <span class="font-normal text-slate-400">(dias em atraso)</span>
+                    </label>
+                    <input type="number" name="stop_after_days_overdue" id="id_stop_after"
+                           value="{{ sequence.stop_after_days_overdue|default:60 }}"
+                           min="1" max="730"
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <p class="text-xs text-slate-400">Encerra a sequência após este número de dias de atraso.</p>
+                </div>
+
+                {# max_occurrences #}
+                <div class="space-y-2">
+                    <label for="id_max_occurrences" class="text-sm font-bold text-slate-700">
+                        Máximo de cobranças
+                    </label>
+                    <input type="number" name="max_occurrences" id="id_max_occurrences"
+                           value="{{ sequence.max_occurrences|default:3 }}"
+                           min="1" max="50"
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <p class="text-xs text-slate-400">Número máximo de vezes que uma parcela pode ser cobrada nesta régua.</p>
+                </div>
+
+                {# min_interval_days #}
+                <div class="space-y-2">
+                    <label for="id_min_interval" class="text-sm font-bold text-slate-700">
+                        Intervalo mínimo
+                        <span class="font-normal text-slate-400">(dias)</span>
+                    </label>
+                    <input type="number" name="min_interval_days" id="id_min_interval"
+                           value="{{ sequence.min_interval_days|default:5 }}"
+                           min="1" max="90"
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <div class="flex items-start gap-1.5 mt-1 p-2.5 bg-amber-50 border border-amber-100 rounded-lg">
+                        <i data-lucide="info" class="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0"></i>
+                        <p class="text-[11px] text-amber-700">Intervalo mínimo para saúde da conta Meta (recomendado: 5 dias). Sobrepõe o <em>wait_days</em> das etapas se for maior.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Botões #}
+        <div class="flex items-center justify-end gap-3 pt-2">
+            <a href="{% url 'integracoes:collection_sequence_list' %}"
+               class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-8 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10">
+                {% if sequence %}Salvar Alterações{% else %}Criar Régua{% endif %}
+            </button>
+        </div>
+    </form>
+
+    {# ===== Seção de Etapas — somente no edit ===== #}
+    {% if sequence %}
+    <div class="mt-10 space-y-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="list-ordered" class="h-4 w-4 text-slate-500"></i>
+                    Etapas configuradas
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">Sequência de disparos desta régua, por ordem de ocorrência.</p>
+            </div>
+            <a href="{% url 'integracoes:collection_step_create' sequence.pk %}"
+               class="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 transition-colors">
+                <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+                Adicionar Etapa
+            </a>
+        </div>
+
+        {% if steps %}
+        <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-white divide-y divide-slate-100">
+            {% for step in steps %}
+            <div class="flex items-start gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
+
+                {# Número de ocorrência #}
+                <div class="flex-none h-9 w-9 rounded-full bg-slate-900 text-white text-sm font-bold flex items-center justify-center shadow-sm mt-0.5">
+                    {{ step.occurrence }}
+                </div>
+
+                {# Detalhes da etapa #}
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold text-sm text-slate-800">{{ step.label }}</span>
+                        <span class="text-[11px] font-mono text-slate-400 bg-slate-100 rounded px-1.5 py-0.5">{{ step.template_name }}</span>
+                    </div>
+                    <div class="flex items-center gap-3 mt-1 flex-wrap">
+                        <span class="text-xs text-slate-500 flex items-center gap-1">
+                            <i data-lucide="timer" class="h-3 w-3 text-slate-400"></i>
+                            Aguarda {{ step.wait_days_before_next }}d antes do próximo
+                        </span>
+                        {% if step.effective_interval > step.wait_days_before_next %}
+                        <span class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 rounded px-1.5 py-0.5 border border-amber-100">
+                            <i data-lucide="alert-triangle" class="h-2.5 w-2.5"></i>
+                            intervalo efetivo: {{ step.effective_interval }}d (mínimo da régua aplicado)
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# Ações #}
+                <div class="flex items-center gap-1 flex-none">
+                    <a href="{% url 'integracoes:collection_step_edit' step.pk %}"
+                       class="p-2 text-slate-400 hover:text-slate-900 transition-colors rounded-lg hover:bg-slate-100"
+                       title="Editar etapa">
+                        <i data-lucide="edit-3" class="h-4 w-4"></i>
+                    </a>
+                    <form action="{% url 'integracoes:collection_step_delete' step.pk %}" method="post" class="inline"
+                          onsubmit="return confirm('Remover a etapa #{{ step.occurrence }} ({{ step.label }})?')">
+                        {% csrf_token %}
+                        <button type="submit" class="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50" title="Excluir etapa">
+                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        {# Empty state de etapas #}
+        <div class="text-center py-12 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+            <div class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-3">
+                <i data-lucide="list-ordered" class="h-5 w-5"></i>
+            </div>
+            <h3 class="text-sm font-medium text-slate-900">Nenhuma etapa ainda</h3>
+            <p class="text-xs text-slate-500 mt-1 mb-4">Adicione a primeira etapa para definir quando e como cobrar.</p>
+            <a href="{% url 'integracoes:collection_step_create' sequence.pk %}"
+               class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+                <i data-lucide="plus" class="h-4 w-4"></i>
+                Adicionar primeira etapa
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {# /if sequence #}
+
+</div>
+{% endblock %}

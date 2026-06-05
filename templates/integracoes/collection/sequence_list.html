@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8">
+
+    {# ===== Cabeçalho ===== #}
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Régua de Cobrança</h1>
+            <p class="text-sm text-slate-500">Sequências automáticas de cobranças enviadas por WhatsApp conforme o atraso da parcela.</p>
+        </div>
+        <a href="{% url 'integracoes:collection_sequence_create' %}"
+           class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors gap-2">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            Nova Régua
+        </a>
+    </div>
+
+    {# ===== Lista de Sequências ===== #}
+    {% if sequences %}
+    <div class="space-y-6">
+        {% for sequence in sequences %}
+        <div class="border border-slate-200 rounded-2xl shadow-sm bg-white overflow-hidden">
+
+            {# Linha superior: nome + badge + ações #}
+            <div class="flex items-center justify-between gap-4 px-6 py-4 border-b border-slate-100">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="flex-none h-9 w-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                        <i data-lucide="layers" class="h-4 w-4"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-bold text-slate-900">{{ sequence.name }}</span>
+                            {% if sequence.is_active %}
+                            <span class="inline-flex items-center rounded-full bg-green-50 px-2.5 py-0.5 text-[11px] font-medium text-green-700 border border-green-100">
+                                <span class="mr-1 h-1.5 w-1.5 rounded-full bg-green-500 inline-block"></span>Ativo
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 border border-slate-200">
+                                <span class="mr-1 h-1.5 w-1.5 rounded-full bg-slate-400 inline-block"></span>Inativo
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-1 flex-none">
+                    <a href="{% url 'integracoes:collection_sequence_edit' sequence.pk %}"
+                       class="p-2 text-slate-400 hover:text-slate-900 transition-colors rounded-lg hover:bg-slate-50"
+                       title="Editar régua">
+                        <i data-lucide="edit-3" class="h-4 w-4"></i>
+                    </a>
+                    <form action="{% url 'integracoes:collection_sequence_delete' sequence.pk %}" method="post" class="inline"
+                          onsubmit="return confirm('Excluir a régua \'{{ sequence.name }}\' e todas as suas etapas e logs?')">
+                        {% csrf_token %}
+                        <button type="submit" class="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50" title="Excluir régua">
+                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            {# Linha de metadados: pills com ícones #}
+            <div class="flex items-center flex-wrap gap-2 px-6 py-3 bg-slate-50 border-b border-slate-100">
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600">
+                    <i data-lucide="clock" class="h-3 w-3 text-slate-400"></i>
+                    Inicia após {{ sequence.start_after_days_overdue }}d em atraso
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600">
+                    <i data-lucide="stop-circle" class="h-3 w-3 text-slate-400"></i>
+                    Para após {{ sequence.stop_after_days_overdue }}d
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600">
+                    <i data-lucide="list-ordered" class="h-3 w-3 text-slate-400"></i>
+                    Máx. {{ sequence.max_occurrences }} cobranças
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600">
+                    <i data-lucide="timer" class="h-3 w-3 text-slate-400"></i>
+                    Mín. {{ sequence.min_interval_days }}d entre envios
+                </span>
+            </div>
+
+            {# Pipeline visual inline de etapas #}
+            <div class="px-6 py-5">
+                {% with steps=sequence.steps.all %}
+                {% if steps %}
+                <div class="flex items-start gap-0 flex-wrap">
+                    {% for step in steps %}
+
+                    {# Nó da etapa #}
+                    <div class="flex items-center gap-0">
+                        <div class="flex flex-col items-center min-w-0">
+                            {# Bolinha numerada #}
+                            <div class="flex-none h-8 w-8 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center shadow-sm">
+                                {{ step.occurrence }}
+                            </div>
+                            {# Detalhes da etapa #}
+                            <div class="mt-2 text-center max-w-[140px]">
+                                <p class="text-xs font-semibold text-slate-700 leading-tight truncate" title="{{ step.label }}">{{ step.label }}</p>
+                                <p class="text-[11px] font-mono text-slate-400 mt-0.5 truncate" title="{{ step.template_name }}">{{ step.template_name }}</p>
+                                <div class="mt-1 flex flex-col items-center gap-0.5">
+                                    <span class="text-[10px] text-slate-500">aguarda {{ step.wait_days_before_next }}d</span>
+                                    {% if step.effective_interval > step.wait_days_before_next %}
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 rounded px-1.5 py-0.5 border border-amber-100">
+                                        <i data-lucide="alert-triangle" class="h-2.5 w-2.5"></i>
+                                        efetivo: {{ step.effective_interval }}d
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        {# Conector (não mostra após o último) #}
+                        {% if not forloop.last %}
+                        <div class="flex items-center self-start mt-3.5 mx-2">
+                            <div class="w-8 h-0.5 bg-slate-200"></div>
+                            <i data-lucide="chevron-right" class="h-3 w-3 text-slate-300 -ml-1"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% endfor %}
+                </div>
+
+                {% else %}
+                {# Empty state dentro do card #}
+                <div class="flex items-center gap-3 py-4 text-center justify-center">
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                            <i data-lucide="list-ordered" class="h-4 w-4"></i>
+                        </div>
+                        <p class="text-xs text-slate-500">Nenhuma etapa configurada — adicione a primeira</p>
+                    </div>
+                </div>
+                {% endif %}
+                {% endwith %}
+            </div>
+
+            {# Botão adicionar etapa #}
+            <div class="px-6 pb-4 flex items-center justify-between">
+                <a href="{% url 'integracoes:collection_step_create' sequence.pk %}"
+                   class="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-slate-900 hover:text-slate-900 hover:bg-slate-50 transition-all">
+                    <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+                    Adicionar Etapa
+                </a>
+                {% with log_count=sequence.logs.count %}
+                {% if log_count > 0 %}
+                <span class="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                    <i data-lucide="send" class="h-3 w-3 text-slate-400"></i>
+                    {{ log_count }} envio{{ log_count|pluralize:"s" }} no total
+                </span>
+                {% endif %}
+                {% endwith %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    {# ===== Empty state global ===== #}
+    <div class="text-center py-16 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+        <div class="inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-4">
+            <i data-lucide="git-branch" class="h-7 w-7"></i>
+        </div>
+        <h3 class="text-sm font-bold text-slate-900">Nenhuma régua configurada</h3>
+        <p class="text-xs text-slate-500 mt-1 mb-5 max-w-xs mx-auto">Crie sequências de cobrança para enviar lembretes automáticos por WhatsApp conforme o atraso da parcela.</p>
+        <a href="{% url 'integracoes:collection_sequence_create' %}"
+           class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            Criar primeira régua
+        </a>
+    </div>
+    {% endif %}
+
+    {# ===== Bloco cron ===== #}
+    <div class="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+        <div class="flex items-center gap-2 text-slate-700">
+            <i data-lucide="terminal" class="h-4 w-4"></i>
+            <span class="text-sm font-bold">Como agendar o envio automático</span>
+        </div>
+        <p class="text-xs text-slate-500">Adicione a linha abaixo ao <strong>crontab</strong> do servidor para executar diariamente às 8h:</p>
+        <pre class="bg-slate-900 text-green-400 text-xs rounded-lg p-4 overflow-x-auto font-mono">0 8 * * * /caminho/para/venv/bin/python /caminho/para/manage.py send_collection_reminders</pre>
+        <p class="text-xs text-slate-400">Para testar sem enviar mensagens, adicione <code class="bg-white border border-slate-200 rounded px-1">--dry-run</code> ao final do comando.</p>
+    </div>
+
+    {# ===== Tabela de últimos 50 logs ===== #}
+    {% if recent_logs %}
+    <div>
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Últimos 50 Envios</h2>
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-100 bg-slate-50">
+                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Parcela</th>
+                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Cliente</th>
+                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Sequência</th>
+                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Etapa</th>
+                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Status</th>
+                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Enviado em</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                    {% for log in recent_logs %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-4 py-3 font-mono text-xs text-slate-600">
+                            #{{ log.installment.billing.number|default:"—" }}
+                            <span class="text-slate-400">P{{ log.installment.installment_number }}</span>
+                        </td>
+                        <td class="px-4 py-3 text-slate-700 text-sm">
+                            {{ log.installment.billing.client.name|default:"—"|truncatechars:30 }}
+                        </td>
+                        <td class="px-4 py-3 text-slate-600 text-xs">
+                            {{ log.step.sequence.name|default:"—"|truncatechars:28 }}
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-600">
+                            <span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-slate-900 text-white text-[10px] font-bold">{{ log.step.occurrence|default:"—" }}</span>
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if log.status == 'SENT' %}
+                            <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                                <i data-lucide="check" class="h-3 w-3"></i> Enviado
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700" title="{{ log.notes }}">
+                                <i data-lucide="x" class="h-3 w-3"></i> Falhou
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-500">{{ log.sent_at|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

@@ -88,11 +88,16 @@ class NotificationConfig(models.Model):
         ('ServiceOrder', 'Ordem de Serviço'),
         ('ServiceOrderTask', 'Etapa de Serviço'),
         ('Sale', 'Venda'),
+        ('Billing', 'Cobrança (Fatura)'),
+        ('Installment', 'Parcela de Cobrança'),
+        ('ExpenseInstallment', 'Parcela de Despesa (C. a Pagar)'),
     ]
-    
+
     EVENT_CHOICES = [
         ('CRIAR', 'Criação do Registro'),
         ('MUDANCA_STATUS', 'Alteração de Status'),
+        ('PAGAMENTO_PARCIAL', 'Pagamento Parcial Registrado'),
+        ('PAGAMENTO_INTEGRAL', 'Pagamento Integral Registrado'),
     ]
 
     name = models.CharField('Nome da Regra/Descrição', max_length=100)
@@ -187,8 +192,8 @@ class NotificationVariable(models.Model):
     config = models.ForeignKey(NotificationConfig, on_delete=models.CASCADE, related_name='variables', verbose_name="Configuração")
     index = models.PositiveIntegerField('Índice da Variável (Ex: 1 para {{1}})')
     field_path = models.CharField(
-        'Caminho do Campo no Modelo', 
-        max_length=255, 
+        'Caminho do Campo no Modelo',
+        max_length=255,
         help_text='Ex: number, client_property.client.name, total_value'
     )
 
@@ -197,3 +202,181 @@ class NotificationVariable(models.Model):
         verbose_name_plural = 'Variáveis de Notificação'
         ordering = ['index']
         unique_together = ('config', 'index')
+
+
+# --- RÉGUA DE COBRANÇA ---
+
+class CollectionSequence(models.Model):
+    name = models.CharField('Nome da Régua', max_length=200)
+    start_after_days_overdue = models.PositiveIntegerField(
+        'Iniciar após (dias em atraso)', default=1,
+        help_text='Só começa a cobrar após a parcela estar em atraso por este número de dias'
+    )
+    stop_after_days_overdue = models.PositiveIntegerField(
+        'Parar após (dias em atraso)', default=60,
+        help_text='Para de cobrar se a parcela estiver em atraso há mais dias que este valor'
+    )
+    max_occurrences = models.PositiveIntegerField(
+        'Máximo de cobranças', default=3,
+        help_text='Número máximo de mensagens enviadas por parcela'
+    )
+    min_interval_days = models.PositiveIntegerField(
+        'Intervalo mínimo (dias)', default=5,
+        help_text='Intervalo mínimo entre cobranças para saúde da conta Meta'
+    )
+    is_active = models.BooleanField('Ativo', default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Régua de Cobrança'
+        verbose_name_plural = 'Réguas de Cobrança'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class CollectionStep(models.Model):
+    sequence = models.ForeignKey(CollectionSequence, on_delete=models.CASCADE, related_name='steps')
+    occurrence = models.PositiveIntegerField('Nº da Ocorrência', help_text='1 = primeira cobrança, 2 = segunda, etc.')
+    label = models.CharField('Tom / Descrição', max_length=200, blank=True, help_text='Ex: Tom amigável, Tom firme')
+    template_name = models.CharField('Template WhatsApp (Meta)', max_length=200)
+    wait_days_before_next = models.PositiveIntegerField(
+        'Aguardar antes da próxima (dias)', default=7,
+        help_text='Dias a aguardar após este envio antes de enviar a próxima etapa'
+    )
+
+    class Meta:
+        verbose_name = 'Etapa da Régua'
+        verbose_name_plural = 'Etapas da Régua'
+        unique_together = ('sequence', 'occurrence')
+        ordering = ['occurrence']
+
+    def __str__(self):
+        return f"{self.sequence.name} — #{self.occurrence} {self.label or self.template_name}"
+
+    @property
+    def effective_interval(self):
+        return max(self.sequence.min_interval_days, self.wait_days_before_next)
+
+
+class CollectionStepVariable(models.Model):
+    step = models.ForeignKey(CollectionStep, on_delete=models.CASCADE, related_name='variables')
+    index = models.PositiveIntegerField('Índice (Ex: 1 para {{1}})')
+    field_path = models.CharField('Caminho do Campo', max_length=255)
+
+    class Meta:
+        verbose_name = 'Variável da Etapa'
+        verbose_name_plural = 'Variáveis da Etapa'
+        ordering = ['index']
+        unique_together = ('step', 'index')
+
+
+class CollectionInstallmentState(models.Model):
+    installment = models.OneToOneField(
+        'services.Installment', on_delete=models.CASCADE,
+        related_name='collection_state'
+    )
+    sequence = models.ForeignKey(CollectionSequence, on_delete=models.CASCADE, related_name='states')
+    current_occurrence = models.PositiveIntegerField('Ocorrência Atual', default=0)
+    last_sent_at = models.DateField('Último Envio', null=True, blank=True)
+    next_eligible_date = models.DateField('Próximo Envio Elegível', null=True, blank=True)
+    is_paused = models.BooleanField('Pausado', default=False)
+
+    class Meta:
+        verbose_name = 'Estado de Cobrança da Parcela'
+        verbose_name_plural = 'Estados de Cobrança das Parcelas'
+
+    def __str__(self):
+        return f"Parcela #{self.installment_id} — ocorrência {self.current_occurrence}"
+
+
+class CollectionLog(models.Model):
+    class Status(models.TextChoices):
+        SENT   = 'SENT',   'Enviado'
+        FAILED = 'FAILED', 'Falhou'
+
+    installment = models.ForeignKey(
+        'services.Installment', on_delete=models.CASCADE,
+        related_name='collection_logs'
+    )
+    step = models.ForeignKey(CollectionStep, on_delete=models.CASCADE, related_name='logs')
+    occurrence_number = models.PositiveIntegerField('Nº da Ocorrência')
+    sent_at = models.DateTimeField('Enviado em', auto_now_add=True)
+    phone = models.CharField('Telefone', max_length=30, blank=True)
+    status = models.CharField('Status', max_length=10, choices=Status.choices, default=Status.SENT)
+    notes = models.TextField('Observações', blank=True)
+
+    class Meta:
+        verbose_name = 'Log de Cobrança'
+        verbose_name_plural = 'Logs de Cobrança'
+        ordering = ['-sent_at']
+
+    def __str__(self):
+        return f"Parcela #{self.installment_id} — etapa #{self.occurrence_number} ({self.status})"
+
+
+# --- LEMBRETES AGENDADOS (ENVIO ÚNICO) ---
+
+class ScheduledReminder(models.Model):
+    name = models.CharField('Nome', max_length=200)
+    offset_days = models.IntegerField(
+        'Offset em Dias', default=-1,
+        help_text='Negativo = antes do vencimento (ex: -1 = 1 dia antes), 0 = no vencimento, positivo = após (ex: 3 = 3 dias após vencido)'
+    )
+    template_name = models.CharField('Template WhatsApp (Meta)', max_length=200)
+    is_active = models.BooleanField('Ativo', default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Lembrete Agendado'
+        verbose_name_plural = 'Lembretes Agendados'
+        ordering = ['offset_days', 'name']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def offset_label(self):
+        if self.offset_days < 0:
+            return f'{abs(self.offset_days)} dia(s) antes do vencimento'
+        elif self.offset_days == 0:
+            return 'No dia do vencimento'
+        return f'{self.offset_days} dia(s) após o vencimento'
+
+
+class ScheduledReminderVariable(models.Model):
+    reminder = models.ForeignKey(ScheduledReminder, on_delete=models.CASCADE, related_name='variables')
+    index = models.PositiveIntegerField('Índice (Ex: 1 para {{1}})')
+    field_path = models.CharField('Caminho do Campo', max_length=255)
+
+    class Meta:
+        verbose_name = 'Variável do Lembrete'
+        verbose_name_plural = 'Variáveis do Lembrete'
+        unique_together = ('reminder', 'index')
+        ordering = ['index']
+
+
+class ScheduledReminderLog(models.Model):
+    class Status(models.TextChoices):
+        SENT   = 'SENT',   'Enviado'
+        FAILED = 'FAILED', 'Falhou'
+
+    reminder = models.ForeignKey(ScheduledReminder, on_delete=models.CASCADE, related_name='logs')
+    installment = models.ForeignKey(
+        'services.Installment', on_delete=models.CASCADE,
+        related_name='scheduled_reminder_logs'
+    )
+    sent_at = models.DateTimeField('Enviado em', auto_now_add=True)
+    phone = models.CharField('Telefone', max_length=30, blank=True)
+    status = models.CharField('Status', max_length=10, choices=Status.choices, default=Status.SENT)
+    notes = models.TextField('Observações', blank=True)
+
+    class Meta:
+        verbose_name = 'Log de Lembrete'
+        verbose_name_plural = 'Logs de Lembretes'
+        ordering = ['-sent_at']
+
+    def __str__(self):
+        return f'Lembrete #{self.reminder_id} → Parcela #{self.installment_id} ({self.status})'
