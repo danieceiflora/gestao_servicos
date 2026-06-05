@@ -148,6 +148,7 @@ class NotificationConfig(models.Model):
         ('NONE', 'Nenhum'),
         ('BUDGET_PDF', 'Orçamento (PDF Gerado)'),
         ('REPORT_PDF', 'Relatório de Execução (PDF Gerado)'),
+        ('SALE_PDF', 'Relatório de Venda (PDF Gerado)'),
         ('STATIC_PDF', 'PDF Estático (Upload)'),
     ]
     header_media_type = models.CharField(

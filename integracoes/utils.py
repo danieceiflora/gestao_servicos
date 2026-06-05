@@ -169,7 +169,7 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
     """
     Encontra e dispara notificações baseadas na configuração.
     """
-    from services.utils.pdf_generator import BudgetPDFGenerator, CompletionPDFGenerator
+    from services.utils.pdf_generator import BudgetPDFGenerator, CompletionPDFGenerator, SalePDFGenerator
     
     model_name = instance.__class__.__name__
     new_status = getattr(instance, 'status', None)
@@ -238,6 +238,13 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
                     pdf_content = pdf_gen.generate()
                     attachment = (f"Relatorio_{order.number}.pdf", pdf_content, "application/pdf")
                 
+                elif config.header_media_type == 'SALE_PDF':
+                    sale = instance if model_name == 'Sale' else getattr(instance, 'venda', None) or getattr(instance, 'sale', None)
+                    if sale:
+                        pdf_gen = SalePDFGenerator(sale)
+                        pdf_content = pdf_gen.generate()
+                        attachment = (f"Venda_{sale.number}.pdf", pdf_content, "application/pdf")
+
                 elif config.header_media_type == 'STATIC_PDF' and config.static_media_file:
                     file_name = config.static_media_file.name.split('/')[-1]
                     # Abrir o arquivo para leitura

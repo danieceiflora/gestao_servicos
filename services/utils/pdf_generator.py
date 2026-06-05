@@ -885,3 +885,272 @@ class CompletionPDFGenerator(BasePDFGenerator):
         pdf = self.buffer.getvalue()
         self.buffer.close()
         return pdf
+
+
+class SalePDFGenerator(BasePDFGenerator):
+    def __init__(self, sale):
+        super().__init__(sale)  # sale.number used in footer/header
+        self.sale = sale
+        self.doc_title = "Pedido de Venda"
+
+    def _draw_footer(self, canvas, doc):
+        canvas.saveState()
+        canvas.setFont('Helvetica', 8)
+        canvas.setStrokeColor(self.grid_color)
+        canvas.setLineWidth(0.5)
+        canvas.line(1.5*cm, 1.2*cm, A4[0]-1.5*cm, 1.2*cm)
+        company_info = f"{self.config.company_name or '---'}"
+        if self.config.company_cnpj:
+            company_info += f" - CNPJ: {self.config.company_cnpj}"
+        footer_text = f"{company_info} | Venda nº {self.sale.number} | Pág. {canvas.getPageNumber()}"
+        canvas.drawRightString(A4[0]-1.5*cm, 0.8*cm, footer_text)
+        canvas.restoreState()
+
+    def _get_sale_client_info(self):
+        elements = []
+        client = self.sale.client
+        if not client:
+            return elements
+
+        phone_val = "---"
+        if client.phones.exists():
+            phone_val = client.phones.first().phone
+
+        elements.append(self._section_title("DADOS DO CLIENTE"))
+        elements.append(Spacer(1, 0.1*cm))
+
+        data = [
+            [
+                [Paragraph("Cliente", self.styles['GridLabel']), Paragraph(str(client.display_name or "---"), self.styles['GridValue'])],
+                [Paragraph("CPF/CNPJ", self.styles['GridLabel']), Paragraph(str(client.document or "---"), self.styles['GridValue'])],
+                [Paragraph("Telefone", self.styles['GridLabel']), Paragraph(phone_val, self.styles['GridValue'])],
+            ],
+        ]
+        table = Table(data, colWidths=[9*cm, 4.5*cm, 4.5*cm])
+        table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 0.5, self.grid_color),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ]))
+        elements.append(table)
+
+        if self.sale.delivery_address:
+            elements.append(Spacer(1, 0.2*cm))
+            address_line = self.sale.delivery_address
+            if self.sale.delivery_number:
+                address_line += f", {self.sale.delivery_number}"
+            if self.sale.delivery_complement:
+                address_line += f" - {self.sale.delivery_complement}"
+
+            delivery_data = [
+                [
+                    [Paragraph("Destinatário", self.styles['GridLabel']), Paragraph(self.sale.delivery_name or str(client.display_name), self.styles['GridValue'])],
+                    [Paragraph("Logradouro", self.styles['GridLabel']), Paragraph(address_line, self.styles['GridValue'])],
+                    '',
+                ],
+                [
+                    [Paragraph("Bairro", self.styles['GridLabel']), Paragraph(self.sale.delivery_neighborhood or "---", self.styles['GridValue'])],
+                    [Paragraph("Cidade", self.styles['GridLabel']), Paragraph(self.sale.delivery_city or "---", self.styles['GridValue'])],
+                    [Paragraph("UF / CEP", self.styles['GridLabel']), Paragraph(f"{self.sale.delivery_state or '---'} / {self.sale.delivery_cep or '---'}", self.styles['GridValue'])],
+                ],
+            ]
+            delivery_table = Table(delivery_data, colWidths=[5*cm, 9*cm, 4*cm])
+            delivery_table.setStyle(TableStyle([
+                ('GRID', (0, 0), (-1, -1), 0.5, self.grid_color),
+                ('SPAN', (1, 0), (2, 0)),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 2),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+                ('BACKGROUND', (0, 0), (-1, 0), self.bg_light),
+            ]))
+            elements.append(Paragraph("Endereço de Entrega", self.styles['SmallLabel']))
+            elements.append(Spacer(1, 0.1*cm))
+            elements.append(delivery_table)
+
+        elements.append(Spacer(1, 0.5*cm))
+        return elements
+
+    def _get_sale_info(self):
+        elements = []
+        elements.append(self._section_title("DADOS DA VENDA"))
+        elements.append(Spacer(1, 0.1*cm))
+
+        salesperson = self.sale.user.get_full_name() or self.sale.user.username
+        payment_display = self.sale.get_payment_method_display() if self.sale.payment_method else "---"
+        delivery_date = self.sale.delivery_date.strftime('%d/%m/%Y') if self.sale.delivery_date else "---"
+        created_at = self.sale.created_at.strftime('%d/%m/%Y') if self.sale.created_at else "---"
+
+        rows = [
+            [Paragraph("Vendedor:", self.styles['Label']), Paragraph(salesperson, self.styles['Value'])],
+            [Paragraph("Data da Venda:", self.styles['Label']), Paragraph(created_at, self.styles['Value'])],
+            [Paragraph("Prazo de Entrega:", self.styles['Label']), Paragraph(delivery_date, self.styles['Value'])],
+            [Paragraph("Forma de Pagamento:", self.styles['Label']), Paragraph(payment_display, self.styles['Value'])],
+        ]
+        if self.sale.external_po_number:
+            rows.append([Paragraph("Nº Pedido do Cliente (PO):", self.styles['Label']), Paragraph(self.sale.external_po_number, self.styles['Value'])])
+
+        table = Table(rows, colWidths=[5*cm, 13*cm])
+        table.setStyle(TableStyle([
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('GRID', (0, 0), (-1, -1), 0.5, self.grid_color),
+            ('BACKGROUND', (0, 0), (0, -1), self.bg_light),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 0.5*cm))
+        return elements
+
+    def _get_items_table(self):
+        elements = []
+        elements.append(self._section_title("ITENS DO PEDIDO"))
+        elements.append(Spacer(1, 0.1*cm))
+
+        data = [[
+            Paragraph("CÓDIGO", self.styles['TableHeader']),
+            Paragraph("DESCRIÇÃO", self.styles['TableHeader']),
+            Paragraph("QTD", self.styles['TableHeader']),
+            Paragraph("UN.", self.styles['TableHeader']),
+            Paragraph("UNIT.", self.styles['TableHeader']),
+            Paragraph("DESC.", self.styles['TableHeader']),
+            Paragraph("SUBTOTAL", self.styles['TableHeader']),
+        ]]
+
+        for item in self.sale.items.all():
+            code = item.product.code if (item.product and item.product.code) else "---"
+            description = item.product.name if item.product else "---"
+            if item.variant and hasattr(item.variant, 'name'):
+                description += f" ({item.variant.name})"
+            unit = "mt" if item.product and item.product.unit_type == 'METRO' else "un"
+            data.append([
+                Paragraph(code, self.styles['TableItem']),
+                Paragraph(description, self.styles['TableItem']),
+                Paragraph(str(item.quantity).replace('.', ','), self.styles['TableItem']),
+                Paragraph(unit, self.styles['TableItem']),
+                Paragraph(self._format_currency(item.unit_price), self.styles['TableItem']),
+                Paragraph(self._format_currency(item.discount) if item.discount else "—", self.styles['TableItem']),
+                Paragraph(self._format_currency(item.subtotal), self.styles['TableItem']),
+            ])
+
+        if len(data) == 1:
+            data.append([Paragraph("---", self.styles['TableItem']), Paragraph("Nenhum item", self.styles['TableItem']), "", "", "", "", ""])
+
+        table = Table(data, colWidths=[2*cm, 6.5*cm, 1.5*cm, 1.5*cm, 2.5*cm, 2*cm, 2*cm])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), self.header_bg),
+            ('GRID', (0, 0), (-1, -1), 0.5, self.grid_color),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 0.4*cm))
+        return elements
+
+    def _get_summary(self):
+        elements = []
+        items_subtotal = sum(item.subtotal for item in self.sale.items.all())
+        discount = self.sale.discount or 0
+        surcharge = self.sale.surcharge or 0
+        total = self.sale.total_amount or 0
+
+        rows = [
+            [Paragraph("Subtotal dos Itens", self.styles['SummaryLabel']), Paragraph(self._format_currency(items_subtotal), self.styles['SummaryValue'])],
+        ]
+        if discount:
+            rows.append([Paragraph("Desconto", self.styles['SummaryLabel']), Paragraph(f"- {self._format_currency(discount)}", self.styles['SummaryValue'])])
+        if surcharge:
+            rows.append([Paragraph("Acréscimo", self.styles['SummaryLabel']), Paragraph(f"+ {self._format_currency(surcharge)}", self.styles['SummaryValue'])])
+        rows.append([Paragraph("Total Final", self.styles['TotalFinalLabel']), Paragraph(self._format_currency(total), self.styles['TotalFinalValue'])])
+
+        summary_table = Table(rows, colWidths=[10*cm, 3.5*cm])
+        summary_table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 0.5, self.grid_color),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('BACKGROUND', (0, -1), (1, -1), self.bg_light),
+        ]))
+        wrapper = Table([[Spacer(1, 1), summary_table]], colWidths=[4.5*cm, 13.5*cm])
+        wrapper.setStyle(TableStyle([('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
+        elements.append(wrapper)
+        elements.append(Spacer(1, 0.5*cm))
+        return elements
+
+    def _get_payment_conditions(self):
+        elements = []
+        billing = getattr(self.sale, 'billing', None)
+
+        if billing and billing.installments.exists():
+            elements.append(self._section_title("CONDIÇÕES DE PAGAMENTO"))
+            elements.append(Spacer(1, 0.1*cm))
+
+            data = [[
+                Paragraph("PARCELA", self.styles['TableHeader']),
+                Paragraph("VENCIMENTO", self.styles['TableHeader']),
+                Paragraph("VALOR", self.styles['TableHeader']),
+                Paragraph("FORMA", self.styles['TableHeader']),
+                Paragraph("STATUS", self.styles['TableHeader']),
+            ]]
+            for inst in billing.installments.all().order_by('installment_number'):
+                data.append([
+                    Paragraph(f"{inst.installment_number}ª", self.styles['TableItem']),
+                    Paragraph(inst.due_date.strftime('%d/%m/%Y'), self.styles['TableItem']),
+                    Paragraph(self._format_currency(inst.amount), self.styles['TableItem']),
+                    Paragraph(inst.payment_method or "---", self.styles['TableItem']),
+                    Paragraph(inst.get_status_display(), self.styles['TableItem']),
+                ])
+
+            table = Table(data, colWidths=[2.5*cm, 4*cm, 4*cm, 4*cm, 3.5*cm])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), self.header_bg),
+                ('GRID', (0, 0), (-1, -1), 0.5, self.grid_color),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+                ('ALIGN', (2, 1), (2, -1), 'RIGHT'),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ]))
+            elements.append(table)
+            elements.append(Spacer(1, 0.5*cm))
+
+        return elements
+
+    def _get_sale_notes(self):
+        elements = []
+        if self.sale.notes_customer:
+            elements.append(self._section_title("OBSERVAÇÕES"))
+            obs_table = Table([[Paragraph(str(self.sale.notes_customer), self.styles['TableItem'])]], colWidths=[18*cm])
+            obs_table.setStyle(TableStyle([
+                ('GRID', (0, 0), (-1, -1), 0.5, self.grid_color),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ]))
+            elements.append(obs_table)
+            elements.append(Spacer(1, 0.5*cm))
+        return elements
+
+    def generate(self):
+        doc = SimpleDocTemplate(self.buffer, pagesize=A4, rightMargin=1.5*cm, leftMargin=1.5*cm, topMargin=1.5*cm, bottomMargin=1.5*cm)
+        elements = []
+        elements.extend(self._get_header(doc_title=self.doc_title))
+        elements.extend(self._get_sale_client_info())
+        elements.extend(self._get_sale_info())
+        elements.extend(self._get_items_table())
+        elements.extend(self._get_summary())
+        elements.extend(self._get_payment_conditions())
+        elements.extend(self._get_sale_notes())
+        doc.build(elements, onFirstPage=self._draw_footer, onLaterPages=self._draw_footer)
+        pdf = self.buffer.getvalue()
+        self.buffer.close()
+        return pdf
