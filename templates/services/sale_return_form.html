@@ -23,16 +23,12 @@
         </a>
     </div>
 
-    {# Mensagens Django #}
     {% if messages %}
-    {% for message in messages %}
-    <div class="mb-4 p-3 rounded-lg text-xs font-bold flex items-center gap-2
-        {% if message.tags == 'error' %}bg-red-50 text-red-700 border border-red-200
-        {% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
-        <i data-lucide="{% if message.tags == 'error' %}alert-circle{% else %}check-circle{% endif %}" class="w-4 h-4 shrink-0"></i>
-        {{ message }}
-    </div>
-    {% endfor %}
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        {% for message in messages %}window.showToast("{{ message|escapejs }}", "{{ message.tags|escapejs }}");{% endfor %}
+    });
+    </script>
     {% endif %}
 
     <form method="POST" action="{% url 'sale_return_create' number=sale.number %}">
