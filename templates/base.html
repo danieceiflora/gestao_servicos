@@ -37,7 +37,51 @@
                 <a href="{% url 'equipe_task_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'equipe_task_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Tarefas</a>
                 {% else %}
                 <a href="{% url 'service_order_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Ordens</a>
-                
+
+                <div class="relative group">
+                    <button type="button" class="text-sm font-medium {% if 'contract' in request.resolver_match.url_name or 'asset' in request.resolver_match.url_name or 'closing' in request.resolver_match.url_name or 'visit' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
+                        Manutenção <i data-lucide="chevron-down" class="h-3 w-3"></i>
+                    </button>
+                    <div class="absolute left-0 top-full -mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
+                        <a href="{% url 'contract_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="file-check" class="h-4 w-4 text-blue-500"></i>
+                            Contratos
+                        </a>
+                        <a href="{% url 'asset_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="cpu" class="h-4 w-4 text-slate-400"></i>
+                            Equipamentos
+                        </a>
+                        <a href="{% url 'closing_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="calculator" class="h-4 w-4 text-green-500"></i>
+                            Fechamentos
+                        </a>
+                        <a href="{% url 'asset_category_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                            <i data-lucide="tag" class="h-4 w-4 text-slate-400"></i>
+                            Categorias
+                        </a>
+                    </div>
+                </div>
+
+                <div class="relative group">
+                    <button type="button" class="text-sm font-medium {% if 'bi_' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
+                        Relatórios <i data-lucide="chevron-down" class="h-3 w-3"></i>
+                    </button>
+                    <div class="absolute left-0 top-full -mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
+                        <a href="{% url 'bi_operacional' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="activity" class="h-4 w-4 text-blue-500"></i>
+                            Painel Operacional
+                        </a>
+                        <a href="{% url 'bi_produtividade' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="users" class="h-4 w-4 text-emerald-500"></i>
+                            Produtividade
+                        </a>
+                        <a href="{% url 'bi_manutencao' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                            <i data-lucide="wrench" class="h-4 w-4 text-slate-400"></i>
+                            Manutenção
+                        </a>
+                    </div>
+                </div>
+
                 <div class="relative group">
                     <button type="button" class="text-sm font-medium {% if 'finance' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
                         Financeiro <i data-lucide="chevron-down" class="h-3 w-3"></i>

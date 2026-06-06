@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-xl font-bold tracking-tight text-slate-950">{{ title }}</h2>
+            <p class="text-sm text-slate-500">Equipamentos e bens vinculados aos imóveis dos clientes</p>
+        </div>
+        <a href="{% url 'asset_create' %}" class="inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white shadow hover:bg-slate-900/90 gap-2">
+            <i data-lucide="plus" class="h-4 w-4"></i> Novo Equipamento
+        </a>
+    </div>
+
+    <form method="get" class="flex gap-3 items-end">
+        <div class="flex-1 max-w-xs space-y-1">
+            <label class="text-xs font-medium text-slate-600">Filtrar por Cliente</label>
+            <select name="client" class="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm h-10">
+                <option value="">Todos</option>
+                {% for client in clients %}
+                <option value="{{ client.id }}" {% if selected_client == client.id|stringformat:"s" %}selected{% endif %}>{{ client.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="h-10 px-4 rounded-md border border-slate-200 bg-white text-sm hover:bg-slate-50">Filtrar</button>
+        {% if selected_client %}<a href="{% url 'asset_list' %}" class="h-10 px-3 text-sm text-slate-400 hover:text-slate-700 inline-flex items-center">Limpar</a>{% endif %}
+    </form>
+
+    {% if assets %}
+    <div class="space-y-3">
+        {% for asset in assets %}
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-4 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <div class="p-2 rounded-lg bg-slate-100 border border-slate-200 shrink-0">
+                    <i data-lucide="{{ asset.category.icon|default:'tool' }}" class="h-5 w-5 text-slate-600"></i>
+                </div>
+                <div class="space-y-0.5">
+                    <div class="flex items-center gap-2">
+                        <span class="font-semibold text-slate-900">{{ asset.name }}</span>
+                        <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{{ asset.category.name }}</span>
+                        {% if not asset.is_active %}<span class="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Inativo</span>{% endif %}
+                    </div>
+                    <p class="text-sm text-slate-500">{{ asset.client_property.client.name }} · {{ asset.client_property.address }}, {{ asset.client_property.number|default:"S/N" }}</p>
+                    {% if asset.brand or asset.model_name %}
+                    <p class="text-xs text-slate-400">{{ asset.brand }} {% if asset.brand and asset.model_name %}—{% endif %} {{ asset.model_name }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <span class="text-xs text-slate-400">{{ asset.contracts.count }} contrato{{ asset.contracts.count|pluralize }}</span>
+                <a href="{% url 'asset_edit' asset.pk %}" class="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium hover:bg-slate-50">
+                    Editar
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="flex flex-col items-center justify-center py-16 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50">
+        <i data-lucide="cpu" class="h-10 w-10 text-slate-300 mb-3"></i>
+        <p class="font-semibold text-slate-500">Nenhum equipamento cadastrado.</p>
+        <a href="{% url 'asset_create' %}" class="mt-4 inline-flex h-9 items-center gap-2 px-4 rounded-md bg-slate-900 text-white text-sm font-medium">
+            <i data-lucide="plus" class="h-4 w-4"></i> Cadastrar equipamento
+        </a>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

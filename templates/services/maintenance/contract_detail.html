@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'contract_list' %}" class="inline-flex items-center justify-center rounded-md h-10 w-10 border border-slate-200 bg-white hover:bg-slate-100">
+            <i data-lucide="arrow-left" class="h-4 w-4"></i>
+        </a>
+        <div class="flex-1">
+            <div class="flex items-center gap-3 flex-wrap">
+                <h2 class="text-xl font-bold tracking-tight text-slate-950">{{ contract.asset.name }}</h2>
+                <span class="text-xs font-medium px-2 py-0.5 rounded-full
+                    {% if contract.status == 'ATIVO' %}bg-green-100 text-green-700
+                    {% elif contract.status == 'PAUSADO' %}bg-amber-100 text-amber-700
+                    {% else %}bg-slate-100 text-slate-600{% endif %}">
+                    {{ contract.get_status_display }}
+                </span>
+            </div>
+            <p class="text-sm text-slate-500">{{ contract.asset.client_property.client.name }} · {{ contract.asset.client_property.address }}, {{ contract.asset.client_property.number|default:"S/N" }}</p>
+        </div>
+        <a href="{% url 'contract_edit' contract.pk %}" class="inline-flex h-9 items-center gap-2 px-3 rounded-md border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50">
+            <i data-lucide="pencil" class="h-4 w-4"></i> Editar
+        </a>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 space-y-1">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Técnico Titular</p>
+            <p class="font-semibold text-slate-900 text-sm">{{ contract.primary_technician.name }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 space-y-1">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Valor Mensal</p>
+            <p class="font-semibold text-slate-900">R$ {{ contract.monthly_value|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 space-y-1">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Comissão/Visita (mês atual)</p>
+            <p class="font-semibold text-slate-900">R$ {{ commission_per_visit|floatformat:2 }}</p>
+            <p class="text-[10px] text-slate-400">{{ expected_this_month }} visita{{ expected_this_month|pluralize }} esperada{{ expected_this_month|pluralize }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 space-y-1">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Frequência</p>
+            <p class="font-semibold text-slate-900 text-sm">{{ contract.get_frequency_display }}</p>
+            {% if contract.visit_days %}
+            <p class="text-[10px] text-slate-400">
+                {% for day in contract.visit_days %}
+                {% if day == 0 %}Seg{% elif day == 1 %}Ter{% elif day == 2 %}Qua{% elif day == 3 %}Qui{% elif day == 4 %}Sex{% elif day == 5 %}Sáb{% elif day == 6 %}Dom{% endif %}{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Datas do Contrato -->
+    <div class="grid grid-cols-2 gap-3">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 space-y-1">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Início do Contrato</p>
+            <p class="font-semibold text-slate-900 text-sm">{{ contract.start_date|date:"d/m/Y" }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 space-y-1">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Término</p>
+            <p class="font-semibold text-slate-900 text-sm">{% if contract.end_date %}{{ contract.end_date|date:"d/m/Y" }}{% else %}<span class="text-slate-400">Indeterminado</span>{% endif %}</p>
+        </div>
+    </div>
+
+    {% if contract.description %}
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Observações</p>
+        <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ contract.description }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Alterar Status -->
+    <details class="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary class="cursor-pointer list-none p-4 flex items-center justify-between">
+            <span class="text-sm font-semibold text-slate-700">Alterar Status do Contrato</span>
+            <i data-lucide="chevron-right" class="h-4 w-4 text-slate-400 transition-transform group-open:rotate-90"></i>
+        </summary>
+        <div class="px-4 pb-4">
+            <form method="post" action="{% url 'contract_toggle_status' contract.pk %}" class="flex flex-wrap gap-2">
+                {% csrf_token %}
+                {% for val, label in contract.Status.choices %}
+                {% if val != contract.status %}
+                <button type="submit" name="status" value="{{ val }}" class="h-9 px-4 rounded-md border text-sm font-medium
+                    {% if val == 'ATIVO' %}border-green-200 bg-green-50 text-green-700 hover:bg-green-100
+                    {% elif val == 'PAUSADO' %}border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100
+                    {% else %}border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100{% endif %}">
+                    Marcar como {{ label }}
+                </button>
+                {% endif %}
+                {% endfor %}
+            </form>
+        </div>
+    </details>
+
+    <!-- Visits Section -->
+    <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
+            <div>
+                <h3 class="font-semibold text-slate-900">Visitas Registradas</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Histórico de visitas deste contrato</p>
+            </div>
+            <a href="{% url 'visit_create' contract.pk %}" class="inline-flex h-9 items-center gap-2 px-3 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-900/90">
+                <i data-lucide="plus" class="h-4 w-4"></i> Registrar Visita
+            </a>
+        </div>
+
+        <!-- Filter by month -->
+        <form method="get" class="px-5 pt-4 flex gap-3 items-end">
+            <div class="space-y-1">
+                <label class="text-xs font-medium text-slate-600">Mês</label>
+                <select name="month" class="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm h-9">
+                    <option value="">—</option>
+                    {% for m in months %}
+                    <option value="{{ m }}" {% if month_filter == m|stringformat:"s" %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="space-y-1">
+                <label class="text-xs font-medium text-slate-600">Ano</label>
+                <input type="number" name="year" value="{{ year_filter }}" placeholder="2025" class="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm h-9 w-24">
+            </div>
+            <button type="submit" class="h-9 px-3 rounded-md border border-slate-200 bg-white text-sm hover:bg-slate-50">Filtrar</button>
+            {% if month_filter or year_filter %}<a href="{% url 'contract_detail' contract.pk %}" class="h-9 px-3 text-sm text-slate-400 hover:text-slate-700 inline-flex items-center">Limpar</a>{% endif %}
+        </form>
+
+        <div class="p-5 space-y-3">
+            {% if visits %}
+            {% for visit in visits %}
+            <div class="flex items-center justify-between p-4 border border-slate-200 rounded-lg bg-white shadow-sm gap-4">
+                <div class="space-y-1 flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold text-slate-900">{{ visit.scheduled_date|date:"d/m/Y" }}</span>
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full
+                            {% if visit.status == 'CONCLUIDA' %}bg-green-100 text-green-700
+                            {% elif visit.status == 'EM_ANDAMENTO' %}bg-blue-100 text-blue-700
+                            {% elif visit.status == 'CANCELADA' %}bg-red-100 text-red-600
+                            {% else %}bg-slate-100 text-slate-600{% endif %}">
+                            {{ visit.get_status_display }}
+                        </span>
+                        {% if visit.is_coverage %}
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                            Cobertura{% if visit.coverage_receives_commission %} (recebe){% else %} (sem custo){% endif %}
+                        </span>
+                        {% endif %}
+                        {% if visit.is_extra %}
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Extra</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-xs text-slate-500">
+                        Executado por: <strong class="text-slate-700">
+                            {% if visit.executed_by %}{{ visit.executed_by.name }}{% elif visit.external_technician_name %}{{ visit.external_technician_name }} (externo){% else %}—{% endif %}
+                        </strong>
+                        {% if visit.check_in_at %}&nbsp;·&nbsp; <i data-lucide="log-in" class="h-3 w-3 inline"></i> {{ visit.check_in_at|date:"H:i" }}{% endif %}
+                        {% if visit.check_out_at %}&nbsp;→&nbsp;<i data-lucide="log-out" class="h-3 w-3 inline"></i> {{ visit.check_out_at|date:"H:i" }}{% endif %}
+                    </p>
+                    {% if visit.notes %}<p class="text-xs text-slate-400 italic">{{ visit.notes|truncatechars:80 }}</p>{% endif %}
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    {% if visit.status == 'AGENDADA' %}
+                    <form method="post" action="{% url 'visit_quick_status' visit.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" name="status" value="EM_ANDAMENTO" class="h-8 px-2 rounded-md border border-blue-200 bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100">Iniciar</button>
+                    </form>
+                    {% elif visit.status == 'EM_ANDAMENTO' %}
+                    <form method="post" action="{% url 'visit_quick_status' visit.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" name="status" value="CONCLUIDA" class="h-8 px-2 rounded-md border border-green-200 bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100">Concluir</button>
+                    </form>
+                    {% endif %}
+                    <a href="{% url 'visit_edit' visit.pk %}" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white hover:bg-slate-50">
+                        <i data-lucide="pencil" class="h-3.5 w-3.5 text-slate-500"></i>
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="flex flex-col items-center justify-center py-8 text-center border border-dashed border-slate-200 rounded-lg bg-slate-50">
+                <i data-lucide="calendar-x" class="h-8 w-8 text-slate-300 mb-2"></i>
+                <p class="text-sm text-slate-500">Nenhuma visita registrada{% if month_filter or year_filter %} para o período selecionado{% endif %}.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

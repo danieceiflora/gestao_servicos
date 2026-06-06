@@ -79,6 +79,36 @@
     </div>
 </div>
 
+<!-- Modal de Finalização de Visita de Manutenção -->
+<div id="modal-finish-maintenance" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh] animate-in slide-in-from-bottom-full duration-300">
+        <div class="sm:hidden w-full flex justify-center pt-3 pb-1">
+            <div class="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+        </div>
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+                <h3 class="font-bold text-slate-900 text-lg">Finalizar Visita de Manutenção</h3>
+                <p class="text-xs text-slate-500 font-medium">Registre o que foi executado</p>
+            </div>
+            <button id="btn-close-maint-finish" class="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                <i data-lucide="x" class="h-5 w-5 text-slate-400"></i>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+            <div class="space-y-1.5">
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest">Observações / Relatório</label>
+                <textarea id="maint-finish-notes" rows="4" class="w-full rounded-xl border-slate-200 bg-slate-50/50 text-sm focus:ring-blue-500 focus:border-blue-500 py-3 px-4" placeholder="Descreva o que foi realizado, produtos usados, leituras..."></textarea>
+            </div>
+        </div>
+        <div class="p-6 bg-slate-50/80 backdrop-blur-sm border-t border-slate-100 safe-area-pb">
+            <button id="btn-confirm-maint-finish" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-emerald-200 active:scale-95 transition-all flex items-center justify-center gap-2">
+                <i data-lucide="check-circle" class="h-5 w-5"></i>
+                CONFIRMAR VISITA REALIZADA
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal de Ocorrência -->
 <div id="modal-occurrence" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh] animate-in slide-in-from-bottom-full duration-300">

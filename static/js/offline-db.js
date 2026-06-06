@@ -86,7 +86,7 @@ const OfflineDB = {
                 db.services, db.products, db.settings,
                 db.payment_methods, db.billings, db.installments
             ], async () => {
-                // Aplica estado pendente às tarefas que vieram do servidor
+                // Aplica estado pendente às tarefas OS que vieram do servidor
                 const finalizedTasks = (data.tasks || []).map(serverTask => {
                     const taskId = String(serverTask.id);
                     const taskPending = pendingByTaskId.get(taskId) || [];
@@ -96,8 +96,38 @@ const OfflineDB = {
                     return serverTask;
                 });
 
+                // Converte visitas de manutenção em tasks com source='MAINTENANCE'
+                const finalizedMaintTasks = (data.maintenance_visits || []).map(visit => {
+                    const taskId = 'maint_' + visit.id;
+                    const visitPending = pendingByTaskId.get(taskId) || [];
+                    const serverTask = {
+                        id: taskId,
+                        source: 'MAINTENANCE',
+                        visit_id: visit.id,
+                        service_order_id: null,
+                        task_type: 'MAINTENANCE',
+                        status: visit.status,
+                        scheduled_at: visit.scheduled_at,
+                        started_at: visit.check_in_at,
+                        finished_at: visit.check_out_at,
+                        notes: visit.notes || '',
+                        asset_name: visit.asset_name,
+                        asset_category: visit.asset_category,
+                        client_name: visit.client_name,
+                        property_address: visit.property_address,
+                        client_phone: visit.client_phone || '',
+                        property_lat: visit.property_lat,
+                        property_lng: visit.property_lng,
+                        contract_id: visit.contract_id,
+                    };
+                    if (visitPending.length > 0) {
+                        return this.applyPendingStateToTask(serverTask, null, visitPending);
+                    }
+                    return serverTask;
+                });
+
                 await db.tasks.clear();
-                await db.tasks.bulkPut(finalizedTasks);
+                await db.tasks.bulkPut([...finalizedTasks, ...finalizedMaintTasks]);
                 
                 await db.orders.clear();
                 await db.orders.bulkPut(data.orders || []);
@@ -155,6 +185,9 @@ const OfflineDB = {
     normalizeTaskIdFromItem(item) {
         if (!item || !item.payload) return null;
         if (item.payload.task_id) return String(item.payload.task_id);
+        if (item.type === 'MAINTENANCE_VISIT_START' || item.type === 'MAINTENANCE_VISIT_FINISH') {
+            if (item.payload.visit_id) return 'maint_' + String(item.payload.visit_id);
+        }
         if (item.payload.url) {
             const match = item.payload.url.match(/\/equipe\/etapa\/([0-9a-fA-F-]{36})\//);
             if (match && match[1]) return String(match[1]);
@@ -176,13 +209,13 @@ const OfflineDB = {
             .slice()
             .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
             .forEach((item) => {
-                if (item.type === 'TASK_START') {
+                if (item.type === 'TASK_START' || item.type === 'MAINTENANCE_VISIT_START') {
                     mergedTask.status = 'EM_ANDAMENTO';
                     mergedTask.started_at = item.payload?.started_at || mergedTask.started_at || new Date(item.timestamp || Date.now()).toISOString();
-                } else if (item.type === 'TASK_FINISH') {
+                } else if (item.type === 'TASK_FINISH' || item.type === 'MAINTENANCE_VISIT_FINISH') {
                     mergedTask.status = 'CONCLUIDO';
                     mergedTask.finished_at = item.payload?.finished_at || mergedTask.finished_at || new Date(item.timestamp || Date.now()).toISOString();
-                    const queuedNotes = item.payload?.data?.notes;
+                    const queuedNotes = item.payload?.notes || item.payload?.data?.notes;
                     if (queuedNotes) mergedTask.notes = queuedNotes;
                 }
             });
@@ -388,7 +421,12 @@ const OfflineDB = {
                     formData.append('response_id', item.payload.response_id || '');
                     formData.append('occurrence_id', item.payload.occurrence_id || '');
 
-                    const response = await fetch(`/api/tecnico/etapa/${item.payload.task_id}/upload-media/`, {
+                    const rawTaskId = String(item.payload.task_id || '');
+                    const uploadUrl = rawTaskId.startsWith('maint_')
+                        ? `/api/tecnico/visita-manutencao/${rawTaskId.replace('maint_', '')}/upload-midia/`
+                        : `/api/tecnico/etapa/${rawTaskId}/upload-midia/`;
+
+                    const response = await fetch(uploadUrl, {
                         method: 'POST',
                         headers: {
                             'X-CSRFToken': this.getCookie('csrftoken'),

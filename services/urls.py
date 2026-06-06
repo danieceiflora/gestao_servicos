@@ -5,6 +5,8 @@ from . import views_equipe
 from . import views_finance
 from . import views_offline
 from . import views_stock
+from . import views_maintenance
+from . import views_bi
 
 urlpatterns = [
     path('', views.home, name='home'),
@@ -99,6 +101,12 @@ urlpatterns = [
     path('api/tecnico/sincronizar/pull/', views_offline.api_tecnico_sync_pull, name='api_tecnico_sync_pull'),
     path('api/tecnico/sincronizar/push/', views_offline.api_tecnico_sync_push, name='api_tecnico_sync_push'),
     path('api/tecnico/etapa/<uuid:task_id>/upload-midia/', views_offline.api_tecnico_upload_media, name='api_tecnico_upload_media'),
+    path('api/tecnico/visita-manutencao/<int:visit_id>/upload-midia/', views_offline.api_tecnico_upload_maintenance_media, name='api_tecnico_upload_maintenance_media'),
+
+    # --- RELATÓRIOS / BI ---
+    path('relatorios/operacional/', views_bi.bi_operacional, name='bi_operacional'),
+    path('relatorios/produtividade/', views_bi.bi_produtividade, name='bi_produtividade'),
+    path('relatorios/manutencao/', views_bi.bi_manutencao, name='bi_manutencao'),
 
     # Clientes
     path('clientes/', views.client_list, name='client_list'),
@@ -167,4 +175,30 @@ urlpatterns = [
     path('uppy-teste/', views.uppy_test_page, name='uppy_test_page'),
     path('api/uppy-upload/', views.uppy_upload, name='uppy_upload'),
     path('os/<uuid:pk>/reenviar-cobranca/', views.resend_billing, name='service_order_resend_billing'),
+
+    # --- MÓDULO DE MANUTENÇÃO ---
+    # Categorias de Equipamentos
+    path('manutencao/categorias/', views_maintenance.asset_category_list, name='asset_category_list'),
+    path('manutencao/categorias/nova/', views_maintenance.asset_category_create, name='asset_category_create'),
+    path('manutencao/categorias/<int:pk>/editar/', views_maintenance.asset_category_edit, name='asset_category_edit'),
+    # Equipamentos / Bens
+    path('manutencao/equipamentos/', views_maintenance.asset_list, name='asset_list'),
+    path('manutencao/equipamentos/novo/', views_maintenance.asset_create, name='asset_create'),
+    path('manutencao/equipamentos/<uuid:pk>/editar/', views_maintenance.asset_edit, name='asset_edit'),
+    path('api/manutencao/imoveis/', views_maintenance.api_get_properties_for_asset, name='api_get_properties_for_asset'),
+    # Contratos de Manutenção
+    path('manutencao/contratos/', views_maintenance.contract_list, name='contract_list'),
+    path('manutencao/contratos/novo/', views_maintenance.contract_create, name='contract_create'),
+    path('manutencao/contratos/<uuid:pk>/', views_maintenance.contract_detail, name='contract_detail'),
+    path('manutencao/contratos/<uuid:pk>/editar/', views_maintenance.contract_edit, name='contract_edit'),
+    path('manutencao/contratos/<uuid:pk>/status/', views_maintenance.contract_toggle_status, name='contract_toggle_status'),
+    # Visitas
+    path('manutencao/contratos/<uuid:contract_id>/visitas/nova/', views_maintenance.visit_create, name='visit_create'),
+    path('manutencao/visitas/<int:pk>/editar/', views_maintenance.visit_edit, name='visit_edit'),
+    path('manutencao/visitas/<int:pk>/status/', views_maintenance.visit_quick_status, name='visit_quick_status'),
+    # Fechamentos Mensais
+    path('manutencao/fechamentos/', views_maintenance.closing_list, name='closing_list'),
+    path('manutencao/fechamentos/gerar/', views_maintenance.closing_generate, name='closing_generate'),
+    path('manutencao/fechamentos/<int:pk>/', views_maintenance.closing_detail, name='closing_detail'),
+    path('manutencao/fechamentos/<int:pk>/aprovar/', views_maintenance.closing_approve, name='closing_approve'),
 ]

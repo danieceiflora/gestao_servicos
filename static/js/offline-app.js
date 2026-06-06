@@ -273,18 +273,27 @@ const OfflineApp = {
     },
 
     async fillTaskItemData(card, task) {
-        const order = await db.orders.get(task.service_order_id);
-        const prop = order ? await db.properties.get(order.client_property_id) : null;
-        const client = prop ? await db.clients.get(prop.client_id) : null;
-
-        if (client) card.querySelector('.client-name').textContent = client.name;
-        
+        let clientName = '';
         let addressText = '';
-        if (order) addressText += `OS #${order.number} • `;
-        if (prop) addressText += `${prop.address}, ${prop.number} - ${prop.neighborhood}`;
+        let taskTypeText = '';
+
+        if (task.source === 'MAINTENANCE') {
+            clientName = task.client_name || '—';
+            addressText = `Manutenção • ${task.asset_name || ''}`;
+            taskTypeText = task.asset_name || 'Manutenção';
+        } else {
+            const order = await db.orders.get(task.service_order_id);
+            const prop = order ? await db.properties.get(order.client_property_id) : null;
+            const client = prop ? await db.clients.get(prop.client_id) : null;
+            clientName = client ? client.name : '';
+            if (order) addressText += `OS #${order.number} • `;
+            if (prop) addressText += `${prop.address}, ${prop.number} - ${prop.neighborhood}`;
+            taskTypeText = task.task_type;
+        }
+
+        card.querySelector('.client-name').textContent = clientName;
         card.querySelector('.property-address').textContent = addressText;
-        
-        card.querySelector('.task-type').textContent = task.task_type;
+        card.querySelector('.task-type').textContent = taskTypeText;
         
         const dateScheduled = new Date(task.scheduled_at);
 
@@ -351,7 +360,7 @@ const OfflineApp = {
     // Renderiza o detalhe da tarefa (Detalhes do Serviço)
     async renderTaskDetail(container, taskId) {
         let task = await db.tasks.get(taskId);
-        
+
         if (!task) {
             const allTasks = await db.tasks.toArray();
             task = allTasks.find(t => String(t.id) === String(taskId));
@@ -360,6 +369,10 @@ const OfflineApp = {
         if (!task) {
             container.innerHTML = '<div class="p-10 text-center">Tarefa não encontrada.</div>';
             return;
+        }
+
+        if (task.source === 'MAINTENANCE') {
+            return await this.renderMaintenanceTaskDetail(container, task);
         }
 
         const order = await db.orders.get(task.service_order_id);
@@ -1293,21 +1306,201 @@ const OfflineApp = {
     async startTask(taskId) {
         console.log(`🚀 Iniciando tarefa local: ${taskId}`);
         const now = new Date().toISOString();
-        
-        // 1. Atualiza no IndexedDB
-        await db.tasks.update(taskId, {
-            status: 'EM_ANDAMENTO',
-            started_at: now
-        });
+        const task = await db.tasks.get(taskId);
 
-        // 2. Adiciona à fila de sincronização
-        await OfflineDB.enqueueSyncItem('TASK_START', {
-            task_id: taskId,
-            started_at: now
-        });
+        await db.tasks.update(taskId, { status: 'EM_ANDAMENTO', started_at: now });
 
-        // 3. Re-renderiza a tela para mostrar o botão de finalizar
+        if (task && task.source === 'MAINTENANCE') {
+            await OfflineDB.enqueueSyncItem('MAINTENANCE_VISIT_START', {
+                visit_id: task.visit_id,
+                started_at: now
+            });
+        } else {
+            await OfflineDB.enqueueSyncItem('TASK_START', {
+                task_id: taskId,
+                started_at: now
+            });
+        }
+
         await this.render();
+    },
+
+    // ─── MANUTENÇÃO ───────────────────────────────────────────────────────────
+
+    async renderMaintenanceTaskDetail(container, task) {
+        const tplDetail = document.getElementById('tpl-task-detail').content.cloneNode(true);
+        const isCompleted = task.status === 'CONCLUIDO';
+
+        // Cabeçalho
+        tplDetail.querySelector('.client-name').textContent = task.client_name || '—';
+        tplDetail.querySelector('.property-address').textContent = task.property_address || '';
+
+        // GPS
+        const btnGps = tplDetail.querySelector('.btn-gps-trigger');
+        if (btnGps) {
+            btnGps.dataset.gpsLat = task.property_lat || '';
+            btnGps.dataset.gpsLng = task.property_lng || '';
+            btnGps.dataset.gpsAddress = task.property_address || '';
+        }
+
+        // WhatsApp - esconde se não tiver telefone
+        const linkWa = tplDetail.querySelector('.link-whatsapp');
+        if (linkWa) {
+            if (task.client_phone) {
+                const clean = task.client_phone.replace(/\D/g, '');
+                linkWa.href = `https://wa.me/${clean.length <= 11 ? '55' + clean : clean}`;
+            } else {
+                linkWa.classList.add('hidden');
+            }
+        }
+
+        // Botão atualizar GPS - esconde (maintenance não tem property local para atualizar)
+        const btnUpdateGps = tplDetail.querySelector('.btn-update-gps');
+        if (btnUpdateGps) btnUpdateGps.classList.add('hidden');
+
+        // Status badge
+        const statusBadge = tplDetail.querySelector('.task-status-badge');
+        statusBadge.textContent = this.translateStatus(task.status);
+        if (task.status === 'AGENDADO') statusBadge.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-100');
+        else if (task.status === 'EM_ANDAMENTO') statusBadge.classList.add('bg-amber-50', 'text-amber-600', 'border-amber-100');
+        else if (task.status === 'CONCLUIDO') statusBadge.classList.add('bg-emerald-50', 'text-emerald-600', 'border-emerald-100');
+
+        // Tipo e data
+        const categoryLabel = task.asset_category ? `${task.asset_category} • ` : '';
+        tplDetail.querySelector('.task-type').textContent = `${categoryLabel}${task.asset_name || ''}`;
+
+        const date = new Date(task.scheduled_at);
+        tplDetail.querySelector('.task-time').textContent =
+            date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
+
+        if (task.notes) {
+            tplDetail.querySelector('.task-notes-container').classList.remove('hidden');
+            tplDetail.querySelector('.task-notes').textContent = task.notes;
+        }
+
+        // Workflow
+        const startSection = tplDetail.querySelector('#workflow-start-section');
+        const activeSection = tplDetail.querySelector('#workflow-active-section');
+        const btnStart = tplDetail.querySelector('#btn-start-task');
+        const btnFinish = tplDetail.querySelector('#btn-finish-task');
+        const btnAddMedia = tplDetail.querySelector('#btn-add-media');
+        const btnAddVideo = tplDetail.querySelector('#btn-add-video');
+        const mediaContainer = tplDetail.querySelector('#task-media-container');
+        const checklistSection = tplDetail.querySelector('#checklist-section');
+        const occurrenceList = tplDetail.querySelector('#occurrence-list');
+        const occurrencesSection = tplDetail.querySelector('#occurrences-section-card');
+        const btnAddOccurrence = tplDetail.querySelector('#btn-add-occurrence');
+        const btnAddOccurrencePre = tplDetail.querySelector('#btn-add-occurrence-pre');
+
+        // Sem checklist em manutenção
+        if (checklistSection) checklistSection.classList.add('hidden');
+
+        // Ocorrências
+        const occCount = await this.renderOccurrences(occurrenceList, task.id);
+        if (isCompleted && occCount === 0) {
+            if (occurrencesSection) occurrencesSection.classList.add('hidden');
+        }
+        if (!isCompleted) {
+            if (btnAddOccurrence) btnAddOccurrence.onclick = () => this.openOccurrenceModal(task.id);
+            if (btnAddOccurrencePre) btnAddOccurrencePre.onclick = () => this.openOccurrenceModal(task.id);
+        } else {
+            if (btnAddOccurrence) btnAddOccurrence.classList.add('hidden');
+            if (btnAddOccurrencePre) btnAddOccurrencePre.classList.add('hidden');
+        }
+
+        if (task.status === 'AGENDADO') {
+            startSection.classList.remove('hidden');
+            activeSection.classList.add('hidden');
+            btnStart.onclick = () => this.startTask(task.id);
+        } else {
+            startSection.classList.add('hidden');
+            activeSection.classList.remove('hidden');
+
+            // Mídias
+            const mediaCount = await this.renderOfflineMedia(mediaContainer, task.id, null);
+            const mediaSection = tplDetail.querySelector('#media-section-card');
+            if (isCompleted && mediaCount === 0) {
+                mediaSection.classList.add('hidden');
+            } else {
+                mediaSection.classList.remove('hidden');
+            }
+
+            if (!isCompleted) {
+                btnAddMedia.onclick = () => this.captureMedia(task.id, null, mediaContainer);
+                btnAddVideo.onclick = () => this.captureVideo(task.id, null, mediaContainer);
+            } else {
+                btnAddMedia.classList.add('hidden');
+                btnAddVideo.classList.add('hidden');
+            }
+
+            // Finalizar
+            if (!isCompleted) {
+                btnFinish.onclick = () => this.openMaintenanceFinishModal(task.id);
+            } else {
+                btnFinish.classList.add('hidden');
+                if (btnFinish.parentElement) btnFinish.parentElement.classList.add('hidden');
+
+                // Resumo de conclusão simplificado
+                const completedSection = tplDetail.querySelector('#workflow-completed-section');
+                if (completedSection) {
+                    completedSection.classList.remove('hidden');
+                    const nameEl = completedSection.querySelector('#detail-customer-name');
+                    if (nameEl) nameEl.textContent = task.client_name || '—';
+                    const notesEl = completedSection.querySelector('#detail-completed-notes');
+                    const notesContainer = completedSection.querySelector('#detail-completed-notes-container');
+                    if (task.notes && notesEl && notesContainer) {
+                        notesContainer.classList.remove('hidden');
+                        notesEl.textContent = task.notes;
+                    }
+                    // Esconde assinatura e pagamento
+                    const sigSection = completedSection.querySelector('.pt-3.border-t');
+                    if (sigSection) sigSection.classList.add('hidden');
+                    const paySection = completedSection.querySelector('#detail-completed-payment');
+                    if (paySection) paySection.classList.add('hidden');
+                }
+            }
+        }
+
+        tplDetail.querySelector('#btn-back').addEventListener('click', () => this.navigate('list'));
+        container.appendChild(tplDetail);
+    },
+
+    async openMaintenanceFinishModal(taskId) {
+        const modal = document.getElementById('modal-finish-maintenance');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        document.getElementById('maint-finish-notes').value = '';
+
+        document.getElementById('btn-close-maint-finish').onclick = () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        };
+        document.getElementById('btn-confirm-maint-finish').onclick = () => this.confirmMaintenanceFinish(taskId);
+
+        if (window.lucide) lucide.createIcons();
+    },
+
+    async confirmMaintenanceFinish(taskId) {
+        const task = await db.tasks.get(taskId);
+        const notes = document.getElementById('maint-finish-notes').value.trim();
+        const now = new Date().toISOString();
+
+        await db.tasks.update(taskId, {
+            status: 'CONCLUIDO',
+            finished_at: now,
+            notes: notes
+        });
+
+        await OfflineDB.enqueueSyncItem('MAINTENANCE_VISIT_FINISH', {
+            visit_id: task.visit_id,
+            finished_at: now,
+            notes: notes
+        });
+
+        document.getElementById('modal-finish-maintenance').classList.add('hidden');
+        document.getElementById('modal-finish-maintenance').classList.remove('flex');
+        await this.navigate('list');
     },
 
     // Renderiza o checklist (Sprint 3: 3-state toggle)

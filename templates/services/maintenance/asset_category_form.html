@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto space-y-6">
+
+    <div class="flex items-center gap-4">
+        <a href="{% url 'asset_category_list' %}" class="inline-flex items-center justify-center rounded-md h-10 w-10 border border-slate-200 bg-white hover:bg-slate-100">
+            <i data-lucide="arrow-left" class="h-4 w-4"></i>
+        </a>
+        <h2 class="text-xl font-bold tracking-tight text-slate-950">{{ title }}</h2>
+    </div>
+
+    <form method="post" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-4">
+        {% csrf_token %}
+
+        <div class="space-y-2">
+            <label class="text-sm font-medium text-slate-700">Nome da Categoria *</label>
+            {{ form.name }}
+            {% if form.name.errors %}<p class="text-xs text-red-600">{{ form.name.errors.0 }}</p>{% endif %}
+        </div>
+
+        <!-- Icon Picker (substitui o campo de texto livre) -->
+        <div class="space-y-2">
+            <label class="text-sm font-medium text-slate-700">Ícone</label>
+
+            {# input hidden que é enviado no submit — NÃO renderizar {{ form.icon }} #}
+            <input type="hidden" id="id_icon" name="icon" value="{{ form.icon.value|default:'tool' }}">
+
+            <!-- Preview + pesquisa -->
+            <div class="flex items-center gap-3">
+                <div id="icon-preview"
+                     class="flex items-center justify-center w-11 h-11 rounded-xl border-2 border-slate-900 bg-slate-50 shrink-0">
+                    <i data-lucide="{{ form.icon.value|default:'tool' }}" class="h-5 w-5 text-slate-700"></i>
+                </div>
+                <div class="flex-1 relative">
+                    <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
+                    <input type="text" id="icon-search" placeholder="Pesquisar ícone..."
+                           autocomplete="off"
+                           class="w-full h-9 pl-8 pr-3 rounded-md border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1">
+                </div>
+                <span id="icon-name-label" class="text-xs text-slate-400 shrink-0 min-w-[60px] text-right">{{ form.icon.value|default:'tool' }}</span>
+            </div>
+
+            <!-- Grid de ícones -->
+            <div id="icon-grid"
+                 class="grid grid-cols-9 gap-1 max-h-56 overflow-y-auto p-2 border border-slate-200 rounded-lg bg-slate-50/50">
+                <!-- populado por JS -->
+            </div>
+
+            <p class="text-[11px] text-slate-400">Clique no ícone desejado para selecionar.</p>
+
+            {% if form.icon.errors %}<p class="text-xs text-red-600">{{ form.icon.errors.0 }}</p>{% endif %}
+        </div>
+
+        <label class="flex items-center gap-3 cursor-pointer">
+            {{ form.is_active }}
+            <span class="text-sm font-medium text-slate-700">Categoria ativa</span>
+        </label>
+
+        <div class="flex gap-3 pt-2">
+            <a href="{% url 'asset_category_list' %}" class="flex-1 inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50">Cancelar</a>
+            <button type="submit" class="flex-1 inline-flex h-10 items-center justify-center rounded-md bg-slate-900 text-white text-sm font-medium gap-2">
+                <i data-lucide="save" class="h-4 w-4"></i> Salvar
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const LUCIDE_ICONS = [
+    // Ferramentas
+    'tool','wrench','hammer','scissors','ruler','screwdriver','drill','shovel',
+    // Água / Hidráulica
+    'droplets','waves','cloud-rain','umbrella',
+    // Clima / Temperatura
+    'wind','fan','thermometer','snowflake','flame','sun','cloud','moon',
+    // Elétrica
+    'zap','battery','battery-charging','plug','power','cpu','server',
+    // Conectividade / Tech
+    'wifi','bluetooth','monitor','tv','phone','tablet','radio',
+    // Embalagem / Estoque
+    'package','box','archive','layers','database',
+    // Configurações
+    'settings','settings-2','sliders','sliders-horizontal','cog',
+    // Segurança
+    'shield','shield-check','lock','unlock','key','fingerprint',
+    // Construção / Imóvel
+    'building','building-2','home','warehouse','door-open','castle','fence',
+    // Móveis / Eletrodomésticos
+    'sofa','bed','lamp','lamp-desk','tv-2','refrigerator',
+    // Transporte
+    'car','truck','bus','forklift',
+    // Pintura / Reforma
+    'paint-roller','paint-bucket','brush','pencil-ruler',
+    // Câmera / Leitura
+    'camera','image','scan','qr-code','barcode',
+    // Comunicação
+    'mail','bell','message-circle','phone-call',
+    // Tempo
+    'calendar','clock','timer','alarm-clock',
+    // Marcação
+    'star','bookmark','tag','flag','heart',
+    // Pessoas
+    'user','users','hard-hat','person-standing',
+    // Análise
+    'activity','bar-chart-2','trending-up','pie-chart',
+    // Status
+    'check-circle','alert-triangle','info','help-circle','circle',
+    // Natureza
+    'tree','leaf','mountain','sun-medium',
+    // Outros
+    'trash-2','recycle','search','filter','grid','layout',
+];
+
+const hiddenInput = document.getElementById('id_icon');
+const grid        = document.getElementById('icon-grid');
+const preview     = document.getElementById('icon-preview');
+const nameLabel   = document.getElementById('icon-name-label');
+
+function buildGrid() {
+    const current = hiddenInput.value || 'tool';
+    grid.innerHTML = LUCIDE_ICONS.map(name => {
+        const sel = name === current;
+        return `<button type="button" data-icon="${name}" title="${name}"
+                    class="icon-cell flex items-center justify-center w-9 h-9 rounded-lg transition-all
+                           hover:bg-white hover:shadow-sm
+                           ${sel ? 'bg-white shadow ring-2 ring-slate-900' : ''}">
+                    <i data-lucide="${name}" class="h-4 w-4 text-slate-600 pointer-events-none"></i>
+                </button>`;
+    }).join('');
+
+    lucide.createIcons();
+
+    grid.querySelectorAll('[data-icon]').forEach(cell => {
+        cell.addEventListener('click', () => selectIcon(cell.dataset.icon));
+    });
+}
+
+function selectIcon(name) {
+    hiddenInput.value   = name;
+    nameLabel.textContent = name;
+
+    // atualiza preview
+    preview.innerHTML = `<i data-lucide="${name}" class="h-5 w-5 text-slate-700"></i>`;
+    lucide.createIcons();
+
+    // atualiza destaque no grid
+    grid.querySelectorAll('[data-icon]').forEach(cell => {
+        const active = cell.dataset.icon === name;
+        cell.classList.toggle('bg-white',       active);
+        cell.classList.toggle('shadow',         active);
+        cell.classList.toggle('ring-2',         active);
+        cell.classList.toggle('ring-slate-900', active);
+    });
+}
+
+document.getElementById('icon-search').addEventListener('input', function () {
+    const term = this.value.toLowerCase().trim();
+    grid.querySelectorAll('[data-icon]').forEach(cell => {
+        const match = !term || cell.dataset.icon.includes(term);
+        cell.classList.toggle('hidden', !match);
+    });
+});
+
+document.addEventListener('DOMContentLoaded', buildGrid);
+</script>
+{% endblock %}

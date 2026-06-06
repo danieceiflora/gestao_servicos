@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+    <div class="flex items-center gap-4">
+        <a href="{% if contract %}{% url 'contract_detail' contract.pk %}{% else %}{% url 'contract_list' %}{% endif %}" class="inline-flex items-center justify-center rounded-md h-10 w-10 border border-slate-200 bg-white hover:bg-slate-100">
+            <i data-lucide="arrow-left" class="h-4 w-4"></i>
+        </a>
+        <div>
+            <h2 class="text-xl font-bold tracking-tight text-slate-950">{{ title }}</h2>
+            <p class="text-sm text-slate-500">Contrato de manutenção recorrente</p>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Equipamento & Técnico -->
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/30">
+                <h3 class="font-semibold text-slate-900">Equipamento e Técnico</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Equipamento *</label>
+                    {{ form.asset }}
+                    {% if form.asset.errors %}<p class="text-xs text-red-600">{{ form.asset.errors.0 }}</p>{% endif %}
+                    <p class="text-xs text-slate-400">
+                        Não encontrou? <a href="{% url 'asset_create' %}" class="text-blue-600 hover:underline" target="_blank">Cadastrar equipamento</a>
+                    </p>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Técnico Titular *</label>
+                    {{ form.primary_technician }}
+                    {% if form.primary_technician.errors %}<p class="text-xs text-red-600">{{ form.primary_technician.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Financeiro -->
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/30">
+                <h3 class="font-semibold text-slate-900">Valores</h3>
+            </div>
+            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Valor Mensal (R$) *</label>
+                    {{ form.monthly_value }}
+                    {% if form.monthly_value.errors %}<p class="text-xs text-red-600">{{ form.monthly_value.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Comissão do Técnico (%)</label>
+                    {{ form.commission_rate }}
+                    {% if form.commission_rate.errors %}<p class="text-xs text-red-600">{{ form.commission_rate.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Frequência -->
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/30">
+                <h3 class="font-semibold text-slate-900">Periodicidade</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Frequência *</label>
+                    {{ form.frequency }}
+                </div>
+
+                <div id="visit-days-section" class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Dias de Visita</label>
+                    <p class="text-xs text-slate-400">Selecione os dias preferenciais para frequências semanais ou quinzenais.</p>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        {% for widget in form.visit_days %}
+                        <label class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-sm cursor-pointer hover:bg-slate-100 has-[:checked]:bg-slate-900 has-[:checked]:text-white has-[:checked]:border-slate-900 transition-colors">
+                            {{ widget.tag }} {{ widget.choice_label }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Data de Início *</label>
+                        {{ form.start_date }}
+                        {% if form.start_date.errors %}<p class="text-xs text-red-600">{{ form.start_date.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Data de Término (opcional)</label>
+                        {{ form.end_date }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Observações & Status -->
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/30">
+                <h3 class="font-semibold text-slate-900">Detalhes</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Descrição / Observações</label>
+                    {{ form.description }}
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Status</label>
+                    {{ form.status }}
+                </div>
+            </div>
+        </div>
+
+        <div class="flex gap-3 pb-8">
+            <a href="{% url 'contract_list' %}" class="flex-1 inline-flex h-11 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50">
+                Cancelar
+            </a>
+            <button type="submit" class="flex-1 inline-flex h-11 items-center justify-center rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-900/90 gap-2">
+                <i data-lucide="save" class="h-4 w-4"></i>
+                {% if contract %}Salvar Alterações{% else %}Criar Contrato{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const freqSelect = document.getElementById('id_frequency');
+    const daysSection = document.getElementById('visit-days-section');
+
+    function toggleDays() {
+        const val = freqSelect ? freqSelect.value : '';
+        if (val === 'SEMANAL' || val === 'QUINZENAL') {
+            daysSection.classList.remove('hidden');
+        } else {
+            daysSection.classList.add('hidden');
+        }
+    }
+
+    if (freqSelect) {
+        freqSelect.addEventListener('change', toggleDays);
+        toggleDays();
+    }
+
+    // Hide checkboxes from the auto-styler (they're styled as pills)
+    document.querySelectorAll('#visit-days-section input[type="checkbox"]').forEach(cb => {
+        cb.classList.add('sr-only');
+    });
+});
+</script>
+{% endblock %}

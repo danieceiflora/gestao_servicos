@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">Produtividade da Equipe</h2>
+            <p class="text-sm text-slate-500">Desempenho dos técnicos por período</p>
+        </div>
+        <form method="get" class="flex flex-wrap items-center gap-2">
+            <select name="month" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm">
+                {% for m in months %}
+                <option value="{{ m }}" {% if selected_month == m %}selected{% endif %}>
+                    {% if m == 1 %}Jan{% elif m == 2 %}Fev{% elif m == 3 %}Mar{% elif m == 4 %}Abr{% elif m == 5 %}Mai{% elif m == 6 %}Jun{% elif m == 7 %}Jul{% elif m == 8 %}Ago{% elif m == 9 %}Set{% elif m == 10 %}Out{% elif m == 11 %}Nov{% elif m == 12 %}Dez{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <select name="year" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm">
+                {% for y in years %}
+                <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="h-9 px-4 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800">Filtrar</button>
+        </form>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Execuções no Mês</p>
+            <p class="text-3xl font-bold text-slate-900">{{ total_tasks_period }}</p>
+            <p class="text-xs text-slate-500 mt-1">etapas concluídas</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Técnicos Ativos</p>
+            <p class="text-3xl font-bold text-blue-600">{{ result|length }}</p>
+            <p class="text-xs text-slate-500 mt-1">com execuções</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ocorrências</p>
+            <p class="text-3xl font-bold text-amber-600">{{ total_occ_period }}</p>
+            <p class="text-xs text-slate-500 mt-1">registradas no mês</p>
+        </div>
+    </div>
+
+    {% if result %}
+    <!-- Charts row -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-semibold text-slate-900 mb-4">OS por Técnico</h3>
+            <div class="relative h-64">
+                <canvas id="chartOsByTech"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-semibold text-slate-900 mb-4">Horas em Campo por Técnico</h3>
+            <div class="relative h-64">
+                <canvas id="chartHoursByTech"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ranking Table -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-slate-100 bg-slate-50/30">
+            <h3 class="font-semibold text-slate-900">Ranking Detalhado</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-100 bg-slate-50">
+                        <th class="text-left px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">#</th>
+                        <th class="text-left px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Técnico</th>
+                        <th class="text-center px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Execuções</th>
+                        <th class="text-center px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Horas Total</th>
+                        <th class="text-center px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Média/OS</th>
+                        <th class="text-center px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ocorrências</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for r in result %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-5 py-3">
+                            <span class="text-xs font-bold {% if forloop.counter == 1 %}text-amber-500{% elif forloop.counter == 2 %}text-slate-400{% elif forloop.counter == 3 %}text-orange-400{% else %}text-slate-300{% endif %}">
+                                #{{ forloop.counter }}
+                            </span>
+                        </td>
+                        <td class="px-5 py-3 font-medium text-slate-900">{{ r.name }}</td>
+                        <td class="px-5 py-3 text-center">
+                            <span class="font-bold text-slate-900">{{ r.os_count }}</span>
+                        </td>
+                        <td class="px-5 py-3 text-center text-slate-700">{{ r.total_hours }}h</td>
+                        <td class="px-5 py-3 text-center text-slate-500">{{ r.avg_hours }}h</td>
+                        <td class="px-5 py-3 text-center">
+                            {% if r.occurrences > 0 %}
+                            <span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-medium">{{ r.occurrences }}</span>
+                            {% else %}
+                            <span class="text-slate-300">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="bg-white rounded-2xl border border-dashed border-slate-200 p-12 text-center">
+        <i data-lucide="bar-chart-2" class="h-12 w-12 text-slate-200 mx-auto mb-3"></i>
+        <p class="text-sm text-slate-500">Nenhuma execução registrada para o período selecionado.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+Chart.defaults.font.family = 'Inter, sans-serif';
+
+const techNames = {{ tech_names_json|safe }};
+const techOs = {{ tech_os_json|safe }};
+const techHours = {{ tech_hours_json|safe }};
+
+const barColors = [
+    'rgba(30,41,59,0.85)', 'rgba(71,85,105,0.8)', 'rgba(100,116,139,0.75)',
+    'rgba(148,163,184,0.7)', 'rgba(203,213,225,0.65)'
+];
+function getColors(n) {
+    return Array.from({length: n}, (_, i) => barColors[i % barColors.length]);
+}
+
+if (techNames.length > 0) {
+    new Chart(document.getElementById('chartOsByTech'), {
+        type: 'bar',
+        data: {
+            labels: techNames,
+            datasets: [{
+                label: 'Execuções',
+                data: techOs,
+                backgroundColor: getColors(techNames.length),
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#f1f5f9' } },
+                x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+
+    new Chart(document.getElementById('chartHoursByTech'), {
+        type: 'bar',
+        data: {
+            labels: techNames,
+            datasets: [{
+                label: 'Horas',
+                data: techHours,
+                backgroundColor: 'rgba(96,165,250,0.75)',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

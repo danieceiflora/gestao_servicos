@@ -2015,3 +2015,279 @@ class PaymentAttachment(models.Model):
 
     def __str__(self):
         return f"Comprovante de {self.payment}"
+
+
+# --- MÓDULO DE CONTRATOS DE MANUTENÇÃO ---
+
+class AssetCategory(models.Model):
+    name = models.CharField(max_length=100, unique=True, verbose_name="Nome da Categoria")
+    icon = models.CharField(max_length=50, blank=True, default='tool', verbose_name="Ícone (Lucide)")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Categoria de Equipamento"
+        verbose_name_plural = "Categorias de Equipamentos"
+        ordering = ['name']
+
+
+class Asset(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    client_property = models.ForeignKey(
+        Property, on_delete=models.CASCADE,
+        related_name='assets', verbose_name="Imóvel"
+    )
+    category = models.ForeignKey(
+        AssetCategory, on_delete=models.PROTECT,
+        related_name='assets', verbose_name="Categoria"
+    )
+    name = models.CharField(max_length=255, verbose_name="Nome / Identificação")
+    brand = models.CharField(max_length=100, blank=True, verbose_name="Marca")
+    model_name = models.CharField(max_length=100, blank=True, verbose_name="Modelo")
+    serial_number = models.CharField(max_length=100, blank=True, verbose_name="Nº de Série")
+    notes = models.TextField(blank=True, verbose_name="Observações Técnicas")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        if self.client_property_id:
+            return f"{self.name} — {self.client_property.address}, {self.client_property.number or ''}"
+        return self.name
+
+    @property
+    def client(self):
+        return self.client_property.client
+
+    class Meta:
+        verbose_name = "Equipamento / Bem"
+        verbose_name_plural = "Equipamentos / Bens"
+        ordering = ['name']
+
+
+class MaintenanceContract(models.Model):
+    class Frequency(models.TextChoices):
+        SEMANAL = 'SEMANAL', 'Semanal'
+        QUINZENAL = 'QUINZENAL', 'Quinzenal'
+        MENSAL = 'MENSAL', 'Mensal'
+        BIMESTRAL = 'BIMESTRAL', 'Bimestral'
+        TRIMESTRAL = 'TRIMESTRAL', 'Trimestral'
+        SEMESTRAL = 'SEMESTRAL', 'Semestral'
+        ANUAL = 'ANUAL', 'Anual'
+
+    class Status(models.TextChoices):
+        ATIVO = 'ATIVO', 'Ativo'
+        PAUSADO = 'PAUSADO', 'Pausado'
+        ENCERRADO = 'ENCERRADO', 'Encerrado'
+
+    DAYS_OF_WEEK = [
+        (0, 'Segunda-feira'), (1, 'Terça-feira'), (2, 'Quarta-feira'),
+        (3, 'Quinta-feira'), (4, 'Sexta-feira'), (5, 'Sábado'), (6, 'Domingo'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    asset = models.ForeignKey(
+        Asset, on_delete=models.PROTECT,
+        related_name='contracts', verbose_name="Equipamento"
+    )
+    primary_technician = models.ForeignKey(
+        Professional, on_delete=models.PROTECT,
+        related_name='primary_maintenance_contracts', verbose_name="Técnico Titular"
+    )
+    monthly_value = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Mensal (R$)")
+    commission_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('5.00'),
+        verbose_name="Comissão do Técnico (%)"
+    )
+    frequency = models.CharField(
+        max_length=20, choices=Frequency.choices,
+        default=Frequency.SEMANAL, verbose_name="Frequência"
+    )
+    # [0,2] = Segunda e Quarta; only used for SEMANAL/QUINZENAL
+    visit_days = models.JSONField(default=list, verbose_name="Dias de Visita")
+    description = models.TextField(blank=True, verbose_name="Descrição / Observações")
+    start_date = models.DateField(verbose_name="Data de Início")
+    end_date = models.DateField(null=True, blank=True, verbose_name="Data de Término (opcional)")
+    status = models.CharField(
+        max_length=20, choices=Status.choices,
+        default=Status.ATIVO, verbose_name="Status"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        if self.asset_id:
+            return f"Contrato — {self.asset.name}"
+        return "Contrato (sem equipamento)"
+
+    @property
+    def client(self):
+        return self.asset.client_property.client
+
+    @property
+    def prop(self):
+        return self.asset.client_property
+
+    def calculate_expected_visits(self, month, year):
+        import calendar as _cal
+        if self.frequency == self.Frequency.SEMANAL:
+            if not self.visit_days:
+                return 4
+            count = 0
+            cal = _cal.monthcalendar(year, month)
+            for day in self.visit_days:
+                for week in cal:
+                    if week[int(day)] != 0:
+                        count += 1
+            return count or 1
+        elif self.frequency == self.Frequency.QUINZENAL:
+            return max(len(self.visit_days) * 2, 1)
+        return 1  # MENSAL, BIMESTRAL, TRIMESTRAL, SEMESTRAL, ANUAL
+
+    def commission_per_visit(self, month, year):
+        expected = self.calculate_expected_visits(month, year)
+        return quantize_money(self.monthly_value * self.commission_rate / 100 / expected)
+
+    class Meta:
+        verbose_name = "Contrato de Manutenção"
+        verbose_name_plural = "Contratos de Manutenção"
+        ordering = ['-created_at']
+
+
+class MaintenanceVisit(models.Model):
+    class Status(models.TextChoices):
+        AGENDADA = 'AGENDADA', 'Agendada'
+        EM_ANDAMENTO = 'EM_ANDAMENTO', 'Em Andamento'
+        CONCLUIDA = 'CONCLUIDA', 'Concluída'
+        CANCELADA = 'CANCELADA', 'Cancelada'
+
+    contract = models.ForeignKey(
+        MaintenanceContract, on_delete=models.CASCADE,
+        related_name='visits', verbose_name="Contrato"
+    )
+    scheduled_date = models.DateField(verbose_name="Data Agendada")
+    executed_by = models.ForeignKey(
+        Professional, on_delete=models.PROTECT,
+        related_name='maintenance_visits_executed',
+        null=True, blank=True, verbose_name="Técnico Executante"
+    )
+    # When the executante is someone not registered (rare)
+    external_technician_name = models.CharField(
+        max_length=255, blank=True, verbose_name="Técnico Externo (nome)"
+    )
+    is_coverage = models.BooleanField(default=False, verbose_name="É Cobertura?")
+    coverage_receives_commission = models.BooleanField(
+        default=False, verbose_name="Substituto Recebe Comissão?"
+    )
+    is_extra = models.BooleanField(
+        default=False, verbose_name="Visita Extra (não gera comissão)"
+    )
+    check_in_at = models.DateTimeField(null=True, blank=True, verbose_name="Check-in")
+    check_out_at = models.DateTimeField(null=True, blank=True, verbose_name="Check-out")
+    notes = models.TextField(blank=True, verbose_name="Observações")
+    status = models.CharField(
+        max_length=20, choices=Status.choices,
+        default=Status.AGENDADA, verbose_name="Status"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def commission_recipient(self):
+        """Returns the Professional who earns commission, or None."""
+        if self.is_extra:
+            return None
+        if self.is_coverage and self.coverage_receives_commission:
+            return self.executed_by
+        return self.contract.primary_technician
+
+    def commission_value(self):
+        recipient = self.commission_recipient()
+        if not recipient:
+            return Decimal('0')
+        return self.contract.commission_per_visit(
+            self.scheduled_date.month, self.scheduled_date.year
+        )
+
+    def __str__(self):
+        return f"Visita {self.scheduled_date} — {self.contract.asset.name}"
+
+    class Meta:
+        verbose_name = "Visita de Manutenção"
+        verbose_name_plural = "Visitas de Manutenção"
+        ordering = ['-scheduled_date']
+
+
+class MaintenanceVisitMedia(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    visit = models.ForeignKey(
+        MaintenanceVisit, on_delete=models.CASCADE,
+        related_name='media', verbose_name="Visita"
+    )
+    file = models.FileField(upload_to='maintenance_media/%Y/%m/', verbose_name="Arquivo")
+    file_type = models.CharField(max_length=50, blank=True, verbose_name="Tipo")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Mídia da Visita de Manutenção"
+        verbose_name_plural = "Mídias das Visitas de Manutenção"
+        ordering = ['created_at']
+
+
+class MaintenanceMonthlyClosing(models.Model):
+    class Status(models.TextChoices):
+        RASCUNHO = 'RASCUNHO', 'Rascunho'
+        APROVADO = 'APROVADO', 'Aprovado'
+
+    month = models.PositiveIntegerField(verbose_name="Mês")
+    year = models.PositiveIntegerField(verbose_name="Ano")
+    status = models.CharField(
+        max_length=20, choices=Status.choices,
+        default=Status.RASCUNHO, verbose_name="Status"
+    )
+    closed_at = models.DateTimeField(null=True, blank=True, verbose_name="Data de Aprovação")
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, verbose_name="Criado por"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def month_display(self):
+        MONTHS = [
+            '', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+        ]
+        return f"{MONTHS[self.month]}/{self.year}"
+
+    def __str__(self):
+        return f"Fechamento {self.month:02d}/{self.year}"
+
+    class Meta:
+        verbose_name = "Fechamento Mensal de Manutenção"
+        verbose_name_plural = "Fechamentos Mensais de Manutenção"
+        unique_together = ('month', 'year')
+        ordering = ['-year', '-month']
+
+
+class MaintenanceClosingEntry(models.Model):
+    closing = models.ForeignKey(
+        MaintenanceMonthlyClosing, on_delete=models.CASCADE,
+        related_name='entries', verbose_name="Fechamento"
+    )
+    technician = models.ForeignKey(
+        Professional, on_delete=models.PROTECT,
+        related_name='maintenance_closing_entries', verbose_name="Técnico"
+    )
+    total_commission = models.DecimalField(
+        max_digits=10, decimal_places=2, verbose_name="Total de Comissão (R$)"
+    )
+    visits_count = models.PositiveIntegerField(default=0, verbose_name="Visitas Realizadas")
+    # [{contract_id, asset_name, client, property, visits, commission_per_visit, subtotal}]
+    detail = models.JSONField(default=list, verbose_name="Detalhamento")
+
+    def __str__(self):
+        return f"{self.technician.name} — {self.closing}"
+
+    class Meta:
+        verbose_name = "Entrada de Fechamento"
+        verbose_name_plural = "Entradas de Fechamento"
+        unique_together = ('closing', 'technician')

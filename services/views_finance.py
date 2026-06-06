@@ -1,13 +1,15 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Sum, Q, F
+from django.db.models import Sum, Q, F, Avg, Count
 from django.db import transaction
 from django.utils import timezone
 from django.core.paginator import Paginator
 from decimal import Decimal
-from datetime import datetime
-from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory, SaleReturn, SaleReturnItem, ProductVariant, SaleSettings
+from datetime import datetime, date
+import json
+import calendar as _cal
+from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory, SaleReturn, SaleReturnItem, ProductVariant, SaleSettings, ServiceOrder, Billing, Installment
 from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet, FinanceSettingsForm, SaleSettingsForm
 from .expense_engine import generate_expense_installments
 from django.http import HttpResponse, JsonResponse
@@ -168,6 +170,104 @@ def finance_dashboard(request):
             item_with_name['professional'] = data['professional_name']
             report_items.append(item_with_name)
 
+    # ── BI Financeiro ─────────────────────────────────────────────────────────
+
+    # Helper: last 6 months starting from selected month
+    try:
+        from dateutil.relativedelta import relativedelta as _rdelta
+        _has_rdelta = True
+    except ImportError:
+        _has_rdelta = False
+
+    def _prev_month(y, m, n):
+        if _has_rdelta:
+            d = date(y, m, 1) - _rdelta(months=n)
+            return d.year, d.month
+        total = m - 1 - n
+        return y + total // 12, total % 12 + 1
+
+    bi_months_meta = []
+    for i in range(5, -1, -1):
+        my, mm = _prev_month(year, month, i)
+        _, ld = _cal.monthrange(my, mm)
+        ms = date(my, mm, 1)
+        me = date(my, mm, ld)
+        tz_obj = timezone.get_current_timezone()
+        ms_dt = timezone.make_aware(datetime(my, mm, 1), tz_obj)
+        me_dt = timezone.make_aware(datetime(my, mm, ld, 23, 59, 59), tz_obj)
+        label = f"{mm:02d}/{my}"
+        bi_months_meta.append((my, mm, ms, me, ms_dt, me_dt, label))
+
+    # Revenue by month (SalePayment.valor_bruto, data_pagamento in period)
+    monthly_revenue_labels = [m[6] for m in bi_months_meta]
+    monthly_revenue_values = []
+    for my, mm, ms, me, ms_dt, me_dt, _ in bi_months_meta:
+        rev = SalePayment.objects.filter(
+            data_pagamento__date__gte=ms,
+            data_pagamento__date__lte=me,
+        ).aggregate(total=Sum('valor_bruto'))['total'] or Decimal('0')
+        monthly_revenue_values.append(float(rev))
+
+    # Expenses by month (InstallmentPayment.amount, payment_date in period)
+    monthly_expense_values = []
+    for my, mm, ms, me, ms_dt, me_dt, _ in bi_months_meta:
+        exp = InstallmentPayment.objects.filter(
+            payment_date__gte=ms,
+            payment_date__lte=me,
+            is_discount=False,
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        monthly_expense_values.append(float(exp))
+
+    # DRE for selected month
+    _cur_my, _cur_mm, _cur_ms, _cur_me = bi_months_meta[-1][:4]
+    dre_receita = SalePayment.objects.filter(
+        data_pagamento__date__gte=_cur_ms,
+        data_pagamento__date__lte=_cur_me,
+    ).aggregate(total=Sum('valor_bruto'))['total'] or Decimal('0')
+
+    dre_despesas = InstallmentPayment.objects.filter(
+        payment_date__gte=_cur_ms,
+        payment_date__lte=_cur_me,
+        is_discount=False,
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    dre_resultado = dre_receita - dre_despesas
+
+    # Ticket médio (avg value of FINALIZADO OS in selected month)
+    avg_ticket = ServiceOrder.objects.filter(
+        status=ServiceOrder.Status.FINALIZADO,
+        finished_at__gte=bi_months_meta[-1][4],
+        finished_at__lte=bi_months_meta[-1][5],
+        estimated_value__isnull=False,
+    ).aggregate(avg=Avg('estimated_value'))['avg'] or Decimal('0')
+
+    # Inadimplência: installments overdue or pending past due date
+    today_date = date.today()
+    total_active_installments = Installment.objects.exclude(
+        status__in=[Installment.Status.PAGO, Installment.Status.CANCELADO]
+    ).count()
+    overdue_installments = Installment.objects.filter(
+        Q(status=Installment.Status.ATRASADO) |
+        Q(status=Installment.Status.PENDENTE, due_date__lt=today_date)
+    ).count()
+    inadimplencia_rate = round(
+        (overdue_installments / total_active_installments * 100)
+        if total_active_installments > 0 else 0, 1
+    )
+
+    # Top 10 clientes por faturamento (billing total_amount, not CANCELADO)
+    top_clients = (
+        Billing.objects
+        .exclude(status=Billing.Status.CANCELADO)
+        .values(cliente=F('client__name'))
+        .annotate(total=Sum('total_amount'))
+        .order_by('-total')[:10]
+    )
+    top_clients_labels = json.dumps([c['cliente'] or 'Sem nome' for c in top_clients])
+    top_clients_values = json.dumps([float(c['total']) for c in top_clients])
+
+    # ── End BI Financeiro ─────────────────────────────────────────────────────
+
     context = {
         'report_items': report_items,
         'grouped_data': grouped_data,
@@ -182,6 +282,18 @@ def finance_dashboard(request):
         'selected_year': year,
         'selected_professional': professional_id,
         'professionals': Professional.objects.filter(is_active=True),
+        # BI
+        'monthly_revenue_labels_json': json.dumps(monthly_revenue_labels),
+        'monthly_revenue_json': json.dumps(monthly_revenue_values),
+        'monthly_expense_json': json.dumps(monthly_expense_values),
+        'dre_receita': dre_receita,
+        'dre_despesas': dre_despesas,
+        'dre_resultado': dre_resultado,
+        'avg_ticket': avg_ticket,
+        'overdue_installments': overdue_installments,
+        'inadimplencia_rate': inadimplencia_rate,
+        'top_clients_labels_json': top_clients_labels,
+        'top_clients_values_json': top_clients_values,
     }
 
     if request.GET.get('export') == 'xlsx':

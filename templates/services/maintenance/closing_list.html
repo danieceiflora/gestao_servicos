@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-xl font-bold tracking-tight text-slate-950">{{ title }}</h2>
+            <p class="text-sm text-slate-500">Cálculo de comissões dos técnicos por período</p>
+        </div>
+    </div>
+
+    <!-- Gerar Fechamento -->
+    <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
+        <h3 class="font-semibold text-slate-900 mb-4">Gerar / Atualizar Fechamento</h3>
+        <form method="post" action="{% url 'closing_generate' %}" class="flex flex-wrap gap-3 items-end">
+            {% csrf_token %}
+            <div class="space-y-1">
+                <label class="text-xs font-medium text-slate-600">Mês</label>
+                <select name="month" class="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm h-10 w-32" required>
+                    {% for m, label in month_choices %}
+                    <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="space-y-1">
+                <label class="text-xs font-medium text-slate-600">Ano</label>
+                <input type="number" name="year" value="{{ current_year }}" min="2020" max="2099" class="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm h-10 w-28" required>
+            </div>
+            <button type="submit" class="h-10 px-4 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-900/90 gap-2 inline-flex items-center">
+                <i data-lucide="calculator" class="h-4 w-4"></i> Calcular Fechamento
+            </button>
+            <p class="w-full text-xs text-slate-400">Considera todas as visitas com status <strong>Concluída</strong> no período. Pode ser regerado enquanto estiver em rascunho.</p>
+        </form>
+    </div>
+
+    <!-- Lista de Fechamentos -->
+    {% if closings %}
+    <div class="space-y-3">
+        {% for closing in closings %}
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-4 flex items-center justify-between gap-4">
+            <div class="space-y-1">
+                <div class="flex items-center gap-3">
+                    <span class="font-semibold text-slate-900">{{ closing.month_display }}</span>
+                    <span class="text-xs font-medium px-2 py-0.5 rounded-full
+                        {% if closing.status == 'APROVADO' %}bg-green-100 text-green-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+                        {{ closing.get_status_display }}
+                    </span>
+                </div>
+                <p class="text-xs text-slate-400">
+                    {{ closing.entries.count }} técnico{{ closing.entries.count|pluralize }}
+                </p>
+            </div>
+            <a href="{% url 'closing_detail' closing.pk %}" class="inline-flex h-9 items-center px-3 rounded-md border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50">
+                Ver detalhes
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="flex flex-col items-center justify-center py-12 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50">
+        <i data-lucide="calculator" class="h-10 w-10 text-slate-300 mb-3"></i>
+        <p class="font-semibold text-slate-500">Nenhum fechamento gerado ainda.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

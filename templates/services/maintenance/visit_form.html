@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+    <div class="flex items-center gap-4">
+        <a href="{% url 'contract_detail' contract.pk %}" class="inline-flex items-center justify-center rounded-md h-10 w-10 border border-slate-200 bg-white hover:bg-slate-100">
+            <i data-lucide="arrow-left" class="h-4 w-4"></i>
+        </a>
+        <div>
+            <h2 class="text-xl font-bold tracking-tight text-slate-950">{{ title }}</h2>
+            <p class="text-sm text-slate-500">{{ contract.asset.name }} · {{ contract.asset.client_property.client.name }}</p>
+        </div>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Data & Técnico -->
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/30">
+                <h3 class="font-semibold text-slate-900">Agendamento</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Data da Visita *</label>
+                        {{ form.scheduled_date }}
+                        {% if form.scheduled_date.errors %}<p class="text-xs text-red-600">{{ form.scheduled_date.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Status</label>
+                        {{ form.status }}
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Técnico Executante</label>
+                    {{ form.executed_by }}
+                    <p class="text-xs text-slate-400">Deixe em branco e preencha o campo abaixo apenas para técnicos não cadastrados.</p>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Técnico Externo (não cadastrado)</label>
+                    {{ form.external_technician_name }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Cobertura -->
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/30">
+                <h3 class="font-semibold text-slate-900">Cobertura / Substituição</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <label class="flex items-center gap-3 cursor-pointer p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
+                    {{ form.is_coverage }}
+                    <div>
+                        <span class="text-sm font-medium text-slate-700">Esta visita é uma cobertura?</span>
+                        <p class="text-xs text-slate-400">O técnico titular está ausente e outro profissional está cobrindo.</p>
+                    </div>
+                </label>
+
+                <div id="coverage-details" class="{% if not form.is_coverage.value %}hidden{% endif %} p-3 rounded-lg border border-purple-100 bg-purple-50/50 space-y-2">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        {{ form.coverage_receives_commission }}
+                        <div>
+                            <span class="text-sm font-medium text-slate-700">O substituto recebe comissão por esta visita?</span>
+                            <p class="text-xs text-slate-400">Se não, a comissão continua com o técnico titular.</p>
+                        </div>
+                    </label>
+                </div>
+
+                <label class="flex items-center gap-3 cursor-pointer p-3 rounded-lg border border-orange-200 bg-orange-50/50 hover:bg-orange-50">
+                    {{ form.is_extra }}
+                    <div>
+                        <span class="text-sm font-medium text-slate-700">Visita extra (não gera comissão)</span>
+                        <p class="text-xs text-slate-400">Ex: retorno para finalização de decantação, visita adicional do mês.</p>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <!-- Execução -->
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/30">
+                <h3 class="font-semibold text-slate-900">Execução</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Check-in</label>
+                        {{ form.check_in_at }}
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Check-out</label>
+                        {{ form.check_out_at }}
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-slate-700">Observações</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+        </div>
+
+        <div class="flex gap-3 pb-8">
+            <a href="{% url 'contract_detail' contract.pk %}" class="flex-1 inline-flex h-11 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50">
+                Cancelar
+            </a>
+            <button type="submit" class="flex-1 inline-flex h-11 items-center justify-center rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-900/90 gap-2">
+                <i data-lucide="save" class="h-4 w-4"></i>
+                {% if visit %}Salvar{% else %}Registrar Visita{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const isCoverageCheckbox = document.getElementById('id_is_coverage');
+    const coverageDetails = document.getElementById('coverage-details');
+
+    function toggleCoverage() {
+        if (isCoverageCheckbox && isCoverageCheckbox.checked) {
+            coverageDetails.classList.remove('hidden');
+        } else {
+            coverageDetails.classList.add('hidden');
+        }
+    }
+
+    if (isCoverageCheckbox) {
+        isCoverageCheckbox.addEventListener('change', toggleCoverage);
+        toggleCoverage();
+    }
+});
+</script>
+{% endblock %}

@@ -6,7 +6,8 @@ from .models import (
     Professional, ServiceOrderTask, ServiceOrder, Client, Property,
     Service, Product, ChecklistTemplate, ServiceChecklistItem,
     TaskChecklistResponse, ServiceItem, ServicePayment, Occurrence,
-    MediaProcessingJob, Billing, Installment, PaymentMethod
+    MediaProcessingJob, Billing, Installment, PaymentMethod,
+    MaintenanceVisit, MaintenanceVisitMedia, MaintenanceContract,
 )
 from .utils_media import (
     MediaProcessingBusyError,
@@ -18,6 +19,73 @@ import uuid
 import json
 from decimal import Decimal
 from django.db.models import Q, Sum
+
+import calendar as _cal
+from datetime import date as _date
+
+
+def _auto_generate_visits_for_contract(contract, month, year):
+    """Cria registros MaintenanceVisit faltantes para o mês/ano dado."""
+    month_start = _date(year, month, 1)
+    month_end = _date(year, month, _cal.monthrange(year, month)[1])
+
+    if contract.start_date > month_end:
+        return
+    if contract.end_date and contract.end_date < month_start:
+        return
+
+    existing_dates = set(
+        MaintenanceVisit.objects.filter(
+            contract=contract,
+            scheduled_date__year=year,
+            scheduled_date__month=month,
+        ).values_list('scheduled_date', flat=True)
+    )
+
+    dates_to_create = []
+    freq = contract.frequency
+
+    if freq == 'SEMANAL':
+        days = contract.visit_days or [0]  # padrão: segunda
+        cal = _cal.monthcalendar(year, month)
+        for week in cal:
+            for day_idx in days:
+                day_num = week[int(day_idx)]
+                if day_num != 0:
+                    d = _date(year, month, day_num)
+                    if d >= contract.start_date and (not contract.end_date or d <= contract.end_date):
+                        dates_to_create.append(d)
+
+    elif freq == 'QUINZENAL':
+        days = contract.visit_days or [0]
+        cal = _cal.monthcalendar(year, month)
+        for day_idx in days:
+            occurrences = [
+                _date(year, month, week[int(day_idx)])
+                for week in cal if week[int(day_idx)] != 0
+            ]
+            for d in occurrences[:2]:
+                if d >= contract.start_date and (not contract.end_date or d <= contract.end_date):
+                    dates_to_create.append(d)
+
+    else:  # MENSAL, BIMESTRAL, TRIMESTRAL, SEMESTRAL, ANUAL
+        interval = {'MENSAL': 1, 'BIMESTRAL': 2, 'TRIMESTRAL': 3, 'SEMESTRAL': 6, 'ANUAL': 12}.get(freq, 1)
+        months_since_start = (year - contract.start_date.year) * 12 + (month - contract.start_date.month)
+        if months_since_start >= 0 and months_since_start % interval == 0:
+            day = min(contract.start_date.day, _cal.monthrange(year, month)[1])
+            d = _date(year, month, day)
+            if d >= contract.start_date and (not contract.end_date or d <= contract.end_date):
+                dates_to_create.append(d)
+
+    for d in dates_to_create:
+        if d not in existing_dates:
+            MaintenanceVisit.objects.create(
+                contract=contract,
+                scheduled_date=d,
+                executed_by=contract.primary_technician,
+                status=MaintenanceVisit.Status.AGENDADA,
+            )
+
 
 @login_required
 def equipe_offline_app(request):
@@ -83,6 +151,32 @@ def api_tecnico_bootstrap(request):
         # Cobranças e Parcelas (Apenas as vinculadas às OSs baixadas)
         billings = Billing.objects.filter(service_order_id__in=order_ids)
         installments = Installment.objects.filter(billing__in=billings)
+
+        # Auto-gera visitas do mês atual para contratos ativos do técnico
+        from django.db.models import Q as MQ
+        active_contracts = MaintenanceContract.objects.filter(
+            primary_technician=professional,
+            status='ATIVO',
+            start_date__lte=now.date(),
+        ).select_related('asset')
+        for _contract in active_contracts:
+            if not _contract.end_date or _contract.end_date >= now.date():
+                _auto_generate_visits_for_contract(_contract, now.month, now.year)
+
+        # Visitas de manutenção do técnico (últimos 7 dias + futuras)
+        maintenance_visits_qs = MaintenanceVisit.objects.filter(
+            MQ(executed_by=professional) | MQ(contract__primary_technician=professional),
+            scheduled_date__gte=now.date() - timezone.timedelta(days=7),
+        ).exclude(
+            status=MaintenanceVisit.Status.CANCELADA
+        ).select_related(
+            'contract__asset__client_property__client',
+            'contract__asset__category',
+            'contract__primary_technician',
+        ).distinct()
+
+        def _maint_status_to_app(s):
+            return {'AGENDADA': 'AGENDADO', 'EM_ANDAMENTO': 'EM_ANDAMENTO', 'CONCLUIDA': 'CONCLUIDO'}.get(s, 'AGENDADO')
 
         # Configurações do Sistema
         sys_config = SystemConfig.load()
@@ -220,7 +314,25 @@ def api_tecnico_bootstrap(request):
                 'company_name': sys_config.company_name,
                 'pix_key': sys_config.pix_key,
                 'pix_bank': sys_config.pix_bank,
-            }
+            },
+            'maintenance_visits': [
+                {
+                    'id': str(v.id),
+                    'contract_id': str(v.contract_id),
+                    'status': _maint_status_to_app(v.status),
+                    'scheduled_at': f"{v.scheduled_date.isoformat()}T08:00:00",
+                    'check_in_at': v.check_in_at.isoformat() if v.check_in_at else None,
+                    'check_out_at': v.check_out_at.isoformat() if v.check_out_at else None,
+                    'notes': v.notes or '',
+                    'asset_name': v.contract.asset.name,
+                    'asset_category': v.contract.asset.category.name if v.contract.asset.category_id else '',
+                    'client_name': v.contract.asset.client_property.client.display_name,
+                    'property_address': v.contract.asset.client_property.full_address,
+                    'client_phone': '',
+                    'property_lat': float(v.contract.asset.client_property.latitude) if v.contract.asset.client_property.latitude else None,
+                    'property_lng': float(v.contract.asset.client_property.longitude) if v.contract.asset.client_property.longitude else None,
+                } for v in maintenance_visits_qs
+            ],
         }
         return JsonResponse(data)
     except Exception as e:
@@ -259,11 +371,38 @@ def api_tecnico_sync_push(request):
             try:
                 change_type = change.get('type')
                 payload = change.get('payload', {})
+
+                # --- Visitas de Manutenção ---
+                if change_type == 'MAINTENANCE_VISIT_START':
+                    visit_id = payload.get('visit_id')
+                    if not visit_id:
+                        continue
+                    visit = get_object_or_404(MaintenanceVisit, id=visit_id)
+                    visit.status = MaintenanceVisit.Status.EM_ANDAMENTO
+                    visit.check_in_at = payload.get('started_at') or timezone.now()
+                    visit.save(update_fields=['status', 'check_in_at', 'updated_at'])
+                    processed_count += 1
+                    continue
+
+                elif change_type == 'MAINTENANCE_VISIT_FINISH':
+                    visit_id = payload.get('visit_id')
+                    if not visit_id:
+                        continue
+                    visit = get_object_or_404(MaintenanceVisit, id=visit_id)
+                    visit.status = MaintenanceVisit.Status.CONCLUIDA
+                    visit.check_out_at = payload.get('finished_at') or timezone.now()
+                    if payload.get('notes'):
+                        visit.notes = payload.get('notes')
+                    visit.save(update_fields=['status', 'check_out_at', 'notes', 'updated_at'])
+                    processed_count += 1
+                    continue
+
+                # --- OS Tasks ---
                 task_id = payload.get('task_id')
-                
+
                 if not task_id:
                     continue
-                    
+
                 task = get_object_or_404(ServiceOrderTask, id=task_id)
                 
                 # 1. Início de Tarefa
@@ -455,6 +594,27 @@ def api_tecnico_upload_media(request, task_id):
         return JsonResponse({'error': str(e)}, status=429)
     except (ValueError, RuntimeError) as e:
         return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+def api_tecnico_upload_maintenance_media(request, visit_id):
+    """Upload de mídia (foto/vídeo) para uma visita de manutenção."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método não permitido'}, status=405)
+
+    try:
+        visit = get_object_or_404(MaintenanceVisit, id=visit_id)
+        file = request.FILES.get('file')
+        if not file:
+            return JsonResponse({'error': 'Nenhum arquivo enviado'}, status=400)
+
+        media = MaintenanceVisitMedia(visit=visit, file_type=file.content_type)
+        media.file.save(file.name, file, save=True)
+        return JsonResponse({'success': True, 'media_id': str(media.id)}, status=201)
     except Exception as e:
         import traceback
         print(traceback.format_exc())

@@ -1,5 +1,8 @@
 {% extends 'base.html' %}
 {% load l10n %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+{% endblock %}
 
 {% block title %}Painel Financeiro - Gestão de Serviços{% endblock %}
 
@@ -118,6 +121,65 @@
         </div>
     </div>
 
+    <!-- BI Financeiro Section -->
+    <!-- DRE Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Receita Recebida</p>
+            <p class="text-2xl font-bold text-emerald-600">R$ {{ dre_receita|floatformat:2 }}</p>
+            <p class="text-xs text-slate-500 mt-1">no mês selecionado</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Despesas Pagas</p>
+            <p class="text-2xl font-bold text-red-500">R$ {{ dre_despesas|floatformat:2 }}</p>
+            <p class="text-xs text-slate-500 mt-1">no mês selecionado</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm {% if dre_resultado >= 0 %}ring-1 ring-emerald-100{% else %}ring-1 ring-red-100{% endif %}">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Resultado do Mês</p>
+            <p class="text-2xl font-bold {% if dre_resultado >= 0 %}text-emerald-600{% else %}text-red-500{% endif %}">R$ {{ dre_resultado|floatformat:2 }}</p>
+            <p class="text-xs text-slate-500 mt-1">receita − despesas</p>
+        </div>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ticket Médio</p>
+            <p class="text-xl font-bold text-slate-900">R$ {{ avg_ticket|floatformat:2 }}</p>
+            <p class="text-xs text-slate-500 mt-1">por OS finalizada no mês</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Inadimplência</p>
+            <p class="text-xl font-bold {% if inadimplencia_rate > 20 %}text-red-500{% elif inadimplencia_rate > 10 %}text-amber-500{% else %}text-emerald-600{% endif %}">{{ inadimplencia_rate }}%</p>
+            <p class="text-xs text-slate-500 mt-1">{{ overdue_installments }} parcelas em atraso</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm col-span-2 md:col-span-1">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Execuções no Mês</p>
+            <p class="text-xl font-bold text-slate-900">{{ total_services_count }}</p>
+            <p class="text-xs text-slate-500 mt-1">com comissão gerada</p>
+        </div>
+    </div>
+
+    <!-- Revenue vs Expense Chart + Top Clients -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-semibold text-slate-900 mb-4">Receita vs Despesas (últimos 6 meses)</h3>
+            <div class="relative h-60">
+                <canvas id="chartRevExp"></canvas>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-semibold text-slate-900 mb-4">Top Clientes por Faturamento</h3>
+            {% if top_clients_values_json != '[]' %}
+            <div class="relative h-60">
+                <canvas id="chartTopClients"></canvas>
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-400 text-center py-12">Nenhum dado de faturamento ainda.</p>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Data Table -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
@@ -183,4 +245,81 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+Chart.defaults.font.family = 'Inter, sans-serif';
+
+const revLabels = {{ monthly_revenue_labels_json|safe }};
+const revData   = {{ monthly_revenue_json|safe }};
+const expData   = {{ monthly_expense_json|safe }};
+
+new Chart(document.getElementById('chartRevExp'), {
+    type: 'bar',
+    data: {
+        labels: revLabels,
+        datasets: [
+            {
+                label: 'Receita',
+                data: revData,
+                backgroundColor: 'rgba(34,197,94,0.8)',
+                borderRadius: 4,
+                order: 1,
+            },
+            {
+                label: 'Despesas',
+                data: expData,
+                backgroundColor: 'rgba(239,68,68,0.7)',
+                borderRadius: 4,
+                order: 2,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+        scales: {
+            y: {
+                beginAtZero: true,
+                grid: { color: '#f1f5f9' },
+                ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') }
+            },
+            x: { grid: { display: false } }
+        }
+    }
+});
+
+const tcLabels = {{ top_clients_labels_json|safe }};
+const tcValues = {{ top_clients_values_json|safe }};
+if (tcValues.length > 0) {
+    new Chart(document.getElementById('chartTopClients'), {
+        type: 'bar',
+        data: {
+            labels: tcLabels,
+            datasets: [{
+                label: 'Faturamento',
+                data: tcValues,
+                backgroundColor: 'rgba(100,116,139,0.75)',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: { color: '#f1f5f9' },
+                    ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') }
+                },
+                y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+}
+</script>
 {% endblock %}

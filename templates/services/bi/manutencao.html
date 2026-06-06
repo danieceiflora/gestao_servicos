@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-slate-900">Dashboard de Manutenção</h2>
+            <p class="text-sm text-slate-500">Contratos, visitas e comissões</p>
+        </div>
+        <form method="get" class="flex flex-wrap items-center gap-2">
+            <select name="month" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm">
+                {% for m in months %}
+                <option value="{{ m }}" {% if selected_month == m %}selected{% endif %}>
+                    {% if m == 1 %}Jan{% elif m == 2 %}Fev{% elif m == 3 %}Mar{% elif m == 4 %}Abr{% elif m == 5 %}Mai{% elif m == 6 %}Jun{% elif m == 7 %}Jul{% elif m == 8 %}Ago{% elif m == 9 %}Set{% elif m == 10 %}Out{% elif m == 11 %}Nov{% elif m == 12 %}Dez{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <select name="year" class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm">
+                {% for y in years %}
+                <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="h-9 px-4 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800">Filtrar</button>
+        </form>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Contratos Ativos</p>
+            <p class="text-3xl font-bold text-emerald-600">{{ contract_stats.ativo }}</p>
+            <p class="text-xs text-slate-500 mt-1">de {{ contract_stats.total }} total</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Visitas no Mês</p>
+            <p class="text-3xl font-bold text-slate-900">{{ visits_stats.total }}</p>
+            <p class="text-xs text-slate-500 mt-1">programadas</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Concluídas</p>
+            <p class="text-3xl font-bold text-blue-600">{{ visits_stats.concluidas }}</p>
+            <p class="text-xs {% if visits_stats.pct_concluidas >= 80 %}text-emerald-500{% elif visits_stats.pct_concluidas >= 50 %}text-amber-500{% else %}text-red-400{% endif %} mt-1 font-semibold">{{ visits_stats.pct_concluidas }}% de cumprimento</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Em Atraso</p>
+            <p class="text-3xl font-bold {% if overdue %}text-red-500{% else %}text-emerald-600{% endif %}">{{ overdue|length }}</p>
+            <p class="text-xs text-slate-500 mt-1">visitas atrasadas</p>
+        </div>
+    </div>
+
+    <!-- Status dos Contratos + Cumprimento do Mês -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-semibold text-slate-900 mb-4">Status dos Contratos</h3>
+            <div class="space-y-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 rounded-full bg-emerald-400"></div>
+                    <span class="flex-1 text-sm text-slate-700">Ativos</span>
+                    <span class="font-bold text-slate-900">{{ contract_stats.ativo }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 rounded-full bg-amber-400"></div>
+                    <span class="flex-1 text-sm text-slate-700">Pausados</span>
+                    <span class="font-bold text-slate-900">{{ contract_stats.pausado }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 rounded-full bg-slate-300"></div>
+                    <span class="flex-1 text-sm text-slate-700">Encerrados</span>
+                    <span class="font-bold text-slate-900">{{ contract_stats.encerrado }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-semibold text-slate-900 mb-4">Visitas no Mês</h3>
+            <div class="space-y-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 rounded-full bg-emerald-400"></div>
+                    <span class="flex-1 text-sm text-slate-700">Concluídas</span>
+                    <span class="font-bold text-emerald-600">{{ visits_stats.concluidas }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 rounded-full bg-blue-400"></div>
+                    <span class="flex-1 text-sm text-slate-700">Agendadas</span>
+                    <span class="font-bold text-slate-900">{{ visits_stats.agendadas }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 rounded-full bg-amber-400"></div>
+                    <span class="flex-1 text-sm text-slate-700">Em Andamento</span>
+                    <span class="font-bold text-slate-900">{{ visits_stats.em_andamento }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 rounded-full bg-slate-300"></div>
+                    <span class="flex-1 text-sm text-slate-700">Canceladas</span>
+                    <span class="font-bold text-slate-400">{{ visits_stats.canceladas }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tendência de Visitas -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <h3 class="font-semibold text-slate-900 mb-4">Tendência de Visitas (últimos 6 meses)</h3>
+        <div class="relative h-60">
+            <canvas id="chartVisitTrend"></canvas>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Comissão por Técnico -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/30">
+                <h3 class="font-semibold text-slate-900">Comissão por Técnico</h3>
+            </div>
+            {% if tech_commission %}
+            <div class="divide-y divide-slate-100">
+                {% for tc in tech_commission %}
+                <div class="flex items-center justify-between px-5 py-3">
+                    <div>
+                        <p class="text-sm font-medium text-slate-900">{{ tc.name }}</p>
+                        <p class="text-xs text-slate-400">{{ tc.visits }} visita{{ tc.visits|pluralize }}</p>
+                    </div>
+                    <span class="text-sm font-bold text-emerald-600">R$ {{ tc.commission|floatformat:2 }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="p-8 text-center">
+                <p class="text-sm text-slate-400">Nenhuma visita concluída no mês.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Visitas em Atraso -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/30 flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="h-4 w-4 text-amber-500"></i>
+                <h3 class="font-semibold text-slate-900">Visitas em Atraso</h3>
+            </div>
+            {% if overdue %}
+            <div class="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                {% for v in overdue %}
+                <div class="px-5 py-3">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <p class="text-sm font-medium text-slate-900">{{ v.contract.asset.name }}</p>
+                            <p class="text-xs text-slate-500">{{ v.contract.asset.client_property.client.name }}</p>
+                        </div>
+                        <span class="text-xs font-bold text-red-500 shrink-0">{{ v.scheduled_date|date:"d/m/Y" }}</span>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Titular: {{ v.contract.primary_technician.name }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="p-8 text-center">
+                <i data-lucide="check-circle" class="h-8 w-8 text-emerald-300 mx-auto mb-2"></i>
+                <p class="text-sm text-slate-400">Nenhuma visita em atraso.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+Chart.defaults.font.family = 'Inter, sans-serif';
+
+new Chart(document.getElementById('chartVisitTrend'), {
+    type: 'bar',
+    data: {
+        labels: {{ months_labels_json|safe }},
+        datasets: [
+            {
+                label: 'Programadas',
+                data: {{ months_scheduled_json|safe }},
+                backgroundColor: 'rgba(148,163,184,0.5)',
+                borderRadius: 4,
+                order: 2,
+            },
+            {
+                label: 'Concluídas',
+                data: {{ months_done_json|safe }},
+                backgroundColor: 'rgba(34,197,94,0.8)',
+                borderRadius: 4,
+                order: 1,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+        scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#f1f5f9' } },
+            x: { grid: { display: false } }
+        }
+    }
+});
+</script>
+{% endblock %}

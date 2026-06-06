@@ -1,422 +1,364 @@
 {% extends layout_base|default:'base.html' %}
+{% load static %}
 
 {% block title %}Agenda Geral - Gestão de Serviços{% endblock %}
 
 {% block extra_css %}
-<!-- FullCalendar CSS -->
 <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.css' rel='stylesheet' />
 <style>
+    /* ─── Base Variables ─────────────────────────────── */
     :root {
-        --fc-border-color: #e2e8f0;
-        --fc-daygrid-event-dot-width: 8px;
-        --fc-list-event-dot-width: 10px;
+        --fc-border-color: #f1f5f9;
+        --fc-today-bg-color: #fafcff;
+        --fc-page-bg-color: transparent;
         --fc-event-border-color: transparent;
-        --fc-today-bg-color: #f8fafc;
-        --fc-page-bg: #f9fafb;
+        --fc-small-font-size: 0.72rem;
     }
 
-    /* Shadcn-like Calendar Reset */
-    .fc {
-        --fc-small-font-size: 0.75rem;
-        --fc-page-bg-color: transparent;
-        font-family: inherit;
-    }
+    .fc { font-family: inherit; }
+
+    /* ─── Toolbar ────────────────────────────────────── */
+    .fc .fc-toolbar { gap: 0.5rem; }
 
     .fc .fc-toolbar-title {
-        font-size: 1.125rem;
+        font-size: 1.05rem;
         font-weight: 700;
         color: #0f172a;
-        letter-spacing: -0.025em;
+        letter-spacing: -0.02em;
     }
 
-    /* Buttons Styling */
     .fc .fc-button-primary {
-        background-color: #ffffff;
+        background: #fff;
         border: 1px solid #e2e8f0;
-        color: #475569;
+        color: #64748b;
         font-weight: 600;
         border-radius: 8px;
-        padding: 0.5rem 0.875rem;
-        font-size: 0.8125rem;
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        padding: 0.4rem 0.75rem;
+        font-size: 0.78rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,.04);
+        transition: all .15s ease;
     }
-
-    .fc .fc-button-primary:hover {
-        background-color: #f8fafc;
+    .fc .fc-button-primary:hover:not(:disabled) {
+        background: #f8fafc;
         border-color: #cbd5e1;
         color: #0f172a;
     }
-
-    .fc .fc-button-primary:not(:disabled).fc-button-active {
-        background-color: #0f172a;
+    .fc .fc-button-primary:not(:disabled).fc-button-active,
+    .fc .fc-button-primary:not(:disabled):active {
+        background: #0f172a;
         border-color: #0f172a;
-        color: #ffffff;
+        color: #fff;
+        box-shadow: none;
     }
+    .fc .fc-button-primary:focus { box-shadow: 0 0 0 2px rgba(15,23,42,.12); }
+    .fc .fc-button-group { gap: 2px; }
+    .fc .fc-button-group .fc-button { border-radius: 6px !important; }
 
-    .fc .fc-button-primary:focus {
-        box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
-    }
-
-    /* Event Styling */
-    .fc-event {
-        cursor: pointer;
-        padding: 4px 6px;
-        border-radius: 6px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        border: none !important;
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-        transition: transform 0.1s ease;
-    }
-
-    .fc-event:active {
-        transform: scale(0.98);
-    }
-
-    .fc-v-event .fc-event-main {
-        color: inherit;
-    }
-
-    .fc-daygrid-event {
-        margin-top: 3px !important;
-        margin-bottom: 1px !important;
-    }
-
-    /* Calendar Grid */
-    .fc-theme-standard td, .fc-theme-standard th {
-        border-color: #f1f5f9;
-    }
-
+    /* ─── Column Headers ─────────────────────────────── */
     .fc-col-header-cell {
-        background-color: #f8fafc;
-        padding: 10px 0 !important;
+        background: #f8fafc;
+        padding: 8px 0 !important;
+        border-bottom: 1px solid #f1f5f9 !important;
     }
-
     .fc-col-header-cell-cushion {
-        color: #64748b;
-        font-size: 0.75rem;
-        font-weight: 600;
+        color: #94a3b8;
+        font-size: 0.68rem;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: .06em;
         text-decoration: none !important;
     }
 
-    #calendar-container {
-        min-height: 600px;
+    /* ─── Grid Lines ─────────────────────────────────── */
+    .fc-theme-standard td,
+    .fc-theme-standard th { border-color: #f1f5f9; }
+    .fc-timegrid-slot { border-color: #f8fafc !important; }
+    .fc-timegrid-slot-minor { border-color: #fafafa !important; }
+    .fc-timegrid-axis { color: #94a3b8; font-size: 0.68rem; font-weight: 600; }
+
+    /* ─── Today Highlight ────────────────────────────── */
+    .fc .fc-day-today { background: var(--fc-today-bg-color) !important; }
+    .fc .fc-day-today .fc-daygrid-day-number { color: #3b82f6; font-weight: 800; }
+    .fc .fc-timegrid-now-indicator-line { border-color: #3b82f6; border-width: 2px; }
+    .fc .fc-timegrid-now-indicator-arrow { border-top-color: #3b82f6; border-bottom-color: #3b82f6; }
+
+    /* ─── Events ─────────────────────────────────────── */
+    .fc-event {
+        cursor: pointer;
+        border-radius: 6px !important;
+        border: none !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,.08);
+        transition: transform .1s ease, box-shadow .1s ease;
+        font-size: 0.72rem;
+        font-weight: 600;
     }
-    
-    /* Mobile Calendar Improvements */
-    @media (max-width: 768px) {
-        .fc .fc-toolbar {
-            flex-direction: column;
-            gap: 1rem;
-            align-items: stretch;
-        }
+    .fc-event:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,.12);
+    }
+    .fc-event:active { transform: scale(0.98); }
 
-        .fc .fc-toolbar-chunk {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 0.5rem;
-        }
+    .fc-daygrid-event { margin: 2px 2px 0 !important; padding: 2px 5px !important; }
+    .fc-timegrid-event { padding: 3px 6px !important; }
+    .fc-timegrid-event .fc-event-main { color: inherit; }
 
-        /* Reorder toolbar on mobile */
+    /* ─── List View ──────────────────────────────────── */
+    .fc-list-event { cursor: pointer; }
+    .fc-list-event:hover td { background: #f8fafc !important; }
+    .fc-list-event-title a { color: #0f172a !important; font-weight: 600; text-decoration: none; }
+    .fc-list-day-cushion { background: #f8fafc !important; }
+    .fc-list-day-text, .fc-list-day-side-text { color: #475569 !important; font-weight: 700; font-size: 0.8rem; }
+    .fc-list-table td { border-color: #f1f5f9 !important; }
+    .fc-list-event-dot { border-width: 6px !important; border-radius: 50% !important; }
+    .fc-list-empty { color: #94a3b8; font-size: 0.875rem; }
+
+    /* ─── Day Number ─────────────────────────────────── */
+    .fc-daygrid-day-number {
+        color: #64748b;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-decoration: none !important;
+        padding: 6px 8px !important;
+    }
+
+    /* ─── More Link ──────────────────────────────────── */
+    .fc-daygrid-more-link {
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: #6366f1;
+        margin-left: 2px;
+    }
+
+    /* ─── Scrollbar ──────────────────────────────────── */
+    .fc-scroller::-webkit-scrollbar { width: 4px; height: 4px; }
+    .fc-scroller::-webkit-scrollbar-track { background: transparent; }
+    .fc-scroller::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+
+    /* ─── Mobile ─────────────────────────────────────── */
+    @media (max-width: 767px) {
         .fc .fc-toolbar {
             display: grid !important;
-            grid-template-areas: 
-                "title title"
-                "nav views";
+            grid-template-areas: "title title" "nav views";
             grid-template-columns: 1fr 1fr;
-            gap: 1rem;
+            gap: 0.75rem;
         }
-
-        .fc .fc-toolbar-chunk:nth-child(2) { grid-area: title; }
+        .fc .fc-toolbar-chunk:nth-child(2) { grid-area: title; display: flex; justify-content: center; }
         .fc .fc-toolbar-chunk:nth-child(1) { grid-area: nav; justify-content: flex-start; }
         .fc .fc-toolbar-chunk:nth-child(3) { grid-area: views; justify-content: flex-end; }
-
-        .fc .fc-toolbar-title {
-            font-size: 1rem !important;
-            text-align: center;
-        }
-        
-        .fc .fc-button {
-            padding: 0.5rem !important;
-            font-size: 0.75rem !important;
-            min-height: 40px !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Specific mobile grid adjustments */
-        .fc-daygrid-day-number {
-            font-size: 0.75rem;
-            padding: 4px !important;
-        }
-
-        .fc-timegrid-axis {
-            width: 40px !important;
-        }
-
-        .fc-timegrid-slot-label {
-            font-size: 0.7rem !important;
-        }
+        .fc .fc-toolbar-title { font-size: 0.95rem; }
+        .fc .fc-button { padding: 0.45rem 0.6rem !important; font-size: 0.72rem !important; }
+        .fc-daygrid-day-number { font-size: 0.7rem; padding: 4px !important; }
     }
 
-    /* Custom Scrollbar for Calendar */
-    .fc-scroller::-webkit-scrollbar {
-        width: 6px;
+    /* ─── Skeleton Pulse ─────────────────────────────── */
+    @keyframes skeleton-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .4; }
     }
-    .fc-scroller::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    .fc-scroller::-webkit-scrollbar-thumb {
-        background: #e2e8f0;
-        border-radius: 10px;
-    }
+    .skeleton { animation: skeleton-pulse 1.6s ease-in-out infinite; background: #f1f5f9; border-radius: 6px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto space-y-6 pb-20 px-4 md:px-0">
-    <!-- Header: Optimized for Mobile & Desktop -->
-    <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 pt-4">
-        <div class="space-y-1">
-            <div class="flex items-center gap-2">
-                <div class="p-2 bg-slate-900 rounded-lg shadow-sm">
-                    <i data-lucide="calendar" class="h-5 w-5 text-white"></i>
-                </div>
-                <h2 id="calendar-page-title" class="text-2xl font-bold tracking-tight text-slate-900">Agenda Geral</h2>
+<div class="max-w-7xl mx-auto space-y-5 pb-20 px-4 md:px-0">
+
+    <!-- ── Header ───────────────────────────────────── -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-slate-900 rounded-xl shadow-sm shrink-0">
+                <i data-lucide="calendar-days" class="h-5 w-5 text-white"></i>
             </div>
-            <p id="calendar-page-desc" class="text-sm text-slate-500 font-medium">Controle operacional e acompanhamento de equipes.</p>
+            <div>
+                <h2 id="calendar-page-title" class="text-xl font-bold tracking-tight text-slate-900">Agenda Geral</h2>
+                <p id="calendar-page-desc" class="text-xs text-slate-500 font-medium">Controle operacional e acompanhamento de equipes</p>
+            </div>
         </div>
-        
-        <div id="calendar-page-actions" class="flex flex-col sm:flex-row items-stretch gap-3">
-            {% if perms.services.add_serviceorder %}
-            <button onclick="openSchedulingModal()" class="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-sm active:scale-95">
-                <i data-lucide="plus-circle" class="h-4 w-4"></i>
-                Novo Agendamento
-            </button>
-            {% endif %}
-            
+
+        <div id="calendar-page-actions" class="flex flex-wrap items-center gap-2 sm:shrink-0">
             {% if not is_collaborator %}
-            <div class="relative min-w-[220px]">
-                <select id="professional-filter" class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all appearance-none shadow-sm cursor-pointer">
+            <div class="relative">
+                <i data-lucide="users" class="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
+                <select id="professional-filter"
+                        class="pl-8 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all appearance-none shadow-sm cursor-pointer">
                     <option value="">Todos os Colaboradores</option>
                     {% for prof in professionals %}
                     <option value="{{ prof.id }}">{{ prof.name }}</option>
                     {% endfor %}
                 </select>
-                <i data-lucide="users" class="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"></i>
-                <i data-lucide="chevron-down" class="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none"></i>
+                <i data-lucide="chevron-down" class="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
             </div>
             {% else %}
-            <div class="px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm">
-                <i data-lucide="user-check" class="h-4 w-4 text-slate-900"></i>
+            <div class="px-3 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                <i data-lucide="user-check" class="h-3.5 w-3.5 text-slate-600"></i>
                 Minha Agenda
             </div>
+            {% endif %}
+
+            {% if perms.services.add_serviceorder %}
+            <button onclick="openSchedulingModal()"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-sm active:scale-95 shrink-0">
+                <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+                Novo Agendamento
+            </button>
             {% endif %}
         </div>
     </div>
 
-    <!-- Main Content Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        
-        <!-- Sidebar: Legend & Info (Hidden on very small screens, integrated differently if needed) -->
-        <div class="lg:col-span-1 space-y-6 order-2 lg:order-1">
-            <!-- Stats / Legend Card -->
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-5">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <i data-lucide="list" class="h-3 w-3"></i>
-                    Legenda de Cores
-                </h3>
-                
-                <div class="space-y-3">
-                    <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors">
-                        <div class="w-4 h-4 rounded-full bg-blue-500 shadow-sm shadow-blue-200"></div>
-                        <div class="flex flex-col">
-                            <span class="text-sm font-bold text-slate-700">Vistoria / Orçamento</span>
-                            <span class="text-[10px] text-slate-500 font-medium">Visitas técnicas iniciais</span>
-                        </div>
-                    </div>
-                    
-                    <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors">
-                        <div class="w-4 h-4 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200"></div>
-                        <div class="flex flex-col">
-                            <span class="text-sm font-bold text-slate-700">Execução</span>
-                            <span class="text-[10px] text-slate-500 font-medium">Serviços em andamento</span>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors">
-                        <div class="w-4 h-4 rounded-full bg-amber-500 shadow-sm shadow-amber-200"></div>
-                        <div class="flex flex-col">
-                            <span class="text-sm font-bold text-slate-700">Retorno / Garantia</span>
-                            <span class="text-[10px] text-slate-500 font-medium">Ajustes ou garantias</span>
-                        </div>
-                    </div>
-                    
-                    <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors">
-                        <div class="w-4 h-4 rounded-full bg-slate-400 shadow-sm shadow-slate-200"></div>
-                        <div class="flex flex-col">
-                            <span class="text-sm font-bold text-slate-700">Indisponível</span>
-                            <span class="text-[10px] text-slate-500 font-medium">Bloqueios de agenda</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="pt-4 border-t border-slate-100 mt-2">
-                    <p class="text-[11px] text-slate-400 leading-relaxed italic">
-                        Dica: Toque em um horário livre na visualização de "Semana" ou "Dia" para agendar rapidamente.
-                    </p>
-                </div>
-            </div>
-
-            <!-- Mobile-only quick actions if needed -->
-            <div class="block lg:hidden bg-blue-600 rounded-2xl p-5 text-white shadow-lg shadow-blue-200 relative overflow-hidden">
-                <div class="relative z-10">
-                    <h4 class="font-bold mb-1">Visão Mobile</h4>
-                    <p class="text-xs text-blue-100">Use a visualização de 'Lista' ou 'Dia' para melhor experiência em telas pequenas.</p>
-                </div>
-                <i data-lucide="smartphone" class="absolute -right-4 -bottom-4 h-24 w-24 text-blue-500/30 -rotate-12"></i>
-            </div>
+    <!-- ── Legend Strip ──────────────────────────────── -->
+    <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-[11px] font-bold border border-blue-100 select-none">
+            <div class="w-2 h-2 rounded-full bg-blue-500"></div>
+            Vistoria / Orçamento
         </div>
+        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] font-bold border border-emerald-100 select-none">
+            <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+            Execução
+        </div>
+        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-[11px] font-bold border border-amber-100 select-none">
+            <div class="w-2 h-2 rounded-full bg-amber-500"></div>
+            Retorno / Garantia
+        </div>
+        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-full text-[11px] font-bold border border-slate-200 select-none">
+            <div class="w-2 h-2 rounded-full bg-slate-400"></div>
+            Bloqueio
+        </div>
+        <p class="ml-auto text-[11px] text-slate-400 hidden md:block">
+            Clique em um horário livre para agendar
+        </p>
+    </div>
 
-        <!-- Calendar Area -->
-        <div class="lg:col-span-3 order-1 lg:order-2">
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                <div id="calendar-container" class="p-4 md:p-6 flex-1">
-                    <!-- Loading Animation -->
-                    <div id="calendar-loading" class="flex flex-col items-center justify-center py-32 space-y-4">
-                        <div class="relative">
-                            <div class="animate-spin rounded-full h-12 w-12 border-4 border-slate-100"></div>
-                            <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-slate-900 absolute inset-0"></div>
-                        </div>
-                        <p class="text-slate-500 font-bold text-sm tracking-wide animate-pulse">SINCRONIZANDO AGENDA...</p>
+    <!-- ── Calendar Card ─────────────────────────────── -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div id="calendar-container" class="p-4 md:p-6">
+
+            <!-- Skeleton Loader -->
+            <div id="calendar-loading" class="space-y-4">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="skeleton h-8 w-48"></div>
+                    <div class="flex gap-2">
+                        <div class="skeleton h-8 w-20"></div>
+                        <div class="skeleton h-8 w-20"></div>
+                        <div class="skeleton h-8 w-28"></div>
                     </div>
-                    <div id="calendar" class="hidden"></div>
                 </div>
+                <div class="grid grid-cols-7 gap-1 mb-2">
+                    {% for _ in "1234567" %}<div class="skeleton h-6 rounded-md"></div>{% endfor %}
+                </div>
+                {% for _ in "12345" %}
+                <div class="grid grid-cols-7 gap-1">
+                    {% for _ in "1234567" %}<div class="skeleton h-20 rounded-md"></div>{% endfor %}
+                </div>
+                {% endfor %}
             </div>
+
+            <div id="calendar" class="hidden"></div>
         </div>
     </div>
+
 </div>
 
-<!-- MODAL: EVENT DETAIL (Enhanced for Mobile) -->
-<div id="event-detail-modal" class="hidden fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-md items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:zoom-in duration-300">
-        <!-- Handle for mobile drag-down feeling -->
-        <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mt-3 mb-1 sm:hidden"></div>
-        
-        <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
-            <h3 class="font-bold text-slate-900 flex items-center gap-2">
-                <i data-lucide="info" class="h-5 w-5 text-slate-900"></i>
-                Detalhes da OS
+<!-- ══════════════════════════════════════════════════
+     MODAL: DETALHES DO EVENTO
+══════════════════════════════════════════════════ -->
+<div id="event-detail-modal"
+     class="hidden fixed inset-0 z-[120] bg-slate-900/50 backdrop-blur-sm items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-sm sm:rounded-2xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden">
+        <!-- Drag handle (mobile) -->
+        <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3 mb-2 sm:hidden"></div>
+
+        <!-- Header -->
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="clipboard-list" class="h-4 w-4 text-slate-500"></i>
+                Detalhes do Agendamento
             </h3>
-            <button onclick="closeEventDetailModal()" class="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-                <i data-lucide="x" class="h-5 w-5 text-slate-500"></i>
+            <button onclick="closeEventDetailModal()"
+                    class="p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-700">
+                <i data-lucide="x" class="h-4 w-4"></i>
             </button>
         </div>
-        
-        <div class="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
-            <!-- Header Info -->
-            <div class="flex items-center gap-4">
-                <div id="ed-icon-container" class="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-slate-100">
-                    <!-- Icon placeholder -->
-                </div>
-                <div class="min-w-0 flex-1">
-                    <h4 id="ed-client-name" class="text-xl font-extrabold text-slate-900 truncate tracking-tight"></h4>
-                    <p id="ed-type-badge" class="mt-1 inline-flex items-center"></p>
+
+        <!-- Body -->
+        <div class="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+            <!-- Icon + título -->
+            <div class="flex items-center gap-3">
+                <div id="ed-icon-container"
+                     class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border"></div>
+                <div class="min-w-0">
+                    <h4 id="ed-client-name" class="text-base font-extrabold text-slate-900 truncate"></h4>
+                    <p id="ed-type-badge" class="mt-0.5"></p>
                 </div>
             </div>
 
-            <!-- Details List -->
-            <div class="space-y-4">
-                <div class="flex items-start gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <div class="mt-1 p-2 bg-white rounded-lg shadow-sm">
-                        <i data-lucide="map-pin" class="h-4 w-4 text-slate-600"></i>
-                    </div>
-                    <div>
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Localização</span>
-                        <p id="ed-address" class="text-sm text-slate-800 font-bold leading-tight"></p>
-                        <p id="ed-neighborhood" class="text-xs text-slate-500 mt-0.5 font-medium"></p>
+            <!-- Detalhes -->
+            <div class="space-y-2">
+                <div class="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                    <i data-lucide="map-pin" class="h-3.5 w-3.5 text-slate-400 shrink-0"></i>
+                    <div class="min-w-0">
+                        <p id="ed-address" class="text-sm font-semibold text-slate-800 truncate"></p>
+                        <p id="ed-neighborhood" class="text-xs text-slate-500"></p>
                     </div>
                 </div>
 
-                <div class="flex items-start gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <div class="mt-1 p-2 bg-white rounded-lg shadow-sm">
-                        <i data-lucide="clock" class="h-4 w-4 text-slate-600"></i>
-                    </div>
-                    <div>
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Agendado para</span>
-                        <p id="ed-time" class="text-sm text-slate-800 font-bold"></p>
-                    </div>
+                <div class="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                    <i data-lucide="clock" class="h-3.5 w-3.5 text-slate-400 shrink-0"></i>
+                    <p id="ed-time" class="text-sm font-semibold text-slate-800"></p>
                 </div>
 
-                <div class="flex items-start gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <div class="mt-1 p-2 bg-white rounded-lg shadow-sm">
-                        <i data-lucide="check-square" class="h-4 w-4 text-slate-600"></i>
-                    </div>
-                    <div>
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Status Atual</span>
-                        <p id="ed-status" class="text-sm text-slate-800 font-bold"></p>
-                    </div>
-                </div>
-                
-                <div id="ed-description-container" class="flex items-start gap-4 p-3">
-                    <div class="mt-0.5">
-                        <i data-lucide="align-left" class="h-4 w-4 text-slate-400"></i>
-                    </div>
-                    <div class="flex-1">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Notas / Observações</span>
-                        <p id="ed-description" class="text-sm text-slate-600 font-medium leading-relaxed"></p>
-                    </div>
+                <div class="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                    <i data-lucide="activity" class="h-3.5 w-3.5 text-slate-400 shrink-0"></i>
+                    <p id="ed-status" class="text-sm font-semibold text-slate-800"></p>
                 </div>
 
-                <div id="ed-team-container" class="flex items-start gap-4 p-3 border-t border-slate-100 pt-4">
-                    <div class="mt-0.5">
-                        <i data-lucide="users" class="h-4 w-4 text-slate-400"></i>
-                    </div>
-                    <div class="flex-1">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Equipe Designada</span>
-                        <div id="ed-team" class="text-sm text-slate-800 font-bold flex flex-wrap gap-2"></div>
+                <div id="ed-description-container" class="flex items-start gap-3 px-3 py-2.5">
+                    <i data-lucide="align-left" class="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5"></i>
+                    <p id="ed-description" class="text-xs text-slate-600 leading-relaxed"></p>
+                </div>
+
+                <div id="ed-team-container" class="flex items-start gap-3 px-3 pt-2 border-t border-slate-100">
+                    <i data-lucide="users" class="h-3.5 w-3.5 text-slate-400 shrink-0 mt-1"></i>
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Equipe</p>
+                        <div id="ed-team" class="flex flex-wrap gap-1.5"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Actions -->
-            <div class="pt-4 flex flex-col gap-3">
-                <button id="ed-btn-detail" class="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg shadow-slate-200 hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
-                    <i data-lucide="external-link" class="h-5 w-5"></i>
-                    {% if is_collaborator %}
-                    Acessar Painel do Técnico
-                    {% else %}
-                    Visualizar OS Completa
-                    {% endif %}
+            <!-- Ações -->
+            <div class="flex flex-col gap-2 pt-1">
+                <button id="ed-btn-detail"
+                        class="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm">
+                    <i data-lucide="external-link" class="h-4 w-4"></i>
+                    {% if is_collaborator %}Acessar Painel do Técnico{% else %}Visualizar OS Completa{% endif %}
                 </button>
-                <button onclick="closeEventDetailModal()" class="w-full py-3 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all">
-                    Voltar para Agenda
+                <button onclick="closeEventDetailModal()"
+                        class="w-full py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all text-sm">
+                    Fechar
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- MODAL PARA AGENDAMENTO COMPLETO (Shadcn aesthetic) -->
-<div id="scheduling-modal" class="hidden fixed inset-0 z-[140] bg-slate-900/80 backdrop-blur-sm items-center justify-center p-0 md:p-4">
-    <div class="bg-white w-full max-w-6xl h-full md:h-[95vh] md:rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-12 duration-500">
-        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-10">
+<!-- ══════════════════════════════════════════════════
+     MODAL: NOVO AGENDAMENTO (iframe)
+══════════════════════════════════════════════════ -->
+<div id="scheduling-modal"
+     class="hidden fixed inset-0 z-[140] bg-slate-900/70 backdrop-blur-sm items-center justify-center p-0 md:p-4">
+    <div class="bg-white w-full max-w-6xl h-full md:h-[95vh] md:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-                    <i data-lucide="calendar-plus" class="h-5 w-5 text-blue-600"></i>
+                <div class="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                    <i data-lucide="calendar-plus" class="h-4 w-4 text-blue-600"></i>
                 </div>
                 <div>
-                    <h3 id="scheduling-modal-title" class="font-extrabold text-slate-900 tracking-tight">Novo Agendamento</h3>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Configuração de Serviço</p>
+                    <h3 id="scheduling-modal-title" class="font-bold text-slate-900 text-sm">Novo Agendamento</h3>
+                    <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Configuração de Serviço</p>
                 </div>
             </div>
-            <button onclick="closeSchedulingModal()" class="p-2.5 hover:bg-slate-100 rounded-xl transition-all active:scale-90">
-                <i data-lucide="x" class="h-6 w-6 text-slate-400"></i>
+            <button onclick="closeSchedulingModal()"
+                    class="p-2 hover:bg-slate-100 rounded-xl transition-all active:scale-90 text-slate-400 hover:text-slate-700">
+                <i data-lucide="x" class="h-5 w-5"></i>
             </button>
         </div>
         <div class="flex-1 bg-slate-50">
@@ -428,203 +370,220 @@
 
 {% block extra_js %}
 {{ block.super }}
-<!-- FullCalendar JS -->
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
 <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.10/locales/pt-br.global.min.js'></script>
 
 <script>
-    let allClients = [];
-    let selectedDateTime = null;
-    const canSchedule = {{ perms.services.add_serviceorder|yesno:"true,false" }};
-    const isCollaborator = {{ is_collaborator|yesno:"true,false" }};
-    
-    document.addEventListener('DOMContentLoaded', function() {
-        const calendarEl = document.getElementById('calendar');
-        const profFilter = document.getElementById('professional-filter');
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const isSelectMode = urlParams.get('mode') === 'select';
-        const initialProfId = urlParams.get('professional_id');
-        
-        if (isSelectMode) {
-            document.getElementById('calendar-page-title').textContent = "Escolher Horário";
-            document.getElementById('calendar-page-desc').textContent = "Toque no horário livre para prosseguir.";
-        }
+const canSchedule  = {{ perms.services.add_serviceorder|yesno:"true,false" }};
+const isCollaborator = {{ is_collaborator|yesno:"true,false" }};
+const edModal = document.getElementById('event-detail-modal');
 
-        {% if is_collaborator and current_professional %}
-        if (profFilter) profFilter.value = "{{ current_professional.id }}";
-        {% else %}
-        if (initialProfId && profFilter) profFilter.value = initialProfId;
-        {% endif %}
+document.addEventListener('DOMContentLoaded', function () {
+    const calendarEl  = document.getElementById('calendar');
+    const profFilter  = document.getElementById('professional-filter');
+    const urlParams   = new URLSearchParams(window.location.search);
+    const isSelectMode  = urlParams.get('mode') === 'select';
+    const initialProfId = urlParams.get('professional_id');
 
-        const calendar = new FullCalendar.Calendar(calendarEl, {
-            locale: 'pt-br',
-            initialView: window.innerWidth < 768 ? (isSelectMode ? 'timeGridDay' : 'listWeek') : 'timeGridWeek',
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: window.innerWidth < 768 ? 
-                    'timeGridDay,listWeek' : 
-                    'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
-            },
-            buttonText: {
-                today: 'Hoje',
-                month: 'Mês',
-                week: 'Semana',
-                day: 'Dia',
-                list: 'Lista'
-            },
-            titleFormat: { month: 'long', year: 'numeric' },
-            dayHeaderFormat: { weekday: 'short', day: 'numeric' },
-            themeSystem: 'standard',
-            height: 'auto',
-            nowIndicator: true,
-            editable: false,
-            selectable: canSchedule,
-            selectMirror: true,
-            dayMaxEvents: 3,
-            eventDisplay: 'block',
-            allDaySlot: false,
-            slotMinTime: '07:00:00',
-            slotMaxTime: '20:00:00',
-            slotDuration: '00:30:00',
-            slotLabelInterval: '01:00:00',
-            scrollTime: '08:00:00',
-            loading: function(isLoading) {
-                const loadingEl = document.getElementById('calendar-loading');
-                const calendarEl = document.getElementById('calendar');
-                if (isLoading) {
-                    loadingEl.classList.remove('hidden');
-                    calendarEl.classList.add('hidden');
-                } else {
-                    loadingEl.classList.add('hidden');
-                    calendarEl.classList.remove('hidden');
-                    // Recriar ícones lucide se necessário após renderização
-                    if (window.lucide) lucide.createIcons();
-                }
-            },
-            events: {
-                url: '{% url "api_calendar_events" %}',
-                extraParams: function() { 
-                    {% if is_collaborator and current_professional %}
-                    return { professional_id: "{{ current_professional.id }}" };
-                    {% else %}
-                    return profFilter ? { professional_id: profFilter.value } : {};
-                    {% endif %}
-                }
-            },
-            select: function(info) {
-                if (isSelectMode) {
-                    window.parent.postMessage({ 
-                        type: 'dateSelected', 
-                        date: info.startStr,
-                        endDate: info.endStr
-                    }, '*');
-                } else if (canSchedule) {
-                    openSchedulingModal(info.startStr, info.endStr);
-                }
-                calendar.unselect();
-            },
-            dateClick: function(info) {
-                if (!isSelectMode && canSchedule && info.view.type !== 'dayGridMonth') {
-                    openSchedulingModal(info.dateStr, null);
-                }
-            },
-            eventClick: function(info) {
-                if (isSelectMode) return;
-                info.jsEvent.preventDefault();
-                const props = info.event.extendedProps;
-                if (props.type === 'block') {
-                    return; // Bloqueios não abrem modal detalhado
-                }
-                openEventDetailModal(info.event);
+    if (isSelectMode) {
+        document.getElementById('calendar-page-title').textContent = 'Escolher Horário';
+        document.getElementById('calendar-page-desc').textContent  = 'Toque no horário livre para prosseguir.';
+    }
+
+    {% if is_collaborator and current_professional %}
+    if (profFilter) profFilter.value = "{{ current_professional.id }}";
+    {% else %}
+    if (initialProfId && profFilter) profFilter.value = initialProfId;
+    {% endif %}
+
+    const isMobile = window.innerWidth < 768;
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        locale: 'pt-br',
+        initialView: isMobile ? (isSelectMode ? 'timeGridDay' : 'listWeek') : 'timeGridWeek',
+        headerToolbar: {
+            left:   'prev,next today',
+            center: 'title',
+            right:  isMobile
+                ? 'timeGridDay,listWeek'
+                : 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+        },
+        buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' },
+        titleFormat: { month: 'long', year: 'numeric' },
+        dayHeaderFormat: { weekday: 'short', day: 'numeric' },
+        height: 'auto',
+        nowIndicator: true,
+        editable: false,
+        selectable: canSchedule,
+        selectMirror: true,
+        dayMaxEvents: 3,
+        eventDisplay: 'block',
+        allDaySlot: false,
+        slotMinTime: '07:00:00',
+        slotMaxTime: '20:00:00',
+        slotDuration: '00:30:00',
+        slotLabelInterval: '01:00:00',
+        scrollTime: '08:00:00',
+
+        loading: function (isLoading) {
+            const loader = document.getElementById('calendar-loading');
+            if (isLoading) {
+                loader.classList.remove('hidden');
+                calendarEl.classList.add('hidden');
+            } else {
+                loader.classList.add('hidden');
+                calendarEl.classList.remove('hidden');
+                if (window.lucide) lucide.createIcons();
             }
-        });
+        },
 
-        calendar.render();
-        
-        if (profFilter) {
-            profFilter.addEventListener('change', () => calendar.refetchEvents());
+        events: {
+            url: '{% url "api_calendar_events" %}',
+            extraParams: function () {
+                {% if is_collaborator and current_professional %}
+                return { professional_id: "{{ current_professional.id }}" };
+                {% else %}
+                return profFilter ? { professional_id: profFilter.value } : {};
+                {% endif %}
+            }
+        },
+
+        eventContent: function (arg) {
+            const title = arg.event.title || '';
+            const isList = arg.view.type.startsWith('list');
+            if (isList) return null; // usa renderização padrão na lista
+            return {
+                html: `<div class="px-1.5 py-0.5 overflow-hidden leading-tight">
+                           <span class="text-[11px] font-bold block truncate">${title}</span>
+                       </div>`
+            };
+        },
+
+        select: function (info) {
+            if (isSelectMode) {
+                window.parent.postMessage({ type: 'dateSelected', date: info.startStr, endDate: info.endStr }, '*');
+            } else if (canSchedule) {
+                openSchedulingModal(info.startStr, info.endStr);
+            }
+            calendar.unselect();
+        },
+        dateClick: function (info) {
+            if (!isSelectMode && canSchedule && info.view.type !== 'dayGridMonth') {
+                openSchedulingModal(info.dateStr, null);
+            }
+        },
+        eventClick: function (info) {
+            if (isSelectMode) return;
+            info.jsEvent.preventDefault();
+            if (info.event.extendedProps.type === 'block') return;
+            openEventDetailModal(info.event);
         }
-        
-        window.calendarInstance = calendar;
     });
 
-    const edModal = document.getElementById('event-detail-modal');
+    calendar.render();
+    if (profFilter) profFilter.addEventListener('change', () => calendar.refetchEvents());
+    window.calendarInstance = calendar;
+});
 
-    function openSchedulingModal(dateStr = null, endDateStr = null) {
-        let url = "{% url 'service_order_scheduling' %}";
-        const params = new URLSearchParams();
-        if (dateStr) params.append('scheduled_at', dateStr);
-        if (endDateStr) params.append('scheduled_end_at', endDateStr);
-        
-        const qs = params.toString();
-        if (qs) url += '?' + qs;
-        window.location.href = url;
-    }
+/* ── Scheduling Modal ─────────────────────────── */
+function openSchedulingModal(dateStr = null, endDateStr = null) {
+    let url = "{% url 'service_order_scheduling' %}";
+    const params = new URLSearchParams();
+    if (dateStr)    params.append('scheduled_at', dateStr);
+    if (endDateStr) params.append('scheduled_end_at', endDateStr);
+    const qs = params.toString();
+    if (qs) url += '?' + qs;
+    window.location.href = url;
+}
 
-    function openEventDetailModal(event) {
-        const props = event.extendedProps;
-        const start = event.start;
-        
-        document.getElementById('ed-client-name').textContent = props.client;
-        document.getElementById('ed-address').textContent = props.address;
-        document.getElementById('ed-neighborhood').textContent = props.neighborhood || 'Sem bairro informado';
-        document.getElementById('ed-status').textContent = props.status;
-        document.getElementById('ed-description').textContent = props.description || 'Nenhuma observação adicional foi registrada para este agendamento.';
-        
-        const teamElement = document.getElementById('ed-team');
-        teamElement.innerHTML = '';
-        if (props.team && props.team.length > 0) {
-            props.team.forEach(member => {
-                const span = document.createElement('span');
-                span.className = 'px-2 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold border border-slate-200';
-                span.textContent = member;
-                teamElement.appendChild(span);
-            });
-            document.getElementById('ed-team-container').classList.remove('hidden');
-        } else {
-            document.getElementById('ed-team-container').classList.add('hidden');
-        }
+function closeSchedulingModal() {
+    const m = document.getElementById('scheduling-modal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+    document.getElementById('scheduling-iframe').src = '';
+}
 
-        const timeStr = start.toLocaleDateString('pt-BR', { 
-            weekday: 'short', 
-            day: '2-digit', 
-            month: 'short', 
-            hour: '2-digit', 
-            minute: '2-digit' 
+/* ── Event Detail Modal ───────────────────────── */
+function openEventDetailModal(event) {
+    const props = event.extendedProps;
+
+    document.getElementById('ed-client-name').textContent    = props.client || event.title;
+    document.getElementById('ed-address').textContent        = props.address || '—';
+    document.getElementById('ed-neighborhood').textContent   = props.neighborhood || '';
+    document.getElementById('ed-status').textContent         = props.status || '—';
+    document.getElementById('ed-description').textContent    = props.description || 'Nenhuma observação registrada.';
+
+    // equipe
+    const teamEl = document.getElementById('ed-team');
+    teamEl.innerHTML = '';
+    if (props.team && props.team.length) {
+        props.team.forEach(m => {
+            const s = document.createElement('span');
+            s.className = 'px-2 py-0.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold border border-slate-200';
+            s.textContent = m;
+            teamEl.appendChild(s);
         });
-        document.getElementById('ed-time').textContent = timeStr;
-
-        const badge = document.getElementById('ed-type-badge');
-        const iconCont = document.getElementById('ed-icon-container');
-        
-        if (props.type === 'ORCAMENTO') {
-            badge.innerHTML = '<span class="px-2.5 py-1 bg-blue-50 text-blue-700 text-[10px] font-extrabold uppercase tracking-widest rounded-full border border-blue-100">Vistoria</span>';
-            iconCont.className = 'w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 bg-blue-50 text-blue-600 border border-blue-100 shadow-sm';
-            iconCont.innerHTML = '<i data-lucide="clipboard-check" class="h-7 w-7"></i>';
-        } else if (props.type === 'GARANTIA') {
-            badge.innerHTML = '<span class="px-2.5 py-1 bg-amber-50 text-amber-700 text-[10px] font-extrabold uppercase tracking-widest rounded-full border border-amber-100">Garantia</span>';
-            iconCont.className = 'w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 bg-amber-50 text-amber-600 border border-amber-100 shadow-sm';
-            iconCont.innerHTML = '<i data-lucide="shield-alert" class="h-7 w-7"></i>';
-        } else {
-            badge.innerHTML = '<span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-extrabold uppercase tracking-widest rounded-full border border-emerald-100">Execução</span>';
-            iconCont.className = 'w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-sm';
-            iconCont.innerHTML = '<i data-lucide="wrench" class="h-7 w-7"></i>';
-        }
-
-        document.getElementById('ed-btn-detail').onclick = () => {
-            window.location.href = event.url;
-        };
-
-        edModal.classList.remove('hidden');
-        edModal.classList.add('flex');
-        if (window.lucide) lucide.createIcons();
+        document.getElementById('ed-team-container').classList.remove('hidden');
+    } else {
+        document.getElementById('ed-team-container').classList.add('hidden');
     }
 
-    function closeEventDetailModal() {
-        edModal.classList.add('hidden');
-        edModal.classList.remove('flex');
+    // horário
+    if (event.start) {
+        document.getElementById('ed-time').textContent = event.start.toLocaleDateString('pt-BR', {
+            weekday: 'long', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+        });
     }
+
+    // tipo / badge / ícone
+    const badge   = document.getElementById('ed-type-badge');
+    const iconBox = document.getElementById('ed-icon-container');
+    const TYPE_MAP = {
+        ORCAMENTO: {
+            label: 'Vistoria',
+            bg: 'bg-blue-50 border-blue-100',
+            text: 'text-blue-700',
+            badgeCls: 'bg-blue-50 text-blue-700 border-blue-100',
+            icon: 'clipboard-check',
+            iconCls: 'text-blue-500',
+        },
+        GARANTIA: {
+            label: 'Garantia',
+            bg: 'bg-amber-50 border-amber-100',
+            text: 'text-amber-700',
+            badgeCls: 'bg-amber-50 text-amber-700 border-amber-100',
+            icon: 'shield-alert',
+            iconCls: 'text-amber-500',
+        },
+        EXECUCAO: {
+            label: 'Execução',
+            bg: 'bg-emerald-50 border-emerald-100',
+            text: 'text-emerald-700',
+            badgeCls: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+            icon: 'wrench',
+            iconCls: 'text-emerald-500',
+        },
+    };
+    const cfg = TYPE_MAP[props.type] || TYPE_MAP.EXECUCAO;
+    iconBox.className = `w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${cfg.bg}`;
+    iconBox.innerHTML = `<i data-lucide="${cfg.icon}" class="h-6 w-6 ${cfg.iconCls}"></i>`;
+    badge.innerHTML   = `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest border ${cfg.badgeCls}">${cfg.label}</span>`;
+
+    document.getElementById('ed-btn-detail').onclick = () => { window.location.href = event.url; };
+
+    edModal.classList.remove('hidden');
+    edModal.classList.add('flex');
+    if (window.lucide) lucide.createIcons();
+}
+
+function closeEventDetailModal() {
+    edModal.classList.add('hidden');
+    edModal.classList.remove('flex');
+}
+
+// fechar ao clicar no backdrop
+edModal.addEventListener('click', function (e) {
+    if (e.target === edModal) closeEventDetailModal();
+});
 </script>
 {% endblock %}
