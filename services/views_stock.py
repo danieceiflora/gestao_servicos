@@ -4,7 +4,8 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.urls import reverse_lazy
-from django.db.models import Q
+from django.db.models import Q, Sum, F, ExpressionWrapper, DecimalField, Count
+from django.db.models.functions import Coalesce
 import csv
 import io
 import hashlib
@@ -12,9 +13,9 @@ from decimal import Decimal
 from openpyxl import load_workbook
 from django.http import HttpResponse, JsonResponse
 from django.db import transaction
-from .models import Product, StockMovement, ImportHistory, ImportItem
+from .models import Product, StockMovement, ImportHistory, ImportItem, ProductCategory
 from integracoes.models import SystemConfig
-from .forms import ProductForm, StockMovementForm, ProductImportForm, ProductCompositionFormSet
+from .forms import ProductForm, StockMovementForm, ProductImportForm, ProductCompositionFormSet, ProductVariantFormSet
 
 class ManagerRequiredMixin(UserPassesTestMixin):
     def test_func(self):
@@ -28,7 +29,11 @@ def get_product_prices(request, pk):
     product = get_object_or_404(Product, pk=pk)
     return JsonResponse({
         'preco_custo': float(product.preco_custo),
-        'default_unit_price': float(product.default_unit_price)
+        'default_unit_price': float(product.default_unit_price),
+        'current_stock': float(product.current_stock),
+        'min_stock': float(product.min_stock),
+        'max_stock': float(product.max_stock),
+        'unit_type': product.get_unit_type_display(),
     })
 
 @login_required
@@ -53,14 +58,42 @@ class ProductListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        queryset = Product.objects.all()
+        queryset = Product.objects.select_related('category').all()
         search = self.request.GET.get('search')
+        category = self.request.GET.get('category')
+        status = self.request.GET.get('status')
         if search:
             queryset = queryset.filter(
-                Q(name__icontains=search) | 
+                Q(name__icontains=search) |
                 Q(code__icontains=search)
             )
+        if category:
+            queryset = queryset.filter(category_id=category)
+        if status == 'low':
+            queryset = queryset.filter(current_stock__gt=0, current_stock__lte=F('min_stock'))
+        elif status == 'zero':
+            queryset = queryset.filter(current_stock__lte=0)
+        elif status == 'ok':
+            queryset = queryset.filter(current_stock__gt=F('min_stock'))
         return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        qs = Product.objects.all()
+        valor_total = qs.aggregate(
+            total=Coalesce(Sum(ExpressionWrapper(
+                F('current_stock') * F('preco_custo'),
+                output_field=DecimalField()
+            )), Decimal('0'))
+        )['total']
+        context['kpi_valor_total'] = valor_total
+        context['kpi_total_skus'] = qs.count()
+        context['kpi_abaixo_minimo'] = qs.filter(current_stock__gt=0, current_stock__lte=F('min_stock'), min_stock__gt=0).count()
+        context['kpi_zerados'] = qs.filter(current_stock__lte=0).count()
+        context['categories'] = ProductCategory.objects.all().order_by('name')
+        context['selected_category'] = self.request.GET.get('category', '')
+        context['selected_status'] = self.request.GET.get('status', '')
+        return context
 
 class ProductCreateView(LoginRequiredMixin, ManagerRequiredMixin, CreateView):
     model = Product
@@ -73,22 +106,32 @@ class ProductCreateView(LoginRequiredMixin, ManagerRequiredMixin, CreateView):
         context['tax_regime'] = SystemConfig.load().tax_regime
         if self.request.POST:
             context['composition_formset'] = ProductCompositionFormSet(self.request.POST)
+            context['variant_formset'] = ProductVariantFormSet(self.request.POST)
         else:
             context['composition_formset'] = ProductCompositionFormSet()
+            context['variant_formset'] = ProductVariantFormSet()
         return context
 
     def form_valid(self, form):
         context = self.get_context_data()
         composition_formset = context['composition_formset']
-        
+        variant_formset = context['variant_formset']
+
         with transaction.atomic():
             self.object = form.save()
-            if composition_formset.is_valid():
-                composition_formset.instance = self.object
-                composition_formset.save()
-            else:
-                return self.form_invalid(form)
-                
+            if form.instance.format == 'COM_COMPOSICAO':
+                if composition_formset.is_valid():
+                    composition_formset.instance = self.object
+                    composition_formset.save()
+                else:
+                    return self.form_invalid(form)
+            elif form.instance.format == 'COM_VARIACOES':
+                if variant_formset.is_valid():
+                    variant_formset.instance = self.object
+                    variant_formset.save()
+                else:
+                    return self.form_invalid(form)
+
         messages.success(self.request, "Produto cadastrado com sucesso.")
         return redirect(self.success_url)
 
@@ -103,22 +146,32 @@ class ProductUpdateView(LoginRequiredMixin, ManagerRequiredMixin, UpdateView):
         context['tax_regime'] = SystemConfig.load().tax_regime
         if self.request.POST:
             context['composition_formset'] = ProductCompositionFormSet(self.request.POST, instance=self.object)
+            context['variant_formset'] = ProductVariantFormSet(self.request.POST, instance=self.object)
         else:
             context['composition_formset'] = ProductCompositionFormSet(instance=self.object)
+            context['variant_formset'] = ProductVariantFormSet(instance=self.object)
         return context
 
     def form_valid(self, form):
         context = self.get_context_data()
         composition_formset = context['composition_formset']
-        
+        variant_formset = context['variant_formset']
+
         with transaction.atomic():
             self.object = form.save()
-            if composition_formset.is_valid():
-                composition_formset.instance = self.object
-                composition_formset.save()
-            else:
-                return self.form_invalid(form)
-                
+            if form.instance.format == 'COM_COMPOSICAO':
+                if composition_formset.is_valid():
+                    composition_formset.instance = self.object
+                    composition_formset.save()
+                else:
+                    return self.form_invalid(form)
+            elif form.instance.format == 'COM_VARIACOES':
+                if variant_formset.is_valid():
+                    variant_formset.instance = self.object
+                    variant_formset.save()
+                else:
+                    return self.form_invalid(form)
+
         messages.success(self.request, "Produto atualizado com sucesso.")
         return redirect(self.success_url)
 
@@ -154,12 +207,42 @@ class StockMovementCreateView(LoginRequiredMixin, ManagerRequiredMixin, CreateVi
 
 @login_required
 def product_stock_history(request, pk):
+    from datetime import datetime, date
     product = get_object_or_404(Product, pk=pk)
     movements = product.movements.all().select_related('user', 'service_order')
-    
+
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    mov_type = request.GET.get('type')
+
+    if date_from:
+        try:
+            movements = movements.filter(created_at__date__gte=date_from)
+        except (ValueError, TypeError):
+            pass
+    if date_to:
+        try:
+            movements = movements.filter(created_at__date__lte=date_to)
+        except (ValueError, TypeError):
+            pass
+    if mov_type in ('ENTRADA', 'SAIDA'):
+        movements = movements.filter(movement_type=mov_type)
+
+    # Dados para gráfico (últimos 30 lançamentos cronológicos)
+    chart_qs = list(product.movements.order_by('created_at').values(
+        'created_at', 'movement_type', 'quantity', 'saldo_apos'
+    )[:60])
+    chart_labels = [m['created_at'].strftime('%d/%m %H:%M') for m in chart_qs]
+    chart_data = [float(m['saldo_apos']) if m['saldo_apos'] is not None else None for m in chart_qs]
+
     context = {
         'product': product,
         'movements': movements,
+        'date_from': date_from or '',
+        'date_to': date_to or '',
+        'selected_type': mov_type or '',
+        'chart_labels': chart_labels,
+        'chart_data': chart_data,
     }
     return render(request, 'services/product_stock_history.html', context)
 

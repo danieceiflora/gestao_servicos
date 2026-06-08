@@ -14,11 +14,39 @@
         </div>
     </div>
 
+    <!-- Stock Context Panel (hidden until product selected) -->
+    <div id="stock-context" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+            <i data-lucide="bar-chart-2" class="h-4 w-4 text-slate-500"></i>
+            <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">Posição atual do produto</span>
+        </div>
+        <div class="p-5 grid grid-cols-3 gap-4">
+            <div class="text-center">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Saldo Atual</p>
+                <p id="ctx-saldo" class="text-2xl font-black text-slate-900">—</p>
+                <p id="ctx-unit" class="text-[10px] text-slate-400 mt-0.5"></p>
+            </div>
+            <div class="text-center border-x border-slate-100">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Estoque Mínimo</p>
+                <p id="ctx-minimo" class="text-2xl font-black text-amber-500">—</p>
+            </div>
+            <div class="text-center">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Saldo Após</p>
+                <p id="ctx-apos" class="text-2xl font-black text-slate-400">—</p>
+            </div>
+        </div>
+        <!-- Alert banner -->
+        <div id="ctx-alert" class="hidden mx-5 mb-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold">
+            <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0"></i>
+            <span id="ctx-alert-msg"></span>
+        </div>
+    </div>
+
     <!-- Form -->
     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <form method="post" class="space-y-4">
+        <form method="post" id="movement-form" class="space-y-4">
             {% csrf_token %}
-            
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="md:col-span-2 space-y-2">
                     <label class="text-sm font-semibold text-slate-700">Produto</label>
@@ -47,14 +75,94 @@
             </div>
 
             <div class="flex gap-3 pt-6 border-t border-slate-100">
-                <button type="submit" class="flex-1 bg-amber-500 text-white font-bold py-3 rounded-xl hover:bg-amber-600 transition-all shadow-sm active:scale-[0.98]">
+                <button type="submit" id="submit-btn"
+                        class="flex-1 bg-amber-500 text-white font-bold py-3 rounded-xl hover:bg-amber-600 transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-2">
+                    <i data-lucide="check-circle" class="h-5 w-5"></i>
                     Confirmar Movimentação
                 </button>
-                <a href="{% url 'product_list' %}" class="flex-1 bg-slate-100 text-slate-700 font-bold py-3 rounded-xl text-center hover:bg-slate-200 transition-all active:scale-[0.98]">
+                <a href="{% url 'product_list' %}"
+                   class="flex-1 bg-slate-100 text-slate-700 font-bold py-3 rounded-xl text-center hover:bg-slate-200 transition-all active:scale-[0.98]">
                     Cancelar
                 </a>
             </div>
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const productSelect  = document.querySelector('[name="product"]');
+const qtyInput       = document.querySelector('[name="quantity"]');
+const typeSelect     = document.querySelector('[name="movement_type"]');
+
+const ctxPanel  = document.getElementById('stock-context');
+const ctxSaldo  = document.getElementById('ctx-saldo');
+const ctxUnit   = document.getElementById('ctx-unit');
+const ctxMinimo = document.getElementById('ctx-minimo');
+const ctxApos   = document.getElementById('ctx-apos');
+const ctxAlert  = document.getElementById('ctx-alert');
+const ctxAlertMsg = document.getElementById('ctx-alert-msg');
+
+let currentStock = null;
+let minStock = null;
+
+function fmt(n) {
+    return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function loadProductInfo() {
+    const id = productSelect.value;
+    if (!id) { ctxPanel.classList.add('hidden'); return; }
+
+    try {
+        const res = await fetch(`/produtos/${id}/precos/`);
+        const data = await res.json();
+        currentStock = data.current_stock;
+        minStock     = data.min_stock;
+
+        ctxSaldo.textContent  = fmt(data.current_stock);
+        ctxUnit.textContent   = data.unit_type;
+        ctxMinimo.textContent = data.min_stock > 0 ? fmt(data.min_stock) : '—';
+
+        updatePreview();
+        ctxPanel.classList.remove('hidden');
+        lucide.createIcons();
+    } catch (e) {
+        ctxPanel.classList.add('hidden');
+    }
+}
+
+function updatePreview() {
+    if (currentStock === null) return;
+    const qty  = parseFloat(qtyInput.value) || 0;
+    const type = typeSelect.value;
+    let apos = type === 'ENTRADA' ? currentStock + qty : currentStock - qty;
+
+    ctxApos.textContent = fmt(apos);
+
+    // Color the "saldo após" value
+    ctxApos.className = 'text-2xl font-black ';
+    if (apos < 0) ctxApos.className += 'text-red-600';
+    else if (minStock > 0 && apos <= minStock) ctxApos.className += 'text-amber-500';
+    else ctxApos.className += 'text-emerald-600';
+
+    // Alert banner
+    ctxAlert.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'bg-amber-50', 'text-amber-700');
+    if (type === 'SAIDA' && apos < 0) {
+        ctxAlert.classList.add('flex', 'bg-red-50', 'text-red-700');
+        ctxAlertMsg.textContent = 'Atenção: esta saída vai negativar o estoque!';
+    } else if (type === 'SAIDA' && minStock > 0 && apos <= minStock && apos >= 0) {
+        ctxAlert.classList.add('flex', 'bg-amber-50', 'text-amber-700');
+        ctxAlertMsg.textContent = `Saldo ficará abaixo do mínimo definido (${fmt(minStock)}).`;
+    } else {
+        ctxAlert.classList.add('hidden');
+    }
+    lucide.createIcons();
+}
+
+productSelect.addEventListener('change', loadProductInfo);
+qtyInput.addEventListener('input', updatePreview);
+typeSelect.addEventListener('change', updatePreview);
+</script>
 {% endblock %}

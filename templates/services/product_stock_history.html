@@ -10,32 +10,87 @@
             <i data-lucide="arrow-left" class="h-6 w-6"></i>
         </a>
         {% if product.image %}
-        <img src="{{ product.image.url }}" alt="{{ product.name }}" class="h-16 w-16 object-cover rounded-xl border border-slate-200">
+        <img src="{{ product.image.url }}" alt="{{ product.name }}" class="h-14 w-14 object-cover rounded-xl border border-slate-200">
         {% else %}
-        <div class="h-16 w-16 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400">
-            <i data-lucide="package" class="h-8 w-8"></i>
+        <div class="h-14 w-14 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+            <i data-lucide="package" class="h-7 w-7"></i>
         </div>
         {% endif %}
-        <div>
-            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Histórico: {{ product.name }}</h1>
-            <p class="text-slate-500 text-sm">Rastreabilidade de todas as movimentações.</p>
+        <div class="flex-1 min-w-0">
+            <h1 class="text-xl font-bold text-slate-900 tracking-tight truncate">{{ product.name }}</h1>
+            <p class="text-slate-500 text-sm">Rastreabilidade de todas as movimentações</p>
         </div>
+        <a href="{% url 'stock_movement_create' %}?product={{ product.pk }}"
+           class="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-all text-sm shadow-sm shrink-0">
+            <i data-lucide="arrow-left-right" class="h-4 w-4"></i>
+            Movimentar
+        </a>
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <p class="text-sm font-medium text-slate-500">Saldo Atual</p>
-            <p class="text-3xl font-bold text-slate-900">{{ product.current_stock }} {{ product.get_unit_type_display }}</p>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Saldo Atual</p>
+            <p class="text-2xl font-black {% if product.current_stock <= 0 %}text-red-600{% elif product.min_stock > 0 and product.current_stock <= product.min_stock %}text-amber-500{% else %}text-emerald-600{% endif %} mt-1">
+                {{ product.current_stock }} <span class="text-sm font-medium text-slate-400">{{ product.get_unit_type_display }}</span>
+            </p>
         </div>
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <p class="text-sm font-medium text-slate-500">Código</p>
-            <p class="text-3xl font-bold text-slate-900">{{ product.code|default:"---" }}</p>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Código</p>
+            <p class="text-2xl font-black text-slate-900 mt-1">{{ product.code|default:"—" }}</p>
         </div>
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <p class="text-sm font-medium text-slate-500">Valor Estimado em Estoque</p>
-            <p class="text-3xl font-bold text-slate-900">R$ {{ product.current_stock|multiply:product.default_unit_price|floatformat:2 }}</p>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estoque Mínimo</p>
+            <p class="text-2xl font-black text-amber-500 mt-1">{{ product.min_stock|default:"—" }}</p>
         </div>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor em Estoque</p>
+            <p class="text-2xl font-black text-slate-900 mt-1">R$ {{ product.current_stock|multiply:product.preco_custo|floatformat:2 }}</p>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    {% if chart_data %}
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="trending-up" class="h-4 w-4 text-blue-500"></i>
+            <h3 class="text-sm font-bold text-slate-700">Evolução do Saldo</h3>
+        </div>
+        <canvas id="stockChart" height="80"></canvas>
+    </div>
+    {% endif %}
+
+    <!-- Filters -->
+    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+        <form method="get" class="flex flex-wrap items-end gap-3">
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">De</label>
+                <input type="date" name="date_from" value="{{ date_from }}"
+                       class="px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:ring-2 focus:ring-slate-900 focus:border-slate-900 outline-none transition-all">
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Até</label>
+                <input type="date" name="date_to" value="{{ date_to }}"
+                       class="px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:ring-2 focus:ring-slate-900 focus:border-slate-900 outline-none transition-all">
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo</label>
+                <select name="type" class="px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:ring-2 focus:ring-slate-900 focus:border-slate-900 outline-none transition-all">
+                    <option value="">Todos</option>
+                    <option value="ENTRADA" {% if selected_type == 'ENTRADA' %}selected{% endif %}>Entradas</option>
+                    <option value="SAIDA" {% if selected_type == 'SAIDA' %}selected{% endif %}>Saídas</option>
+                </select>
+            </div>
+            <button type="submit" class="px-5 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all text-sm">
+                Filtrar
+            </button>
+            {% if date_from or date_to or selected_type %}
+            <a href="{% url 'product_stock_history' product.pk %}"
+               class="px-4 py-2.5 text-slate-400 hover:text-slate-600 transition-all flex items-center gap-1.5 rounded-xl hover:bg-slate-100 text-sm font-medium">
+                <i data-lucide="x" class="h-4 w-4"></i> Limpar
+            </a>
+            {% endif %}
+        </form>
     </div>
 
     <!-- Table -->
@@ -44,56 +99,70 @@
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50/50 border-b border-slate-200">
-                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data/Hora</th>
-                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
-                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Quantidade</th>
-                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Motivo</th>
-                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Vínculo</th>
-                        <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Usuário</th>
+                        <th class="px-5 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Data/Hora</th>
+                        <th class="px-5 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
+                        <th class="px-5 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Quantidade</th>
+                        <th class="px-5 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo Após</th>
+                        <th class="px-5 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Motivo</th>
+                        <th class="px-5 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Vínculo</th>
+                        <th class="px-5 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Usuário</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     {% for move in movements %}
-                    <tr class="hover:bg-slate-50/50 transition-colors">
-                        <td class="px-6 py-4 text-sm text-slate-600">
+                    <tr class="hover:bg-slate-50/50 transition-colors group">
+                        <td class="px-5 py-4 text-sm text-slate-600">
                             {{ move.created_at|date:"d/m/Y H:i" }}
                         </td>
-                        <td class="px-6 py-4">
+                        <td class="px-5 py-4">
                             {% if move.movement_type == 'ENTRADA' %}
-                            <span class="inline-flex items-center gap-1 text-emerald-600 font-bold text-sm">
-                                <i data-lucide="arrow-up-circle" class="h-4 w-4"></i>
-                                Entrada
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-lg border border-emerald-100">
+                                <i data-lucide="arrow-up-circle" class="h-3.5 w-3.5"></i> Entrada
                             </span>
                             {% else %}
-                            <span class="inline-flex items-center gap-1 text-red-600 font-bold text-sm">
-                                <i data-lucide="arrow-down-circle" class="h-4 w-4"></i>
-                                Saída
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-700 font-bold text-xs rounded-lg border border-red-100">
+                                <i data-lucide="arrow-down-circle" class="h-3.5 w-3.5"></i> Saída
                             </span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 font-mono font-bold text-slate-900">
-                            {% if move.movement_type == 'ENTRADA' %}+{% else %}-{% endif %}{{ move.quantity }}
+                        <td class="px-5 py-4 text-right">
+                            <span class="font-mono font-bold {% if move.movement_type == 'ENTRADA' %}text-emerald-600{% else %}text-red-600{% endif %}">
+                                {% if move.movement_type == 'ENTRADA' %}+{% else %}-{% endif %}{{ move.quantity }}
+                            </span>
                         </td>
-                        <td class="px-6 py-4 text-sm text-slate-600">
+                        <td class="px-5 py-4 text-right">
+                            {% if move.saldo_apos is not None %}
+                            <span class="font-mono font-bold text-sm {% if move.saldo_apos <= 0 %}text-red-600{% elif product.min_stock > 0 and move.saldo_apos <= product.min_stock %}text-amber-500{% else %}text-slate-700{% endif %}">
+                                {{ move.saldo_apos }}
+                            </span>
+                            {% else %}
+                            <span class="text-slate-300 text-xs">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-4 text-sm text-slate-600">
                             {{ move.get_reason_display }}
                         </td>
-                        <td class="px-6 py-4 text-sm text-slate-600">
+                        <td class="px-5 py-4 text-sm">
                             {% if move.service_order %}
-                            <a href="{% url 'service_order_detail' move.service_order.id %}" class="text-blue-600 hover:underline">
+                            <a href="{% url 'service_order_detail' move.service_order.id %}"
+                               class="text-blue-600 hover:underline font-medium">
                                 OS #{{ move.service_order.number }}
                             </a>
                             {% else %}
-                            ---
+                            <span class="text-slate-300">—</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 text-sm text-slate-600">
+                        <td class="px-5 py-4 text-sm text-slate-600">
                             {{ move.user.get_full_name|default:move.user.username }}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="px-6 py-12 text-center text-slate-400">
-                            Nenhuma movimentação registrada.
+                        <td colspan="7" class="px-6 py-14 text-center">
+                            <div class="flex flex-col items-center gap-3 text-slate-300">
+                                <i data-lucide="inbox" class="h-10 w-10"></i>
+                                <p class="text-slate-500 font-medium text-sm">Nenhuma movimentação encontrada para os filtros selecionados.</p>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -102,4 +171,78 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if chart_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script>
+const labels = {{ chart_labels|safe }};
+const data   = {{ chart_data|safe }};
+const minVal = {{ product.min_stock }};
+
+const ctx = document.getElementById('stockChart').getContext('2d');
+
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Saldo',
+                data: data,
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59,130,246,0.08)',
+                borderWidth: 2,
+                pointRadius: 3,
+                pointBackgroundColor: data.map(v =>
+                    v === null ? 'transparent' :
+                    v <= 0 ? '#ef4444' :
+                    (minVal > 0 && v <= minVal) ? '#f59e0b' : '#3b82f6'
+                ),
+                pointBorderColor: 'transparent',
+                tension: 0.3,
+                fill: true,
+                spanGaps: true,
+            },
+            ...(minVal > 0 ? [{
+                label: 'Mínimo',
+                data: labels.map(() => minVal),
+                borderColor: '#f59e0b',
+                borderWidth: 1.5,
+                borderDash: [6, 3],
+                pointRadius: 0,
+                fill: false,
+            }] : []),
+        ],
+    },
+    options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: {
+                display: minVal > 0,
+                labels: { boxWidth: 12, font: { size: 11 } },
+            },
+            tooltip: {
+                callbacks: {
+                    label: ctx => `${ctx.dataset.label}: ${Number(ctx.parsed.y).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                },
+            },
+        },
+        scales: {
+            x: {
+                ticks: { font: { size: 10 }, maxTicksLimit: 12 },
+                grid: { color: '#f1f5f9' },
+            },
+            y: {
+                ticks: { font: { size: 11 } },
+                grid: { color: '#f1f5f9' },
+                beginAtZero: true,
+            },
+        },
+    },
+});
+</script>
+{% endif %}
 {% endblock %}

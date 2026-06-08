@@ -25,10 +25,15 @@
                 <i data-lucide="package" class="h-4 w-4"></i>
                 Dados Gerais
             </button>
-            <button type="button" onclick="switchTab('componentes')" id="tab-componentes-btn" 
+            <button type="button" onclick="switchTab('componentes')" id="tab-componentes-btn"
                     class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all items-center justify-center gap-2 text-slate-500 hover:text-slate-700 hidden">
                 <i data-lucide="layers" class="h-4 w-4"></i>
                 Componentes
+            </button>
+            <button type="button" onclick="switchTab('variacoes')" id="tab-variacoes-btn"
+                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all items-center justify-center gap-2 text-slate-500 hover:text-slate-700 hidden">
+                <i data-lucide="git-branch" class="h-4 w-4"></i>
+                Variações
             </button>
             <button type="button" onclick="switchTab('midia')" id="tab-midia-btn" 
                     class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700">
@@ -203,6 +208,68 @@
                 </div>
             </div>
 
+            <!-- Tab: Variações -->
+            <div id="tab-variacoes" class="tab-content hidden space-y-6">
+                <div class="bg-purple-50/50 p-4 rounded-2xl border border-purple-100 flex items-start gap-3">
+                    <i data-lucide="info" class="h-4 w-4 text-purple-500 mt-0.5 shrink-0"></i>
+                    <p class="text-xs text-purple-700">Cada variação pode ter seu próprio código, diferença de preço e controle de estoque. O preço final da variação é o preço base do produto somado à diferença informada.</p>
+                </div>
+
+                {{ variant_formset.management_form }}
+                <div id="variant-formset-container" class="space-y-3">
+                    {% for vform in variant_formset %}
+                    <div class="variant-form-row bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group">
+                        {{ vform.id }}
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div class="lg:col-span-2 space-y-1">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nome da Variação *</label>
+                                {{ vform.name }}
+                                {% if vform.name.errors %}<p class="text-xs text-red-500">{{ vform.name.errors.0 }}</p>{% endif %}
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Código / SKU</label>
+                                {{ vform.code }}
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                    <span class="text-purple-500">±</span> Diferença de Preço (R$)
+                                </label>
+                                {{ vform.additional_price }}
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estoque Atual</label>
+                                {{ vform.current_stock }}
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1">
+                                    <i data-lucide="alert-triangle" class="h-3 w-3"></i> Estoque Mínimo
+                                </label>
+                                {{ vform.min_stock }}
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                            <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600 font-medium">
+                                {{ vform.is_active }}
+                                Variação ativa
+                            </label>
+                            {% if variant_formset.can_delete %}
+                            <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-red-500 transition-colors text-xs font-bold">
+                                {{ vform.DELETE }}
+                                <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                Remover
+                            </label>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <button type="button" onclick="addVariantRow()" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold hover:border-purple-400 hover:text-purple-500 hover:bg-purple-50/50 transition-all flex items-center justify-center gap-2 text-sm">
+                    <i data-lucide="plus" class="h-4 w-4"></i>
+                    Adicionar Variação
+                </button>
+            </div>
+
             <!-- Tab 3: Mídia -->
             <div id="tab-midia" class="tab-content hidden space-y-8">
                 <!-- Imagem do Produto Section -->
@@ -261,7 +328,7 @@
             <!-- Tab 3: Estoque -->
             <div id="tab-estoque" class="tab-content hidden space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="space-y-2">
+                    <div class="md:col-span-2 space-y-2">
                         <label class="text-sm font-bold text-slate-700">Unidade de Venda</label>
                         {{ form.unit_type }}
                     </div>
@@ -271,9 +338,50 @@
                         <div class="[&>input]:font-mono [&>input]:font-bold">
                             {{ form.current_stock }}
                         </div>
-                        <p class="text-[10px] text-slate-500 italic mt-1">Ajuste de saldo manual.</p>
+                        <p class="text-[10px] text-slate-500 italic">Ajuste de saldo manual.</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                            <i data-lucide="alert-triangle" class="h-3.5 w-3.5 text-amber-500"></i>
+                            Estoque Mínimo
+                        </label>
+                        {{ form.min_stock }}
+                        <p class="text-[10px] text-slate-500 italic">Alerta aparece quando o saldo ficar igual ou abaixo.</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                            <i data-lucide="trending-up" class="h-3.5 w-3.5 text-emerald-500"></i>
+                            Estoque Máximo
+                        </label>
+                        {{ form.max_stock }}
+                        <p class="text-[10px] text-slate-500 italic">Referência para ponto de reposição.</p>
                     </div>
                 </div>
+
+                <!-- Status Visual -->
+                {% if object %}
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Situação atual</p>
+                    <div class="flex items-center gap-3">
+                        <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                            {% if object.max_stock > 0 %}
+                            <div class="h-full rounded-full {% if object.current_stock <= 0 %}bg-red-500{% elif object.min_stock > 0 and object.current_stock <= object.min_stock %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+                                 style="width: {% widthratio object.current_stock object.max_stock 100 %}%"></div>
+                            {% else %}
+                            <div class="h-full rounded-full {% if object.current_stock <= 0 %}bg-red-500{% else %}bg-emerald-500{% endif %}" style="width: 100%"></div>
+                            {% endif %}
+                        </div>
+                        <span class="text-sm font-black {% if object.current_stock <= 0 %}text-red-600{% elif object.min_stock > 0 and object.current_stock <= object.min_stock %}text-amber-500{% else %}text-emerald-600{% endif %}">
+                            {{ object.current_stock }} {{ object.get_unit_type_display }}
+                        </span>
+                    </div>
+                    <a href="{% url 'product_stock_history' object.pk %}" class="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline mt-2 font-medium">
+                        <i data-lucide="history" class="h-3 w-3"></i> Ver histórico completo
+                    </a>
+                </div>
+                {% endif %}
             </div>
 
             <!-- Tab 4: Dados Fiscais -->
@@ -379,23 +487,39 @@
 
 {% block extra_js %}
 <script>
-    function toggleCompositionTab() {
+    function toggleFormatTabs() {
         const formatSelect = document.getElementById('{{ form.format.id_for_label }}');
         const compositionTabBtn = document.getElementById('tab-componentes-btn');
-        
+        const variacoesTabBtn = document.getElementById('tab-variacoes-btn');
+        const activeTab = document.querySelector('.tab-content:not(.hidden)');
+
+        // hide both first
+        compositionTabBtn.classList.add('hidden');
+        compositionTabBtn.classList.remove('flex');
+        variacoesTabBtn.classList.add('hidden');
+        variacoesTabBtn.classList.remove('flex');
+
         if (formatSelect.value === 'COM_COMPOSICAO') {
             compositionTabBtn.classList.remove('hidden');
             compositionTabBtn.classList.add('flex');
+            if (activeTab && (activeTab.id === 'tab-componentes' || activeTab.id === 'tab-variacoes')) {
+                switchTab('componentes');
+            }
+        } else if (formatSelect.value === 'COM_VARIACOES') {
+            variacoesTabBtn.classList.remove('hidden');
+            variacoesTabBtn.classList.add('flex');
+            if (activeTab && (activeTab.id === 'tab-componentes' || activeTab.id === 'tab-variacoes')) {
+                switchTab('variacoes');
+            }
         } else {
-            compositionTabBtn.classList.add('hidden');
-            compositionTabBtn.classList.remove('flex');
-            // Se estiver na aba de componentes e ela sumir, volta pra geral
-            const activeTab = document.querySelector('.tab-content:not(.hidden)');
-            if (activeTab && activeTab.id === 'tab-componentes') {
+            if (activeTab && (activeTab.id === 'tab-componentes' || activeTab.id === 'tab-variacoes')) {
                 switchTab('geral');
             }
         }
     }
+
+    // legacy alias used by DOMContentLoaded below
+    function toggleCompositionTab() { toggleFormatTabs(); }
 
     function switchTab(tabId) {
         // Hide all contents
@@ -424,6 +548,8 @@
     document.addEventListener('DOMContentLoaded', () => {
         toggleCompositionTab();
         initializeComponentSelects();
+        const formatSelect = document.getElementById('{{ form.format.id_for_label }}');
+        if (formatSelect) formatSelect.addEventListener('change', toggleFormatTabs);
     });
 
     // Cache para preços de componentes
@@ -517,13 +643,12 @@
             const container = document.getElementById('composition-formset-container');
             const rows = container.querySelectorAll('.composition-form-row');
             let hasValidComponent = false;
-            
+
             rows.forEach(row => {
                 const deleteInput = row.querySelector('input[name$="-DELETE"]');
                 const isDeleted = deleteInput ? deleteInput.checked : false;
                 const select = row.querySelector('select.component-select');
                 const qty = row.querySelector('input.quantity-input');
-                
                 if (!isDeleted && select.value && parseFloat(qty.value) > 0) {
                     hasValidComponent = true;
                 }
@@ -534,12 +659,59 @@
                 switchTab('componentes');
                 return false;
             }
+        } else if (formatSelect.value === 'COM_VARIACOES') {
+            const container = document.getElementById('variant-formset-container');
+            const rows = container.querySelectorAll('.variant-form-row');
+            let hasValidVariant = false;
+
+            rows.forEach(row => {
+                const deleteInput = row.querySelector('input[name$="-DELETE"]');
+                const isDeleted = deleteInput ? deleteInput.checked : false;
+                const nameInput = row.querySelector('input[name$="-name"]');
+                if (!isDeleted && nameInput && nameInput.value.trim()) {
+                    hasValidVariant = true;
+                }
+            });
+
+            if (!hasValidVariant) {
+                alert('Produtos com variações devem ter pelo menos uma variação com nome preenchido.');
+                switchTab('variacoes');
+                return false;
+            }
         }
         return true;
     }
 
     function initializeComponentSelects() {
         calculateCompositionTotals();
+    }
+
+    function addVariantRow() {
+        const container = document.getElementById('variant-formset-container');
+        const totalForms = document.getElementById('id_variants-TOTAL_FORMS');
+        if (!container || !totalForms) return;
+        const rowCount = parseInt(totalForms.value);
+
+        const templateRow = container.querySelector('.variant-form-row');
+        if (!templateRow) return;
+
+        const template = templateRow.cloneNode(true);
+        template.classList.remove('opacity-50');
+
+        const regex = new RegExp(`variants-(\\d+|__prefix__)`, 'g');
+        template.innerHTML = template.innerHTML.replace(regex, `variants-${rowCount}`);
+
+        template.querySelectorAll('input:not([type=hidden]), select, textarea').forEach(input => {
+            if (input.type === 'checkbox') input.checked = input.defaultChecked;
+            else input.value = '';
+        });
+
+        const deleteCheckbox = template.querySelector('input[type=checkbox][name$="-DELETE"]');
+        if (deleteCheckbox) deleteCheckbox.checked = false;
+
+        container.appendChild(template);
+        totalForms.value = rowCount + 1;
+        lucide.createIcons();
     }
 
     function addCompositionRow() {

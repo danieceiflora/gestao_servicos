@@ -7,7 +7,7 @@ from .models import (
     ProfessionalRole, ProfessionalScheduleBlock,
     ServiceOrderTask, ServicePayment, Product, StockMovement,
     Sale, SaleItem, Supplier, PaymentMethod, Expense, ProductComposition, ExpenseInstallment,
-    FinanceSettings, SaleSettings
+    FinanceSettings, SaleSettings, ProductVariant
 )
 from integracoes.models import SystemConfig
 
@@ -793,8 +793,8 @@ class ProductForm(forms.ModelForm):
         model = Product
         fields = [
             'name', 'category', 'supplier', 'code', 'barcode', 'image', 
-            'unit_type', 'format', 'type', 'preco_custo', 'preco_custo_total', 
-            'preco_venda_total', 'default_unit_price', 'current_stock', 'is_active',
+            'unit_type', 'format', 'type', 'preco_custo', 'preco_custo_total',
+            'preco_venda_total', 'default_unit_price', 'current_stock', 'min_stock', 'max_stock', 'is_active',
             'ncm', 'cest', 'cfop_padrao', 'origem_mercadoria',
             'csosn', 'cst_icms', 'cst_pis', 'cst_cofins',
             'aliquota_ibpt_fed', 'aliquota_ibpt_est', 'aliquota_ibpt_mun'
@@ -813,6 +813,8 @@ class ProductForm(forms.ModelForm):
             'preco_venda_total': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01', 'readonly': 'readonly'}),
             'default_unit_price': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01'}),
             'current_stock': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'step': '0.01'}),
+            'min_stock': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all', 'step': '0.01', 'min': '0'}),
+            'max_stock': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all', 'step': '0.01', 'min': '0'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'w-5 h-5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 transition-all cursor-pointer'}),
             'image': forms.ClearableFileInput(attrs={'class': 'hidden', 'accept': 'image/*'}),
 
@@ -873,6 +875,48 @@ ProductCompositionFormSet = inlineformset_factory(
     extra=1,
     can_delete=True,
     fk_name='parent'
+)
+
+
+class ProductVariantForm(forms.ModelForm):
+    class Meta:
+        model = ProductVariant
+        fields = ['name', 'code', 'additional_price', 'current_stock', 'min_stock', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm',
+                'placeholder': 'Ex: Azul P, Vermelho GG…',
+            }),
+            'code': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm font-mono',
+                'placeholder': 'SKU da variação',
+            }),
+            'additional_price': forms.NumberInput(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm',
+                'step': '0.01',
+                'placeholder': '0,00',
+            }),
+            'current_stock': forms.NumberInput(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm font-mono',
+                'step': '0.01',
+                'placeholder': '0',
+            }),
+            'min_stock': forms.NumberInput(attrs={
+                'class': 'w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-sm font-mono',
+                'step': '0.01',
+                'placeholder': '0',
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'rounded border-slate-300 text-purple-600 focus:ring-purple-500',
+            }),
+        }
+
+
+ProductVariantFormSet = inlineformset_factory(
+    Product, ProductVariant,
+    form=ProductVariantForm,
+    extra=1,
+    can_delete=True,
 )
 
 

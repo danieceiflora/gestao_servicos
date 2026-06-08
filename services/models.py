@@ -558,6 +558,7 @@ class Product(models.Model):
     default_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço Padrão")
     current_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Atual")
     min_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Mínimo")
+    max_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Máximo")
     weight = models.DecimalField(max_digits=8, decimal_places=3, default=0, verbose_name="Peso Bruto (kg)")
     width = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Largura (cm)")
     height = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Altura (cm)")
@@ -588,7 +589,8 @@ class Product(models.Model):
                 reason=reason or StockMovement.Reason.ADJUSTMENT,
                 user=user,
                 notes=notes,
-                service_order=service_order
+                service_order=service_order,
+                saldo_apos=self.current_stock,
             )
 
             # Se for composto, reduz os componentes recursivamente
@@ -622,7 +624,8 @@ class Product(models.Model):
                 reason=reason or StockMovement.Reason.PURCHASE,
                 user=user,
                 notes=notes,
-                service_order=service_order
+                service_order=service_order,
+                saldo_apos=self.current_stock,
             )
 
     class Meta:
@@ -748,6 +751,7 @@ class StockMovement(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Usuário")
     import_history = models.ForeignKey(ImportHistory, on_delete=models.SET_NULL, null=True, blank=True, related_name='movements', verbose_name="Origem (Importação)")
     notes = models.TextField(blank=True, verbose_name="Observações")
+    saldo_apos = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Saldo Após")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data/Hora")
 
     def __str__(self):
