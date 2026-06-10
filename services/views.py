@@ -517,7 +517,7 @@ def service_order_scheduling(request):
             task_data = {
                 'index': _idx,
                 'type': request.POST.get(f'task_{_idx}_type', ''),
-                'AGENDADO': sched_val,
+                'scheduled': sched_val,
                 'scheduled_end': sched_end_val,
                 'start_date': request.POST.get(f'task_{_idx}_start_date', ''),
                 'end_date': request.POST.get(f'task_{_idx}_end_date', ''),
@@ -600,6 +600,10 @@ def service_order_scheduling(request):
                 task_index += 1
 
             if has_conflict:
+                # Usar os valores do POST para não sobrescrever o que o usuário preencheu
+                post_scheduled_at_str = submitted_tasks[0]['scheduled'] if submitted_tasks else None
+                post_scheduled_end_str = submitted_tasks[0]['scheduled_end'] if submitted_tasks else None
+
                 if is_out_of_hours:
                     messages.warning(request, f"Aviso de Agenda: {conflict_message} (Confirme para forçar o agendamento).")
                     return render(request, 'services/orders/order_edit.html', {
@@ -610,8 +614,8 @@ def service_order_scheduling(request):
                         'title': 'Nova OS / Agendamento',
                         'show_force_schedule_modal': True,
                         'force_message': conflict_message,
-                        'initial_scheduled_at': initial_scheduled_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_at else None,
-                        'initial_scheduled_end_at': initial_scheduled_end_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_end_at else None,
+                        'initial_scheduled_at': post_scheduled_at_str or None,
+                        'initial_scheduled_end_at': post_scheduled_end_str or None,
                         'initial_origin_date': initial_origin_date.strftime('%Y-%m-%d') if initial_origin_date else None,
                         'submitted_tasks': submitted_tasks,
                     })
@@ -623,8 +627,8 @@ def service_order_scheduling(request):
                         'professionals': Professional.objects.filter(is_active=True),
                         'roles': ProfessionalRole.objects.all(),
                         'title': 'Nova OS / Agendamento',
-                        'initial_scheduled_at': initial_scheduled_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_at else None,
-                        'initial_scheduled_end_at': initial_scheduled_end_at.astimezone().strftime('%Y-%m-%dT%H:%M') if initial_scheduled_end_at else None,
+                        'initial_scheduled_at': post_scheduled_at_str or None,
+                        'initial_scheduled_end_at': post_scheduled_end_str or None,
                         'initial_origin_date': initial_origin_date.strftime('%Y-%m-%d') if initial_origin_date else None,
                         'submitted_tasks': submitted_tasks,
                     })
@@ -1241,13 +1245,18 @@ def api_calendar_events(request):
     
     is_manager = user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
 
+    STATUS_COLORS = {
+        'AGENDADO':     ('#3b82f6', '#2563eb'),
+        'EM_ANDAMENTO': ('#f59e0b', '#d97706'),
+        'CONCLUIDO':    ('#10b981', '#059669'),
+        'CANCELADO':    ('#94a3b8', '#64748b'),
+        'NAO_EXECUTADO':('#ef4444', '#dc2626'),
+    }
+    TYPE_PREFIX = {'ORCAMENTO': 'ORÇ', 'EXECUCAO': 'EXEC', 'GARANTIA': 'GAR'}
+
     for task in tasks:
-        colors = {
-            'ORCAMENTO': ('#3b82f6', '#2563eb', 'ORÇ'),
-            'EXECUCAO': ('#10b981', '#059669', 'EXEC'),
-            'GARANTIA': ('#f59e0b', '#d97706', 'GAR'),
-        }
-        bg, border, prefix = colors.get(task.task_type, ('#64748b', '#475569', 'TSK'))
+        bg, border = STATUS_COLORS.get(task.status, ('#64748b', '#475569'))
+        prefix = TYPE_PREFIX.get(task.task_type, 'TSK')
 
         team_names = ', '.join([tm.professional.name + '-' + (tm.role.name if tm.role else 'Geral') for tm in task.team_members.all()])
         neighborhood = task.service_order.client_property.neighborhood
@@ -1272,9 +1281,10 @@ def api_calendar_events(request):
             'address': f"{task.service_order.client_property.address}, {task.service_order.client_property.number}",
             'neighborhood': neighborhood,
             'status': task.service_order.get_status_display(),
+            'task_status': task.status,
             'description': task.service_order.description,
             'team': [tm.professional.name for tm in task.team_members.all()],
-            'type': task.task_type.lower()
+            'type': task.task_type.upper()
         })
 
     blocks = ProfessionalScheduleBlock.objects.all()

@@ -30,23 +30,45 @@
     select.tomselected {
         display: none !important;
     }
+
+    /* ===== WIZARD STYLES (creation mode only) ===== */
+    .wizard-panel { display: none; }
+    .wizard-panel.wizard-active { display: block; animation: wizardIn 0.22s ease-out; }
+    @keyframes wizardIn {
+        from { opacity: 0; transform: translateX(8px); }
+        to   { opacity: 1; transform: translateX(0);   }
+    }
+    .step-dot {
+        width: 2.5rem; height: 2.5rem;
+        border-radius: 9999px;
+        border-width: 2px;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 0.875rem;
+        background: white;
+        transition: all 0.25s;
+    }
+    .step-dot.dot-future  { border-color: #cbd5e1; color: #94a3b8; }
+    .step-dot.dot-active  { border-color: #0f172a; color: #0f172a; }
+    .step-dot.dot-done    { border-color: #10b981; color: #10b981; background: #ecfdf5; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="max-w-5xl mx-auto space-y-6 md:pb-0">
+
     <!-- Header -->
     <div class="flex items-center gap-4 mb-2">
-        <a href="{% if order and order.id %}{% url 'service_order_detail' order.id %}{% else %}{% url 'service_order_list' %}{% endif %}" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-slate-100 hover:text-slate-900 h-10 w-10 border border-slate-200 bg-white shadow-sm">
+        <a href="{% if order and order.id %}{% url 'service_order_detail' order.id %}{% else %}{% url 'service_order_list' %}{% endif %}"
+           class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-slate-100 hover:text-slate-900 h-10 w-10 border border-slate-200 bg-white shadow-sm">
             <i data-lucide="arrow-left" class="h-4 w-4"></i>
         </a>
         <div>
             <h2 class="text-xl md:text-2xl font-bold tracking-tight text-slate-950">{{ title }}</h2>
-            <p class="text-sm text-slate-500">Modifique as informações da ordem de serviço</p>
+            <p class="text-sm text-slate-500">{% if order %}Modifique as informações da ordem de serviço{% else %}Preencha os dados para criar a nova OS{% endif %}</p>
         </div>
     </div>
 
-    <!-- Mensagens de erro detalhadas -->
+    <!-- Validation errors (shown after server-side failure) -->
     {% if form.errors %}
     <div class="p-4 rounded-md bg-red-50 text-red-700 text-sm border border-red-200 mb-6 space-y-2">
         <h3 class="font-bold flex items-center gap-2">
@@ -66,6 +88,38 @@
     </div>
     {% endif %}
 
+    {% if not order %}
+    <!-- ===== PROGRESS INDICATOR (creation only) ===== -->
+    <div id="wizard-progress" class="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 pt-5 pb-4">
+        <div class="flex items-center relative">
+            <!-- connector line -->
+            <div class="absolute left-0 right-0 top-5 h-0.5 bg-slate-200 mx-10 z-0">
+                <div id="progress-fill" class="h-full bg-emerald-500 transition-all duration-400" style="width:0%"></div>
+            </div>
+            <!-- Step 1 -->
+            <div class="flex-1 flex flex-col items-center z-10">
+                <div id="step-dot-1" class="step-dot dot-active">1</div>
+                <span id="step-lbl-1" class="text-xs font-semibold mt-1.5 text-slate-900">Cliente</span>
+            </div>
+            <!-- Step 2 -->
+            <div class="flex-1 flex flex-col items-center z-10">
+                <div id="step-dot-2" class="step-dot dot-future">2</div>
+                <span id="step-lbl-2" class="text-xs font-semibold mt-1.5 text-slate-400">Detalhes</span>
+            </div>
+            <!-- Step 3 -->
+            <div class="flex-1 flex flex-col items-center z-10">
+                <div id="step-dot-3" class="step-dot dot-future">3</div>
+                <span id="step-lbl-3" class="text-xs font-semibold mt-1.5 text-slate-400">Etapas</span>
+            </div>
+            <!-- Step 4 -->
+            <div class="flex-1 flex flex-col items-center z-10">
+                <div id="step-dot-4" class="step-dot dot-future">4</div>
+                <span id="step-lbl-4" class="text-xs font-semibold mt-1.5 text-slate-400">Revisão</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <form method="post" id="order-form" class="space-y-6">
         {% csrf_token %}
         {% if order %}
@@ -76,8 +130,8 @@
         {{ form.scheduled_end_at.as_hidden }}
         {% endif %}
 
-        <!-- ============ SEÇÃO 1: INFORMAÇÕES DO CLIENTE ============ -->
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <!-- ============ SEÇÃO 1: CLIENTE ============ -->
+        <div id="os-section-client" class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden {% if not order %}wizard-panel{% endif %}">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
                 <div class="flex items-center gap-3">
                     <div class="p-2 bg-slate-100 rounded-md border border-slate-200">
@@ -89,10 +143,8 @@
                     </div>
                 </div>
             </div>
-            
             <div class="p-5 md:p-6 space-y-5">
                 {% if order %}
-                <!-- Cliente (Modo Edição) -->
                 <div class="space-y-2">
                     <label class="text-sm font-medium leading-none text-slate-700 flex items-center gap-2">
                         <i data-lucide="user-check" class="h-4 w-4 text-slate-500"></i>
@@ -101,8 +153,6 @@
                     <p class="text-sm font-medium text-slate-900">{{ order.client_property.client.name }}</p>
                     <p class="text-xs text-slate-500 italic">Cliente não pode ser alterado após criação</p>
                 </div>
-
-                <!-- Imóvel (Modo Edição) -->
                 <div class="space-y-2">
                     <label class="text-sm font-medium leading-none text-slate-700 flex items-center gap-2">
                         <i data-lucide="home" class="h-4 w-4 text-slate-500"></i>
@@ -112,12 +162,9 @@
                     <p class="text-xs text-slate-500 italic">Imóvel não pode ser alterado após criação</p>
                 </div>
                 {% else %}
-                <!-- Cliente (Modo Criação) -->
                 <div class="space-y-2">
                     <div class="flex items-center justify-between">
-                        <label for="{{ form.client.id_for_label }}" class="text-sm font-semibold text-slate-700">
-                            Cliente
-                        </label>
+                        <label for="{{ form.client.id_for_label }}" class="text-sm font-semibold text-slate-700">Cliente</label>
                         <button type="button" onclick="openModal('client')" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
                             <i data-lucide="plus" class="h-3 w-3"></i> Novo Cliente
                         </button>
@@ -127,14 +174,11 @@
                     <p class="text-xs text-red-600">{{ form.client.errors.0 }}</p>
                     {% endif %}
                 </div>
-
-                <!-- Imóvel (Modo Criação) -->
                 <div class="space-y-2">
                     <div class="flex items-center justify-between">
-                        <label for="{{ form.client_property.id_for_label }}" class="text-sm font-semibold text-slate-700">
-                            Imóvel
-                        </label>
-                        <button type="button" id="btn-add-property" onclick="openModal('property')" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 opacity-50 cursor-not-allowed" disabled>
+                        <label for="{{ form.client_property.id_for_label }}" class="text-sm font-semibold text-slate-700">Imóvel</label>
+                        <button type="button" id="btn-add-property" onclick="openModal('property')"
+                                class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 opacity-50 cursor-not-allowed" disabled>
                             <i data-lucide="plus" class="h-3 w-3"></i> Novo Imóvel
                         </button>
                     </div>
@@ -148,8 +192,8 @@
             </div>
         </div>
 
-        <!-- ============ SEÇÃO 2: INFORMAÇÕES DA ORDEM DE SERVIÇO ============ -->
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <!-- ============ SEÇÃO 2: DETALHES DA OS ============ -->
+        <div id="os-section-details" class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden {% if not order %}wizard-panel{% endif %}">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
                 <div class="flex items-center gap-3">
                     <div class="p-2 bg-slate-100 rounded-md border border-slate-200">
@@ -161,9 +205,7 @@
                     </div>
                 </div>
             </div>
-            
             <div class="p-5 md:p-6 space-y-6">
-                <!-- Description -->
                 <div class="space-y-2">
                     <label for="{{ form.description.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
                         Descrição do Problema/Solicitação
@@ -173,8 +215,6 @@
                     <p class="text-sm font-medium text-red-500">{{ form.description.errors.0 }}</p>
                     {% endif %}
                 </div>
-
-                <!-- Client Observation -->
                 <div class="space-y-2">
                     <label for="{{ form.client_observation.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
                         Observação para o Cliente
@@ -184,8 +224,6 @@
                     <p class="text-sm font-medium text-red-500">{{ form.client_observation.errors.0 }}</p>
                     {% endif %}
                 </div>
-
-                <!-- Valor Estimado -->
                 <div class="space-y-2">
                     <label for="{{ form.estimated_value.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
                         Valor Estimado Total (R$)
@@ -196,8 +234,6 @@
                     {% endif %}
                     <p class="text-xs text-slate-500">Valor total estimado para toda a ordem de serviço</p>
                 </div>
-
-                <!-- Origem -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="space-y-2">
                         <label for="{{ form.origin_date.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
@@ -209,7 +245,6 @@
                         {% endif %}
                         <p class="text-xs text-slate-500">Quando a solicitação surgiu</p>
                     </div>
-                    
                     <div class="space-y-2">
                         <label for="{{ form.originator.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
                             Vendedor/Originador
@@ -225,7 +260,7 @@
         </div>
 
         <!-- ============ SEÇÃO: APROVAÇÃO DA OS ============ -->
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div id="os-section-approval" class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden {% if not order %}wizard-panel{% endif %}">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
                 <div class="flex items-center gap-3">
                     <div class="p-2 bg-slate-100 rounded-md border border-slate-200">
@@ -237,7 +272,6 @@
                     </div>
                 </div>
             </div>
-            
             <div class="p-5 md:p-6 space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-2">
@@ -253,7 +287,7 @@
                         {{ form.payment_method }}
                     </div>
                 </div>
-
+                {% if order %}
                 <details class="group rounded-lg border border-slate-200 bg-slate-50">
                     <summary class="cursor-pointer list-none p-4 flex items-center justify-between">
                         <div class="flex items-center gap-2">
@@ -284,11 +318,12 @@
                         </div>
                     </div>
                 </details>
+                {% endif %}
             </div>
         </div>
 
         <!-- ============ SEÇÃO 3: ETAPAS DO SERVIÇO ============ -->
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div id="os-section-tasks" class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden {% if not order %}wizard-panel{% endif %}">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
@@ -304,7 +339,6 @@
                     </div>
                 </div>
             </div>
-            
             <div class="p-5 md:p-6 space-y-4">
                 {% if order %}
                     {% if tasks %}
@@ -314,7 +348,7 @@
                             <div class="space-y-1">
                                 <div class="flex items-center gap-2">
                                     <span class="font-semibold text-slate-900">{{ task.get_task_type_display }}</span>
-                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium 
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
                                         {% if task.status == 'CONCLUIDO' %}bg-green-100 text-green-700
                                         {% elif task.status == 'EM_ANDAMENTO' %}bg-blue-100 text-blue-700
                                         {% else %}bg-slate-100 text-slate-700{% endif %}">
@@ -338,8 +372,8 @@
                         <p class="text-sm text-slate-500 font-medium">Nenhuma etapa cadastrada ainda.</p>
                     </div>
                     {% endif %}
-
-                    <a href="{% if order.id %}{% url 'task_add' order.id %}{% else %}#{% endif %}" class="w-full inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 gap-2">
+                    <a href="{% if order.id %}{% url 'task_add' order.id %}{% else %}#{% endif %}"
+                       class="w-full inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 gap-2">
                         <i data-lucide="plus-circle" class="h-4 w-4"></i>
                         Adicionar Nova Etapa
                     </a>
@@ -362,9 +396,7 @@
                                     </button>
                                     {% endif %}
                                 </div>
-
                                 <div class="space-y-4">
-                                    <!-- Tipo de Etapa -->
                                     <div>
                                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Tipo de Etapa *</label>
                                         <select name="task_{{ task.index }}_type" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
@@ -374,8 +406,6 @@
                                             {% endfor %}
                                         </select>
                                     </div>
-
-                                    <!-- Datas e Valor -->
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
@@ -386,7 +416,6 @@
                                             <input type="datetime-local" {% if task.index == 0 %}name="scheduled_end_at" id="id_scheduled_end_at"{% else %}name="task_{{ task.index }}_scheduled_end"{% endif %} value="{{ task.scheduled_end }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
                                         </div>
                                     </div>
-
                                     {% if task.index == 0 %}
                                     <div class="border border-slate-200 bg-white p-4 rounded-lg space-y-3">
                                         <label class="flex items-center gap-3 cursor-pointer">
@@ -430,14 +459,10 @@
                                                 <span class="w-11 h-6 rounded-full bg-slate-200 transition-colors peer-checked:bg-green-600"></span>
                                                 <span class="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5"></span>
                                             </span>
-                                            <span class="text-sm font-medium leading-none text-slate-700">
-                                                Enviar WhatsApp de Confirmação?
-                                            </span>
+                                            <span class="text-sm font-medium leading-none text-slate-700">Enviar WhatsApp de Confirmação?</span>
                                         </label>
                                     </div>
                                     {% endif %}
-
-                                    <!-- Execução -->
                                     <details class="group mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
                                         <summary class="cursor-pointer list-none flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-600">
                                             <i data-lucide="chevron-right" class="h-4 w-4 transition-transform group-open:rotate-90"></i>
@@ -460,9 +485,6 @@
                                             <div class="task-media-preview grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 hidden"></div>
                                         </div>
                                     </details>
-
-
-                                    <!-- Equipe -->
                                     <div class="border-t border-slate-200 pt-4">
                                         <div class="flex items-center justify-between mb-3">
                                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Equipe Alocada</label>
@@ -470,7 +492,6 @@
                                                 <i data-lucide="user-plus" class="h-3 w-3"></i> Adicionar
                                             </button>
                                         </div>
-
                                         <div class="team-members-container space-y-3">
                                             {% if task.team %}
                                                 {% for member in task.team %}
@@ -524,7 +545,6 @@
                                             {% endif %}
                                         </div>
                                     </div>
-
                                 </div>
                             </div>
                             {% endfor %}
@@ -533,15 +553,11 @@
                         <div class="task-card border-2 border-green-200 rounded-2xl p-5 bg-gradient-to-br from-green-50/50 to-white relative">
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center gap-2">
-                                    <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm task-number">
-                                        1
-                                    </div>
+                                    <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm task-number">1</div>
                                     <h4 class="font-bold text-slate-900 task-title">Etapa 1</h4>
                                 </div>
                             </div>
-
                             <div class="space-y-4">
-                                <!-- Tipo de Etapa -->
                                 <div>
                                     <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Tipo de Etapa *</label>
                                     <select name="task_0_type" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm bg-white">
@@ -551,8 +567,6 @@
                                         {% endfor %}
                                     </select>
                                 </div>
-
-                                <!-- Datas de Agendamento -->
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Início do Agendamento *</label>
@@ -563,8 +577,6 @@
                                         <input type="datetime-local" name="scheduled_end_at" id="id_scheduled_end_at" value="{% if initial_scheduled_end_at %}{{ initial_scheduled_end_at }}{% else %}{{ task.scheduled_end|default:'' }}{% endif %}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
                                     </div>
                                 </div>
-
-                                <!-- WhatsApp Confirmation (Adicionado recentemente) -->
                                 <div class="border border-slate-200 bg-white p-4 rounded-lg space-y-3">
                                     <label class="flex items-center gap-3 cursor-pointer">
                                         <span class="relative inline-flex items-center">
@@ -572,9 +584,7 @@
                                             <span class="w-11 h-6 rounded-full bg-slate-200 transition-colors peer-checked:bg-green-600"></span>
                                             <span class="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5"></span>
                                         </span>
-                                        <span class="text-sm font-medium leading-none text-slate-700">
-                                            {{ form.send_whatsapp_confirmation.label }}
-                                        </span>
+                                        <span class="text-sm font-medium leading-none text-slate-700">{{ form.send_whatsapp_confirmation.label }}</span>
                                     </label>
                                     <details class="group rounded-md border border-slate-200 bg-slate-50/60 p-3">
                                         <summary class="cursor-pointer list-none flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -597,8 +607,6 @@
                                         </div>
                                     </details>
                                 </div>
-
-                                <!-- Execução -->
                                 <details class="group mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
                                     <summary class="cursor-pointer list-none flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-600">
                                         <i data-lucide="chevron-right" class="h-4 w-4 transition-transform group-open:rotate-90"></i>
@@ -621,9 +629,6 @@
                                         <div class="task-media-preview grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 hidden"></div>
                                     </div>
                                 </details>
-
-
-                                <!-- Equipe -->
                                 <div class="border-t border-slate-200 pt-4">
                                     <div class="flex items-center justify-between mb-3">
                                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Equipe Alocada</label>
@@ -631,7 +636,6 @@
                                             <i data-lucide="user-plus" class="h-3 w-3"></i> Adicionar
                                         </button>
                                     </div>
-
                                     <div class="team-members-container space-y-3">
                                         <div class="team-member-row grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-lg bg-slate-50 border border-slate-200 relative">
                                             <div>
@@ -655,13 +659,11 @@
                                         </div>
                                     </div>
                                 </div>
-
                             </div>
                         </div>
                         {% endif %}
                     </div>
 
-                    <!-- Botão Adicionar Nova Etapa -->
                     <button type="button" id="add-task-btn" class="w-full mt-4 py-4 border-2 border-dashed border-green-300 rounded-2xl text-green-600 font-bold hover:bg-green-50 hover:border-green-400 transition-all flex items-center justify-center gap-2">
                         <i data-lucide="plus-circle" class="h-5 w-5"></i>
                         Adicionar Nova Etapa
@@ -670,7 +672,7 @@
             </div>
         </div>
 
-        <!-- ============ SEÇÃO 4: ITENS DO ORÇAMENTO ============ -->
+        <!-- ============ SEÇÃO 4: ITENS DO ORÇAMENTO (edit only) ============ -->
         {% if order %}
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
@@ -684,12 +686,11 @@
                             <p class="text-xs text-slate-500 mt-1">Materiais e serviços desta OS</p>
                         </div>
                     </div>
-                    <span class="inline-flex items-center rounded-md border border-slate-200 px-2.5 py-1 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 bg-white text-slate-900 shadow-sm">
+                    <span class="inline-flex items-center rounded-md border border-slate-200 px-2.5 py-1 text-sm font-semibold bg-white text-slate-900 shadow-sm">
                         Total: R$ {{ items_total|default:"0.00"|floatformat:2 }}
                     </span>
                 </div>
             </div>
-            
             <div class="p-5 md:p-6 space-y-4">
                 {% if items %}
                 <div class="space-y-3">
@@ -698,12 +699,9 @@
                         <div class="space-y-1">
                             <p class="font-semibold text-slate-900">{{ item.description }}</p>
                             <p class="text-sm text-slate-500 flex items-center gap-1">
-                                {% if item.product and item.product.unit_type == 'METRO' %}
-                                    {{ item.quantity|floatformat:2 }} mt
-                                {% else %}
-                                    {{ item.quantity|floatformat:0 }} un
-                                {% endif %}
-                                × R$ {{ item.unit_price|floatformat:2 }} = 
+                                {% if item.product and item.product.unit_type == 'METRO' %}{{ item.quantity|floatformat:2 }} mt
+                                {% else %}{{ item.quantity|floatformat:0 }} un{% endif %}
+                                × R$ {{ item.unit_price|floatformat:2 }} =
                                 <span class="font-medium text-slate-900">R$ {{ item.total_price|floatformat:2 }}</span>
                             </p>
                             {% if item.product %}
@@ -731,8 +729,7 @@
                     <p class="text-sm text-slate-500 font-medium">Nenhum item adicionado ainda.</p>
                 </div>
                 {% endif %}
-
-                <a href="{% url 'order_item_add' order.id %}" class="w-full inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 gap-2">
+                <a href="{% url 'order_item_add' order.id %}" class="w-full inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 gap-2">
                     <i data-lucide="plus-circle" class="h-4 w-4"></i>
                     Adicionar Item
                 </a>
@@ -740,29 +737,26 @@
         </div>
         {% endif %}
 
-        <!-- ============ SEÇÃO 5: OCORRÊNCIAS ============ -->
+        <!-- ============ SEÇÃO 5: OCORRÊNCIAS (edit only) ============ -->
         {% if order %}
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="p-2 bg-slate-100 rounded-md border border-slate-200">
-                            <i data-lucide="alert-triangle" class="h-4 w-4 text-slate-600"></i>
-                        </div>
-                        <div>
-                            <h3 class="font-semibold leading-none tracking-tight text-slate-900">Seção 5: Ocorrências</h3>
-                            <p class="text-xs text-slate-500 mt-1">Histórico de problemas relatados em campo</p>
-                        </div>
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-slate-100 rounded-md border border-slate-200">
+                        <i data-lucide="alert-triangle" class="h-4 w-4 text-slate-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold leading-none tracking-tight text-slate-900">Seção 5: Ocorrências</h3>
+                        <p class="text-xs text-slate-500 mt-1">Histórico de problemas relatados em campo</p>
                     </div>
                 </div>
             </div>
-
             <div class="p-5 md:p-6 space-y-4">
                 {% if occurrences %}
                 <div class="space-y-3">
                     {% for occurrence in occurrences %}
                     <div class="p-4 border border-slate-200 rounded-lg bg-white shadow-sm relative">
-                        <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">    
+                        <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
                             <div class="flex flex-col">
                                 <span class="font-semibold text-slate-900">{{ occurrence.get_occurrence_type_display }}</span>
                                 <span class="text-xs text-slate-500">Etapa: {{ occurrence.task.title }}</span>
@@ -775,7 +769,6 @@
                             <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Descrição do Relator</p>
                             <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ occurrence.description }}</p>
                         </div>
-
                         {% if occurrence.medias.exists %}
                         <div class="mt-4">
                             <p class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Mídias Anexadas</p>
@@ -793,7 +786,6 @@
                             </div>
                         </div>
                         {% endif %}
-
                         {% if occurrence.status == 'RESOLVED' and occurrence.observation %}
                         <div class="mt-4 pt-3 border-t border-slate-100">
                             <p class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Anotações da Resolução</p>
@@ -813,20 +805,66 @@
         </div>
         {% endif %}
 
-        <!-- Submit Buttons -->
+        {% if not order %}
+        <!-- ============ STEP 4: REVISÃO (creation only) ============ -->
+        <div id="os-section-review" class="wizard-panel">
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30 flex items-center gap-3">
+                    <div class="p-2 bg-emerald-100 rounded-md border border-emerald-200">
+                        <i data-lucide="clipboard-check" class="h-4 w-4 text-emerald-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold leading-none tracking-tight text-slate-900">Revisar e Confirmar</h3>
+                        <p class="text-xs text-slate-500 mt-1">Confira os dados antes de criar a OS</p>
+                    </div>
+                </div>
+                <div id="review-content" class="p-6 space-y-4">
+                    <!-- Populated by JS on entering step 4 -->
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ============ NAVIGATION BUTTONS ============ -->
+        {% if not order %}
+        <!-- Wizard navigation (creation mode) -->
         <div class="flex flex-col-reverse sm:flex-row gap-3 pb-24 md:pb-6 pt-2">
-            <a href="{% if order and order.id %}{% url 'service_order_detail' order.id %}{% else %}{% url 'service_order_list' %}{% endif %}" class="inline-flex h-12 flex-1 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
+            <button type="button" id="wizard-btn-prev"
+                    class="hidden inline-flex h-12 flex-1 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 gap-2">
+                <i data-lucide="arrow-left" class="h-4 w-4"></i> Anterior
+            </button>
+            <a href="{% url 'service_order_list' %}" id="wizard-btn-cancel"
+               class="inline-flex h-12 flex-1 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900">
                 Cancelar
             </a>
-            <button type="submit" class="inline-flex h-12 flex-1 items-center justify-center rounded-md bg-slate-900 text-sm font-medium text-slate-50 shadow transition-colors hover:bg-slate-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 gap-2">
-                <i data-lucide="{% if order %}save{% else %}check-circle{% endif %}" class="h-4 w-4"></i>
-                {% if order %}Salvar Alterações{% else %}Criar Ordem de Serviço{% endif %}
+            <button type="button" id="wizard-btn-next"
+                    class="inline-flex h-12 flex-1 items-center justify-center rounded-md bg-slate-900 text-sm font-medium text-slate-50 shadow transition-colors hover:bg-slate-900/90 gap-2">
+                Próximo <i data-lucide="arrow-right" class="h-4 w-4"></i>
+            </button>
+            <button type="submit" id="wizard-btn-submit"
+                    class="hidden inline-flex h-12 flex-1 items-center justify-center rounded-md bg-emerald-600 text-sm font-medium text-white shadow transition-colors hover:bg-emerald-700 gap-2">
+                <i data-lucide="check-circle" class="h-4 w-4"></i> Criar Ordem de Serviço
             </button>
         </div>
+        {% else %}
+        <!-- Edit mode buttons -->
+        <div class="flex flex-col-reverse sm:flex-row gap-3 pb-24 md:pb-6 pt-2">
+            <a href="{% url 'service_order_detail' order.id %}"
+               class="inline-flex h-12 flex-1 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="inline-flex h-12 flex-1 items-center justify-center rounded-md bg-slate-900 text-sm font-medium text-slate-50 shadow transition-colors hover:bg-slate-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 gap-2">
+                <i data-lucide="save" class="h-4 w-4"></i>
+                Salvar Alterações
+            </button>
+        </div>
+        {% endif %}
+
     </form>
 </div>
 
-<!-- Modal de Conflito de Horário (Aviso) -->
+<!-- Modal de Conflito de Horário -->
 {% if show_force_schedule_modal %}
 <div id="force-schedule-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
@@ -838,10 +876,12 @@
             <p class="text-slate-600 text-center text-sm">{{ force_message }}</p>
         </div>
         <div class="bg-slate-50 px-6 py-4 flex gap-3">
-            <button type="button" onclick="document.getElementById('force-schedule-modal').remove()" class="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
+            <button type="button" onclick="document.getElementById('force-schedule-modal').remove()"
+                    class="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
                 Revisar Horário
             </button>
-            <button type="button" onclick="confirmForceSchedule()" class="flex-1 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-sm">
+            <button type="button" onclick="confirmForceSchedule()"
+                    class="flex-1 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-sm">
                 Confirmar Mesmo Assim
             </button>
         </div>
@@ -878,60 +918,247 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Tom Select JS -->
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
-
-<!-- Estilização Automática Shadcn para os Campos de Formulário -->
 <script>
     document.addEventListener("DOMContentLoaded", () => {
-        // Inputs, Selects
+
+        // ===== FORM FIELD STYLING =====
         const inputs = document.querySelectorAll("form input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']), form select:not(#id_client), form textarea");
         inputs.forEach(input => {
-            input.classList.add(
-                "flex", "w-full", "rounded-md", "border", "border-slate-200",   
-                "bg-white", "px-3", "py-2", "text-sm", "placeholder:text-slate-500",
-                "focus-visible:outline-none", "focus-visible:ring-2", "focus-visible:ring-slate-950",
-                "focus-visible:ring-offset-2", "disabled:cursor-not-allowed", "disabled:opacity-50",
-                "transition-colors"
-            );
-            if(input.tagName !== 'TEXTAREA') {
-                input.classList.add("h-10");
-            }
+            input.classList.add("flex","w-full","rounded-md","border","border-slate-200","bg-white","px-3","py-2","text-sm","placeholder:text-slate-500","focus-visible:outline-none","focus-visible:ring-2","focus-visible:ring-slate-950","focus-visible:ring-offset-2","disabled:cursor-not-allowed","disabled:opacity-50","transition-colors");
+            if (input.tagName !== 'TEXTAREA') input.classList.add("h-10");
         });
-
-        // Textareas
-        const textareas = document.querySelectorAll("form textarea");
-        textareas.forEach(ta => {
-            ta.classList.add("min-h-[80px]");
-        });
-
-        // Checkboxes
-        const checkboxes = document.querySelectorAll("form input[type='checkbox']");
-        checkboxes.forEach(cb => {
-            cb.classList.add(
-                "h-4", "w-4", "shrink-0", "rounded-sm", "border", "border-slate-200",
-                "text-slate-900", "focus-visible:outline-none", "focus-visible:ring-2",
-                "focus-visible:ring-slate-950", "focus-visible:ring-offset-2",  
-                "disabled:cursor-not-allowed", "disabled:opacity-50", "accent-slate-900"
-            );
+        document.querySelectorAll("form textarea").forEach(ta => ta.classList.add("min-h-[80px]"));
+        document.querySelectorAll("form input[type='checkbox']").forEach(cb => {
+            cb.classList.add("h-4","w-4","shrink-0","rounded-sm","border","border-slate-200","text-slate-900","focus-visible:outline-none","focus-visible:ring-2","focus-visible:ring-slate-950","focus-visible:ring-offset-2","disabled:cursor-not-allowed","disabled:opacity-50","accent-slate-900");
         });
 
         {% if not order %}
-        // ============ CRIAÇÃO: LÓGICA DE CLIENTES E PROPRIEDADES ============
-        const clientSelect = document.getElementById('id_client');
+        // ===================================================
+        // ===== WIZARD ENGINE =====
+        // ===================================================
+        const STEPS = [
+            ['os-section-client'],
+            ['os-section-details', 'os-section-approval'],
+            ['os-section-tasks'],
+            ['os-section-review'],
+        ];
+        let currentStep = 0;
+
+        function wizardGoTo(index) {
+            // Hide all
+            STEPS.flat().forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('wizard-active');
+            });
+            // Show target step panels
+            STEPS[index].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('wizard-active');
+            });
+            currentStep = index;
+            updateProgress();
+            updateNavButtons();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function updateProgress() {
+            const pct = currentStep === 0 ? 0 : (currentStep / (STEPS.length - 1)) * 100;
+            document.getElementById('progress-fill').style.width = pct + '%';
+
+            for (let i = 1; i <= STEPS.length; i++) {
+                const dot = document.getElementById('step-dot-' + i);
+                const lbl = document.getElementById('step-lbl-' + i);
+                const idx = i - 1;
+                dot.className = 'step-dot';
+                if (idx < currentStep) {
+                    dot.classList.add('dot-done');
+                    dot.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+                    lbl.className = 'text-xs font-semibold mt-1.5 text-emerald-600';
+                } else if (idx === currentStep) {
+                    dot.classList.add('dot-active');
+                    dot.textContent = String(i);
+                    lbl.className = 'text-xs font-semibold mt-1.5 text-slate-900';
+                } else {
+                    dot.classList.add('dot-future');
+                    dot.textContent = String(i);
+                    lbl.className = 'text-xs font-semibold mt-1.5 text-slate-400';
+                }
+            }
+        }
+
+        function updateNavButtons() {
+            const prevBtn    = document.getElementById('wizard-btn-prev');
+            const cancelBtn  = document.getElementById('wizard-btn-cancel');
+            const nextBtn    = document.getElementById('wizard-btn-next');
+            const submitBtn  = document.getElementById('wizard-btn-submit');
+            const isFirst    = currentStep === 0;
+            const isLast     = currentStep === STEPS.length - 1;
+
+            prevBtn.classList.toggle('hidden', isFirst);
+            cancelBtn.classList.toggle('hidden', !isFirst);
+            nextBtn.classList.toggle('hidden', isLast);
+            submitBtn.classList.toggle('hidden', !isLast);
+        }
+
+        function markError(el, msg) {
+            if (!el) return;
+            el.classList.add('border-red-400', 'ring-2', 'ring-red-100');
+            el.addEventListener('input', function clear() {
+                el.classList.remove('border-red-400', 'ring-2', 'ring-red-100');
+                el.removeEventListener('input', clear);
+            }, { once: true });
+        }
+
+        function validateStep(index) {
+            if (index === 0) {
+                const clientEl   = document.getElementById('id_client');
+                const propertyEl = document.getElementById('id_client_property');
+                if (!clientEl.value) {
+                    const tsControl = document.querySelector('.ts-control');
+                    if (tsControl) { tsControl.style.boxShadow = '0 0 0 2px #fca5a5'; tsControl.style.borderColor = '#f87171'; }
+                    showWizardError('Selecione um cliente para continuar.');
+                    return false;
+                }
+                if (!propertyEl.value) {
+                    markError(propertyEl);
+                    showWizardError('Selecione um imóvel para continuar.');
+                    return false;
+                }
+                return true;
+            }
+            if (index === 1) {
+                const descEl = document.getElementById('id_description');
+                if (!descEl || !descEl.value.trim()) {
+                    markError(descEl);
+                    descEl && descEl.focus();
+                    showWizardError('Preencha a descrição da OS para continuar.');
+                    return false;
+                }
+                return true;
+            }
+            if (index === 2) {
+                const typeEl      = document.querySelector('[name="task_0_type"]');
+                const scheduleEl  = document.querySelector('[name="scheduled_at"]');
+                if (!typeEl || !typeEl.value) {
+                    markError(typeEl);
+                    showWizardError('Selecione o tipo da primeira etapa.');
+                    return false;
+                }
+                if (!scheduleEl || !scheduleEl.value) {
+                    markError(scheduleEl);
+                    showWizardError('Informe a data de agendamento da primeira etapa.');
+                    return false;
+                }
+                return true;
+            }
+            return true;
+        }
+
+        function showWizardError(msg) {
+            if (typeof showToast === 'function') {
+                showToast(msg, 'error');
+            } else {
+                // Inline banner
+                let banner = document.getElementById('wizard-error-banner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'wizard-error-banner';
+                    banner.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 bg-red-600 text-white text-sm font-semibold rounded-2xl shadow-xl transition-all';
+                    document.body.appendChild(banner);
+                }
+                banner.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> ${msg}`;
+                banner.style.opacity = '1';
+                clearTimeout(banner._timeout);
+                banner._timeout = setTimeout(() => { banner.style.opacity = '0'; }, 3500);
+            }
+        }
+
+        function populateReview() {
+            const clientEl   = document.getElementById('id_client');
+            const propertyEl = document.getElementById('id_client_property');
+            const descEl     = document.getElementById('id_description');
+            const valueEl    = document.getElementById('id_estimated_value');
+            const originEl   = document.getElementById('id_origin_date');
+
+            const clientText   = clientEl?.options[clientEl.selectedIndex]?.text || '—';
+            const propertyText = propertyEl?.options[propertyEl.selectedIndex]?.text || '—';
+            const description  = descEl?.value || '—';
+            const valueText    = valueEl?.value ? 'R$ ' + parseFloat(valueEl.value).toLocaleString('pt-BR', {minimumFractionDigits:2}) : '—';
+            const originText   = originEl?.value ? new Date(originEl.value + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+
+            // Build tasks summary
+            const taskCards = document.querySelectorAll('.task-card');
+            let tasksHtml = '';
+            taskCards.forEach((card, idx) => {
+                const typeEl     = card.querySelector('select[name$="_type"]');
+                const schedEl   = card.querySelector('input[name="scheduled_at"], input[name$="_scheduled"]');
+                const typeText   = typeEl?.options[typeEl.selectedIndex]?.text || '—';
+                let schedText = '—';
+                if (schedEl?.value) {
+                    try { schedText = new Date(schedEl.value).toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'}); } catch(e) {}
+                }
+                tasksHtml += `
+                <div class="flex items-start gap-3 py-3 ${idx > 0 ? 'border-t border-slate-100' : ''}">
+                    <div class="w-7 h-7 rounded-full bg-green-100 text-green-700 font-bold text-xs flex items-center justify-center shrink-0">${idx+1}</div>
+                    <div>
+                        <p class="font-semibold text-slate-900 text-sm">${typeText}</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Agendado: ${schedText}</p>
+                    </div>
+                </div>`;
+            });
+
+            document.getElementById('review-content').innerHTML = `
+            <div class="space-y-4">
+                <div class="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cliente & Imóvel</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div><p class="text-xs text-slate-500">Cliente</p><p class="font-semibold text-slate-900 text-sm mt-0.5">${clientText}</p></div>
+                        <div><p class="text-xs text-slate-500">Imóvel</p><p class="font-semibold text-slate-900 text-sm mt-0.5">${propertyText}</p></div>
+                    </div>
+                </div>
+                <div class="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Detalhes da OS</p>
+                    <div><p class="text-xs text-slate-500">Descrição</p><p class="font-medium text-slate-900 text-sm mt-0.5 whitespace-pre-wrap">${description}</p></div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><p class="text-xs text-slate-500">Valor Estimado</p><p class="font-semibold text-slate-900 text-sm mt-0.5">${valueText}</p></div>
+                        <div><p class="text-xs text-slate-500">Data de Origem</p><p class="font-semibold text-slate-900 text-sm mt-0.5">${originText}</p></div>
+                    </div>
+                </div>
+                <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Etapas Agendadas</p>
+                    ${tasksHtml || '<p class="text-sm text-slate-400 italic py-2">Nenhuma etapa adicionada</p>'}
+                </div>
+                <div class="flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <span>Após criar a OS, você poderá adicionar itens de orçamento e registrar ocorrências na tela de detalhes.</span>
+                </div>
+            </div>`;
+        }
+
+        // Wire up navigation buttons
+        document.getElementById('wizard-btn-next').addEventListener('click', function() {
+            if (!validateStep(currentStep)) return;
+            if (currentStep === STEPS.length - 2) populateReview();
+            if (currentStep < STEPS.length - 1) wizardGoTo(currentStep + 1);
+        });
+
+        document.getElementById('wizard-btn-prev').addEventListener('click', function() {
+            if (currentStep > 0) wizardGoTo(currentStep - 1);
+        });
+
+        // ===== CLIENT + PROPERTY LOGIC =====
+        const clientSelect   = document.getElementById('id_client');
         const propertySelect = document.getElementById('id_client_property');
         const btnAddProperty = document.getElementById('btn-add-property');
         const propertyLoading = document.getElementById('property-loading');
 
         if (clientSelect && !clientSelect.tomselect) {
-            // Initialize Tom Select for Clients
             const tsClient = new TomSelect(clientSelect, {
                 create: false,
                 sortField: { field: "text", direction: "asc" },
                 placeholder: "Pesquise pelo nome do cliente...",
-                onChange: function(value) {
-                    updateProperties(value);
-                }
+                onChange: function(value) { updateProperties(value); }
             });
 
             function updateProperties(clientId) {
@@ -941,41 +1168,36 @@
                     btnAddProperty.classList.add('opacity-50', 'cursor-not-allowed');
                     return;
                 }
-
                 btnAddProperty.disabled = false;
                 btnAddProperty.classList.remove('opacity-50', 'cursor-not-allowed');
                 propertyLoading.classList.remove('hidden');
-
                 fetch(`{% url 'api_get_properties' %}?client_id=${clientId}`)
-                    .then(response => response.json())
+                    .then(r => r.json())
                     .then(data => {
                         propertySelect.innerHTML = '<option value="">---------</option>';
                         data.forEach(prop => {
-                            const option = document.createElement('option');
-                            option.value = prop.id;
-                            option.textContent = prop.address;
-                            propertySelect.appendChild(option);
+                            const o = document.createElement('option');
+                            o.value = prop.id;
+                            o.textContent = prop.address;
+                            propertySelect.appendChild(o);
                         });
                     })
-                    .finally(() => {
-                        propertyLoading.classList.add('hidden');
-                    });
+                    .finally(() => propertyLoading.classList.add('hidden'));
             }
         }
 
-        // ============ MULTIPLE TASKS MANAGEMENT ============
+        // ===== TASK CARDS MANAGEMENT =====
         let taskCount = {{ submitted_tasks|length|default:1 }};
         const tasksContainer = document.getElementById('tasks-container');
         const addTaskBtn = document.getElementById('add-task-btn');
 
-        // Add new task
         if (addTaskBtn) {
             addTaskBtn.addEventListener('click', function() {
                 taskCount++;
-                const newTaskCard = createTaskCard(taskCount);
-                tasksContainer.appendChild(newTaskCard);
+                const newCard = createTaskCard(taskCount);
+                tasksContainer.appendChild(newCard);
                 lucide.createIcons();
-                initializeTaskEventListeners(newTaskCard);
+                initializeTaskEventListeners(newCard);
             });
         }
 
@@ -985,56 +1207,38 @@
             card.innerHTML = `
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-2">
-                        <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm task-number">
-                            ${number}
-                        </div>
+                        <div class="w-8 h-8 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-sm task-number">${number}</div>
                         <h4 class="font-bold text-slate-900 task-title">Etapa ${number}</h4>
                     </div>
                     <button type="button" class="remove-task-btn p-2 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-all">
                         <i data-lucide="trash-2" class="h-4 w-4"></i>
                     </button>
                 </div>
-
                 <div class="space-y-4">
-                    <!-- Tipo de Etapa -->
                     <div>
                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Tipo de Etapa *</label>
                         <select name="task_${number-1}_type" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
                             <option value="">Selecione...</option>
-                            <option value='ORCAMENTO'>Vistoria/Orçamento</option>
-                            <option value='EXECUCAO'>Execução/Instalação</option>
-                            <option value='GARANTIA'>Garantia</option>
+                            <option value="ORCAMENTO">Vistoria/Orçamento</option>
+                            <option value="EXECUCAO">Execução/Instalação</option>
+                            <option value="GARANTIA">Garantia</option>
                         </select>
                     </div>
-
-                    <!-- Datas e Valor -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Agendamento *</label>
-                            <input type="datetime-local" id="task_${number-1}_scheduled" name="task_${number-1}_scheduled" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                            <input type="datetime-local" name="task_${number-1}_scheduled" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data Fim de Agendamento</label>
                             <input type="datetime-local" name="task_${number-1}_scheduled_end" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
                         </div>
                     </div>
-
                     <div class="flex items-center space-x-2 border border-slate-200 bg-white p-3 rounded-lg">
-                        <input type="checkbox"
-                               name="task_${number-1}_send_whatsapp_confirmation"
-                               id="id_task_${number-1}_send_whatsapp_confirmation"
-                               class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                        <label for="id_task_${number-1}_send_whatsapp_confirmation" class="text-sm font-medium leading-none text-slate-700">
-                            Enviar WhatsApp de Confirmação?
-                        </label>
+                        <input type="checkbox" name="task_${number-1}_send_whatsapp_confirmation" id="id_task_${number-1}_send_whatsapp_confirmation" class="h-4 w-4 border-gray-300 rounded">
+                        <label for="id_task_${number-1}_send_whatsapp_confirmation" class="text-sm font-medium leading-none text-slate-700">Enviar WhatsApp de Confirmação?</label>
                     </div>
-
-                    <!-- Execução -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 bg-slate-50 p-4 border border-slate-200 rounded-lg">
-                        <h4 class="col-span-1 md:col-span-2 font-bold text-slate-800 text-sm flex items-center gap-2 mb-2">
-                            <i data-lucide="clock" class="w-4 h-4 text-green-600"></i>
-                            Execução
-                        </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 border border-slate-200 rounded-lg">
                         <div>
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data de Início (Execução)</label>
                             <input type="datetime-local" name="task_${number-1}_start_date" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white">
@@ -1044,9 +1248,6 @@
                             <input type="datetime-local" name="task_${number-1}_end_date" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm bg-white">
                         </div>
                     </div>
-
-
-                    <!-- Equipe -->
                     <div class="border-t border-slate-200 pt-4">
                         <div class="flex items-center justify-between mb-3">
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Equipe Alocada</label>
@@ -1055,7 +1256,6 @@
                             </button>
                         </div>
                         <div class="team-members-container space-y-2">
-                            <!-- Campo padrão vazio -->
                             <div class="team-member-row grid grid-cols-2 gap-3 p-3 rounded-lg bg-white border border-slate-200 relative">
                                 <div>
                                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Profissional</label>
@@ -1078,46 +1278,26 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- Upload de mídias -->
-                    <div class="border-t border-slate-200 pt-4">
-                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Anexar Fotos/Vídeos</label>
-                        {% include 'services/components/media_dropzone.html' with dropzone_name="task_${number-1}_media" dropzone_id="task_${number-1}_media_id" additional_classes="task-media-input" is_subform=True %}
-                        <p class="text-xs text-slate-400 italic mt-1">Envie evidências desta etapa e toque no arquivo para removê-lo.</p>
-                        <div class="task-media-preview grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 hidden"></div>
-                    </div>
-                </div>
-            `;
-
+                </div>`;
             return card;
         }
 
-        // Initialize event listeners for task cards
         function initializeTaskEventListeners(taskCard) {
-            // Remove task button
             const removeBtn = taskCard.querySelector('.remove-task-btn');
             if (removeBtn) {
                 removeBtn.addEventListener('click', function() {
-                    if(typeof cleanupMediaState === 'function') cleanupMediaState(taskCard);
+                    if (typeof cleanupMediaState === 'function') cleanupMediaState(taskCard);
                     taskCard.remove();
                     updateTaskNumbers();
                 });
             }
-
-            // Add team member button
             const addTeamBtn = taskCard.querySelector('.add-team-member-btn');
-            if (addTeamBtn) {
-                addTeamBtn.addEventListener('click', function() {
-                    addTeamMemberToTask(taskCard);
-                });
-            }
+            if (addTeamBtn) addTeamBtn.addEventListener('click', () => addTeamMemberToTask(taskCard));
         }
 
-        // Add team member to specific task
         function addTeamMemberToTask(taskCard) {
             const container = taskCard.querySelector('.team-members-container');
             const taskNumber = Array.from(tasksContainer.querySelectorAll('.task-card')).indexOf(taskCard);
-            
             const memberRow = document.createElement('div');
             memberRow.className = 'team-member-row grid grid-cols-2 gap-3 p-3 rounded-lg bg-white border border-slate-200 relative';
             memberRow.innerHTML = `
@@ -1125,127 +1305,91 @@
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Profissional</label>
                     <select name="task_${taskNumber}_professional[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
                         <option value="">Selecione...</option>
-                        {% for prof in professionals %}
-                        <option value="{{ prof.id }}">{{ prof.name }}</option>
-                        {% endfor %}
+                        {% for prof in professionals %}<option value="{{ prof.id }}">{{ prof.name }}</option>{% endfor %}
                     </select>
                 </div>
                 <div>
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Função</label>
                     <select name="task_${taskNumber}_role[]" class="w-full px-2 py-2 border rounded-lg focus:ring-1 focus:ring-green-500 text-sm">
                         <option value="">Selecione...</option>
-                        {% for role in roles %}
-                        <option value="{{ role.id }}">{{ role.name }}</option>
-                        {% endfor %}
+                        {% for role in roles %}<option value="{{ role.id }}">{{ role.name }}</option>{% endfor %}
                     </select>
                 </div>
                 <button type="button" class="absolute -top-2 -right-2 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all remove-team-member-btn">
                     <i data-lucide="x" class="h-3 w-3"></i>
-                </button>
-            `;
-
-            const removeBtn = memberRow.querySelector('.remove-team-member-btn');
-            removeBtn.addEventListener('click', function() {
-                memberRow.remove();
-            });
-
+                </button>`;
+            memberRow.querySelector('.remove-team-member-btn').addEventListener('click', () => memberRow.remove());
             container.appendChild(memberRow);
             lucide.createIcons();
         }
 
-        // Update task numbers after removal
         function updateTaskNumbers() {
-            const taskCards = tasksContainer.querySelectorAll('.task-card');
-            taskCards.forEach((card, index) => {
-                const number = index + 1;
+            document.querySelectorAll('.task-card').forEach((card, index) => {
                 const badge = card.querySelector('.task-number');
                 const title = card.querySelector('.task-title');
-                if (badge) badge.textContent = number;
-                if (title) title.textContent = `Etapa ${number}`;
+                if (badge) badge.textContent = index + 1;
+                if (title) title.textContent = `Etapa ${index + 1}`;
             });
-            taskCount = taskCards.length;
+            taskCount = document.querySelectorAll('.task-card').length;
         }
 
-        // Initialize first task event listeners
         const firstTask = document.querySelector('.task-card');
-        if (firstTask) {
-            initializeTaskEventListeners(firstTask);
-        }
+        if (firstTask) initializeTaskEventListeners(firstTask);
 
-        // Initialize team member buttons for existing formset
         document.querySelectorAll('.add-team-member-btn').forEach(btn => {
             btn.addEventListener('click', function() {
-                const taskCard = btn.closest('.task-card');
-                addTeamMemberToTask(taskCard);
+                addTeamMemberToTask(btn.closest('.task-card'));
             });
         });
-        
-        // Auto-preencher campos de data de Criação a partir da view (via Initial Context)
+
+        // ===== DATE PRE-FILL =====
         setTimeout(function() {
             {% if initial_origin_date %}
             const originDate = '{{ initial_origin_date }}';
             {% else %}
-            const today = new Date();
-            const originDate = today.toISOString().split('T')[0]; // YYYY-MM-DD
+            const originDate = new Date().toISOString().split('T')[0];
             {% endif %}
-            
-            if (originDate) {
-                const originDateField = document.getElementById('id_origin_date');
-                if (originDateField) {
-                    originDateField.value = originDate;
-                }
-            }
-            
+            const originDateField = document.getElementById('id_origin_date');
+            if (originDateField && originDate) originDateField.value = originDate;
+
             {% if initial_scheduled_at %}
             const initialDateTime = '{{ initial_scheduled_at }}';
             if (initialDateTime) {
-                const date = new Date(initialDateTime);
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                const hours = String(date.getHours()).padStart(2, '0');
-                const minutes = String(date.getMinutes()).padStart(2, '0');
-                const formattedDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
-
-                const scheduledField = document.getElementById('id_scheduled_at') || document.querySelector('input[name="scheduled_at"]');
-                if (scheduledField) {
-                    scheduledField.value = formattedDateTime;
-                }
+                const d = new Date(initialDateTime);
+                const fmt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                const f = document.getElementById('id_scheduled_at') || document.querySelector('[name="scheduled_at"]');
+                if (f) f.value = fmt;
             }
             {% endif %}
-
             {% if initial_scheduled_end_at %}
             const initialDateTimeEnd = '{{ initial_scheduled_end_at }}';
             if (initialDateTimeEnd) {
-                const dateEnd = new Date(initialDateTimeEnd);
-                const yearEnd = dateEnd.getFullYear();
-                const monthEnd = String(dateEnd.getMonth() + 1).padStart(2, '0');
-                const dayEnd = String(dateEnd.getDate()).padStart(2, '0');
-                const hoursEnd = String(dateEnd.getHours()).padStart(2, '0');
-                const minutesEnd = String(dateEnd.getMinutes()).padStart(2, '0');
-                const formattedDateTimeEnd = `${yearEnd}-${monthEnd}-${dayEnd}T${hoursEnd}:${minutesEnd}`;
-
-                const scheduledEndField = document.getElementById('id_scheduled_end_at') || document.querySelector('input[name="scheduled_end_at"]');
-                if (scheduledEndField) {
-                    scheduledEndField.value = formattedDateTimeEnd;
-                }
+                const d = new Date(initialDateTimeEnd);
+                const fmt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                const f = document.getElementById('id_scheduled_end_at') || document.querySelector('[name="scheduled_end_at"]');
+                if (f) f.value = fmt;
             }
             {% endif %}
         }, 200);
+
+        // Se há conflito de horário, ir direto para a etapa 3 (tasks) onde está o campo de data
+        {% if show_force_schedule_modal %}
+        wizardGoTo(2);
+        {% elif form.errors %}
+        wizardGoTo(0);
+        {% else %}
+        wizardGoTo(0);
         {% endif %}
+
+        {% endif %} {# end {% if not order %} #}
     });
 
-    // Modal Management globais
+    // ===== MODAL MANAGEMENT =====
     window.openModal = function(type) {
         if (type === 'client') {
             const modal = document.getElementById('form-modal');
-            const iframe = document.getElementById('modal-iframe');
-            const title = document.getElementById('modal-title');
-            
-            let url = "{% url 'client_create' %}?popup=true";
-            title.innerText = "Novo Cliente";
-            
-            iframe.src = url;
+            document.getElementById('modal-title').innerText = "Novo Cliente";
+            document.getElementById('modal-iframe').src = "{% url 'client_create' %}?popup=true";
             modal.classList.remove('hidden');
             modal.classList.add('flex');
             document.body.style.overflow = 'hidden';
@@ -1264,9 +1408,6 @@
         document.body.style.overflow = '';
     };
 
-    // Initialize Lucide icons
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 </script>
 {% endblock %}

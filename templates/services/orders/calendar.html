@@ -208,19 +208,23 @@
     <div class="flex flex-wrap items-center gap-2">
         <div class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-[11px] font-bold border border-blue-100 select-none">
             <div class="w-2 h-2 rounded-full bg-blue-500"></div>
-            Vistoria / Orçamento
-        </div>
-        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] font-bold border border-emerald-100 select-none">
-            <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
-            Execução
+            Agendado
         </div>
         <div class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-[11px] font-bold border border-amber-100 select-none">
             <div class="w-2 h-2 rounded-full bg-amber-500"></div>
-            Retorno / Garantia
+            Em Andamento
+        </div>
+        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] font-bold border border-emerald-100 select-none">
+            <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+            Concluído
+        </div>
+        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 rounded-full text-[11px] font-bold border border-red-100 select-none">
+            <div class="w-2 h-2 rounded-full bg-red-500"></div>
+            Não Executado
         </div>
         <div class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-full text-[11px] font-bold border border-slate-200 select-none">
             <div class="w-2 h-2 rounded-full bg-slate-400"></div>
-            Bloqueio
+            Cancelado / Bloqueio
         </div>
         <p class="ml-auto text-[11px] text-slate-400 hidden md:block">
             Clique em um horário livre para agendar
@@ -449,14 +453,30 @@ document.addEventListener('DOMContentLoaded', function () {
         },
 
         eventContent: function (arg) {
-            const title = arg.event.title || '';
-            const isList = arg.view.type.startsWith('list');
-            if (isList) return null; // usa renderização padrão na lista
+            if (arg.view.type.startsWith('list')) return; // lista: renderização nativa + enriquecida por eventDidMount
             return {
                 html: `<div class="px-1.5 py-0.5 overflow-hidden leading-tight">
-                           <span class="text-[11px] font-bold block truncate">${title}</span>
+                           <span class="text-[11px] font-bold block truncate">${arg.event.title || ''}</span>
                        </div>`
             };
+        },
+
+        eventDidMount: function (arg) {
+            if (!arg.view.type.startsWith('list')) return;
+            const props = arg.event.extendedProps;
+            if (!props.client) return; // bloqueios não têm cliente
+
+            const TYPE_LABELS = { ORCAMENTO: 'Orçamento', EXECUCAO: 'Execução', GARANTIA: 'Garantia' };
+            const typeLabel   = TYPE_LABELS[props.type] || '';
+            const meta        = [typeLabel, props.neighborhood, props.status].filter(Boolean).join(' · ');
+
+            // arg.el = <tr class="fc-list-event">
+            const target = arg.el.querySelector('.fc-list-event-title a')
+                        || arg.el.querySelector('.fc-list-event-title');
+            if (!target) return;
+            target.innerHTML =
+                `<span class="font-semibold text-slate-900">${props.client}</span>` +
+                (meta ? `<br><span class="text-xs text-slate-400 font-normal">${meta}</span>` : '');
         },
 
         select: function (info) {
@@ -540,7 +560,7 @@ function openEventDetailModal(event) {
     const iconBox = document.getElementById('ed-icon-container');
     const TYPE_MAP = {
         ORCAMENTO: {
-            label: 'Vistoria',
+            label: 'Vistoria / Orçamento',
             bg: 'bg-blue-50 border-blue-100',
             text: 'text-blue-700',
             badgeCls: 'bg-blue-50 text-blue-700 border-blue-100',
@@ -564,7 +584,7 @@ function openEventDetailModal(event) {
             iconCls: 'text-emerald-500',
         },
     };
-    const cfg = TYPE_MAP[props.type] || TYPE_MAP.EXECUCAO;
+    const cfg = TYPE_MAP[props.type] || TYPE_MAP['EXECUCAO'];
     iconBox.className = `w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${cfg.bg}`;
     iconBox.innerHTML = `<i data-lucide="${cfg.icon}" class="h-6 w-6 ${cfg.iconCls}"></i>`;
     badge.innerHTML   = `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest border ${cfg.badgeCls}">${cfg.label}</span>`;
