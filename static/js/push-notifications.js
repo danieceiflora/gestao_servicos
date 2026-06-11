@@ -115,7 +115,7 @@ const PushManager = (function() {
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
         
         try {
-            const response = await fetch('/notifications/subscribe/', {
+            const response = await fetch('/notificacoes/inscrever/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

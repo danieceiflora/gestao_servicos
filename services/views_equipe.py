@@ -127,14 +127,35 @@ def equipe_task_finish(request, task_id):
     task = get_object_or_404(tasks_qs, id=task_id)
     
     if request.method == 'POST':
+        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
         # Validar checklist obrigatório
         pending_required = task.checklist_responses.filter(item__is_required=True, completed=False).exists()
         if pending_required:
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                from django.http import JsonResponse
+            if is_ajax:
                 return JsonResponse({'success': False, 'error': 'Existem itens obrigatórios no check-list que ainda não foram preenchidos.'}, status=400)
             messages.error(request, 'Existem itens obrigatórios no check-list que ainda não foram preenchidos.')
             return redirect('equipe_task_detail', task_id=task.id)
+
+        # Verificar se o serviço ficou com pendências
+        is_partial = request.POST.get('is_partial') == 'true'
+        pending_description = request.POST.get('pending_description', '').strip()
+
+        if is_partial:
+            if not pending_description:
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': 'Descreva o que ficou pendente antes de finalizar.'}, status=400)
+                messages.error(request, 'Descreva o que ficou pendente antes de finalizar.')
+                return redirect('equipe_task_detail', task_id=task.id)
+
+            # Cria ocorrência impeditiva automaticamente
+            Occurrence.objects.create(
+                task=task,
+                category=Occurrence.OccurrenceCategory.IMPEDITIVA,
+                occurrence_type=Occurrence.OccurrenceType.OUTRO,
+                description=pending_description,
+                status=Occurrence.OccurrenceStatus.REGISTRADA
+            )
 
         notes = request.POST.get('notes', '').strip()
         customer_name = request.POST.get('customer_name', '').strip()

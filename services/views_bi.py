@@ -72,6 +72,7 @@ def bi_operacional(request):
         'AGUARDANDO_PAGAMENTO': '#fb923c',
         'PAGAMENTO_PARCIAL': '#facc15',
         'FINALIZADO': '#22c55e',
+        'CONCLUIDA': '#16a34a',
         'CANCELADO': '#e2e8f0',
         'GARANTIA': '#c084fc',
     }
@@ -92,6 +93,7 @@ def bi_operacional(request):
             ServiceOrder.Status.AGUARDANDO_PAGAMENTO,
             ServiceOrder.Status.PAGAMENTO_PARCIAL,
             ServiceOrder.Status.FINALIZADO,
+            ServiceOrder.Status.CONCLUIDA,
         ]
     ).filter(
         Q(chatwoot_budget_message_id__isnull=False) |
@@ -117,7 +119,7 @@ def bi_operacional(request):
 
     # --- Tempo médio de atendimento ---
     finished_qs = ServiceOrder.objects.filter(
-        status=ServiceOrder.Status.FINALIZADO,
+        status__in=[ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CONCLUIDA],
         finished_at__gte=since,
         finished_at__isnull=False,
     ).values('created_at', 'finished_at')
@@ -157,7 +159,7 @@ def bi_operacional(request):
 
         created_count = ServiceOrder.objects.filter(created_at__gte=ms, created_at__lte=me).count()
         finished_count = ServiceOrder.objects.filter(
-            status=ServiceOrder.Status.FINALIZADO,
+            status__in=[ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CONCLUIDA],
             finished_at__gte=ms,
             finished_at__lte=me,
         ).count()
@@ -171,7 +173,7 @@ def bi_operacional(request):
         'total_finished': count_f,
         'total_cancelled': orders_qs.filter(status=ServiceOrder.Status.CANCELADO).count(),
         'active_count': orders_qs.exclude(
-            status__in=[ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CANCELADO]
+            status__in=[ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CONCLUIDA, ServiceOrder.Status.CANCELADO]
         ).count(),
         # Funil
         'budgets_sent': budgets_sent,

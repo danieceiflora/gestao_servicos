@@ -775,7 +775,8 @@ class Billing(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='billings', verbose_name="Cliente")
     
     sale = models.OneToOneField('Sale', on_delete=models.SET_NULL, null=True, blank=True, related_name='billing', verbose_name="Venda")
-    service_order = models.OneToOneField('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='billing', verbose_name="Ordem de Serviço")
+    service_order = models.ForeignKey('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='billings', verbose_name="Ordem de Serviço")
+    task = models.ForeignKey('ServiceOrderTask', on_delete=models.SET_NULL, null=True, blank=True, related_name='billings', verbose_name="Etapa")
     
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Bruto")
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
@@ -793,7 +794,14 @@ class Billing(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        origin = f"Venda #{self.sale.number}" if self.sale and hasattr(self.sale, 'number') else f"OS #{self.service_order.number}" if self.service_order else "Manual"
+        if self.task:
+            origin = f"OS #{self.service_order.number} — Etapa {self.task.get_task_type_display()}" if self.service_order else f"Etapa {self.task.get_task_type_display()}"
+        elif self.sale and hasattr(self.sale, 'number'):
+            origin = f"Venda #{self.sale.number}"
+        elif self.service_order:
+            origin = f"OS #{self.service_order.number}"
+        else:
+            origin = "Manual"
         return f"Cobrança #{self.number} ({origin})"
 
     def get_total_paid(self):
@@ -1125,6 +1133,7 @@ class ServiceOrder(models.Model):
         AGUARDANDO_PAGAMENTO = 'AGUARDANDO_PAGAMENTO', 'Aguardando Pagamento'
         PAGAMENTO_PARCIAL = 'PAGAMENTO_PARCIAL', 'Pagamento Parcial'
         FINALIZADO = 'FINALIZADO', 'Finalizado'
+        CONCLUIDA = 'CONCLUIDA', 'Concluída'
         CANCELADO = 'CANCELADO', 'Cancelado'
         GARANTIA = 'GARANTIA', 'Em Garantia'
 
@@ -1185,7 +1194,19 @@ class ServiceOrder(models.Model):
 
     @property
     def total_value(self):
-        items_total = sum((item.total_price for item in self.items.all()), Decimal('0'))
+        # Itens de ORCAMENTO são referência histórica — nunca cobrados diretamente.
+        # Quando existem tarefas de EXECUCAO ou GARANTIA, apenas os itens dessas
+        # entram no total (evita soma dupla após clonagem de itens do orçamento).
+        exec_garantia_types = [
+            ServiceOrderTask.TaskType.EXECUCAO,
+            ServiceOrderTask.TaskType.GARANTIA,
+        ]
+        has_exec_or_garantia = self.tasks.filter(task_type__in=exec_garantia_types).exists()
+        if has_exec_or_garantia:
+            billable = self.items.filter(task__task_type__in=exec_garantia_types)
+        else:
+            billable = self.items.all()
+        items_total = sum((item.total_price for item in billable), Decimal('0'))
         return quantize_money(items_total)
 
     @property
@@ -1205,72 +1226,74 @@ class ServiceOrder(models.Model):
         return quantize_money(self.total_value - self.total_paid - quantize_money(self.discount))
 
     def update_status(self):
-        """Lógica centralizada de atualização de status da OS e gestão de estoque"""
-        from datetime import timedelta
+        """Lógica centralizada de atualização de status da OS — apenas estado operacional do trabalho."""
         import django.utils.timezone
         from django.db import transaction
 
-        # Sempre atualiza o valor estimado para bater com o total líquido (Total - Desconto)
         self.estimated_value = self.total_value - self.discount
 
         tasks = self.tasks.all()
-        
+
         # 1. Prioridade: Garantia
         if tasks.filter(task_type=ServiceOrderTask.TaskType.GARANTIA).exists():
             if tasks.filter(task_type=ServiceOrderTask.TaskType.GARANTIA, status=ServiceOrderTask.TaskStatus.CONCLUIDO).exists():
-                self.status = self.Status.FINALIZADO
+                self.status = self.Status.CONCLUIDA
             else:
                 self.status = self.Status.GARANTIA
-        
-        # 2. Verificar Pagamentos
-        elif self.total_paid + self.discount >= self.total_value and self.total_value > 0:
-            self.status = self.Status.FINALIZADO
-            if not self.finished_at:
-                self.finished_at = django.utils.timezone.now()
-        elif self.total_paid > 0:
-            self.status = self.Status.PAGAMENTO_PARCIAL
 
-        # 3. Lógica baseada em Tasks (apenas se não for Garantia nem Pago)
+        # 2. Lógica baseada em Tasks (operacional, sem pagamentos)
         else:
             budget_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.ORCAMENTO)
             exec_tasks = tasks.filter(task_type=ServiceOrderTask.TaskType.EXECUCAO)
 
-            # Se todas as execuções acabaram, aguarda pagamento
+            # Todas as execuções concluídas → OS concluída
             if exec_tasks.exists() and not exec_tasks.exclude(status=ServiceOrderTask.TaskStatus.CONCLUIDO).exists():
-                self.status = self.Status.AGUARDANDO_PAGAMENTO
-            
-            # Se tem execução agendada ou em andamento
+                self.status = self.Status.CONCLUIDA
+                if not self.finished_at:
+                    self.finished_at = django.utils.timezone.now()
+
+            # Tem execução agendada ou em andamento
             elif exec_tasks.filter(status__in=[ServiceOrderTask.TaskStatus.AGENDADO, ServiceOrderTask.TaskStatus.EM_ANDAMENTO]).exists():
                 self.status = self.Status.AGUARDANDO_EXECUCAO
 
-            # Se tem execução aprovada mas não agendada
+            # Tem execução aprovada mas não agendada
             elif exec_tasks.filter(is_approved=True).exists():
                 self.status = self.Status.APROVADO_AGUARDANDO_AGENDAMENTO
 
-            # Se orçamento foi concluído mas não aprovado
+            # Orçamento concluído aguardando envio
             elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.CONCLUIDO).exists():
                 self.status = self.Status.ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO
 
-            # Se tem orçamento agendado
+            # Orçamento agendado
             elif budget_tasks.filter(status=ServiceOrderTask.TaskStatus.AGENDADO).exists():
                 self.status = self.Status.ORCAMENTO_AGENDADO
-        
-        # 4. GESTÃO DE ESTOQUE (Reserva -> Baixa Real)
+
+        # 3. GESTÃO DE ESTOQUE
+        # Usa o mesmo critério de total_value: apenas itens de EXECUCAO/GARANTIA
+        # quando essas tarefas existem, evitando baixa dupla dos itens clonados do orçamento.
+        exec_garantia_types = [
+            ServiceOrderTask.TaskType.EXECUCAO,
+            ServiceOrderTask.TaskType.GARANTIA,
+        ]
+        has_exec_or_garantia = self.tasks.filter(task_type__in=exec_garantia_types).exists()
+        if has_exec_or_garantia:
+            stock_items_qs = self.items.filter(product__isnull=False, task__task_type__in=exec_garantia_types)
+        else:
+            stock_items_qs = self.items.filter(product__isnull=False)
+
         with transaction.atomic():
-            # Baixa de estoque ao finalizar ou aguardar pagamento
-            if not self.stock_lowered and self.status in [self.Status.FINALIZADO, self.Status.AGUARDANDO_PAGAMENTO]:
-                for item in self.items.filter(product__isnull=False):
+            if not self.stock_lowered and self.status == self.Status.CONCLUIDA:
+                for item in stock_items_qs:
                     item.product.reduce_stock(
                         item.quantity,
                         reason=StockMovement.Reason.VENDA_OS,
                         service_order=self,
-                        notes="Baixa automática na finalização/aguardando pagamento da OS"
+                        notes="Baixa automática na conclusão da OS"
                     )
                 self.stock_lowered = True
-            
-            # Estorno de estoque em caso de cancelamento
+
             elif self.stock_lowered and self.status == self.Status.CANCELADO:
-                for item in self.items.filter(product__isnull=False):
+                for item in stock_items_qs:
                     item.product.increase_stock(
                         item.quantity,
                         reason=StockMovement.Reason.DEVOLUCAO,
@@ -1281,8 +1304,7 @@ class ServiceOrder(models.Model):
 
             self.save()
 
-        # Gatilhos de workflow (fora da transação de estoque se possível, ou garantindo consistência)
-        if self.status == self.Status.FINALIZADO:
+        if self.status == self.Status.CONCLUIDA:
             from .workflow import trigger_payment_receipt_workflow
             trigger_payment_receipt_workflow(self)
 
@@ -1318,7 +1340,9 @@ class ServiceOrderTask(models.Model):
     task_type = models.CharField(max_length=20, choices=TaskType.choices, default=TaskType.EXECUCAO, verbose_name="Tipo de Etapa")
     status = models.CharField(max_length=20, choices=TaskStatus.choices, default=TaskStatus.AGENDADO, verbose_name="Status")
     
-    # Aprovação e Pagamento (específico da Task)
+    # Valor e Aprovação
+    value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Valor da Etapa (R$)")
+    requires_client_approval = models.BooleanField(default=False, verbose_name="Requer Aprovação do Cliente?")
     is_approved = models.BooleanField(default=False, verbose_name="Aprovado pelo Cliente?")
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, null=True, blank=True, verbose_name="Método de Pagamento Preferencial")
 
@@ -1391,9 +1415,18 @@ class ServiceOrderTask(models.Model):
         numero_visual = self.service_order.number if self.service_order.number else "S/N"
         return f"{self.get_task_type_display()} - OS #{numero_visual}"
 
+    @property
+    def billing_value(self):
+        """Valor a cobrar: usa task.value se definido, senão a soma dos itens da etapa."""
+        if self.value is not None:
+            return self.value
+        items_total = sum((item.total_price for item in self.items.all()), Decimal('0'))
+        return quantize_money(items_total)
+
     def save(self, *args, **kwargs):
+        if not self.pk and self.service_order.status == ServiceOrder.Status.CONCLUIDA:
+            self.requires_client_approval = True
         super().save(*args, **kwargs)
-        # Ao salvar qualquer task, atualiza o status da OS pai
         self.service_order.update_status()
 
     class Meta:

@@ -355,7 +355,8 @@
                     <table class="w-full text-sm text-left">
                         <thead class="bg-slate-50 text-slate-500 text-[11px] font-medium border-b border-slate-200">
                             <tr>
-                                <th class="px-6 py-3">Descrição / Origem</th>
+                                <th class="px-6 py-3">Descrição</th>
+                                <th class="px-6 py-3 text-center">Etapa</th>
                                 <th class="px-6 py-3 text-center">Tipo</th>
                                 <th class="px-6 py-3 text-center">Unidade</th>
                                 <th class="px-6 py-3 text-center">Qtd</th>
@@ -372,14 +373,20 @@
                                 <td class="px-6 py-4">
                                     <div class="flex flex-col">
                                         <span class="font-medium text-slate-900">{{ item.description }}</span>
-                                        <span class="text-xs text-slate-500 mt-0.5">
-                                            {% if item.task %}
-                                                Etapa: {{ item.task.get_task_type_display }}
-                                            {% else %}
-                                                Origem: Orçamento Geral
-                                            {% endif %}
-                                        </span>
+                                        {% if item.product and item.product.code %}
+                                        <span class="text-xs text-slate-400 mt-0.5">{{ item.product.code }}</span>
+                                        {% endif %}
                                     </div>
+                                </td>
+                                <td class="px-6 py-4 text-center">
+                                    {% if item.task %}
+                                        <div class="flex flex-col items-center gap-0.5">
+                                            <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[10px] font-bold border border-blue-100">{{ item.task.get_task_type_display }}</span>
+                                            <span class="text-[10px] text-slate-400 font-medium">{{ item.task.scheduled_at|date:"d/m/Y H:i" }}</span>
+                                        </div>
+                                    {% else %}
+                                        <span class="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md text-[10px] font-bold border border-slate-200">Geral</span>
+                                    {% endif %}
                                 </td>
                                 <td class="px-6 py-4 text-center">
                                     {% if item.product %}
@@ -423,7 +430,7 @@
                             
                             {% if not order.items.all %}
                             <tr>
-                                <td colspan="8" class="px-6 py-12 text-center">
+                                <td colspan="9" class="px-6 py-12 text-center">
                                     <div class="flex flex-col items-center justify-center text-slate-400">
                                         <i data-lucide="shopping-cart" class="h-8 w-8 mb-2 opacity-20"></i>
                                         <span class="text-sm italic">Nenhum item adicionado.</span>
@@ -1021,8 +1028,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td class="px-6 py-4">
                     <div class="flex flex-col">
                         <span class="font-medium text-slate-900">${item.description}</span>
-                        <span class="text-xs text-slate-500 mt-0.5">${item.origin_display}</span>
                     </div>
+                </td>
+                <td class="px-6 py-4 text-center">
+                    ${item.origin_is_task
+                        ? `<div class="flex flex-col items-center gap-0.5">
+                               <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[10px] font-bold border border-blue-100">${item.origin_display}</span>
+                               ${item.task_scheduled ? `<span class="text-[10px] text-slate-400 font-medium">${item.task_scheduled}</span>` : ''}
+                           </div>`
+                        : `<span class="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md text-[10px] font-bold border border-slate-200">Geral</span>`
+                    }
                 </td>
                 <td class="px-6 py-4 text-center">
                     <span class="px-2 py-0.5 ${item.type_class} rounded-md text-[10px] font-bold border">${item.type_display}</span>

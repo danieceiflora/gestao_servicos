@@ -407,6 +407,91 @@ class BasePDFGenerator:
             print(f"Erro ao processar imagem: {e}")
             return None
 
+    def _item_rows(self, items):
+        """Retorna linhas de dados para uma lista de itens."""
+        rows = []
+        for item in items:
+            code = item.product.code if (item.product and item.product.code) else "---"
+            description = item.description or (item.product.name if item.product else (item.service.name if item.service else "---"))
+            unit = "un"
+            if item.product:
+                unit = "mt" if item.product.unit_type == 'METRO' else "un"
+            elif item.service:
+                unit = item.service.unit_of_measure
+            rows.append([
+                Paragraph(code, self.styles['TableItem']),
+                Paragraph(description, self.styles['TableItem']),
+                Paragraph(str(item.quantity).replace('.', ','), self.styles['TableItem']),
+                Paragraph(unit, self.styles['TableItem']),
+                Paragraph(self._format_currency(item.total_price), self.styles['TableItem'])
+            ])
+        return rows
+
+    def _build_grouped_items_table(self):
+        """Constrói tabela de itens agrupados por etapa. Usada por BudgetPDFGenerator e CompletionPDFGenerator."""
+        from decimal import Decimal
+
+        col_widths = [2.5*cm, 8.5*cm, 2*cm, 2.5*cm, 2.5*cm]
+        header_row = [[
+            Paragraph("CÓDIGO", self.styles['TableHeader']),
+            Paragraph("DESCRIÇÃO", self.styles['TableHeader']),
+            Paragraph("QTD", self.styles['TableHeader']),
+            Paragraph("UNID.", self.styles['TableHeader']),
+            Paragraph("TOTAL", self.styles['TableHeader'])
+        ]]
+
+        tasks = self.service_order.tasks.prefetch_related('items').order_by('scheduled_at')
+        general_items = self.service_order.items.filter(task__isnull=True)
+
+        data = list(header_row)
+        span_commands = [
+            ('BACKGROUND', (0,0), (-1,0), self.header_bg),
+            ('GRID', (0,0), (-1,-1), 0.5, self.grid_color),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN', (2,1), (4,-1), 'RIGHT'),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ]
+
+        for task in tasks:
+            task_items = list(task.items.all())
+            if not task_items:
+                continue
+            date_str = task.scheduled_at.strftime('%d/%m/%Y') if task.scheduled_at else ''
+            task_label = task.get_task_type_display() + (f"  —  {date_str}" if date_str else "")
+            group_idx = len(data)
+            data.append([Paragraph(task_label, self.styles.get('TableSubHeader', self.styles['TableHeader'])), "", "", "", ""])
+            span_commands.append(('SPAN', (0, group_idx), (-1, group_idx)))
+            span_commands.append(('BACKGROUND', (0, group_idx), (-1, group_idx), self.bg_header))
+
+            data.extend(self._item_rows(task_items))
+
+            subtotal = sum((i.total_price for i in task_items), Decimal('0'))
+            sub_idx = len(data)
+            data.append([
+                Paragraph("Subtotal da etapa", self.styles['SummaryLabel']),
+                "", "", "",
+                Paragraph(self._format_currency(subtotal), self.styles['SummaryValue'])
+            ])
+            span_commands.append(('SPAN', (0, sub_idx), (3, sub_idx)))
+            span_commands.append(('ALIGN', (4, sub_idx), (4, sub_idx), 'RIGHT'))
+            span_commands.append(('BACKGROUND', (0, sub_idx), (-1, sub_idx), self.bg_light))
+
+        general_rows = self._item_rows(general_items)
+        if general_rows:
+            if len(data) > 1:
+                gen_idx = len(data)
+                data.append([Paragraph("Itens Gerais", self.styles.get('TableSubHeader', self.styles['TableHeader'])), "", "", "", ""])
+                span_commands.append(('SPAN', (0, gen_idx), (-1, gen_idx)))
+                span_commands.append(('BACKGROUND', (0, gen_idx), (-1, gen_idx), self.bg_header))
+            data.extend(general_rows)
+
+        if len(data) == 1:
+            data.append([Paragraph("---", self.styles['TableItem']), Paragraph("Nenhum item detalhado", self.styles['TableItem']), "", "", ""])
+
+        return Table(data, colWidths=col_widths), span_commands
+
+
 class BudgetPDFGenerator(BasePDFGenerator):
     def __init__(self, service_order):
         super().__init__(service_order)
@@ -445,50 +530,8 @@ class BudgetPDFGenerator(BasePDFGenerator):
         elements = []
         elements.append(self._section_title("DETALHAMENTO DOS ITENS"))
         elements.append(Spacer(1, 0.1*cm))
-
-        # Header da tabela
-        data = [[
-            Paragraph("CÓDIGO", self.styles['TableHeader']),
-            Paragraph("DESCRIÇÃO", self.styles['TableHeader']),
-            Paragraph("QTD", self.styles['TableHeader']),
-            Paragraph("UNID.", self.styles['TableHeader']),
-            Paragraph("TOTAL", self.styles['TableHeader'])
-        ]]
-        
-        for item in self.service_order.items.all():
-            code = item.product.code if (item.product and item.product.code) else "---"
-            description = item.description or (item.product.name if item.product else (item.service.name if item.service else "---"))
-            
-            # Unidade
-            unit = "un"
-            if item.product:
-                unit = "mt" if item.product.unit_type == 'METRO' else "un"
-            elif item.service:
-                unit = item.service.unit_of_measure
-
-            quantity = str(item.quantity).replace('.', ',')
-            total = self._format_currency(item.total_price)
-            
-            data.append([
-                Paragraph(code, self.styles['TableItem']),
-                Paragraph(description, self.styles['TableItem']),
-                Paragraph(quantity, self.styles['TableItem']),
-                Paragraph(unit, self.styles['TableItem']),
-                Paragraph(total, self.styles['TableItem'])
-            ])
-            
-        if len(data) == 1:
-            data.append([Paragraph("---", self.styles['TableItem']), Paragraph("Nenhum item detalhado", self.styles['TableItem']), "", "", ""])
-            
-        table = Table(data, colWidths=[2.5*cm, 8.5*cm, 2*cm, 2.5*cm, 2.5*cm])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), self.header_bg),
-            ('GRID', (0,0), (-1,-1), 0.5, self.grid_color),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('ALIGN', (2,1), (4,-1), 'RIGHT'),
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ]))
+        table, span_commands = self._build_grouped_items_table()
+        table.setStyle(TableStyle(span_commands))
         elements.append(table)
         elements.append(Spacer(1, 0.4*cm))
         return elements
@@ -627,50 +670,8 @@ class CompletionPDFGenerator(BasePDFGenerator):
         elements = []
         elements.append(self._section_title("MATERIAIS E SERVIÇOS"))
         elements.append(Spacer(1, 0.1*cm))
-
-        # Header da tabela
-        data = [[
-            Paragraph("CÓDIGO", self.styles['TableHeader']),
-            Paragraph("DESCRIÇÃO", self.styles['TableHeader']),
-            Paragraph("QTD", self.styles['TableHeader']),
-            Paragraph("UNID.", self.styles['TableHeader']),
-            Paragraph("TOTAL", self.styles['TableHeader'])
-        ]]
-        
-        for item in self.service_order.items.all():
-            code = item.product.code if (item.product and item.product.code) else "---"
-            description = item.description or (item.product.name if item.product else (item.service.name if item.service else "---"))
-            
-            # Unidade
-            unit = "un"
-            if item.product:
-                unit = "mt" if item.product.unit_type == 'METRO' else "un"
-            elif item.service:
-                unit = item.service.unit_of_measure
-
-            quantity = str(item.quantity).replace('.', ',')
-            total = self._format_currency(item.total_price)
-            
-            data.append([
-                Paragraph(code, self.styles['TableItem']),
-                Paragraph(description, self.styles['TableItem']),
-                Paragraph(quantity, self.styles['TableItem']),
-                Paragraph(unit, self.styles['TableItem']),
-                Paragraph(total, self.styles['TableItem'])
-            ])
-            
-        if len(data) == 1:
-            data.append([Paragraph("---", self.styles['TableItem']), Paragraph("Nenhum item detalhado", self.styles['TableItem']), "", "", ""])
-            
-        table = Table(data, colWidths=[2.5*cm, 8.5*cm, 2*cm, 2.5*cm, 2.5*cm])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), self.header_bg),
-            ('GRID', (0,0), (-1,-1), 0.5, self.grid_color),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('ALIGN', (2,1), (4,-1), 'RIGHT'),
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ]))
+        table, span_commands = self._build_grouped_items_table()
+        table.setStyle(TableStyle(span_commands))
         elements.append(table)
         elements.append(Spacer(1, 0.4*cm))
         return elements

@@ -676,6 +676,7 @@ class TaskScheduleForm(forms.ModelForm):
         fields = [
             'task_type', 'status', 'scheduled_at',
             'scheduled_end_at', 'started_at', 'finished_at', 'notes',
+            'value',
             'send_whatsapp_confirmation', 'whatsapp_confirmation_status',
             'whatsapp_notification_sent_at', 'whatsapp_confirmation_received_at',
             'whatsapp_response_content'
@@ -710,6 +711,11 @@ class TaskScheduleForm(forms.ModelForm):
             'notes': forms.Textarea(attrs={
                 'rows': 3,
                 'placeholder': 'Observações sobre esta etapa...',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+            'value': forms.NumberInput(attrs={
+                'step': '0.01', 'min': '0',
+                'placeholder': 'Deixe em branco para usar a soma dos itens',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
             'whatsapp_confirmation_status': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),

@@ -542,6 +542,10 @@
                     </div>
                 </details>
                 
+                <!-- Campos ocultos para conclusão parcial -->
+                <input type="hidden" name="is_partial" id="is_partial" value="false">
+                <input type="hidden" name="pending_description" id="pending_description" value="">
+
                 <!-- BOTÃO FINALIZAR -->
                 <button type="submit" class="w-full rounded-2xl bg-emerald-600 text-white font-bold text-base shadow-md shadow-emerald-500/20 hover:bg-emerald-700 active:scale-[0.98] transition-all h-14 flex items-center justify-center mt-6">
                     <i data-lucide="check-circle" class="w-5 h-5 mr-2"></i>
@@ -555,6 +559,66 @@
 
 {% include "services/components/gps_modal.html" %}
 
+<!-- Modal: Serviço concluído totalmente? -->
+{% if task.task_type != 'ORCAMENTO' %}
+<div id="modal-conclusion" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div class="p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                    <i data-lucide="circle-help" class="h-5 w-5 text-emerald-600"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">Finalizar Serviço</h3>
+                    <p class="text-xs text-slate-500">O serviço foi totalmente realizado?</p>
+                </div>
+            </div>
+
+            <!-- Opção: tudo concluído -->
+            <button id="btn-fully-done" type="button"
+                class="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-all mb-3 text-left">
+                <i data-lucide="check-circle-2" class="h-5 w-5 text-emerald-600 shrink-0"></i>
+                <div>
+                    <p class="font-bold text-emerald-800 text-sm">Sim, tudo concluído</p>
+                    <p class="text-xs text-emerald-600">Serviço finalizado normalmente</p>
+                </div>
+            </button>
+
+            <!-- Opção: ficou pendente -->
+            <button id="btn-partial" type="button"
+                class="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 transition-all text-left">
+                <i data-lucide="alert-triangle" class="h-5 w-5 text-amber-600 shrink-0"></i>
+                <div>
+                    <p class="font-bold text-amber-800 text-sm">Ficou algo pendente</p>
+                    <p class="text-xs text-amber-600">Registrar impedimento para o admin</p>
+                </div>
+            </button>
+
+            <!-- Descrição do pendente (oculto até clicar em "Ficou pendente") -->
+            <div id="pending-description-area" class="hidden mt-4 space-y-2">
+                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    O que ficou pendente?
+                </label>
+                <textarea id="pending-description-input" rows="3"
+                    placeholder="Ex: Motor chegou com defeito, aguardando substituição..."
+                    class="w-full rounded-xl border-slate-300 text-sm p-3 bg-slate-50 focus:border-amber-500 focus:ring-amber-500"></textarea>
+                <button id="btn-confirm-partial" type="button"
+                    class="w-full h-11 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-all">
+                    Confirmar e Finalizar
+                </button>
+            </div>
+        </div>
+
+        <div class="px-6 pb-5">
+            <button id="btn-cancel-conclusion" type="button"
+                class="w-full text-sm text-slate-400 hover:text-slate-600 transition-colors py-2">
+                Cancelar
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
 
 <script>
@@ -562,16 +626,15 @@ function confirmFinishTask(taskType) {
     const mediaManager = window.MediaDropzoneManager || (typeof MediaDropzoneManager !== 'undefined' ? MediaDropzoneManager : null);
     if (mediaManager && typeof mediaManager.hasUnsubmittedFiles === 'function' && mediaManager.hasUnsubmittedFiles()) {
         const confirmed = confirm('⚠️ ATENÇÃO!\n\nExistem fotos ou vídeos selecionados que ainda NÃO FORAM ENVIADOS.\nSe você finalizar o serviço agora, estas mídias NÃO serão salvas.\n\nDeseja continuar mesmo assim e perder as mídias não enviadas?');
-        if (!confirmed) {
-            return false;
-        }
+        if (!confirmed) return false;
     }
-    
     if (taskType === 'ORCAMENTO') {
         return confirm('Você deseja salvar o orçamento? O serviço será fechado.');
-    } else {
-        return confirm('Você já encerrou os trabalhos no local? O serviço será fechado.');
     }
+    // Para EXECUCAO e GARANTIA: abre o modal de conclusão
+    document.getElementById('modal-conclusion').classList.remove('hidden');
+    document.getElementById('modal-conclusion').classList.add('flex');
+    return false; // impede submit direto — o modal vai submeter
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -819,6 +882,7 @@ document.addEventListener('DOMContentLoaded', function() {
         backgroundColor: 'rgba(255, 255, 255, 0)',
         penColor: 'rgb(30, 41, 59)'
     }) : null;
+    window._signaturePadInstance = signaturePad;
 
     function resizeCanvas() {
         if (!canvas || !signaturePad) return;
@@ -1250,5 +1314,102 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+{% if task.task_type != 'ORCAMENTO' %}
+// --- Modal de conclusão parcial ---
+(function() {
+    const modal      = document.getElementById('modal-conclusion');
+    const btnFull    = document.getElementById('btn-fully-done');
+    const btnPartial = document.getElementById('btn-partial');
+    const btnConfirmPartial = document.getElementById('btn-confirm-partial');
+    const btnCancel  = document.getElementById('btn-cancel-conclusion');
+    const pendingArea = document.getElementById('pending-description-area');
+    const pendingInput = document.getElementById('pending-description-input');
+    const fieldIsPartial = document.getElementById('is_partial');
+    const fieldDesc  = document.getElementById('pending_description');
+    const finishForm = document.getElementById('finish-task-form');
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        pendingArea.classList.add('hidden');
+        pendingInput.value = '';
+    }
+
+    function doSubmit() {
+        const signaturePadEl = window._signaturePadInstance;
+        const signatureData = (signaturePadEl && !signaturePadEl.isEmpty()) ? signaturePadEl.toDataURL() : '';
+        const formData = new FormData(finishForm);
+        formData.set('signature_data', signatureData);
+
+        const btnSubmit = finishForm.querySelector('button[type="submit"]');
+        btnSubmit.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 mr-2 animate-spin"></i> ENVIANDO...';
+        btnSubmit.disabled = true;
+        if (window.lucide) lucide.createIcons();
+
+        closeModal();
+
+        fetch(finishForm.action, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                window.location.href = "{% url 'equipe_task_list' %}";
+            } else {
+                return response.json().then(data => { throw new Error(data.error || 'Erro ao finalizar.'); });
+            }
+        })
+        .catch(error => {
+            alert(error.message || 'Ocorreu um erro. Tente novamente.');
+            btnSubmit.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5 mr-2"></i> FINALIZAR SERVIÇO';
+            btnSubmit.disabled = false;
+            if (window.lucide) lucide.createIcons();
+        });
+    }
+
+    if (btnFull) {
+        btnFull.addEventListener('click', function() {
+            fieldIsPartial.value = 'false';
+            fieldDesc.value = '';
+            doSubmit();
+        });
+    }
+
+    if (btnPartial) {
+        btnPartial.addEventListener('click', function() {
+            pendingArea.classList.remove('hidden');
+            pendingInput.focus();
+        });
+    }
+
+    if (btnConfirmPartial) {
+        btnConfirmPartial.addEventListener('click', function() {
+            const desc = pendingInput.value.trim();
+            if (!desc) {
+                pendingInput.classList.add('border-red-400');
+                pendingInput.placeholder = 'Descreva o que ficou pendente antes de continuar.';
+                pendingInput.focus();
+                return;
+            }
+            pendingInput.classList.remove('border-red-400');
+            fieldIsPartial.value = 'true';
+            fieldDesc.value = desc;
+            doSubmit();
+        });
+    }
+
+    if (btnCancel) {
+        btnCancel.addEventListener('click', closeModal);
+    }
+
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) closeModal();
+        });
+    }
+})();
+{% endif %}
 </script>
 {% endblock %}

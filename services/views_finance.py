@@ -235,7 +235,7 @@ def finance_dashboard(request):
 
     # Ticket médio (avg value of FINALIZADO OS in selected month)
     avg_ticket = ServiceOrder.objects.filter(
-        status=ServiceOrder.Status.FINALIZADO,
+        status__in=[ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CONCLUIDA],
         finished_at__gte=bi_months_meta[-1][4],
         finished_at__lte=bi_months_meta[-1][5],
         estimated_value__isnull=False,

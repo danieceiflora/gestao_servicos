@@ -7,6 +7,7 @@ const OfflineApp = {
     state: {
         currentView: 'list', // 'list', 'detail'
         currentTaskId: null,
+        activeTab: 'info',
         filters: {
             status: 'all', // 'all', 'EM_ANDAMENTO', 'AGENDADO', 'CONCLUIDO'
             hideCompleted: false
@@ -24,7 +25,8 @@ const OfflineApp = {
         mediaViewer: {
             items: [],
             index: 0
-        }
+        },
+        detailRoot: null
     },
 
     // Inicialização
@@ -357,441 +359,717 @@ const OfflineApp = {
         return map[status] || status;
     },
 
-    // Renderiza o detalhe da tarefa (Detalhes do Serviço)
+    // ─── DETALHE COM ABAS ────────────────────────────────────────────────────
+
     async renderTaskDetail(container, taskId) {
         let task = await db.tasks.get(taskId);
-
         if (!task) {
             const allTasks = await db.tasks.toArray();
             task = allTasks.find(t => String(t.id) === String(taskId));
         }
-
         if (!task) {
-            container.innerHTML = '<div class="p-10 text-center">Tarefa não encontrada.</div>';
+            container.innerHTML = '<div class="p-10 text-center text-slate-500">Tarefa não encontrada.</div>';
             return;
         }
 
-        if (task.source === 'MAINTENANCE') {
-            return await this.renderMaintenanceTaskDetail(container, task);
+        const isMaintenance = task.source === 'MAINTENANCE';
+        let order = null, prop = null, client = null;
+        if (!isMaintenance) {
+            order = await db.orders.get(task.service_order_id);
+            prop = order ? await db.properties.get(order.client_property_id) : null;
+            client = prop ? await db.clients.get(prop.client_id) : null;
         }
-
-        const order = await db.orders.get(task.service_order_id);
-        const prop = order ? await db.properties.get(order.client_property_id) : null;
-        const client = prop ? await db.clients.get(prop.client_id) : null;
 
         const tplDetail = document.getElementById('tpl-task-detail').content.cloneNode(true);
-        
-        // 1. Dados Básicos
-        if (client) {
-            tplDetail.querySelector('.client-name').textContent = client.name;
-            const phone = client.phones && client.phones.length > 0 ? client.phones[0] : null;
-            if (phone) {
-                const cleanPhone = phone.replace(/\D/g, '');
-                const waPhone = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
-                const linkWa = tplDetail.querySelector('.link-whatsapp');
-                if (linkWa) linkWa.href = `https://wa.me/${waPhone}`;
-            } else {
-                const linkWa = tplDetail.querySelector('.link-whatsapp');
-                if (linkWa) linkWa.classList.add('hidden', 'pointer-events-none');
-            }
+        const root = tplDetail.querySelector('.detail-root');
+
+        this.state.detailRoot = root;
+        this.state.currentTaskId = taskId;
+
+        this._fillDetailHeader(root, task, client, prop);
+        this._setupTabs(root, taskId, isMaintenance);
+
+        await this._initInfoTab(root, task, order, prop, client, taskId, isMaintenance);
+        if (!isMaintenance) {
+            await this._initItemsTab(root, task, order);
+            await this._initChecklistTab(root, task, taskId);
         }
-        
-        if (prop) {
-            tplDetail.querySelector('.property-address').textContent = prop.full_address;
-            
-            const btnGps = tplDetail.querySelector('.btn-gps-trigger');
-            if (btnGps) {
-                btnGps.dataset.gpsLat = prop.latitude || '';
-                btnGps.dataset.gpsLng = prop.longitude || '';
-                btnGps.dataset.gpsAddress = prop.full_address;
-            }
+        await this._initMediaTab(root, task, taskId);
+        await this._initOccurrencesTab(root, task, taskId);
+        await this._initSignatureTab(root, task, taskId, order);
+        await this._initHistoryTab(root, task, taskId);
 
-            const btnUpdateGps = tplDetail.querySelector('.btn-update-gps');
-            if (btnUpdateGps) {
-                btnUpdateGps.addEventListener('click', async () => {
-                    if (!confirm("Deseja atualizar as coordenadas de GPS com sua localização atual?")) return;
-                    if (!("geolocation" in navigator)) {
-                        alert("Geolocalização não suportada no seu navegador.");
-                        return;
-                    }
+        root.querySelector('#btn-back').addEventListener('click', () => {
+            this.state.detailRoot = null;
+            this.navigate('list');
+        });
 
-                    const originalHtml = btnUpdateGps.innerHTML;
-                    btnUpdateGps.innerHTML = '<i data-lucide="loader-2" class="h-5 w-5 animate-spin text-slate-500"></i><span class="text-[10px] font-bold text-slate-600 uppercase text-center leading-tight">Aguarde</span>';
-                    if (window.lucide) lucide.createIcons();
+        container.appendChild(root);
+        this._switchTab(root, 'info');
+    },
 
-                    navigator.geolocation.getCurrentPosition(
-                        async (position) => {
-                            const lat = position.coords.latitude;
-                            const lng = position.coords.longitude;
+    _fillDetailHeader(root, task, client, prop) {
+        const clientNameEl = root.querySelector('.client-name');
+        const addressEl = root.querySelector('.property-address');
+        const statusBadge = root.querySelector('.task-status-badge');
 
-                            try {
-                                // 1. Atualiza no IndexedDB
-                                prop.latitude = lat;
-                                prop.longitude = lng;
-                                await db.properties.put(prop);
-
-                                // 2. Enfileira Sincronização (será processado pelo OfflineDB)
-                                await OfflineDB.enqueueSyncItem('PROPERTY_GPS_UPDATE', {
-                                    property_id: prop.id,
-                                    latitude: lat,
-                                    longitude: lng
-                                });
-
-                                // 3. Atualiza os atributos do botão Navegar, se existir
-                                if (btnGps) {
-                                    btnGps.dataset.gpsLat = lat;
-                                    btnGps.dataset.gpsLng = lng;
-                                }
-
-                                alert("Coordenadas atualizadas e salvas para sincronização!");
-                            } catch(e) {
-                                console.error('Erro ao atualizar coordenadas:', e);
-                                alert("Erro interno ao tentar salvar as coordenadas.");
-                            } finally {
-                                btnUpdateGps.innerHTML = originalHtml;
-                                if (window.lucide) lucide.createIcons();
-                            }
-                        },
-                        (error) => {
-                            alert("Erro ao obter localização. Verifique as permissões do navegador.");
-                            btnUpdateGps.innerHTML = originalHtml;
-                            if (window.lucide) lucide.createIcons();
-                        },
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                    );
-                });
-            }
+        if (task.source === 'MAINTENANCE') {
+            clientNameEl.textContent = task.client_name || '—';
+            addressEl.textContent = task.asset_name || 'Manutenção';
+        } else {
+            clientNameEl.textContent = client ? client.name : '—';
+            addressEl.textContent = prop ? prop.full_address : '';
         }
 
-        // Status Badge
-        const statusBadge = tplDetail.querySelector('.task-status-badge');
         statusBadge.textContent = this.translateStatus(task.status);
         if (task.status === 'AGENDADO') statusBadge.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-100');
         else if (task.status === 'EM_ANDAMENTO') statusBadge.classList.add('bg-amber-50', 'text-amber-600', 'border-amber-100');
         else if (task.status === 'CONCLUIDO') statusBadge.classList.add('bg-emerald-50', 'text-emerald-600', 'border-emerald-100');
-
-        // Dados da Task
-        tplDetail.querySelector('.task-type').textContent = task.task_type;
-        const date = new Date(task.scheduled_at);
-        
-        // Formatação elegante: ex: "25 de Maio • 14:30"
-        const formattedDate = date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
-        const formattedTime = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        
-        tplDetail.querySelector('.task-time').textContent = `${formattedDate} • ${formattedTime}`;
-
-        if (task.notes) {
-            tplDetail.querySelector('.task-notes-container').classList.remove('hidden');
-            tplDetail.querySelector('.task-notes').textContent = task.notes;
-        }
-
-        // --- CONTROLE DE ESTADOS DO WORKFLOW ---
-        const startSection = tplDetail.querySelector('#workflow-start-section');
-        const activeSection = tplDetail.querySelector('#workflow-active-section');
-        const btnStart = tplDetail.querySelector('#btn-start-task');
-        const btnFinish = tplDetail.querySelector('#btn-finish-task');
-        const btnAddMedia = tplDetail.querySelector('#btn-add-media');
-        const btnAddVideo = tplDetail.querySelector('#btn-add-video');
-        const mediaContainer = tplDetail.querySelector('#task-media-container');
-        const btnAddOccurrence = tplDetail.querySelector('#btn-add-occurrence');
-        const btnAddOccurrencePre = tplDetail.querySelector('#btn-add-occurrence-pre');
-        const occurrenceList = tplDetail.querySelector('#occurrence-list');
-        const occurrencesSection = tplDetail.querySelector('#occurrences-section-card');
-
-        const isCompleted = task.status === 'CONCLUIDO';
-
-        // --- Ocorrências (Sempre processado) ---
-        const occCount = await this.renderOccurrences(occurrenceList, taskId);
-        if (isCompleted && occCount === 0) {
-            if (occurrencesSection) occurrencesSection.classList.add('hidden');
-        } else if (occurrencesSection) {
-            occurrencesSection.classList.remove('hidden');
-        }
-
-        if (!isCompleted) {
-            if (btnAddOccurrence) btnAddOccurrence.onclick = () => this.openOccurrenceModal(taskId);
-            if (btnAddOccurrencePre) btnAddOccurrencePre.onclick = () => this.openOccurrenceModal(taskId);
-        } else {
-            if (btnAddOccurrence) btnAddOccurrence.classList.add('hidden');
-            if (btnAddOccurrencePre) btnAddOccurrencePre.classList.add('hidden');
-        }
-
-        if (task.status === 'AGENDADO') {
-            startSection.classList.remove('hidden');
-            activeSection.classList.add('hidden');
-            btnStart.onclick = () => this.startTask(taskId);
-        } else if (task.status === 'EM_ANDAMENTO' || task.status === 'CONCLUIDO') {
-            startSection.classList.add('hidden');
-            
-            // A seção ativa contém Checklist e Mídias
-            activeSection.classList.remove('hidden');
-            
-            if (isCompleted) {
-                // --- Preenchimento do Resumo de Finalização ---
-                const completedSection = tplDetail.querySelector('#workflow-completed-section');
-                if (completedSection) {
-                    completedSection.classList.remove('hidden');
-                    
-                    completedSection.querySelector('#detail-customer-name').textContent = task.customer_name || 'Não informado';
-                    
-                    const notesContainer = completedSection.querySelector('#detail-completed-notes-container');
-                    const notesEl = completedSection.querySelector('#detail-completed-notes');
-                    if (task.technical_notes) {
-                        notesContainer.classList.remove('hidden');
-                        notesEl.textContent = task.technical_notes;
-                    }
-
-                    // Assinatura
-                    const sigImg = completedSection.querySelector('#detail-signature-img');
-                    const noSig = completedSection.querySelector('#detail-no-signature');
-                    if (task.customer_signature) {
-                        sigImg.src = task.customer_signature;
-                        sigImg.classList.remove('hidden');
-                        noSig.classList.add('hidden');
-                    } else {
-                        sigImg.classList.add('hidden');
-                        noSig.classList.remove('hidden');
-                    }
-
-                    // Pagamento
-                    const paymentSection = completedSection.querySelector('#detail-completed-payment');
-                    if (task.payment_method && task.payment_amount) {
-                        paymentSection.classList.remove('hidden');
-                        const badge = paymentSection.querySelector('#detail-payment-method-badge');
-                        const valueEl = paymentSection.querySelector('#detail-payment-value');
-                        
-                        const methodMap = { 'CASH': 'Dinheiro', 'CREDIT_CARD': 'Cartão', 'PIX': 'PIX' };
-                        badge.textContent = methodMap[task.payment_method] || task.payment_method;
-                        valueEl.textContent = `R$ ${parseFloat(task.payment_amount).toFixed(2)}`;
-                    }
-
-                    // Status de Sincronismo (Opcional se o elemento existir)
-                    const syncMsg = completedSection.querySelector('#detail-sync-status-msg');
-                    if (syncMsg) {
-                        const pendingQueue = await db.sync_queue.where('type').equals('TASK_FINISH').toArray();
-                        const isPending = pendingQueue.some(i => String(i.payload.task_id) === String(taskId));
-                        
-                        if (isPending) {
-                            syncMsg.innerHTML = '<i data-lucide="cloud-off" class="h-3 w-3"></i> Aguardando conexão para enviar';
-                            syncMsg.className = 'mt-1 text-xs font-semibold text-amber-600 flex items-center justify-center gap-1.5';
-                        } else {
-                            syncMsg.innerHTML = '<i data-lucide="cloud-check" class="h-3 w-3"></i> Sincronizado com o servidor';
-                            syncMsg.className = 'mt-1 text-xs font-semibold text-emerald-600 flex items-center justify-center gap-1.5';
-                        }
-                    }
-                }
-            }
-            
-            // Checklist
-            const responses = await db.checklist_responses.where('task_id').equals(taskId).toArray();
-            const checklistSection = tplDetail.querySelector('#checklist-section');
-            if (responses.length > 0) {
-                checklistSection.classList.remove('hidden');
-                const checklistContainer = tplDetail.querySelector('#checklist-container');
-                await this.renderChecklist(checklistContainer, responses, isCompleted);
-            } else if (isCompleted) {
-                checklistSection.classList.add('hidden');
-            }
-
-            // Mídias
-            const mediaCount = await this.renderOfflineMedia(mediaContainer, taskId, null);
-            const mediaSection = tplDetail.querySelector('#media-section-card');
-            if (isCompleted && mediaCount === 0) {
-                mediaSection.classList.add('hidden');
-            } else {
-                mediaSection.classList.remove('hidden');
-            }
-
-            if (!isCompleted) {
-                btnAddMedia.onclick = () => this.captureMedia(taskId, null, mediaContainer);
-                btnAddVideo.onclick = () => this.captureVideo(taskId, null, mediaContainer);
-            } else {
-                btnAddMedia.classList.add('hidden');
-                btnAddVideo.classList.add('hidden');
-            }
-
-            // Finalização
-            if (!isCompleted) {
-                btnFinish.onclick = () => this.openFinishModal(taskId);
-            } else {
-                btnFinish.classList.add('hidden');
-                // Esconde o container do botão de finalizar para não sobrar espaço em branco
-                if (btnFinish.parentElement) btnFinish.parentElement.classList.add('hidden');
-            }
-        }
-
-        tplDetail.querySelector('#btn-back').addEventListener('click', () => this.navigate('list'));
-        
-        container.appendChild(tplDetail);
     },
 
-    // --- Lógica de Finalização ---
-    signaturePad: null,
-
-    async openFinishModal(taskId) {
-        const modal = document.getElementById('modal-finish');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-
-        const task = await db.tasks.get(taskId);
-        const order = await db.orders.get(task.service_order_id);
-
-        // Limpar campos
-        document.getElementById('finish-customer-name').value = '';
-        document.getElementById('finish-notes').value = '';
-        
-        // Pagamento (Sprint 7)
-        const paymentSection = document.getElementById('finish-payment-section');
-        const balanceDue = order ? parseFloat(order.balance_due || 0) : 0;
-        
-        if (balanceDue > 0) {
-            paymentSection.classList.remove('hidden');
-            document.getElementById('finish-balance-due').textContent = `R$ ${balanceDue.toFixed(2)}`;
-            document.getElementById('finish-payment-amount').value = balanceDue.toFixed(2);
-            this.initPaymentLogic();
-        } else {
-            paymentSection.classList.add('hidden');
+    _setupTabs(root, taskId, isMaintenance) {
+        if (isMaintenance) {
+            const hideFor = ['itens', 'checklist'];
+            hideFor.forEach(tab => {
+                const btn = root.querySelector(`.tab-btn[data-tab="${tab}"]`);
+                if (btn) btn.classList.add('hidden');
+            });
         }
 
-        // Inicializar Signature Pad
-        const canvas = document.getElementById('signature-pad');
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        canvas.width = canvas.offsetWidth * ratio;
-        canvas.height = canvas.offsetHeight * ratio;
-        canvas.getContext("2d").scale(ratio, ratio);
+        root.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this._switchTab(root, btn.dataset.tab);
+            });
+        });
+    },
 
-        if (this.signaturePad) this.signaturePad.clear();
-        this.signaturePad = new SignaturePad(canvas, {
-            backgroundColor: 'rgb(248, 250, 252)'
+    _switchTab(root, tabName) {
+        this.state.activeTab = tabName;
+
+        root.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.toggle('hidden', panel.id !== `tab-panel-${tabName}`);
         });
 
-        // Eventos do Modal
-        document.getElementById('btn-close-finish').onclick = () => modal.classList.add('hidden');
-        document.getElementById('btn-clear-signature').onclick = () => this.signaturePad.clear();
-        document.getElementById('btn-confirm-finish').onclick = () => this.confirmFinish(taskId);
-        
+        root.querySelectorAll('.tab-btn').forEach(btn => {
+            const isActive = btn.dataset.tab === tabName;
+            btn.classList.toggle('text-blue-600', isActive);
+            btn.classList.toggle('border-blue-600', isActive);
+            btn.classList.toggle('text-slate-500', !isActive);
+            btn.classList.toggle('border-transparent', !isActive);
+        });
+
+        // Rola a aba ativa para o centro (scroll horizontal)
+        const activeBtn = root.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+        if (activeBtn) {
+            activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+
+        // Lazy init do signature pad na primeira vez que a aba aparece
+        if (tabName === 'assinatura' && !this._sigPadInited) {
+            this._initSignaturePad(root);
+        }
+
         if (window.lucide) lucide.createIcons();
     },
 
-    async initPaymentLogic() {
-        const methodsContainer = document.getElementById('finish-payment-methods-grid');
-        const details = document.getElementById('payment-details');
-        
-        if (!methodsContainer) return;
+    async _initInfoTab(root, task, order, prop, client, taskId, isMaintenance) {
+        const panel = root.querySelector('#tab-panel-info');
 
-        // Limpa e busca métodos reais do DB
-        methodsContainer.innerHTML = '';
-        const methods = await db.payment_methods.toArray();
-        
-        if (methods.length === 0) {
-            methodsContainer.innerHTML = '<p class="col-span-full text-center text-[10px] text-slate-400 py-4">Nenhum método de pagamento disponível.</p>';
+        // Card: Agendamento + tipo
+        const date = new Date(task.scheduled_at);
+        const formattedDate = date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
+        const formattedTime = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const taskTypeLabel = isMaintenance
+            ? `${task.asset_category ? task.asset_category + ' • ' : ''}${task.asset_name || ''}`
+            : (task.task_type || '');
+
+        panel.innerHTML = `
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-4">
+                <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-white shadow-sm text-blue-500 shrink-0">
+                        <i data-lucide="calendar" class="h-5 w-5"></i>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5">Agendamento</p>
+                        <p class="task-time text-sm font-bold text-slate-700">${formattedDate} • ${formattedTime}</p>
+                        <p class="text-xs text-slate-500 mt-0.5">${taskTypeLabel}</p>
+                    </div>
+                </div>
+                ${task.notes ? `
+                <div class="p-3 rounded-xl bg-amber-50 border border-amber-100">
+                    <p class="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">Observações</p>
+                    <p class="text-sm text-amber-900 leading-relaxed">${task.notes}</p>
+                </div>` : ''}
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+                <button type="button" id="info-btn-gps" class="flex flex-col items-center justify-center gap-1.5 px-2 py-3.5 min-h-[56px] rounded-xl bg-white border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm">
+                    <i data-lucide="navigation" class="h-5 w-5 text-blue-600"></i>
+                    <span class="text-[10px] font-bold text-slate-600 uppercase">Navegar</span>
+                </button>
+                <button type="button" id="info-btn-update-gps" class="${isMaintenance ? 'hidden' : ''} flex flex-col items-center justify-center gap-1.5 px-2 py-3.5 min-h-[56px] rounded-xl bg-white border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm">
+                    <i data-lucide="map-pin" class="h-5 w-5 text-slate-500"></i>
+                    <span class="text-[10px] font-bold text-slate-600 uppercase text-center leading-tight">Atualizar<br>GPS</span>
+                </button>
+                <a id="info-link-whatsapp" href="#" class="flex flex-col items-center justify-center gap-1.5 px-2 py-3.5 min-h-[56px] rounded-xl bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-colors shadow-sm" target="_blank">
+                    <i data-lucide="message-circle" class="h-5 w-5 text-emerald-600"></i>
+                    <span class="text-[10px] font-bold text-emerald-700 uppercase">WhatsApp</span>
+                </a>
+            </div>
+        `;
+
+        // GPS Navegar
+        const btnGps = panel.querySelector('#info-btn-gps');
+        const lat = isMaintenance ? (task.property_lat || '') : (prop ? (prop.latitude || '') : '');
+        const lng = isMaintenance ? (task.property_lng || '') : (prop ? (prop.longitude || '') : '');
+        const address = isMaintenance ? (task.property_address || '') : (prop ? prop.full_address : '');
+        if (btnGps) {
+            btnGps.dataset.gpsLat = lat;
+            btnGps.dataset.gpsLng = lng;
+            btnGps.dataset.gpsAddress = address;
+            btnGps.dataset.gpsTrigger = 'true';
+        }
+
+        // GPS Update
+        if (!isMaintenance) {
+            const btnUpdateGps = panel.querySelector('#info-btn-update-gps');
+            if (btnUpdateGps && prop) {
+                btnUpdateGps.addEventListener('click', async () => {
+                    if (!confirm('Deseja atualizar as coordenadas de GPS com sua localização atual?')) return;
+                    if (!('geolocation' in navigator)) { alert('Geolocalização não suportada.'); return; }
+                    const orig = btnUpdateGps.innerHTML;
+                    btnUpdateGps.innerHTML = '<i data-lucide="loader-2" class="h-5 w-5 animate-spin text-slate-500"></i>';
+                    if (window.lucide) lucide.createIcons();
+                    navigator.geolocation.getCurrentPosition(async (pos) => {
+                        prop.latitude = pos.coords.latitude;
+                        prop.longitude = pos.coords.longitude;
+                        await db.properties.put(prop);
+                        await OfflineDB.enqueueSyncItem('PROPERTY_GPS_UPDATE', { property_id: prop.id, latitude: prop.latitude, longitude: prop.longitude });
+                        if (btnGps) { btnGps.dataset.gpsLat = prop.latitude; btnGps.dataset.gpsLng = prop.longitude; }
+                        alert('Coordenadas atualizadas!');
+                        btnUpdateGps.innerHTML = orig;
+                        if (window.lucide) lucide.createIcons();
+                    }, () => {
+                        alert('Erro ao obter localização.');
+                        btnUpdateGps.innerHTML = orig;
+                        if (window.lucide) lucide.createIcons();
+                    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                });
+            }
+        }
+
+        // WhatsApp
+        const linkWa = panel.querySelector('#info-link-whatsapp');
+        if (linkWa) {
+            let phone = isMaintenance ? task.client_phone : (client && client.phones && client.phones.length > 0 ? client.phones[0] : null);
+            if (phone) {
+                const clean = phone.replace(/\D/g, '');
+                linkWa.href = `https://wa.me/${clean.length <= 11 ? '55' + clean : clean}`;
+            } else {
+                linkWa.classList.add('hidden');
+            }
+        }
+
+        // Botão de Iniciar (se AGENDADO)
+        if (task.status === 'AGENDADO') {
+            const startBtn = document.createElement('button');
+            startBtn.id = 'info-btn-start';
+            startBtn.className = 'w-full group relative flex items-center justify-center gap-3 rounded-2xl bg-blue-600 p-5 text-base font-bold text-white hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95 overflow-hidden mt-2';
+            startBtn.innerHTML = `
+                <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                <i data-lucide="play" class="h-5 w-5 fill-white"></i>
+                INICIAR SERVIÇO AGORA
+            `;
+            startBtn.onclick = () => this.startTask(task.id);
+            panel.appendChild(startBtn);
+        } else if (task.status === 'EM_ANDAMENTO') {
+            const badge = document.createElement('div');
+            badge.className = 'flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200';
+            badge.innerHTML = `
+                <span class="flex h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+                <span class="text-xs font-bold text-amber-800">Serviço em andamento</span>
+            `;
+            panel.appendChild(badge);
+        } else if (task.status === 'CONCLUIDO') {
+            const badge = document.createElement('div');
+            badge.className = 'flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200';
+            badge.innerHTML = `
+                <i data-lucide="check-circle" class="h-4 w-4 text-emerald-600 shrink-0"></i>
+                <span class="text-xs font-bold text-emerald-800">Serviço concluído</span>
+            `;
+            panel.appendChild(badge);
+        }
+    },
+
+    async _initItemsTab(root, task, order) {
+        const panel = root.querySelector('#tab-panel-itens');
+        const items = order && Array.isArray(order.items) ? order.items : [];
+
+        if (items.length === 0) {
+            panel.innerHTML = `
+                <div class="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center">
+                    <i data-lucide="package" class="h-8 w-8 text-slate-300 mx-auto mb-3"></i>
+                    <p class="text-sm font-medium text-slate-500">Sem itens sincronizados</p>
+                    <p class="text-xs text-slate-400 mt-1">Os itens estarão disponíveis após a próxima sincronização.</p>
+                </div>
+            `;
             return;
         }
 
-        this.state.payment.method = null;
+        panel.innerHTML = `
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-700 uppercase tracking-wide">Itens da Etapa</span>
+                    <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">${items.length} itens</span>
+                </div>
+                <div class="divide-y divide-slate-50">
+                    ${items.map(item => `
+                        <div class="flex items-center justify-between px-4 py-3 gap-3">
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-semibold text-slate-800 truncate">${item.description || item.name || '—'}</p>
+                                <p class="text-[10px] text-slate-400 mt-0.5">${item.product_code ? `Cód: ${item.product_code} • ` : ''}Qtd: ${item.quantity || 1}</p>
+                            </div>
+                            <p class="text-sm font-bold text-slate-900 shrink-0">R$ ${parseFloat(item.total_price || 0).toFixed(2).replace('.', ',')}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    },
 
+    async _initChecklistTab(root, task, taskId) {
+        const panel = root.querySelector('#tab-panel-checklist');
+        const isCompleted = task.status === 'CONCLUIDO';
+
+        const responses = await db.checklist_responses.where('task_id').equals(taskId).toArray();
+
+        if (responses.length === 0) {
+            panel.innerHTML = `
+                <div class="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center">
+                    <i data-lucide="check-square" class="h-8 w-8 text-slate-300 mx-auto mb-3"></i>
+                    <p class="text-sm font-medium text-slate-500">Sem checklist para esta etapa</p>
+                </div>
+            `;
+            return;
+        }
+
+        await this.renderChecklist(panel, responses, isCompleted);
+    },
+
+    async _initMediaTab(root, task, taskId) {
+        const panel = root.querySelector('#tab-panel-anexos');
+        const isCompleted = task.status === 'CONCLUIDO';
+
+        const mediaContainer = document.createElement('div');
+        mediaContainer.id = 'tab-media-grid';
+        mediaContainer.className = 'grid grid-cols-3 gap-2';
+        panel.appendChild(mediaContainer);
+
+        await this.renderOfflineMedia(mediaContainer, taskId, null);
+
+        if (!isCompleted) {
+            const btnRow = document.createElement('div');
+            btnRow.className = 'flex gap-2';
+            btnRow.innerHTML = `
+                <button id="tab-btn-add-media" class="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 p-4 text-[10px] font-bold text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all bg-slate-50/50">
+                    <i data-lucide="camera" class="h-4 w-4"></i> Tirar Fotos
+                </button>
+                <button id="tab-btn-add-video" class="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 p-4 text-[10px] font-bold text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all bg-slate-50/50">
+                    <i data-lucide="video" class="h-4 w-4"></i> Gravar Vídeo
+                </button>
+            `;
+            panel.appendChild(btnRow);
+            panel.querySelector('#tab-btn-add-media').onclick = () => this.captureMedia(taskId, null, mediaContainer);
+            panel.querySelector('#tab-btn-add-video').onclick = () => this.captureVideo(taskId, null, mediaContainer);
+        } else {
+            const mediaCount = await db.media.where('task_id').equals(taskId).count();
+            if (mediaCount === 0) {
+                panel.innerHTML = `
+                    <div class="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center">
+                        <i data-lucide="camera-off" class="h-8 w-8 text-slate-300 mx-auto mb-3"></i>
+                        <p class="text-sm font-medium text-slate-500">Nenhum anexo registrado</p>
+                    </div>
+                `;
+            }
+        }
+    },
+
+    async _initOccurrencesTab(root, task, taskId) {
+        const panel = root.querySelector('#tab-panel-ocorrencias');
+        const isCompleted = task.status === 'CONCLUIDO';
+
+        // Banner de BLOCKING (será atualizado por _refreshOccurrencesTab)
+        const blockingBanner = document.createElement('div');
+        blockingBanner.id = 'tab-blocking-banner';
+        blockingBanner.className = 'hidden items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200';
+        blockingBanner.innerHTML = `
+            <i data-lucide="shield-alert" class="h-5 w-5 text-red-600 shrink-0 mt-0.5"></i>
+            <div>
+                <p class="text-sm font-bold text-red-800">Impedimento registrado</p>
+                <p class="text-xs text-red-600 mt-0.5">Este serviço possui uma ocorrência impeditiva. Revise antes de concluir.</p>
+            </div>
+        `;
+        panel.appendChild(blockingBanner);
+
+        // Lista de ocorrências
+        const occList = document.createElement('div');
+        occList.id = 'tab-occurrence-list';
+        occList.className = 'space-y-2';
+        panel.appendChild(occList);
+
+        // Botão adicionar
+        if (!isCompleted) {
+            const btnAdd = document.createElement('button');
+            btnAdd.id = 'tab-btn-add-occurrence';
+            btnAdd.className = 'w-full flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 p-4 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-95';
+            btnAdd.innerHTML = '<i data-lucide="plus-circle" class="h-4 w-4"></i> Registrar Ocorrência / Impedimento';
+            btnAdd.onclick = () => this.openOccurrenceModal(taskId);
+            panel.appendChild(btnAdd);
+        }
+
+        await this._refreshOccurrencesTab(taskId);
+    },
+
+    async _refreshOccurrencesTab(taskId) {
+        const root = this.state.detailRoot;
+        if (!root) return;
+
+        const occList = root.querySelector('#tab-occurrence-list');
+        const blockingBanner = root.querySelector('#tab-blocking-banner');
+        const tabOccBadge = root.querySelector('#tab-occ-badge');
+
+        if (occList) await this.renderOccurrences(occList, taskId);
+
+        // Verifica BLOCKING
+        const occurrences = await db.occurrences.where('task_id').equals(taskId).toArray();
+        const hasBlocking = occurrences.some(o => o.category === 'BLOCKING');
+
+        if (blockingBanner) {
+            blockingBanner.classList.toggle('hidden', !hasBlocking);
+            blockingBanner.classList.toggle('flex', hasBlocking);
+        }
+        if (tabOccBadge) tabOccBadge.classList.toggle('hidden', !hasBlocking);
+
+        // Atualiza aviso na aba Assinatura
+        const sigBlockingBanner = root.querySelector('#sig-blocking-banner');
+        if (sigBlockingBanner) {
+            sigBlockingBanner.classList.toggle('hidden', !hasBlocking);
+            sigBlockingBanner.classList.toggle('flex', hasBlocking);
+        }
+    },
+
+    async _initSignatureTab(root, task, taskId, order) {
+        const panel = root.querySelector('#tab-panel-assinatura');
+        const isCompleted = task.status === 'CONCLUIDO';
+
+        if (task.status === 'AGENDADO') {
+            panel.innerHTML = `
+                <div class="flex flex-col items-center justify-center gap-4 py-12 text-center">
+                    <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <i data-lucide="play-circle" class="h-8 w-8 text-slate-400"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-slate-700">Serviço não iniciado</p>
+                        <p class="text-xs text-slate-400 mt-1">Inicie o serviço na aba Info antes de concluir.</p>
+                    </div>
+                    <button class="flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold active:scale-95 transition-all shadow-lg shadow-blue-200" onclick="OfflineApp._switchTab(OfflineApp.state.detailRoot, 'info')">
+                        <i data-lucide="arrow-left" class="h-4 w-4"></i> Ir para Info
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        if (isCompleted) {
+            // Resumo de conclusão
+            panel.innerHTML = `
+                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
+                            <i data-lucide="check-circle" class="h-4 w-4 text-emerald-600"></i>
+                        </div>
+                        <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Serviço Finalizado</h3>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Recebido por</p>
+                        <p class="text-sm font-bold text-slate-900">${task.customer_name || '—'}</p>
+                    </div>
+                    ${task.technical_notes ? `
+                    <div class="pt-3 border-t border-slate-50">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Relatório</p>
+                        <p class="text-sm text-slate-600 italic leading-relaxed">${task.technical_notes}</p>
+                    </div>` : ''}
+                    ${task.customer_signature ? `
+                    <div class="pt-3 border-t border-slate-50">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Assinatura</p>
+                        <div class="rounded-xl border border-slate-100 bg-slate-50 p-3 flex items-center justify-center">
+                            <img src="${task.customer_signature}" alt="Assinatura" class="max-h-28 w-auto object-contain filter grayscale contrast-125 mix-blend-multiply">
+                        </div>
+                    </div>` : ''}
+                    ${task.payment_method && task.payment_amount ? `
+                    <div class="pt-3 border-t border-slate-50 flex items-center gap-2">
+                        <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${task.payment_method}</span>
+                        <p class="text-sm font-bold text-slate-900">R$ ${parseFloat(task.payment_amount).toFixed(2).replace('.', ',')}</p>
+                    </div>` : ''}
+                </div>
+            `;
+            return;
+        }
+
+        // Estado EM_ANDAMENTO: formulário de conclusão inline
+        const balanceDue = order ? parseFloat(order.balance_due || 0) : 0;
+        this._sigPadInited = false;
+
+        panel.innerHTML = `
+            <!-- Banner de Bloqueio (BLOCKING) -->
+            <div id="sig-blocking-banner" class="hidden items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
+                <i data-lucide="shield-alert" class="h-5 w-5 text-red-600 shrink-0 mt-0.5"></i>
+                <div class="flex-1">
+                    <p class="text-sm font-bold text-red-800">Impedimento registrado</p>
+                    <p class="text-xs text-red-600 mt-0.5">Há uma ocorrência impeditiva. Você pode concluir parcialmente ou registrar como incompleto.</p>
+                </div>
+            </div>
+
+            <!-- Toggle: Concluído / Incompleto -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-1 m-1.5 bg-slate-100 rounded-xl flex gap-1">
+                    <button id="sig-toggle-complete" class="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition-all bg-white text-emerald-700 shadow-sm" data-mode="complete">
+                        <i data-lucide="check-circle" class="h-3.5 w-3.5"></i> Concluído
+                    </button>
+                    <button id="sig-toggle-incomplete" class="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition-all text-slate-500" data-mode="incomplete">
+                        <i data-lucide="alert-triangle" class="h-3.5 w-3.5"></i> Incompleto
+                    </button>
+                </div>
+            </div>
+
+            <!-- Painel: Concluído -->
+            <div id="sig-panel-complete" class="space-y-4">
+                <!-- Nome -->
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest">Nome de quem recebeu</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="user" class="h-4 w-4 text-slate-400"></i>
+                        </div>
+                        <input type="text" id="sig-customer-name" class="w-full pl-10 rounded-xl border border-slate-200 bg-slate-50/50 text-sm py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Ex: Maria Silva">
+                    </div>
+                </div>
+
+                <!-- Relatório -->
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest">Relatório / Observações</label>
+                    <textarea id="sig-notes" rows="3" class="w-full rounded-xl border border-slate-200 bg-slate-50/50 text-sm py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none" placeholder="Descreva brevemente o que foi realizado..."></textarea>
+                </div>
+
+                <!-- Assinatura (opcional) -->
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest">Assinatura Digital <span class="normal-case font-normal text-slate-400">(opcional)</span></label>
+                        <button id="sig-btn-clear" class="text-[10px] font-bold text-red-400 hover:text-red-600 uppercase tracking-wider">Limpar</button>
+                    </div>
+                    <div class="border-2 border-slate-100 rounded-2xl overflow-hidden bg-slate-50 relative group">
+                        <canvas id="sig-canvas" class="w-full h-44 touch-none"></canvas>
+                        <div id="sig-placeholder" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-20 transition-opacity group-focus-within:opacity-0">
+                            <i data-lucide="pen-tool" class="h-7 w-7 text-slate-400 mb-1.5"></i>
+                            <p class="text-xs font-medium text-slate-500">Assine aqui</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pagamento (se houver saldo) -->
+                ${balanceDue > 0 ? `
+                <div id="sig-payment-section" class="space-y-3 pt-4 border-t border-slate-100">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold text-slate-700 uppercase tracking-widest">Recebimento <span class="normal-case font-normal text-slate-400">(opcional)</span></h4>
+                        <span class="text-sm font-black text-red-600">R$ ${balanceDue.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div id="sig-payment-methods-grid" class="grid grid-cols-3 gap-2">
+                        <!-- Injetado via JS -->
+                    </div>
+                    <div id="sig-payment-details" class="hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Valor Recebido</label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">R$</span>
+                            <input type="number" step="0.01" id="sig-payment-amount" class="w-full pl-10 pr-4 py-4 rounded-2xl bg-slate-50 border-2 border-slate-100 text-lg font-black text-slate-900 focus:border-blue-500 transition-all outline-none" value="${balanceDue.toFixed(2)}" placeholder="0,00">
+                        </div>
+                    </div>
+                </div>` : ''}
+
+                <!-- Botão Confirmar -->
+                <button id="sig-btn-confirm" class="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl shadow-xl shadow-slate-200 active:scale-95 transition-all">
+                    <i data-lucide="check" class="h-5 w-5"></i>
+                    CONFIRMAR E FINALIZAR
+                </button>
+            </div>
+
+            <!-- Painel: Incompleto -->
+            <div id="sig-panel-incomplete" class="hidden space-y-4">
+                <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="alert-triangle" class="h-5 w-5 text-amber-600 shrink-0 mt-0.5"></i>
+                        <div>
+                            <p class="text-sm font-bold text-amber-900">Serviço não concluído</p>
+                            <p class="text-xs text-amber-700 mt-1 leading-relaxed">Registre o impedimento na aba Ocorrências antes de salvar como incompleto. O gestor será notificado para revisar.</p>
+                        </div>
+                    </div>
+                    <button class="w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-xl active:scale-95 transition-all" onclick="OfflineApp._switchTab(OfflineApp.state.detailRoot, 'ocorrencias')">
+                        <i data-lucide="alert-triangle" class="h-4 w-4"></i> Ir para Ocorrências
+                    </button>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest">Motivo / Relatório</label>
+                    <textarea id="sig-incomplete-notes" rows="3" class="w-full rounded-xl border border-slate-200 bg-slate-50/50 text-sm py-3 px-4 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none resize-none" placeholder="Descreva o motivo da não conclusão..."></textarea>
+                </div>
+
+                <button id="sig-btn-register-incomplete" class="w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-amber-200 active:scale-95 transition-all">
+                    <i data-lucide="save" class="h-5 w-5"></i>
+                    REGISTRAR COMO INCOMPLETO
+                </button>
+            </div>
+        `;
+
+        // Toggle complete/incomplete
+        const btnToggleComplete = panel.querySelector('#sig-toggle-complete');
+        const btnToggleIncomplete = panel.querySelector('#sig-toggle-incomplete');
+        const panelComplete = panel.querySelector('#sig-panel-complete');
+        const panelIncomplete = panel.querySelector('#sig-panel-incomplete');
+
+        btnToggleComplete.onclick = () => {
+            btnToggleComplete.classList.add('bg-white', 'text-emerald-700', 'shadow-sm');
+            btnToggleComplete.classList.remove('text-slate-500');
+            btnToggleIncomplete.classList.remove('bg-white', 'text-amber-700', 'shadow-sm');
+            btnToggleIncomplete.classList.add('text-slate-500');
+            panelComplete.classList.remove('hidden');
+            panelIncomplete.classList.add('hidden');
+        };
+
+        btnToggleIncomplete.onclick = () => {
+            btnToggleIncomplete.classList.add('bg-white', 'text-amber-700', 'shadow-sm');
+            btnToggleIncomplete.classList.remove('text-slate-500');
+            btnToggleComplete.classList.remove('bg-white', 'text-emerald-700', 'shadow-sm');
+            btnToggleComplete.classList.add('text-slate-500');
+            panelIncomplete.classList.remove('hidden');
+            panelComplete.classList.add('hidden');
+        };
+
+        // Limpar assinatura
+        const btnClear = panel.querySelector('#sig-btn-clear');
+        if (btnClear) btnClear.onclick = () => { if (this.signaturePad) this.signaturePad.clear(); };
+
+        // Pagamento
+        if (balanceDue > 0) {
+            const methodsGrid = panel.querySelector('#sig-payment-methods-grid');
+            const detailsEl = panel.querySelector('#sig-payment-details');
+            if (methodsGrid && detailsEl) await this._initPaymentGrid(methodsGrid, detailsEl);
+        }
+
+        // Botão Confirmar (concluído)
+        const btnConfirm = panel.querySelector('#sig-btn-confirm');
+        if (btnConfirm) btnConfirm.onclick = () => this._confirmFinish(taskId, panel);
+
+        // Botão Registrar Incompleto
+        const btnIncomplete = panel.querySelector('#sig-btn-register-incomplete');
+        if (btnIncomplete) btnIncomplete.onclick = () => this._confirmIncomplete(taskId, panel);
+
+        // Checa blocking já existente
+        const occurrences = await db.occurrences.where('task_id').equals(taskId).toArray();
+        const hasBlocking = occurrences.some(o => o.category === 'BLOCKING');
+        const sigBlockingBanner = panel.querySelector('#sig-blocking-banner');
+        if (sigBlockingBanner && hasBlocking) {
+            sigBlockingBanner.classList.remove('hidden');
+            sigBlockingBanner.classList.add('flex');
+        }
+    },
+
+    _initSignaturePad(root) {
+        const canvas = root ? root.querySelector('#sig-canvas') : document.getElementById('sig-canvas');
+        if (!canvas) return;
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        canvas.width = canvas.offsetWidth * ratio;
+        canvas.height = canvas.offsetHeight * ratio;
+        canvas.getContext('2d').scale(ratio, ratio);
+        if (this.signaturePad) this.signaturePad.clear();
+        this.signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(248, 250, 252)' });
+        this._sigPadInited = true;
+    },
+
+    async _initPaymentGrid(methodsGrid, detailsEl) {
+        methodsGrid.innerHTML = '';
+        const methods = await db.payment_methods.toArray();
+        if (methods.length === 0) {
+            methodsGrid.innerHTML = '<p class="col-span-full text-center text-[10px] text-slate-400 py-2">Nenhum método disponível.</p>';
+            return;
+        }
+        this.state.payment.method = null;
         methods.forEach(method => {
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'btn-payment-method flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-slate-100 bg-white hover:border-blue-200 transition-all active:scale-95';
-            btn.dataset.method = method.descricao; // Usamos a descrição/código para sync
-            
-            // Ícone genérico (pode ser melhorado com mapeamento)
+            btn.className = 'btn-payment-method flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 border-slate-100 bg-white hover:border-blue-200 transition-all active:scale-95';
+            btn.dataset.method = method.descricao;
             let icon = 'credit-card';
             if (method.descricao.toUpperCase().includes('PIX')) icon = 'qr-code';
             if (method.descricao.toUpperCase().includes('DINHEIRO')) icon = 'banknote';
-
             btn.innerHTML = `
-                <div class="p-2 rounded-xl bg-slate-50 text-slate-400">
-                    <i data-lucide="${icon}" class="h-6 w-6"></i>
+                <div class="p-1.5 rounded-lg bg-slate-50 text-slate-400">
+                    <i data-lucide="${icon}" class="h-5 w-5"></i>
                 </div>
-                <span class="text-[10px] font-black uppercase tracking-tighter text-slate-600">${method.descricao}</span>
+                <span class="text-[9px] font-black uppercase tracking-tighter text-slate-600">${method.descricao}</span>
             `;
-
             btn.onclick = () => {
                 const isSelected = btn.classList.contains('bg-blue-50');
-                
-                // Limpar seleções
-                methodsContainer.querySelectorAll('.btn-payment-method').forEach(b => {
+                methodsGrid.querySelectorAll('.btn-payment-method').forEach(b => {
                     b.classList.remove('bg-blue-50', 'border-blue-500', 'text-blue-600');
                     b.querySelector('div').classList.replace('bg-blue-100', 'bg-slate-50');
                     b.querySelector('div').classList.replace('text-blue-600', 'text-slate-400');
                 });
-                
                 if (isSelected) {
                     this.state.payment.method = null;
-                    details.classList.add('hidden');
+                    detailsEl.classList.add('hidden');
                 } else {
                     btn.classList.add('bg-blue-50', 'border-blue-500', 'text-blue-600');
                     btn.querySelector('div').classList.replace('bg-slate-50', 'bg-blue-100');
                     btn.querySelector('div').classList.replace('text-slate-400', 'text-blue-600');
                     this.state.payment.method = btn.dataset.method;
-                    details.classList.remove('hidden');
+                    detailsEl.classList.remove('hidden');
                 }
             };
-            methodsContainer.appendChild(btn);
+            methodsGrid.appendChild(btn);
         });
-
         if (window.lucide) lucide.createIcons();
     },
 
-    async confirmFinish(taskId) {
-        // Sprint 8: Validação de Itens Obrigatórios
+    async _confirmFinish(taskId, panel) {
+        // Valida checklist obrigatório
         const responses = await db.checklist_responses.where('task_id').equals(taskId).toArray();
         const items = await db.checklist_items.toArray();
-        
-        let pendingRequired = [];
+        const pendingRequired = [];
         for (const resp of responses) {
             const item = items.find(i => i.id === resp.item_id);
-            // Considera preenchido se tiver um status (nova ação) ou completed (veio salvo do backend)
-            const isFilled = resp.status || resp.completed;
-            if (item && item.is_required && !isFilled) {
-                pendingRequired.push(item.name);
-            }
+            if (item && item.is_required && !resp.status && !resp.completed) pendingRequired.push(item.name);
         }
-
         if (pendingRequired.length > 0) {
-            alert(`Atenção: Os seguintes itens obrigatórios não foram preenchidos:\n\n- ${pendingRequired.join('\n- ')}`);
-            document.getElementById('modal-finish').classList.add('hidden');
+            alert(`Itens obrigatórios não preenchidos:\n\n- ${pendingRequired.join('\n- ')}`);
             return;
         }
 
-        if (this.signaturePad.isEmpty()) {
-            alert('Por favor, peça ao cliente para assinar.');
-            return;
-        }
+        const customerName = panel.querySelector('#sig-customer-name')?.value || '';
+        const notes = panel.querySelector('#sig-notes')?.value || '';
+        const signatureBase64 = (this.signaturePad && !this.signaturePad.isEmpty()) ? this.signaturePad.toDataURL() : null;
 
-        const customerName = document.getElementById('finish-customer-name').value;
-        if (!customerName) {
-            alert('Por favor, informe o nome de quem recebeu.');
-            return;
-        }
-
-        // Validação de pagamento se visível (Opcional - Sprint UX)
-        const paymentSection = document.getElementById('finish-payment-section');
+        const paymentSection = panel.querySelector('#sig-payment-section');
         let paymentData = null;
-        if (!paymentSection.classList.contains('hidden')) {
+        if (paymentSection) {
             const method = this.state.payment.method;
-            const amount = parseFloat(document.getElementById('finish-payment-amount').value || 0);
-            
-            // Se um método foi selecionado, o valor passa a ser obrigatório
+            const amountEl = panel.querySelector('#sig-payment-amount');
+            const amount = parseFloat(amountEl ? amountEl.value : 0);
             if (method) {
-                if (amount <= 0) {
-                    alert('Por favor, informe o valor recebido para o método selecionado ou desmarque o pagamento.');
-                    return;
-                }
+                if (amount <= 0) { alert('Informe o valor recebido ou desmarque o método de pagamento.'); return; }
                 paymentData = { method, amount };
             }
-            // Se nenhum método foi selecionado, paymentData continua null e o fluxo segue
         }
 
-        const signatureBase64 = this.signaturePad.toDataURL();
-        const notes = document.getElementById('finish-notes').value;
         const now = new Date().toISOString();
-
-        console.log(`🏁 Finalizando tarefa local: ${taskId}`);
-
-        // 1. Atualiza IndexedDB
         await db.tasks.update(taskId, {
             status: 'CONCLUIDO',
             finished_at: now,
@@ -802,22 +1080,103 @@ const OfflineApp = {
             payment_amount: paymentData ? paymentData.amount : null
         });
 
-        // 2. Enfileira Sincronização
-        await OfflineDB.enqueueSyncItem('TASK_FINISH', {
-            task_id: taskId,
-            finished_at: now,
-            data: {
-                customer_name: customerName,
-                customer_signature: signatureBase64,
-                notes: notes,
-                payment: paymentData
-            }
-        });
+        const task = await db.tasks.get(taskId);
+        if (task && task.source === 'MAINTENANCE') {
+            await OfflineDB.enqueueSyncItem('MAINTENANCE_VISIT_FINISH', {
+                visit_id: task.visit_id,
+                finished_at: now,
+                notes: notes
+            });
+        } else {
+            await OfflineDB.enqueueSyncItem('TASK_FINISH', {
+                task_id: taskId,
+                finished_at: now,
+                data: { customer_name: customerName, customer_signature: signatureBase64, notes, payment: paymentData }
+            });
+        }
 
-        // 3. Fecha modal e volta para a lista
-        document.getElementById('modal-finish').classList.add('hidden');
         await this.navigate('list');
     },
+
+    async _confirmIncomplete(taskId, panel) {
+        const notes = panel.querySelector('#sig-incomplete-notes')?.value?.trim() || '';
+        if (!notes) { alert('Descreva o motivo da não conclusão.'); return; }
+
+        const now = new Date().toISOString();
+        await db.tasks.update(taskId, { technical_notes: notes });
+        await OfflineDB.enqueueSyncItem('TASK_INCOMPLETE', {
+            task_id: taskId,
+            data: { notes }
+        });
+
+        alert('Serviço registrado como incompleto. O gestor foi notificado.');
+        await this.navigate('list');
+    },
+
+    async _initHistoryTab(root, task, taskId) {
+        const panel = root.querySelector('#tab-panel-historico');
+        const occurrences = await db.occurrences.where('task_id').equals(taskId).toArray();
+
+        let html = '<div class="space-y-2">';
+
+        // Eventos cronológicos
+        const events = [];
+        if (task.scheduled_at) events.push({ icon: 'calendar', color: 'blue', label: 'Agendado', time: task.scheduled_at });
+        if (task.started_at) events.push({ icon: 'play-circle', color: 'amber', label: 'Iniciado', time: task.started_at });
+        if (task.finished_at) events.push({ icon: 'check-circle', color: 'emerald', label: 'Finalizado', time: task.finished_at });
+
+        for (const ev of events) {
+            const d = new Date(ev.time);
+            html += `
+                <div class="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
+                    <div class="w-8 h-8 rounded-full bg-${ev.color}-50 flex items-center justify-center shrink-0">
+                        <i data-lucide="${ev.icon}" class="h-4 w-4 text-${ev.color}-600"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-800">${ev.label}</p>
+                        <p class="text-[10px] text-slate-400">${d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (occurrences.length > 0) {
+            html += `<p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-2 pb-1">Ocorrências</p>`;
+            for (const occ of occurrences) {
+                const catColor = occ.category === 'BLOCKING' ? 'red' : 'amber';
+                html += `
+                    <div class="flex items-start gap-3 p-3 bg-${catColor}-50 rounded-xl border border-${catColor}-100">
+                        <i data-lucide="alert-triangle" class="h-4 w-4 text-${catColor}-600 mt-0.5 shrink-0"></i>
+                        <div>
+                            <p class="text-xs font-bold text-${catColor}-900">${this.translateOccType(occ.occurrence_type)}</p>
+                            <p class="text-[10px] text-${catColor}-700 mt-0.5 leading-relaxed">${occ.description}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        if (events.length === 0 && occurrences.length === 0) {
+            html += `
+                <div class="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center">
+                    <i data-lucide="clock" class="h-8 w-8 text-slate-300 mx-auto mb-3"></i>
+                    <p class="text-sm font-medium text-slate-500">Sem histórico ainda</p>
+                </div>
+            `;
+        }
+
+        html += '</div>';
+        panel.innerHTML = html;
+    },
+
+    // Manutenção reusa o mesmo template e os mesmos métodos
+    async renderMaintenanceTaskDetail(container, task) {
+        await this.renderTaskDetail(container, task.id);
+    },
+
+    // Assinatura digital
+    signaturePad: null,
+    _sigPadInited: false,
 
     // --- Lógica de Ocorrências ---
 
@@ -958,8 +1317,10 @@ const OfflineApp = {
 
         document.getElementById('modal-occurrence').classList.add('hidden');
         this.state.currentOccurrenceId = null;
-        
-        // Re-renderiza a seção de ocorrências
+
+        await this._refreshOccurrencesTab(taskId);
+
+        // Re-renderiza a seção de ocorrências (compatibilidade com lista legada)
         const occurrenceList = document.getElementById('occurrence-list');
         if (occurrenceList) await this.renderOccurrences(occurrenceList, taskId);
     },
@@ -1323,184 +1684,6 @@ const OfflineApp = {
         }
 
         await this.render();
-    },
-
-    // ─── MANUTENÇÃO ───────────────────────────────────────────────────────────
-
-    async renderMaintenanceTaskDetail(container, task) {
-        const tplDetail = document.getElementById('tpl-task-detail').content.cloneNode(true);
-        const isCompleted = task.status === 'CONCLUIDO';
-
-        // Cabeçalho
-        tplDetail.querySelector('.client-name').textContent = task.client_name || '—';
-        tplDetail.querySelector('.property-address').textContent = task.property_address || '';
-
-        // GPS
-        const btnGps = tplDetail.querySelector('.btn-gps-trigger');
-        if (btnGps) {
-            btnGps.dataset.gpsLat = task.property_lat || '';
-            btnGps.dataset.gpsLng = task.property_lng || '';
-            btnGps.dataset.gpsAddress = task.property_address || '';
-        }
-
-        // WhatsApp - esconde se não tiver telefone
-        const linkWa = tplDetail.querySelector('.link-whatsapp');
-        if (linkWa) {
-            if (task.client_phone) {
-                const clean = task.client_phone.replace(/\D/g, '');
-                linkWa.href = `https://wa.me/${clean.length <= 11 ? '55' + clean : clean}`;
-            } else {
-                linkWa.classList.add('hidden');
-            }
-        }
-
-        // Botão atualizar GPS - esconde (maintenance não tem property local para atualizar)
-        const btnUpdateGps = tplDetail.querySelector('.btn-update-gps');
-        if (btnUpdateGps) btnUpdateGps.classList.add('hidden');
-
-        // Status badge
-        const statusBadge = tplDetail.querySelector('.task-status-badge');
-        statusBadge.textContent = this.translateStatus(task.status);
-        if (task.status === 'AGENDADO') statusBadge.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-100');
-        else if (task.status === 'EM_ANDAMENTO') statusBadge.classList.add('bg-amber-50', 'text-amber-600', 'border-amber-100');
-        else if (task.status === 'CONCLUIDO') statusBadge.classList.add('bg-emerald-50', 'text-emerald-600', 'border-emerald-100');
-
-        // Tipo e data
-        const categoryLabel = task.asset_category ? `${task.asset_category} • ` : '';
-        tplDetail.querySelector('.task-type').textContent = `${categoryLabel}${task.asset_name || ''}`;
-
-        const date = new Date(task.scheduled_at);
-        tplDetail.querySelector('.task-time').textContent =
-            date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
-
-        if (task.notes) {
-            tplDetail.querySelector('.task-notes-container').classList.remove('hidden');
-            tplDetail.querySelector('.task-notes').textContent = task.notes;
-        }
-
-        // Workflow
-        const startSection = tplDetail.querySelector('#workflow-start-section');
-        const activeSection = tplDetail.querySelector('#workflow-active-section');
-        const btnStart = tplDetail.querySelector('#btn-start-task');
-        const btnFinish = tplDetail.querySelector('#btn-finish-task');
-        const btnAddMedia = tplDetail.querySelector('#btn-add-media');
-        const btnAddVideo = tplDetail.querySelector('#btn-add-video');
-        const mediaContainer = tplDetail.querySelector('#task-media-container');
-        const checklistSection = tplDetail.querySelector('#checklist-section');
-        const occurrenceList = tplDetail.querySelector('#occurrence-list');
-        const occurrencesSection = tplDetail.querySelector('#occurrences-section-card');
-        const btnAddOccurrence = tplDetail.querySelector('#btn-add-occurrence');
-        const btnAddOccurrencePre = tplDetail.querySelector('#btn-add-occurrence-pre');
-
-        // Sem checklist em manutenção
-        if (checklistSection) checklistSection.classList.add('hidden');
-
-        // Ocorrências
-        const occCount = await this.renderOccurrences(occurrenceList, task.id);
-        if (isCompleted && occCount === 0) {
-            if (occurrencesSection) occurrencesSection.classList.add('hidden');
-        }
-        if (!isCompleted) {
-            if (btnAddOccurrence) btnAddOccurrence.onclick = () => this.openOccurrenceModal(task.id);
-            if (btnAddOccurrencePre) btnAddOccurrencePre.onclick = () => this.openOccurrenceModal(task.id);
-        } else {
-            if (btnAddOccurrence) btnAddOccurrence.classList.add('hidden');
-            if (btnAddOccurrencePre) btnAddOccurrencePre.classList.add('hidden');
-        }
-
-        if (task.status === 'AGENDADO') {
-            startSection.classList.remove('hidden');
-            activeSection.classList.add('hidden');
-            btnStart.onclick = () => this.startTask(task.id);
-        } else {
-            startSection.classList.add('hidden');
-            activeSection.classList.remove('hidden');
-
-            // Mídias
-            const mediaCount = await this.renderOfflineMedia(mediaContainer, task.id, null);
-            const mediaSection = tplDetail.querySelector('#media-section-card');
-            if (isCompleted && mediaCount === 0) {
-                mediaSection.classList.add('hidden');
-            } else {
-                mediaSection.classList.remove('hidden');
-            }
-
-            if (!isCompleted) {
-                btnAddMedia.onclick = () => this.captureMedia(task.id, null, mediaContainer);
-                btnAddVideo.onclick = () => this.captureVideo(task.id, null, mediaContainer);
-            } else {
-                btnAddMedia.classList.add('hidden');
-                btnAddVideo.classList.add('hidden');
-            }
-
-            // Finalizar
-            if (!isCompleted) {
-                btnFinish.onclick = () => this.openMaintenanceFinishModal(task.id);
-            } else {
-                btnFinish.classList.add('hidden');
-                if (btnFinish.parentElement) btnFinish.parentElement.classList.add('hidden');
-
-                // Resumo de conclusão simplificado
-                const completedSection = tplDetail.querySelector('#workflow-completed-section');
-                if (completedSection) {
-                    completedSection.classList.remove('hidden');
-                    const nameEl = completedSection.querySelector('#detail-customer-name');
-                    if (nameEl) nameEl.textContent = task.client_name || '—';
-                    const notesEl = completedSection.querySelector('#detail-completed-notes');
-                    const notesContainer = completedSection.querySelector('#detail-completed-notes-container');
-                    if (task.notes && notesEl && notesContainer) {
-                        notesContainer.classList.remove('hidden');
-                        notesEl.textContent = task.notes;
-                    }
-                    // Esconde assinatura e pagamento
-                    const sigSection = completedSection.querySelector('.pt-3.border-t');
-                    if (sigSection) sigSection.classList.add('hidden');
-                    const paySection = completedSection.querySelector('#detail-completed-payment');
-                    if (paySection) paySection.classList.add('hidden');
-                }
-            }
-        }
-
-        tplDetail.querySelector('#btn-back').addEventListener('click', () => this.navigate('list'));
-        container.appendChild(tplDetail);
-    },
-
-    async openMaintenanceFinishModal(taskId) {
-        const modal = document.getElementById('modal-finish-maintenance');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-
-        document.getElementById('maint-finish-notes').value = '';
-
-        document.getElementById('btn-close-maint-finish').onclick = () => {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        };
-        document.getElementById('btn-confirm-maint-finish').onclick = () => this.confirmMaintenanceFinish(taskId);
-
-        if (window.lucide) lucide.createIcons();
-    },
-
-    async confirmMaintenanceFinish(taskId) {
-        const task = await db.tasks.get(taskId);
-        const notes = document.getElementById('maint-finish-notes').value.trim();
-        const now = new Date().toISOString();
-
-        await db.tasks.update(taskId, {
-            status: 'CONCLUIDO',
-            finished_at: now,
-            notes: notes
-        });
-
-        await OfflineDB.enqueueSyncItem('MAINTENANCE_VISIT_FINISH', {
-            visit_id: task.visit_id,
-            finished_at: now,
-            notes: notes
-        });
-
-        document.getElementById('modal-finish-maintenance').classList.add('hidden');
-        document.getElementById('modal-finish-maintenance').classList.remove('flex');
-        await this.navigate('list');
     },
 
     // Renderiza o checklist (Sprint 3: 3-state toggle)

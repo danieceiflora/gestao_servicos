@@ -367,7 +367,10 @@ const OfflineDB = {
                         totalSuccess = false;
                         const errorData = await response.json().catch(() => ({}));
                         console.error('❌ Erro na sincronização de texto:', errorData);
-                        
+                        if (errorData.errors && errorData.errors.length) {
+                            errorData.errors.forEach((e, i) => console.error(`  ↳ Erro #${i + 1}:`, e));
+                        }
+
                         // Marca como erro para não ficar tentando em loop infinito se for erro de validação
                         const ids = textChanges.map(i => i.id);
                         await db.sync_queue.where('id').anyOf(ids).modify({ status: 'error' });
@@ -417,7 +420,10 @@ const OfflineDB = {
                     }
 
                     const formData = new FormData();
-                    formData.append('file', mediaRecord.blob);
+                    const blobType = (mediaRecord.blob && mediaRecord.blob.type) || mediaRecord.type || 'image/jpeg';
+                    const ext = blobType.includes('video') ? 'mp4' : 'jpg';
+                    const filename = `upload_${Date.now()}.${ext}`;
+                    formData.append('file', mediaRecord.blob, filename);
                     formData.append('response_id', item.payload.response_id || '');
                     formData.append('occurrence_id', item.payload.occurrence_id || '');
 
@@ -446,6 +452,8 @@ const OfflineDB = {
                         break;
                     } else {
                         totalSuccess = false;
+                        const errBody = await response.json().catch(() => ({}));
+                        console.error(`❌ Falha no upload da mídia ${mediaRecord.id} (HTTP ${response.status}):`, errBody);
                         await db.sync_queue.update(item.id, { status: 'error' });
                     }
                 } catch (err) {

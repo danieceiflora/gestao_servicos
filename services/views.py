@@ -263,7 +263,7 @@ def home(request):
         return redirect('equipe_dashboard')
 
     orders_qs = get_orders_queryset(request)
-    active_orders = orders_qs.exclude(status__in=[ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CANCELADO]).count()
+    active_orders = orders_qs.exclude(status__in=[ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CONCLUIDA, ServiceOrder.Status.CANCELADO]).count()
     pending_approval = orders_qs.filter(status=ServiceOrder.Status.AGUARDANDO_APROVACAO).count()
     waiting_execution = orders_qs.filter(status=ServiceOrder.Status.AGUARDANDO_EXECUCAO).count()
 
@@ -684,12 +684,22 @@ def service_order_scheduling(request):
                 end_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(end_date)) if end_date else None
 
                 if task_type and scheduled_datetime:
+                    task_value_str = request.POST.get(f'task_{task_index}_value', '').strip()
+                    task_value = None
+                    if task_value_str:
+                        try:
+                            from decimal import Decimal, InvalidOperation
+                            task_value = Decimal(task_value_str)
+                        except InvalidOperation:
+                            task_value = None
+
                     # Criar a tarefa
                     task_kwargs = {
                         'service_order': service_order,
                         'task_type': task_type,
                         'scheduled_at': scheduled_datetime,
                         'scheduled_end_at': scheduled_end_datetime,
+                        'value': task_value,
                     }
                     
                     # Se for a primeira task, usar os dados do formulário principal
@@ -1059,10 +1069,38 @@ def task_add(request, order_id):
                             })
 
             task.save()
-            
+
             # Salvar equipe
             formset.instance = task
             formset.save()
+
+            # Clonar itens do orçamento para a primeira execução
+            cloned_count = 0
+            if task.task_type == ServiceOrderTask.TaskType.EXECUCAO:
+                is_first_execucao = not order.tasks.filter(
+                    task_type=ServiceOrderTask.TaskType.EXECUCAO
+                ).exclude(id=task.id).exists()
+
+                if is_first_execucao:
+                    budget_items = order.items.filter(
+                        task__task_type=ServiceOrderTask.TaskType.ORCAMENTO
+                    ) | order.items.filter(task__isnull=True)
+
+                    for item in budget_items:
+                        ServiceItem.objects.create(
+                            service_order=order,
+                            task=task,
+                            product=item.product,
+                            service=item.service,
+                            description=item.description,
+                            quantity=item.quantity,
+                            unit_price=item.unit_price,
+                            ncm_ato=item.ncm_ato,
+                            cest_ato=item.cest_ato,
+                            origem_ato=item.origem_ato,
+                            cfop_aplicado=item.cfop_aplicado,
+                        )
+                        cloned_count += 1
 
             # Notificar os profissionais do novo agendamento
             for team_member in task.team_members.all():
@@ -1076,10 +1114,13 @@ def task_add(request, order_id):
             files = request.FILES.getlist('files')
             for file in files:
                 ServiceMedia.objects.create(task=task, file=file)
-            
+
             _send_visit_confirmation_if_needed(task)
 
-            messages.success(request, f'{task.get_task_type_display()} agendado(a) com sucesso!')
+            msg = f'{task.get_task_type_display()} agendado(a) com sucesso!'
+            if cloned_count:
+                msg += f' {cloned_count} item(s) do orçamento copiado(s) para esta execução.'
+            messages.success(request, msg)
             return redirect('service_order_detail', order_id=order.id)
     else:
         form = TaskScheduleForm()
@@ -1563,6 +1604,7 @@ def order_item_add(request, order_id):
                             'type_class': 'bg-blue-50 text-blue-600' if item.product else ('bg-purple-50 text-purple-600' if item.service else ''),
                             'origin_display': item.task.get_task_type_display() if item.task else 'Orçamento',
                             'origin_is_task': bool(item.task),
+                            'task_scheduled': item.task.scheduled_at.strftime('%d/%m/%Y %H:%M') if item.task and item.task.scheduled_at else '',
                             'quantity_display': str(quantity_display).replace('.', ','),
                             'unit_price_display': f'{item.unit_price:.2f}'.replace('.', ','),
                             'total_price_display': f'{item_total:.2f}'.replace('.', ','),
@@ -1587,6 +1629,7 @@ def order_item_add(request, order_id):
                             'type_class': 'bg-blue-50 text-blue-600' if item.product else ('bg-purple-50 text-purple-600' if item.service else ''),
                             'origin_display': item.task.get_task_type_display() if item.task else 'Orçamento',
                             'origin_is_task': bool(item.task),
+                            'task_scheduled': item.task.scheduled_at.strftime('%d/%m/%Y %H:%M') if item.task and item.task.scheduled_at else '',
                             'quantity_display': '1',
                             'unit_price_display': '0,00',
                             'total_price_display': '0,00',

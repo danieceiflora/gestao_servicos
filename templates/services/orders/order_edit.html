@@ -416,6 +416,11 @@
                                             <input type="datetime-local" {% if task.index == 0 %}name="scheduled_end_at" id="id_scheduled_end_at"{% else %}name="task_{{ task.index }}_scheduled_end"{% endif %} value="{{ task.scheduled_end }}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
                                         </div>
                                     </div>
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor da Etapa (R$)</label>
+                                        <input type="number" step="0.01" min="0" name="task_{{ task.index }}_value" value="{{ task.value|default:'' }}" placeholder="Deixe em branco para usar a soma dos itens" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                        <p class="text-xs text-slate-400 mt-1 italic">Se não preenchido, o valor será calculado pela soma dos itens da etapa.</p>
+                                    </div>
                                     {% if task.index == 0 %}
                                     <div class="border border-slate-200 bg-white p-4 rounded-lg space-y-3">
                                         <label class="flex items-center gap-3 cursor-pointer">
@@ -576,6 +581,11 @@
                                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Fim do Agendamento</label>
                                         <input type="datetime-local" name="scheduled_end_at" id="id_scheduled_end_at" value="{% if initial_scheduled_end_at %}{{ initial_scheduled_end_at }}{% else %}{{ task.scheduled_end|default:'' }}{% endif %}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
                                     </div>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor da Etapa (R$)</label>
+                                    <input type="number" step="0.01" min="0" name="task_0_value" placeholder="Deixe em branco para usar a soma dos itens" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm">
+                                    <p class="text-xs text-slate-400 mt-1 italic">Se não preenchido, o valor será calculado pela soma dos itens da etapa.</p>
                                 </div>
                                 <div class="border border-slate-200 bg-white p-4 rounded-lg space-y-3">
                                     <label class="flex items-center gap-3 cursor-pointer">
@@ -1233,6 +1243,11 @@
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Data Fim de Agendamento</label>
                             <input type="datetime-local" name="task_${number-1}_scheduled_end" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
                         </div>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Valor da Etapa (R$)</label>
+                        <input type="number" step="0.01" min="0" name="task_${number-1}_value" placeholder="Deixe em branco para usar a soma dos itens" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-sm">
+                        <p class="text-xs text-slate-400 mt-1 italic">Se não preenchido, o valor será calculado pela soma dos itens da etapa.</p>
                     </div>
                     <div class="flex items-center space-x-2 border border-slate-200 bg-white p-3 rounded-lg">
                         <input type="checkbox" name="task_${number-1}_send_whatsapp_confirmation" id="id_task_${number-1}_send_whatsapp_confirmation" class="h-4 w-4 border-gray-300 rounded">

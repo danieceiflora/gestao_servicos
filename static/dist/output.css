@@ -592,6 +592,9 @@
   .m-1 {
     margin: calc(var(--spacing) * 1);
   }
+  .m-1\.5 {
+    margin: calc(var(--spacing) * 1.5);
+  }
   .m-2 {
     margin: calc(var(--spacing) * 2);
   }
@@ -877,6 +880,9 @@
   .h-32 {
     height: calc(var(--spacing) * 32);
   }
+  .h-44 {
+    height: calc(var(--spacing) * 44);
+  }
   .h-48 {
     height: calc(var(--spacing) * 48);
   }
@@ -910,8 +916,8 @@
   .max-h-24 {
     max-height: calc(var(--spacing) * 24);
   }
-  .max-h-32 {
-    max-height: calc(var(--spacing) * 32);
+  .max-h-28 {
+    max-height: calc(var(--spacing) * 28);
   }
   .max-h-48 {
     max-height: calc(var(--spacing) * 48);
@@ -952,14 +958,14 @@
   .min-h-\[44px\] {
     min-height: 44px;
   }
+  .min-h-\[56px\] {
+    min-height: 56px;
+  }
   .min-h-\[80px\] {
     min-height: 80px;
   }
   .min-h-\[80vh\] {
     min-height: 80vh;
-  }
-  .min-h-\[120px\] {
-    min-height: 120px;
   }
   .min-h-\[140px\] {
     min-height: 140px;
@@ -1158,6 +1164,9 @@
   }
   .min-w-full {
     min-width: 100%;
+  }
+  .min-w-max {
+    min-width: max-content;
   }
   .flex-1 {
     flex: 1;
@@ -1660,6 +1669,9 @@
   .border-blue-500 {
     border-color: var(--color-blue-500);
   }
+  .border-blue-600 {
+    border-color: var(--color-blue-600);
+  }
   .border-emerald-100 {
     border-color: var(--color-emerald-100);
   }
@@ -1904,6 +1916,12 @@
     background-color: color-mix(in srgb, #000 50%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
       background-color: color-mix(in oklab, var(--color-black) 50%, transparent);
+    }
+  }
+  .bg-black\/60 {
+    background-color: color-mix(in srgb, #000 60%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-black) 60%, transparent);
     }
   }
   .bg-black\/95 {
@@ -3324,6 +3342,9 @@
     @supports (color: color-mix(in lab, red, red)) {
       --tw-ring-color: color-mix(in oklab, var(--color-slate-900) 5%, transparent);
     }
+  }
+  .ring-white {
+    --tw-ring-color: var(--color-white);
   }
   .ring-offset-2 {
     --tw-ring-offset-width: 2px;

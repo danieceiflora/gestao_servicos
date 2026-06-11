@@ -206,7 +206,7 @@ def run_payment_receipt_workflow(service_order_id):
             logger.info(f"Workflow de recibo abortado para OS #{service_order.number}: Já enviado.")
             return
             
-        if service_order.status != ServiceOrder.Status.FINALIZADO:
+        if service_order.status not in [ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CONCLUIDA]:
             return
 
         has_pending_payment = service_order.payments.filter(status='PENDENTE').exists() or service_order.balance_due > 0

@@ -147,6 +147,18 @@
                         <p class="text-sm font-medium text-red-500">{{ form.notes.errors.0 }}</p>
                     {% endif %}
                 </div>
+
+                <!-- Valor da Etapa (somente gestores) -->
+                {% if user.is_manager %}
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none text-slate-700">Valor da Etapa (R$)</label>
+                    {{ form.value }}
+                    <p class="text-xs text-slate-400 italic">Se não preenchido, o valor será calculado pela soma dos itens da etapa.</p>
+                    {% if form.value.errors %}
+                        <p class="text-sm font-medium text-red-500">{{ form.value.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
             </div>
         </div>
 

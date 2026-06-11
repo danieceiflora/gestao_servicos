@@ -522,8 +522,8 @@ def api_tecnico_sync_push(request):
                     occ_data = payload.get('data', {})
                     occ = Occurrence.objects.create(
                         task=task,
-                        category=occ_data.get('category', Occurrence.OccurrenceCategory.GENERAL),
-                        occurrence_type=occ_data.get('occurrence_type', Occurrence.OccurrenceType.OTHER),
+                        category=occ_data.get('category') or Occurrence.OccurrenceCategory.GERAL,
+                        occurrence_type=occ_data.get('occurrence_type') or Occurrence.OccurrenceType.OUTRO,
                         description=occ_data.get('description', ''),
                         status=Occurrence.OccurrenceStatus.REGISTRADA
                     )
@@ -532,7 +532,15 @@ def api_tecnico_sync_push(request):
                     # Para simplificar, o upload de mídia de ocorrência pode ser tratado separadamente.
                     processed_count += 1
                 
-                # 5. Outros tipos podem ser adicionados aqui
+                # 5. Serviço registrado como incompleto (impedimento)
+                elif change_type == 'TASK_INCOMPLETE':
+                    incomplete_data = payload.get('data', {})
+                    if incomplete_data.get('notes'):
+                        task.notes = (task.notes or '') + '\n\n[Incompleto]: ' + incomplete_data['notes']
+                        task.save(update_fields=['notes'])
+                    processed_count += 1
+
+                # 6. Outros tipos podem ser adicionados aqui
                 
             except Exception as item_err:
                 error_msg = f"Erro no item {index} ({change.get('type')}): {str(item_err)}"
@@ -571,8 +579,12 @@ def api_tecnico_upload_media(request, task_id):
 
         occurrence_id = request.POST.get('occurrence_id')
         occurrence = None
-        if occurrence_id and occurrence_id != 'null':
-            occurrence = get_object_or_404(Occurrence, id=occurrence_id)
+        if occurrence_id and occurrence_id not in ('null', '', 'undefined'):
+            try:
+                occurrence = Occurrence.objects.filter(id=occurrence_id).first()
+            except (ValueError, TypeError):
+                # ID local do Dexie (inteiro) não corresponde a um UUID do servidor — ignora sem erro
+                occurrence = None
 
         raw_path, file_info = save_upload_for_processing(file)
 
