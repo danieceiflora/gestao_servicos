@@ -207,6 +207,15 @@
             </div>
             <div class="p-5 md:p-6 space-y-6">
                 <div class="space-y-2">
+                    <label for="{{ form.service_type.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                        Tipo de OS
+                    </label>
+                    {{ form.service_type }}
+                    {% if form.service_type.errors %}
+                    <p class="text-sm font-medium text-red-500">{{ form.service_type.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div class="space-y-2">
                     <label for="{{ form.description.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
                         Descrição do Problema/Solicitação
                     </label>

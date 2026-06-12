@@ -918,6 +918,8 @@ def service_order_detail(request, order_id):
         for service in services
     ]
     
+    billing = order.billings.filter(task__isnull=True).first()
+
     return render(request, 'services/orders/order_detail.html', {
         'order': order,
         'tasks': tasks,
@@ -926,6 +928,7 @@ def service_order_detail(request, order_id):
         'services_data': services_data,
         'any_task_has_checklist': any_task_has_checklist,
         'tasks_with_signature': tasks_with_signature,
+        'billing': billing,
     })
 
 @login_required

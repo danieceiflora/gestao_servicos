@@ -14,6 +14,7 @@
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Financeiro</h2>
             <p class="text-sm text-slate-500">Controle de comissões e pagamentos de colaboradores.</p>
         </div>
+        {% if commission_enabled %}
         <div class="flex flex-wrap gap-2">
             <a href="?{{ request.GET.urlencode }}&export=pdf" class="inline-flex items-center gap-2 rounded-lg bg-white border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
                 <i data-lucide="file-text" class="h-4 w-4"></i>
@@ -24,6 +25,7 @@
                 Exportar Excel
             </a>
         </div>
+        {% endif %}
     </div>
 
     <!-- Filters -->
@@ -92,6 +94,7 @@
             <p class="text-xs text-slate-400 mt-2">Valor Total: R$ {{ total_services_value|floatformat:2 }}</p>
         </div>
 
+        {% if commission_enabled %}
         <!-- Card 2: Total Comissão -->
         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div class="flex items-center justify-between mb-3">
@@ -119,6 +122,7 @@
             </div>
             <p class="text-xs text-slate-400 mt-2">Base: R$ {{ total_base_salary|floatformat:2 }}</p>
         </div>
+        {% endif %}
     </div>
 
     <!-- BI Financeiro Section -->
@@ -180,6 +184,7 @@
         </div>
     </div>
 
+    {% if commission_enabled %}
     <!-- Data Table -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
@@ -192,7 +197,7 @@
                         <th class="px-6 py-4">Endereço</th>
                         <th class="px-6 py-4">Colaborador</th>
                         <th class="px-6 py-4">Função</th>
-                        <th class="px-6 py-4">Valor OS (Est.)</th>
+                        <th class="px-6 py-4">Valor Etapa</th>
                         <th class="px-6 py-4">Comissão (%)</th>
                         <th class="px-6 py-4">Valor Comissão</th>
                     </tr>
@@ -244,6 +249,13 @@
             </table>
         </div>
     </div>
+    {% else %}
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center">
+        <i data-lucide="lock" class="h-8 w-8 mx-auto mb-3 text-slate-300"></i>
+        <p class="text-sm font-medium text-slate-600">Módulo de comissão desativado</p>
+        <p class="text-xs text-slate-400 mt-1">Acesse <a href="{% url 'finance_settings' %}" class="text-blue-600 hover:underline">Configurações Financeiras</a> para habilitar.</p>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 

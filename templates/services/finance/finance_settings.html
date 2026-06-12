@@ -30,6 +30,25 @@
                 <span class="text-xs text-red-500">{{ form.days_before_generation.errors|striptags }}</span>
                 {% endif %}
             </div>
+
+            <div class="border-t border-slate-100 pt-6">
+                <p class="text-sm font-semibold text-slate-700 mb-4">Módulo de Comissão</p>
+                <label class="flex items-start gap-3 cursor-pointer">
+                    {{ form.enable_commission }}
+                    <div>
+                        <span class="text-sm font-medium text-slate-700">Habilitar relatório de comissões por etapa</span>
+                        <p class="text-xs text-slate-400 mt-0.5">
+                            Quando ativo, o painel financeiro exibe o relatório de comissões calculadas
+                            com base no valor de cada etapa executada (<code>billing_value</code>) e na taxa
+                            da função do profissional. Etapas parcialmente executadas também são incluídas
+                            quando o administrador define o valor da etapa.
+                        </p>
+                    </div>
+                </label>
+                {% if form.enable_commission.errors %}
+                <span class="text-xs text-red-500">{{ form.enable_commission.errors|striptags }}</span>
+                {% endif %}
+            </div>
         </div>
 
         <div class="border-t border-slate-200 bg-slate-50 p-4 sm:px-6 flex items-center justify-between">

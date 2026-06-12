@@ -120,6 +120,17 @@
             </div>
             
             <div class="p-6 space-y-5">
+                <!-- Tipo de OS -->
+                <div class="space-y-2">
+                    <label for="{{ form.service_type.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                        Tipo de OS
+                    </label>
+                    {{ form.service_type }}
+                    {% if form.service_type.errors %}
+                    <p class="text-xs text-red-600">{{ form.service_type.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
                 <!-- Description -->
                 <div class="space-y-2">
                     <label for="{{ form.description.id_for_label }}" class="text-sm font-semibold text-slate-700">

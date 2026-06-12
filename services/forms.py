@@ -311,18 +311,21 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
 
     class Meta:
         model = ServiceOrder
-        fields = ['client', 'client_property', 'description', 'client_observation', 'estimated_value', 'origin_date', 'originator']
+        fields = ['client', 'client_property', 'service_type', 'description', 'client_observation', 'estimated_value', 'origin_date', 'originator']
         widgets = {
             'client_property': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
             }),
+            'service_type': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
+            }),
             'description': forms.Textarea(attrs={
-                'rows': 3, 
+                'rows': 3,
                 'placeholder': 'Descreva o problema ou solicitação...',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
             'client_observation': forms.Textarea(attrs={
-                'rows': 3, 
+                'rows': 3,
                 'placeholder': 'Observação para o cliente (orçamento)...',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
@@ -457,9 +460,12 @@ class ServiceOrderForm(forms.ModelForm):
 
     class Meta:
         model = ServiceOrder
-        fields = ['client', 'client_property', 'status', 'is_recurrent', 'description', 'technical_notes', 'client_observation']
+        fields = ['client', 'client_property', 'service_type', 'status', 'is_recurrent', 'description', 'technical_notes', 'client_observation']
         widgets = {
             'client_property': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
+            }),
+            'service_type': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white'
             }),
             'status': forms.Select(attrs={
@@ -469,17 +475,17 @@ class ServiceOrderForm(forms.ModelForm):
                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'
             }),
             'description': forms.Textarea(attrs={
-                'rows': 3, 
+                'rows': 3,
                 'placeholder': 'Descreva o problema ou solicitação...',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
             'technical_notes': forms.Textarea(attrs={
-                'rows': 3, 
+                'rows': 3,
                 'placeholder': 'Notas técnicas gerais...',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
             'client_observation': forms.Textarea(attrs={
-                'rows': 3, 
+                'rows': 3,
                 'placeholder': 'Observação para o cliente (orçamento)...',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
@@ -1147,12 +1153,15 @@ class ExpenseForm(forms.ModelForm):
 class FinanceSettingsForm(forms.ModelForm):
     class Meta:
         model = FinanceSettings
-        fields = ['days_before_generation']
+        fields = ['days_before_generation', 'enable_commission']
         widgets = {
             'days_before_generation': forms.NumberInput(attrs={
                 'class': 'flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2',
                 'min': 1,
                 'max': 90,
+            }),
+            'enable_commission': forms.CheckboxInput(attrs={
+                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded',
             }),
         }
 

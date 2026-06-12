@@ -105,10 +105,18 @@ def finance_dashboard(request):
     else:
         end_of_month = timezone.make_aware(datetime(year, month + 1, 1), tz)
 
-    # Query allocations for completed executions in the selected period
+    # Verifica se o módulo de comissão está habilitado
+    finance_settings, _ = FinanceSettings.objects.get_or_create(pk=1)
+    commission_enabled = finance_settings.enable_commission
+
+    # Query allocations for completed/partial executions in the selected period
+    billable_statuses = [
+        ServiceOrderTask.TaskStatus.CONCLUIDO,
+        ServiceOrderTask.TaskStatus.PARCIALMENTE_EXECUTADO,
+    ]
     allocations = ServiceOrderTeam.objects.filter(
         task__task_type=ServiceOrderTask.TaskType.EXECUCAO,
-        task__status=ServiceOrderTask.TaskStatus.CONCLUIDO,
+        task__status__in=billable_statuses,
         task__finished_at__gte=start_of_month,
         task__finished_at__lt=end_of_month
     ).select_related('task__service_order', 'professional', 'role').order_by('professional__name', 'task__finished_at')
@@ -134,7 +142,7 @@ def finance_dashboard(request):
                 'total_services_value': Decimal('0'),
             }
         
-        task_value = alloc.task.service_order.estimated_value or Decimal('0')
+        task_value = alloc.task.billing_value or Decimal('0')
         comm_rate = alloc.role.commission_rate if alloc.role else Decimal('0')
         commission_value = (task_value * (comm_rate / 100))
         
@@ -271,6 +279,7 @@ def finance_dashboard(request):
     context = {
         'report_items': report_items,
         'grouped_data': grouped_data,
+        'commission_enabled': commission_enabled,
         'total_services_count': len(report_items),
         'total_services_value': total_services_value_global,
         'total_commission': total_commission_global,

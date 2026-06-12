@@ -6,834 +6,966 @@
 {% block title %}OS #{{ order.number }} - Detalhes{% endblock %}
 
 {% block content %}
-<div class="space-y-6 md:pb-0">
-    <!-- Header Contextual -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div class="flex items-center gap-4">
-            <a href="{% url 'service_order_list' %}" class="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                <i data-lucide="arrow-left" class="h-6 w-6 text-slate-600"></i>
-            </a>
-            <div>
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                        #{{ order.number }}
-                    </span>
-                    {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
-                    {% if order.is_recurrent %}
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
-                            Recorrente
-                        </span>
-                    {% endif %}
+<div class="space-y-0 md:pb-6">
+
+    {# ── HEADER ──────────────────────────────────────────────────────────── #}
+    <div class="bg-white -mx-4 px-4 pt-4 pb-4 border-b border-slate-200 mb-0">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {# Identidade da OS #}
+            <div class="flex items-center gap-3 min-w-0">
+                <a href="{% url 'service_order_list' %}" class="shrink-0 p-2 hover:bg-slate-100 rounded-full transition-colors" aria-label="Voltar para lista">
+                    <i data-lucide="arrow-left" class="h-5 w-5 text-slate-500"></i>
+                </a>
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-1.5 mb-0.5">
+                        <span class="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded font-mono">#{{ order.number }}</span>
+                        {% include 'services/components/status_badge.html' with status=order.status label=order.get_status_display %}
+                        {% if order.is_recurrent %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">Recorrente</span>
+                        {% endif %}
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-900 leading-tight truncate">{{ order.client_property.client.name }}</h2>
+                    <p class="text-xs text-slate-500 mt-0.5 truncate">{{ order.client_property.address }}, {{ order.client_property.number }} &bull; {{ order.client_property.city }}</p>
                 </div>
-                <h2 class="text-2xl font-bold text-slate-900 leading-tight">
-                    {{ order.client_property.client.name }}
-                </h2>
-            </div>
-        </div>
-
-        <div class="flex items-center gap-2">
-            <!-- Ações Desktop / Secundárias -->
-            <div class="hidden md:flex items-center gap-2">
-                {% if perms.services.change_serviceorder %}
-                <a href="{% url 'service_order_edit' order.id %}" class="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
-                    <i data-lucide="edit" class="mr-2 h-4 w-4 text-slate-500"></i>
-                    Editar
-                </a>
-                {% endif %}
-                
-                <a href="{% url 'service_order_pdf' order.id %}" target="_blank" class="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
-                    <i data-lucide="file-text" class="mr-2 h-4 w-4 text-slate-500"></i>
-                    Orçamento
-                </a>
-
-                <a href="{% url 'service_order_report_pdf' order.id %}" target="_blank" class="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
-                    <i data-lucide="clipboard-check" class="mr-2 h-4 w-4 text-slate-500"></i>
-                    Relatório
-                </a>
             </div>
 
-            <!-- Dropdown de Ações (Mobile) -->
-            <div class="relative md:hidden js-dropdown">
-                <button type="button" class="js-dropdown-trigger inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-slate-50">
-                    <i data-lucide="more-vertical" class="h-5 w-5"></i>
-                </button>
-                <div class="js-dropdown-menu hidden absolute right-0 top-full mt-2 w-56 rounded-md border border-slate-200 bg-white p-1 shadow-md z-50">
+            {# Ações #}
+            <div class="flex items-center gap-2 shrink-0">
+                {# Desktop: botões agrupados #}
+                <div class="hidden md:flex items-center gap-1.5">
                     {% if perms.services.change_serviceorder %}
-                    <a href="{% url 'service_order_edit' order.id %}" class="flex w-full items-center rounded-sm px-2 py-2 text-sm hover:bg-slate-100 transition-colors">
-                        <i data-lucide="edit" class="mr-2 h-4 w-4 text-slate-500"></i> Editar OS
+                    <a href="{% url 'service_order_edit' order.id %}" class="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-50 gap-1.5">
+                        <i data-lucide="edit" class="h-3.5 w-3.5 text-slate-400"></i>Editar
                     </a>
                     {% endif %}
-                    <a href="{% url 'service_order_pdf' order.id %}" target="_blank" class="flex w-full items-center rounded-sm px-2 py-2 text-sm hover:bg-slate-100 transition-colors">
-                        <i data-lucide="file-text" class="mr-2 h-4 w-4 text-slate-500"></i> Orçamento PDF
+                    <a href="{% url 'service_order_pdf' order.id %}" target="_blank" class="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-50 gap-1.5">
+                        <i data-lucide="file-text" class="h-3.5 w-3.5 text-slate-400"></i>Orçamento
                     </a>
-                    <a href="{% url 'service_order_report_pdf' order.id %}" target="_blank" class="flex w-full items-center rounded-sm px-2 py-2 text-sm hover:bg-slate-100 transition-colors">
-                        <i data-lucide="clipboard-check" class="mr-2 h-4 w-4 text-slate-500"></i> Relatório de Execução
-                    </a>
-                    <a href="{% url 'service_order_send_budget' order.id %}" onclick="return confirm('Enviar orçamento via WhatsApp?')" class="flex w-full items-center rounded-sm px-2 py-2 text-sm hover:bg-slate-100 transition-colors text-blue-600">
-                        <i data-lucide="send" class="mr-2 h-4 w-4"></i> Enviar p/ Cliente
+                    <a href="{% url 'service_order_report_pdf' order.id %}" target="_blank" class="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-50 gap-1.5">
+                        <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-slate-400"></i>Relatório
                     </a>
                 </div>
-            </div>
-            
-            <a href="{% url 'service_order_send_budget' order.id %}" onclick="return confirm('Enviar orçamento via WhatsApp?')" class="hidden sm:inline-flex h-9 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-950">
-                <i data-lucide="send" class="mr-2 h-4 w-4"></i>
-                Enviar
-            </a>
 
-            <a href="{% url 'service_order_execution' order.id %}" class="flex-1 sm:flex-none inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-6 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-all shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2">
-                <i data-lucide="play" class="h-4 w-4 fill-current"></i>
-                Painel de Operação
-            </a>
+                {# Dropdown Mobile #}
+                <div class="relative md:hidden js-dropdown">
+                    <button type="button" class="js-dropdown-trigger inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-slate-50">
+                        <i data-lucide="more-vertical" class="h-4 w-4 text-slate-500"></i>
+                    </button>
+                    <div class="js-dropdown-menu hidden absolute right-0 top-full mt-1.5 w-56 rounded-md border border-slate-200 bg-white p-1 shadow-lg z-50">
+                        {% if perms.services.change_serviceorder %}
+                        <a href="{% url 'service_order_edit' order.id %}" class="flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-slate-50 transition-colors text-slate-700 gap-2">
+                            <i data-lucide="edit" class="h-4 w-4 text-slate-400"></i> Editar OS
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'service_order_pdf' order.id %}" target="_blank" class="flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-slate-50 transition-colors text-slate-700 gap-2">
+                            <i data-lucide="file-text" class="h-4 w-4 text-slate-400"></i> Orçamento PDF
+                        </a>
+                        <a href="{% url 'service_order_report_pdf' order.id %}" target="_blank" class="flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-slate-50 transition-colors text-slate-700 gap-2">
+                            <i data-lucide="clipboard-check" class="h-4 w-4 text-slate-400"></i> Relatório de Execução
+                        </a>
+                        <div class="my-1 border-t border-slate-100"></div>
+                        <a href="{% url 'service_order_send_budget' order.id %}" onclick="return confirm('Enviar orçamento via WhatsApp?')" class="flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-blue-50 transition-colors text-blue-600 gap-2">
+                            <i data-lucide="send" class="h-4 w-4"></i> Enviar p/ Cliente
+                        </a>
+                    </div>
+                </div>
+
+                <a href="{% url 'service_order_send_budget' order.id %}" onclick="return confirm('Enviar orçamento via WhatsApp?')" class="hidden sm:inline-flex h-9 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-100 gap-1.5">
+                    <i data-lucide="send" class="h-3.5 w-3.5"></i>Enviar
+                </a>
+                <a href="{% url 'service_order_execution' order.id %}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-700 transition-all shadow-sm">
+                    <i data-lucide="play" class="h-3.5 w-3.5 fill-current"></i><span class="hidden sm:inline">Painel de Operação</span><span class="sm:hidden">Operar</span>
+                </a>
+            </div>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Coluna Esquerda: Informações Gerais -->
-        <div class="lg:col-span-2 space-y-6">
-            <!-- Timeline de Etapas -->
-            <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
-                <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                    <h3 class="font-bold text-slate-900 flex items-center gap-2">
-                        <i data-lucide="list-checks" class="h-5 w-5 text-slate-500"></i>
-                        Linha do Tempo do Serviço
-                    </h3>
-                    {% if perms.services.add_serviceordertask and order.status != 'FINALIZADO' and order.status != 'CANCELADO' %}
-                    <a href="{% url 'task_add' order.id %}" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-white border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all shadow-sm">
-                        <i data-lucide="plus-circle" class="h-4 w-4 text-slate-500"></i>
-                        Nova Etapa
-                    </a>
-                    {% endif %}
-                </div>
-                <div class="p-6">
-                    <div class="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-slate-200 before:via-slate-200 before:to-transparent">
-                        {% for task in tasks %}
-                        <div class="relative flex items-start gap-6 group">
-                            <!-- Icone da Etapa -->
-                            <div class="absolute left-0 flex items-center justify-center w-10 h-10 rounded-full bg-white border-2 {% if task.status == 'CONCLUIDO' %}border-green-500 bg-green-50{% elif task.status == 'EM_ANDAMENTO' %}border-blue-500 bg-blue-50 animate-pulse{% else %}border-slate-200{% endif %} shadow-sm z-10 transition-colors">
-                                {% if task.task_type == 'ORCAMENTO' %}
-                                    <i data-lucide="search" class="h-5 w-5 {% if task.status == 'CONCLUIDO' %}text-green-600{% else %}text-slate-400{% endif %}"></i>
-                                {% elif task.task_type == 'EXECUCAO' %}
-                                    <i data-lucide="wrench" class="h-5 w-5 {% if task.status == 'CONCLUIDO' %}text-green-600{% else %}text-slate-400{% endif %}"></i>
-                                {% else %}
-                                    <i data-lucide="shield-check" class="h-5 w-5 {% if task.status == 'CONCLUIDO' %}text-green-600{% else %}text-slate-400{% endif %}"></i>
-                                {% endif %}
+    {# ── TAB BAR ──────────────────────────────────────────────────────────── #}
+    <div class="sticky top-0 z-20 bg-white border-b border-slate-200 -mx-4 px-4 shadow-sm">
+        <div class="overflow-x-auto" style="-ms-overflow-style:none;scrollbar-width:none;">
+            <div class="flex min-w-max">
+                <button class="js-tab-btn inline-flex items-center gap-2 px-4 py-3 text-sm font-medium text-slate-500 border-b-2 border-transparent whitespace-nowrap transition-all hover:text-slate-900 hover:bg-slate-50/70" data-tab="resumo">
+                    <i data-lucide="layout-dashboard" class="h-4 w-4"></i>Resumo
+                </button>
+                <button class="js-tab-btn inline-flex items-center gap-2 px-4 py-3 text-sm font-medium text-slate-500 border-b-2 border-transparent whitespace-nowrap transition-all hover:text-slate-900 hover:bg-slate-50/70" data-tab="etapas">
+                    <i data-lucide="list-checks" class="h-4 w-4"></i>Etapas
+                </button>
+                <button class="js-tab-btn inline-flex items-center gap-2 px-4 py-3 text-sm font-medium text-slate-500 border-b-2 border-transparent whitespace-nowrap transition-all hover:text-slate-900 hover:bg-slate-50/70" data-tab="itens">
+                    <i data-lucide="receipt" class="h-4 w-4"></i>Itens
+                </button>
+                <button class="js-tab-btn inline-flex items-center gap-2 px-4 py-3 text-sm font-medium text-slate-500 border-b-2 border-transparent whitespace-nowrap transition-all hover:text-slate-900 hover:bg-slate-50/70 relative" data-tab="ocorrencias">
+                    {% if occurrences %}<span class="absolute top-2.5 left-8 h-1.5 w-1.5 rounded-full bg-amber-500 ring-2 ring-white"></span>{% endif %}
+                    <i data-lucide="alert-triangle" class="h-4 w-4"></i>Ocorrências
+                </button>
+                <button class="js-tab-btn inline-flex items-center gap-2 px-4 py-3 text-sm font-medium text-slate-500 border-b-2 border-transparent whitespace-nowrap transition-all hover:text-slate-900 hover:bg-slate-50/70" data-tab="checklists">
+                    <i data-lucide="check-square" class="h-4 w-4"></i>Checklists
+                </button>
+                {% if user.role != 'COLLABORATOR' %}
+                <button class="js-tab-btn inline-flex items-center gap-2 px-4 py-3 text-sm font-medium text-slate-500 border-b-2 border-transparent whitespace-nowrap transition-all hover:text-slate-900 hover:bg-slate-50/70" data-tab="financeiro">
+                    <i data-lucide="landmark" class="h-4 w-4"></i>Financeiro
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ── TAB: RESUMO ──────────────────────────────────────────────────────── #}
+    <div id="tab-resumo" class="js-tab-panel pt-5">
+
+        {# Layout de duas colunas: conteúdo principal + sidebar #}
+        <div class="flex flex-col lg:flex-row gap-5">
+
+            {# Coluna Principal #}
+            <div class="flex-1 min-w-0 space-y-5">
+
+                {# Descrição do Problema + Observação #}
+                <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="border-l-4 border-amber-400 px-5 py-4 bg-amber-50/60">
+                        <h3 class="text-xs font-bold text-amber-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                            <i data-lucide="message-circle-warning" class="h-3.5 w-3.5"></i>Descrição do Problema
+                        </h3>
+                        <p class="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{{ order.description }}</p>
+                    </div>
+                    <div class="px-5 py-4 border-t border-slate-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                <i data-lucide="message-square" class="h-3.5 w-3.5"></i>Observação p/ Cliente
+                            </h4>
+                            {% if perms.services.change_serviceorder %}
+                            <button type="button" onclick="document.getElementById('edit-observation-form').classList.toggle('hidden'); document.getElementById('observation-display').classList.toggle('hidden')" class="inline-flex h-6 items-center rounded-md border border-slate-200 bg-white px-2.5 text-[10px] font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition-colors">Editar</button>
+                            {% endif %}
+                        </div>
+                        <div id="observation-display" class="{% if not order.client_observation %}hidden{% endif %}">
+                            <p class="text-sm text-slate-700 leading-relaxed">{{ order.client_observation|default:"Nenhuma observação." }}</p>
+                        </div>
+                        {% if perms.services.change_serviceorder %}
+                        <form id="edit-observation-form" action="{% url 'order_observation_update' order.id %}" method="post" class="space-y-3 {% if order.client_observation %}hidden{% endif %}">
+                            {% csrf_token %}
+                            <textarea name="client_observation" rows="3" placeholder="Anotação para o orçamento PDF..." class="flex min-h-[80px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 resize-none">{{ order.client_observation }}</textarea>
+                            <div class="flex justify-end gap-2">
+                                <button type="button" onclick="document.getElementById('edit-observation-form').classList.add('hidden'); document.getElementById('observation-display').classList.remove('hidden')" class="text-xs font-medium text-slate-500 px-3 py-1.5 hover:bg-slate-100 rounded-md transition-colors">Cancelar</button>
+                                <button type="submit" class="inline-flex h-8 items-center justify-center rounded-md bg-slate-900 px-4 text-xs font-bold text-white shadow-sm hover:bg-slate-700 transition-colors">Salvar</button>
                             </div>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
 
-                            <div class="ml-12 flex-1 pt-1">
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                                    <div>
-                                        <h4 class="font-bold text-slate-900">{{ task.get_task_type_display }}</h4>
-                                        <p class="text-xs text-slate-500 font-medium">
-                                            Agendado: {{ task.scheduled_at|localtime|date:"d/m/Y H:i" }}
-                                        </p>
-                                    </div>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold {% if task.status == 'CONCLUIDO' %}bg-green-100 text-green-700{% elif task.status == 'EM_ANDAMENTO' %}bg-blue-100 text-blue-700{% else %}bg-slate-100 text-slate-600{% endif %}">
-                                        {{ task.get_status_display }}
-                                    </span>
-                                </div>
+                {# Aprovação do Cliente #}
+                <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+                    <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2 text-sm">
+                        <i data-lucide="message-circle" class="h-4 w-4 text-slate-400"></i>Aprovação do Orçamento
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-slate-500">Status do Orçamento</span>
+                            {% if order.status == 'APPROVED_WAITING_SCHEDULE' or order.status == 'WAITING_EXECUTION' or order.status == 'WAITING_PAYMENT' or order.status == 'PARTIAL_PAYMENT' or order.status == 'FINALIZADO' %}
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-green-100 text-green-700 border border-green-200"><i data-lucide="check" class="h-3 w-3"></i>Aprovado</span>
+                            {% elif order.status == 'REJECTED_BY_CLIENT' %}
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-red-100 text-red-700 border border-red-200"><i data-lucide="x" class="h-3 w-3"></i>Reprovado</span>
+                            {% elif order.status == 'WAITING_APPROVAL' %}
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200"><i data-lucide="clock" class="h-3 w-3"></i>Aguardando</span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">Em análise</span>
+                            {% endif %}
+                        </div>
+                        {% if order.client_budget_response %}
+                        <div class="p-3 bg-slate-50 rounded-md border border-slate-100">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mensagem do Cliente</p>
+                            <p class="text-sm text-slate-700 italic">"{{ order.client_budget_response }}"</p>
+                        </div>
+                        {% endif %}
+                        <div class="flex gap-6 pt-1">
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Resposta em</p>
+                                <p class="text-xs font-semibold text-slate-800">{{ order.client_budget_responded_at|date:"d/m/Y H:i"|default:"---" }}</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Aprovação em</p>
+                                <p class="text-xs font-semibold text-slate-800">{{ order.client_budget_approved_at|date:"d/m/Y H:i"|default:"---" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                                <!-- Equipe da Etapa -->
-                                {% if task.team_members.exists %}
-                                <div class="flex flex-wrap gap-2 mt-3">
-                                    {% for member in task.team_members.all %}
-                                    <div class="flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100 text-[11px] font-semibold text-slate-700">
-                                        <div class="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[8px]">
-                                            {{ member.professional.name|slice:":1" }}
-                                        </div>
-                                        {{ member.professional.name }}
-                                    </div>
-                                    {% endfor %}
+                {# Assinaturas (condicional — sem quebrar layout) #}
+                {% if tasks_with_signature %}
+                <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+                    <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2 text-sm">
+                        <i data-lucide="pen-tool" class="h-4 w-4 text-slate-400"></i>Assinaturas do Cliente
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {% for task in tasks_with_signature %}
+                        <div class="bg-slate-50 rounded-md border border-slate-100 p-4 flex flex-col gap-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">{{ task.get_task_type_display }}</p>
+                                    <p class="text-[10px] text-slate-500">{{ task.finished_at|date:"d/m/Y H:i" }}</p>
                                 </div>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">Concluído</span>
+                            </div>
+                            <div class="flex flex-col items-center py-2">
+                                <img src="{{ task.get_signature_url }}" alt="Assinatura do cliente" class="max-h-20 w-auto mix-blend-multiply contrast-125 grayscale" onerror="this.parentElement.innerHTML='<div class=\'text-xs text-slate-400 italic text-center\'>Erro ao carregar</div>'">
+                                {% if task.customer_name %}
+                                <p class="mt-2 text-xs font-bold text-slate-700 border-t border-slate-200 pt-2 w-full text-center">{{ task.customer_name }}</p>
                                 {% endif %}
-
-                                <!-- Mídias da Etapa -->
-                                {% if task.medias.exists %}
-                                <div class="grid grid-cols-4 sm:grid-cols-6 gap-2 mt-4">
-                                    {% for media in task.medias.all %}
-                                    <a href="{{ media.file.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="order-task-{{ task.id }}" data-is-video="{% if media.is_video %}true{% else %}false{% endif %}" class="aspect-square rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-slate-900 transition-all relative group bg-slate-900 flex items-center justify-center">
-                                        {% if media.is_video %}
-                                            <video class="w-full h-full object-cover opacity-60 absolute inset-0 mix-blend-screen" src="{{ media.file.url }}"></video>
-                                            <i data-lucide="play-circle" class="h-6 w-6 text-white relative z-10 group-hover:scale-110 transition-transform"></i>
-                                        {% else %}
-                                            <img src="{{ media.file.url }}" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity" alt="Evidência">
-                                        {% endif %}
-                                    </a>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-                                
-                                {% if task.notes %}
-                                <div class="mt-3 p-3 bg-slate-50 rounded-xl text-xs text-slate-600 italic border-l-2 border-slate-200">
-                                    "{{ task.notes }}"
-                                </div>
-                                {% endif %}
-
-                                <!-- Ações da Etapa -->
-                                <div class="mt-4 flex gap-2">
-                                    {% if task.status == 'AGENDADO' or task.status == 'EM_ANDAMENTO' %}
-                                    <a href="{% url 'task_edit' task.id %}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all">
-                                        <i data-lucide="play" class="h-3 w-3"></i>
-                                        {% if task.status == 'EM_ANDAMENTO' %}Continuar{% else %}Operar{% endif %}
-                                    </a>
-                                    {% endif %}
-                                    
-                                    {% if task.status != 'CONCLUIDO' and task.status != 'CANCELADO' %}
-                                    <a href="{% url 'task_edit' task.id %}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-all">
-                                        <i data-lucide="edit-3" class="h-3 w-3"></i>
-                                        Editar
-                                    </a>
-                                    <a href="{% url 'task_cancel' task.id %}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-bold hover:bg-red-100 transition-all">
-                                        <i data-lucide="x-circle" class="h-3 w-3"></i>
-                                        Cancelar
-                                    </a>
-                                    {% endif %}
-
-                                    {% if task.status == 'CONCLUIDO' %}
-                                    <div class="flex items-center gap-2 text-xs text-slate-500">
-                                        <i data-lucide="clock" class="h-3 w-3"></i>
-                                        {% if task.started_at and task.finished_at %}
-                                        Início: {{ task.started_at|localtime|date:"d/m H:i" }} | Fim: {{ task.finished_at|localtime|date:"d/m H:i" }}
-                                        {% elif task.finished_at %}
-                                        Finalizado: {{ task.finished_at|localtime|date:"d/m/Y H:i" }}
-                                        {% endif %}
-                                    </div>
-                                    {% endif %}
-                                </div>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
-                </div>
-            </div>
-
-            <!-- Itens do Orçamento -->
-            <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
-                <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                    <h3 class="font-bold text-slate-900 flex items-center gap-2">
-                        <i data-lucide="receipt" class="h-5 w-5 text-slate-500"></i>
-                        Itens do Serviço
-                    </h3>
-                    <div class="flex items-center gap-3">
-                        {% if user.role != 'COLLABORATOR' %}
-                        <span class="text-sm font-bold text-slate-900">Total: R$ <span data-order-total-value>{{ order.total_value|floatformat:2 }}</span></span>
-                        {% endif %}
-                    </div>
-                </div>
-                {% if user.role != 'COLLABORATOR' and perms.services.add_serviceitem %}
-                <div class="p-5 border-b border-slate-100 bg-white">
-                    <form id="inline-add-item-form" method="post" action="{% url 'order_item_add' order.id %}" class="space-y-4" data-preserve-submit-button="true">
-                        {% csrf_token %}
-                        <div id="inline-add-item-feedback" class="hidden rounded-md px-3 py-2 text-sm font-semibold"></div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="space-y-3">
-                                <label class="text-sm font-medium text-slate-700">Item pertence a</label>
-                                <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                    <label class="flex items-center gap-3 p-3 border rounded-md cursor-pointer hover:bg-slate-50 transition-all [&:has(input:checked)]:border-slate-900 [&:has(input:checked)]:bg-slate-50">
-                                        <input type="radio" name="task" value="" checked class="w-4 h-4 text-slate-900 focus:ring-slate-900">
-                                        <span class="text-sm font-medium text-slate-900">Orçamento Geral</span>
-                                    </label>
-                                    {% for task in tasks %}
-                                    <label class="flex items-center gap-3 p-3 border rounded-md cursor-pointer hover:bg-slate-50 transition-all [&:has(input:checked)]:border-slate-900 [&:has(input:checked)]:bg-slate-50">
-                                        <input type="radio" name="task" value="{{ task.id }}" class="w-4 h-4 text-slate-900 focus:ring-slate-900">
-                                        <div class="flex flex-col">
-                                            <span class="text-sm font-medium text-slate-900">{{ task.get_task_type_display }}</span>
-                                            <span class="text-xs text-slate-500">{{ task.scheduled_at|date:"d/m H:i" }}</span>
-                                        </div>
-                                    </label>
-                                    {% endfor %}
-                                </div>
-                            </div>
-
-                            <div class="space-y-4">
-                                <!-- Shadcn Style Tabs for Product/Service -->
-                                <div class="inline-flex h-10 items-center justify-center rounded-md bg-slate-100 p-1 text-slate-500 w-full sm:w-auto">
-                                    <button type="button" data-type-toggle="PRODUCT" class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-4 py-1.5 text-sm font-medium bg-white text-slate-950 shadow-sm transition-all">Produto</button>
-                                    <button type="button" data-type-toggle="SERVICE" class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-4 py-1.5 text-sm font-medium hover:text-slate-900 transition-all">Serviço</button>
-                                </div>
-
-                                <div class="grid grid-cols-1 gap-4">
-                                    <div class="space-y-1.5">
-                                        <label id="catalog-label" class="text-sm font-medium text-slate-700">Produto Cadastrado *</label>
-                                        <input type="hidden" id="inline-product-id" name="product">
-                                        <input type="hidden" id="inline-service-id" name="service">
-                                        <div class="relative">
-                                            <input type="text" id="inline-product-search" autocomplete="off" placeholder="Digite nome ou código do produto..." class="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                                            <div id="inline-product-suggestions" class="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-64 overflow-auto hidden"></div>
-                                        </div>
-                                    </div>
-
-                                    <div class="space-y-1.5">
-                                        <label class="text-sm font-medium text-slate-700">Descrição</label>
-                                        <input type="text" id="inline-item-description" name="description" readonly placeholder="Selecione no catálogo" class="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 cursor-not-allowed">
-                                    </div>
-
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <div class="space-y-1.5">
-                                            <label id="inline-quantity-label" class="text-sm font-medium text-slate-700">Qtd *</label>
-                                            <input type="number" id="inline-item-quantity" name="quantity" step="0.01" value="1" required class="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2">
-                                        </div>
-                                        <div class="space-y-1.5">
-                                            <label class="text-sm font-medium text-slate-700">Preço Unitário</label>
-                                            <input type="number" id="inline-item-unit-price" name="unit_price" step="0.01" class="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="rounded-md border border-slate-200 bg-slate-50 p-4 flex items-center justify-between">
-                                    <span class="text-sm font-medium text-slate-500">Subtotal do Item</span>
-                                    <span id="inline-item-total" class="text-lg font-bold text-slate-900">R$ 0,00</span>
-                                </div>
-
-                                <button type="submit" class="w-full inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-slate-50 shadow transition-colors hover:bg-slate-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
-                                    <i data-lucide="plus" class="h-4 w-4"></i>
-                                    Adicionar ao Orçamento
-                                </button>
-                            </div>
-                        </div>
-                    </form>
                 </div>
                 {% endif %}
 
-                <!-- Mobile: Stacked List View -->
-                <div class="md:hidden divide-y divide-slate-100" id="order-items-mobile-list">
-                    {% for item in order.items.all %}
-                    <div class="p-4 space-y-3 js-order-item-row" data-item-id="{{ item.id }}">
-                        <div class="flex justify-between items-start gap-4">
-                            <div class="flex-1">
-                                <p class="text-sm font-bold text-slate-900">{{ item.description }}</p>
-                                <p class="text-[11px] text-slate-500 mt-0.5">
-                                    {% if item.product %}
-                                        {% if item.product.code %}{{ item.product.code }} • {% endif %}{{ item.product.name }}
-                                    {% elif item.service %}
-                                        Catálogo: {{ item.service.name }}
-                                    {% endif %}
-                                </p>
+                {# Origem e Garantia (condicional) #}
+                {% if order.origin_date or order.originator or order.warranty_until %}
+                <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+                    <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2 text-sm">
+                        <i data-lucide="info" class="h-4 w-4 text-slate-400"></i>Origem e Garantia
+                    </h3>
+                    <div class="flex flex-wrap gap-x-8 gap-y-4">
+                        {% if order.origin_date %}
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Data de Origem</p>
+                            <p class="text-sm font-semibold text-slate-900">{{ order.origin_date|date:"d/m/Y" }}</p>
+                        </div>
+                        {% endif %}
+                        {% if order.originator %}
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Responsável</p>
+                            <p class="text-sm font-semibold text-slate-900">{{ order.originator.name }}</p>
+                        </div>
+                        {% endif %}
+                        {% if order.warranty_until %}
+                        <div class="inline-flex items-center gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-md">
+                            <i data-lucide="shield-check" class="h-5 w-5 text-emerald-600 shrink-0"></i>
+                            <div>
+                                <p class="text-[10px] font-bold text-emerald-700 uppercase tracking-widest leading-none mb-0.5">Garantia Válida Até</p>
+                                <p class="text-base font-black text-emerald-700">{{ order.warranty_until|date:"d/m/Y" }}</p>
                             </div>
-                            {% if user.role != 'COLLABORATOR' %}
-                            <div class="flex items-center gap-1">
-                                <button type="button" class="js-edit-item p-2 text-slate-400 hover:text-blue-600 transition-colors" data-item-id="{{ item.id }}">
-                                    <i data-lucide="edit-2" class="h-4 w-4"></i>
-                                </button>
-                                <button type="button" class="js-delete-item p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors" data-item-id="{{ item.id }}">
-                                    <i data-lucide="trash-2" class="h-4 w-4"></i>
-                                </button>
-                            </div>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
-                                {% if item.product %}{{ item.product.get_unit_type_display }}{% else %}{{ item.service.unit_of_measure }}{% endif %}: 
-                                <span class="js-item-quantity-display">{{ item.quantity|floatformat:2 }}</span>
-                                <input type="number" step="0.01" class="hidden js-item-quantity-input w-16 px-1 py-0.5 text-[10px] border rounded" value="{{ item.quantity|unlocalize }}">
-                            </span>
-                            <span class="px-2 py-0.5 rounded-full {% if item.task %}bg-blue-50 text-blue-600{% else %}bg-green-50 text-green-600{% endif %} text-[10px] font-bold">
-                                {% if item.task %}{{ item.task.get_task_type_display }}{% else %}Orçamento{% endif %}
-                            </span>
-                        </div>
-
-                        {% if user.role != 'COLLABORATOR' %}
-                        <div class="flex items-center justify-between pt-2 border-t border-slate-50">
-                            <span class="text-xs text-slate-500">
-                                Unitário: R$ <span class="js-item-unit-price-display">{{ item.unit_price|floatformat:2 }}</span>
-                                <input type="number" step="0.01" class="hidden js-item-unit-price-input w-20 px-1 py-0.5 text-xs border rounded text-right" value="{{ item.unit_price|unlocalize }}">
-                            </span>
-                            <span class="text-sm font-bold text-slate-900">Total: R$ <span class="js-item-total-price-display">{{ item.total_price|floatformat:2 }}</span></span>
-                        </div>
-                        <div class="hidden js-edit-actions flex items-center justify-end gap-2 pt-2">
-                            <button type="button" class="js-cancel-edit px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 rounded-md">Cancelar</button>
-                            <button type="button" class="js-save-item px-3 py-1 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm">Salvar</button>
                         </div>
                         {% endif %}
                     </div>
-                    {% endfor %}
                 </div>
+                {% endif %}
 
-                <!-- Desktop: Table View -->
-                <div class="hidden md:block overflow-x-auto">
-                    <table class="w-full text-sm text-left">
-                        <thead class="bg-slate-50 text-slate-500 text-[11px] font-medium border-b border-slate-200">
-                            <tr>
-                                <th class="px-6 py-3">Descrição</th>
-                                <th class="px-6 py-3 text-center">Etapa</th>
-                                <th class="px-6 py-3 text-center">Tipo</th>
-                                <th class="px-6 py-3 text-center">Unidade</th>
-                                <th class="px-6 py-3 text-center">Qtd</th>
-                                {% if user.role != 'COLLABORATOR' %}
-                                <th class="px-6 py-3 text-right">Unitário</th>
-                                <th class="px-6 py-3 text-right">Total</th>
-                                <th class="px-6 py-3 text-center">Ações</th>
-                                {% endif %}
-                            </tr>
-                        </thead>
-                        <tbody id="order-items-table-body" class="divide-y divide-slate-100">
-                            {% for item in order.items.all %}
-                            <tr class="hover:bg-slate-50/50 transition-colors js-order-item-row" data-item-id="{{ item.id }}">
-                                <td class="px-6 py-4">
-                                    <div class="flex flex-col">
-                                        <span class="font-medium text-slate-900">{{ item.description }}</span>
-                                        {% if item.product and item.product.code %}
-                                        <span class="text-xs text-slate-400 mt-0.5">{{ item.product.code }}</span>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 text-center">
-                                    {% if item.task %}
-                                        <div class="flex flex-col items-center gap-0.5">
-                                            <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[10px] font-bold border border-blue-100">{{ item.task.get_task_type_display }}</span>
-                                            <span class="text-[10px] text-slate-400 font-medium">{{ item.task.scheduled_at|date:"d/m/Y H:i" }}</span>
-                                        </div>
-                                    {% else %}
-                                        <span class="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md text-[10px] font-bold border border-slate-200">Geral</span>
-                                    {% endif %}
-                                </td>
-                                <td class="px-6 py-4 text-center">
-                                    {% if item.product %}
-                                        <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[10px] font-bold border border-blue-100">Produto</span>
-                                    {% elif item.service %}
-                                        <span class="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-md text-[10px] font-bold border border-purple-100">Serviço</span>
-                                    {% endif %}
-                                </td>
-                                <td class="px-6 py-4 text-center text-slate-600 font-medium">
-                                    {% if item.product %}{{ item.product.get_unit_type_display }}{% else %}{{ item.service.unit_of_measure }}{% endif %}
-                                </td>
-                                <td class="px-6 py-4 text-center font-bold text-slate-900">
-                                    <span class="js-item-quantity-display">{{ item.quantity|floatformat:2 }}</span>
-                                    <input type="number" step="0.01" class="hidden js-item-quantity-input w-20 px-2 py-1 text-sm border rounded" value="{{ item.quantity|unlocalize }}">
-                                </td>
-                                {% if user.role != 'COLLABORATOR' %}
-                                <td class="px-6 py-4 text-right text-slate-500">
-                                    R$ <span class="js-item-unit-price-display">{{ item.unit_price|floatformat:2 }}</span>
-                                    <input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="{{ item.unit_price|unlocalize }}">
-                                </td>
-                                <td class="px-6 py-4 text-right font-bold text-slate-900">R$ <span class="js-item-total-price-display">{{ item.total_price|floatformat:2 }}</span></td>
-                                <td class="px-6 py-4 text-center">
-                                    <div class="flex items-center justify-center gap-1">
-                                        <button type="button" class="js-edit-item p-2 text-slate-400 hover:text-blue-600 transition-colors" data-item-id="{{ item.id }}" title="Editar item">
-                                            <i data-lucide="edit-2" class="h-4 w-4"></i>
-                                        </button>
-                                        <button type="button" class="hidden js-save-item p-2 text-green-600 hover:bg-green-50 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Salvar">
-                                            <i data-lucide="check" class="h-4 w-4"></i>
-                                        </button>
-                                        <button type="button" class="hidden js-cancel-edit p-2 text-slate-400 hover:bg-slate-50 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Cancelar">
-                                            <i data-lucide="x" class="h-4 w-4"></i>
-                                        </button>
-                                        <button type="button" class="js-delete-item p-2 text-slate-400 hover:text-red-600 transition-colors" data-item-id="{{ item.id }}" title="Remover item">
-                                            <i data-lucide="trash-2" class="h-4 w-4"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                                {% endif %}
-                            </tr>
-                            {% endfor %}
-                            
-                            {% if not order.items.all %}
-                            <tr>
-                                <td colspan="9" class="px-6 py-12 text-center">
-                                    <div class="flex flex-col items-center justify-center text-slate-400">
-                                        <i data-lucide="shopping-cart" class="h-8 w-8 mb-2 opacity-20"></i>
-                                        <span class="text-sm italic">Nenhum item adicionado.</span>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
             </div>
 
-            <!-- Ocorrências do Serviço -->
-            <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
-                <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                    <h3 class="font-bold text-slate-900 flex items-center gap-2">
-                        <i data-lucide="alert-triangle" class="h-5 w-5 text-slate-500"></i>
-                        Ocorrências do Serviço
+            {# Sidebar Direita (sempre presente) #}
+            <div class="lg:w-72 xl:w-80 shrink-0 space-y-4">
+
+                {# Card: Cliente #}
+                <div class="bg-slate-50 rounded-lg border border-slate-200 shadow-sm p-4">
+                    <h3 class="font-semibold text-slate-700 mb-3 flex items-center gap-2 text-xs uppercase tracking-wider">
+                        <i data-lucide="user" class="h-3.5 w-3.5 text-slate-400"></i>Cliente
                     </h3>
-                </div>
-                <div class="p-6">
-                    {% if occurrences %}
-                    <div class="space-y-4">
-                        {% for occurrence in occurrences %}
-                        <div class="p-4 rounded-md border border-slate-200 {% if occurrence.status == 'REGISTERED' %}bg-amber-50/30 border-amber-100{% else %}bg-emerald-50/30 border-emerald-100{% endif %} hover:shadow-sm transition-all">
-                            <div class="flex items-start justify-between gap-4 mb-3">
-                                <div>
-                                    <h4 class="font-bold text-slate-900">{{ occurrence.get_occurrence_type_display }}</h4>
-                                    <p class="text-xs text-slate-500 font-medium mt-0.5">
-                                        {{ occurrence.task.get_task_type_display }} &bull; {{ occurrence.get_category_display }}
-                                    </p>
-                                </div>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold {% if occurrence.status == 'REGISTERED' %}bg-amber-100 text-amber-700{% else %}bg-emerald-100 text-emerald-700{% endif %}">
-                                    {{ occurrence.get_status_display }}
-                                </span>
-                            </div>
-                            
-                            <div class="space-y-4">
-                                <p class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{{ occurrence.description }}</p>
-
-                                {% if occurrence.medias.exists %}
-                                <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                                    {% for media in occurrence.medias.all %}
-                                    <a href="{{ media.file.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="order-occ-{{ occurrence.id }}" data-is-video="{% if media.is_video %}true{% else %}false{% endif %}" class="w-20 h-20 shrink-0 rounded-md bg-slate-900 border border-slate-200 hover:ring-2 hover:ring-slate-950 transition-all flex items-center justify-center overflow-hidden group relative shadow-sm">
-                                        {% if media.is_video %}
-                                            <video class="w-full h-full object-cover opacity-60 absolute inset-0" src="{{ media.file.url }}"></video>
-                                            <i data-lucide="video" class="h-6 w-6 text-white group-hover:scale-110 transition-transform relative z-10"></i>
-                                        {% else %}
-                                            <img src="{{ media.file.url }}" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity" alt="Mídia">
-                                        {% endif %}
-                                    </a>
-                                    {% endfor %}
-                                </div>
-                                {% endif %}
-
-                                {% if occurrence.status == 'RESOLVED' and occurrence.observation %}
-                                <div class="pt-3 border-t border-slate-100">
-                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Resolução</label>
-                                    <p class="text-sm text-slate-700 italic">"{{ occurrence.observation }}"</p>
-                                </div>
-                                {% endif %}
-                            </div>
+                    <div class="space-y-3">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-0.5">Nome</p>
+                            <p class="text-sm font-bold text-slate-900">{{ order.client_property.client.name }}</p>
                         </div>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <div class="py-8 text-center text-slate-400 italic text-sm">Nenhuma ocorrência registrada.</div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Checklists do Serviço -->
-            <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
-                <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                    <h3 class="font-bold text-slate-900 flex items-center gap-2">
-                        <i data-lucide="check-square" class="h-5 w-5 text-slate-500"></i>
-                        Checklists de Verificação
-                    </h3>
-                </div>
-                <div class="p-6">
-                    {% if any_task_has_checklist %}
-                        <div class="space-y-10">
-                        {% for task in tasks %}
-                            {% if task.checklist_responses.exists %}
-                                <div>
-                                    <div class="flex items-center gap-3 mb-6">
-                                        <div class="w-10 h-10 rounded-md bg-slate-100 flex items-center justify-center">
-                                            <i data-lucide="calendar" class="h-5 w-5 text-slate-600"></i>
-                                        </div>
-                                        <div>
-                                            <h4 class="text-base font-bold text-slate-900">{{ task.get_task_type_display }}</h4>
-                                            <p class="text-xs text-slate-500 font-medium">Finalizado em {{ task.finished_at|date:"d/m/Y H:i" }}</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {% for response in task.checklist_responses.all %}
-                                            <div class="p-4 rounded-md border border-slate-100 bg-slate-50/30 flex flex-col gap-3">
-                                                <div class="flex items-start justify-between gap-3">
-                                                    <div class="flex-1">
-                                                        <p class="text-sm font-bold text-slate-900">{{ response.item.name }}</p>
-                                                        {% if response.item.description %}
-                                                            <p class="text-xs text-slate-500 mt-0.5 leading-relaxed">{{ response.item.description }}</p>
-                                                        {% endif %}
-                                                    </div>
-                                                    {% if response.completed %}
-                                                        <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-sm">
-                                                            <i data-lucide="check" class="h-3.5 w-3.5 text-white"></i>
-                                                        </div>
-                                                    {% else %}
-                                                        <div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                                                            <i data-lucide="minus" class="h-3.5 w-3.5 text-slate-400"></i>
-                                                        </div>
-                                                    {% endif %}
-                                                </div>
-
-                                                {% if response.text_response %}
-                                                    <div class="p-3 bg-white rounded-md border border-slate-100 text-xs text-slate-600 italic">
-                                                        "{{ response.text_response }}"
-                                                    </div>
-                                                {% endif %}
-
-                                                {% if response.medias.exists %}
-                                                    <div class="flex flex-wrap gap-2 pt-1">
-                                                        {% for media in response.medias.all %}
-                                                            <a href="{{ media.file.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="checklist-{{ response.id }}" data-is-video="{% if media.is_video %}true{% else %}false{% endif %}" class="w-16 h-16 rounded-md overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center group relative shadow-sm hover:ring-2 hover:ring-slate-950 transition-all">
-                                                                {% if media.is_video %}
-                                                                    <video class="w-full h-full object-cover opacity-60 absolute" src="{{ media.file.url }}"></video>
-                                                                    <i data-lucide="play" class="h-6 w-6 text-white relative z-10"></i>
-                                                                {% else %}
-                                                                    <img src="{{ media.file.url }}" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity" alt="Evidência">
-                                                                {% endif %}
-                                                            </a>
-                                                        {% endfor %}
-                                                    </div>
-                                                {% endif %}
-                                            </div>
-                                        {% endfor %}
-                                    </div>
-                                    {% if not forloop.last %}<div class="mt-10 border-t border-slate-100"></div>{% endif %}
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                        </div>
-                    {% else %}
-                        <div class="py-12 flex flex-col items-center justify-center text-center">
-                            <div class="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4">
-                                <i data-lucide="clipboard-list" class="h-8 w-8 text-slate-300"></i>
-                            </div>
-                            <h4 class="text-slate-900 font-bold mb-1">Nenhum Checklist</h4>
-                            <p class="text-sm text-slate-500 max-w-[240px]">Ainda não há checklists preenchidos.</p>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Coluna Direita: Dados de Contato e Local -->
-        <div class="space-y-6">
-            <!-- Card do Cliente -->
-            <div class="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-                <h3 class="font-bold text-slate-900 mb-5 flex items-center gap-2">
-                    <i data-lucide="user" class="h-5 w-5 text-slate-500"></i>
-                    Informações do Cliente
-                </h3>
-                <div class="space-y-5">
-                    <div>
-                        <p class="text-sm font-medium text-slate-500 mb-1">Nome Completo</p>
-                        <p class="text-base font-bold text-slate-900">{{ order.client_property.client.name }}</p>
-                    </div>
-                    <div class="space-y-4">
                         {% for phone in order.client_property.client.phones.all %}
                         <div>
-                            <p class="text-sm font-medium text-slate-500 mb-1">Telefone {% if phone.is_primary %}(Principal){% endif %}</p>
-                            <a href="https://wa.me/55{{ phone.phone|cut:'('|cut:')'|cut:'-'|cut:' ' }}" target="_blank" class="inline-flex items-center gap-2 text-base font-bold text-blue-600 hover:text-blue-700 transition-colors">
-                                <i data-lucide="phone" class="h-5 w-5"></i>
-                                {{ phone.phone }}
+                            <p class="text-xs text-slate-500 mb-0.5">Telefone{% if phone.is_primary %} <span class="text-slate-400">(Principal)</span>{% endif %}</p>
+                            <a href="https://wa.me/55{{ phone.phone|cut:'('|cut:')'|cut:'-'|cut:' ' }}" target="_blank" class="inline-flex items-center gap-1.5 text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
+                                <i data-lucide="phone" class="h-3.5 w-3.5"></i>{{ phone.phone }}
                             </a>
                         </div>
                         {% endfor %}
                     </div>
                 </div>
-            </div>
 
-            <!-- Aprovação do Cliente -->
-            <div class="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-                <h3 class="font-bold text-slate-900 mb-5 flex items-center gap-2">
-                    <i data-lucide="message-circle" class="h-5 w-5 text-slate-500"></i>
-                    Aprovação do Cliente
-                </h3>
-                <div class="space-y-5">
-                    <div>
-                        <p class="text-sm font-medium text-slate-500 mb-2">Status do Orçamento</p>
-                        {% if order.status == 'APPROVED_WAITING_SCHEDULE' or order.status == 'WAITING_EXECUTION' or order.status == 'WAITING_PAYMENT' or order.status == 'PARTIAL_PAYMENT' or order.status == 'FINALIZADO' %}
-                            <span class="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold bg-green-100 text-green-700 border border-green-200">Aprovado</span>
-                        {% elif order.status == 'REJECTED_BY_CLIENT' %}
-                            <span class="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold bg-red-100 text-red-700 border border-red-200">Reprovado</span>
-                        {% elif order.status == 'WAITING_APPROVAL' %}
-                            <span class="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">Aguardando aprovação</span>
-                        {% else %}
-                            <span class="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">Em análise</span>
-                        {% endif %}
-                    </div>
-
-                    {% if order.client_budget_response %}
-                    <div>
-                        <p class="text-sm font-medium text-slate-500 mb-1">Mensagem Recebida</p>
-                        <p class="text-sm text-slate-700 bg-slate-50 p-3 rounded-md border border-slate-100 italic">"{{ order.client_budget_response }}"</p>
-                    </div>
-                    {% endif %}
-
-                    <div class="grid grid-cols-2 gap-4">
+                {# Card: Local do Serviço #}
+                <div class="bg-slate-50 rounded-lg border border-slate-200 shadow-sm p-4">
+                    <h3 class="font-semibold text-slate-700 mb-3 flex items-center gap-2 text-xs uppercase tracking-wider">
+                        <i data-lucide="map-pin" class="h-3.5 w-3.5 text-slate-400"></i>Local do Serviço
+                    </h3>
+                    <div class="space-y-3">
                         <div>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Resposta em</p>
-                            <p class="text-xs font-bold text-slate-900">{{ order.client_budget_responded_at|date:"d/m/Y H:i"|default:"---" }}</p>
+                            <p class="text-sm font-semibold text-slate-900 leading-snug">
+                                {{ order.client_property.address }}, {{ order.client_property.number }}
+                                {% if order.client_property.complement %}<br><span class="text-slate-500 font-normal">{{ order.client_property.complement }}</span>{% endif %}
+                            </p>
+                            <p class="text-xs text-slate-500 mt-1">{{ order.client_property.neighborhood }} &bull; {{ order.client_property.city }}/{{ order.client_property.state }}</p>
                         </div>
-                        <div>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Aprovação em</p>
-                            <p class="text-xs font-bold text-slate-900">{{ order.client_budget_approved_at|date:"d/m/Y H:i"|default:"---" }}</p>
-                        </div>
+                        <button type="button"
+                                class="w-full inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white border border-slate-200 px-4 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-100"
+                                data-gps-trigger="true"
+                                data-gps-lat="{{ order.client_property.latitude|default_if_none:''|unlocalize }}"
+                                data-gps-lng="{{ order.client_property.longitude|default_if_none:''|unlocalize }}"
+                                data-gps-address="{{ order.client_property.gps_address }}">
+                            <i data-lucide="navigation" class="h-3.5 w-3.5 text-slate-400"></i>Traçar Rota no GPS
+                        </button>
                     </div>
                 </div>
-            </div>
 
-            <!-- Card de Assinatura do Cliente -->
-            {% if tasks_with_signature %}
-                <div class="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-                    <h3 class="font-bold text-slate-900 mb-5 flex items-center gap-2">
-                        <i data-lucide="pen-tool" class="h-5 w-5 text-slate-500"></i>
-                        Assinaturas do Cliente
-                    </h3>
-                    <div class="space-y-6">
-                        {% for task in tasks_with_signature %}
-                        <div class="{% if not forloop.first %}pt-5 border-t border-slate-100{% endif %}">
-                            <div class="flex items-center justify-between mb-3">
+            </div>
+        </div>
+    </div>
+
+    {# ── TAB: ETAPAS ──────────────────────────────────────────────────────── #}
+    <div id="tab-etapas" class="js-tab-panel hidden pt-5">
+        <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 class="font-semibold text-slate-900 flex items-center gap-2 text-sm">
+                    <i data-lucide="list-checks" class="h-4 w-4 text-slate-400"></i>Linha do Tempo do Serviço
+                </h3>
+                {% if perms.services.add_serviceordertask and order.status != 'FINALIZADO' and order.status != 'CANCELADO' %}
+                <a href="{% url 'task_add' order.id %}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all shadow-sm">
+                    <i data-lucide="plus" class="h-3.5 w-3.5 text-slate-400"></i>Nova Etapa
+                </a>
+                {% endif %}
+            </div>
+            <div class="p-5 sm:p-6">
+                <div class="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-slate-200 before:via-slate-200 before:to-transparent">
+                    {% for task in tasks %}
+                    <div class="relative flex items-start gap-6 group">
+                        <div class="absolute left-0 flex items-center justify-center w-10 h-10 rounded-full border-2 shadow-sm z-10 transition-all
+                            {% if task.status == 'CONCLUIDO' %}border-emerald-500 bg-emerald-50
+                            {% elif task.status == 'EM_ANDAMENTO' %}border-blue-500 bg-blue-50 animate-pulse
+                            {% elif task.status == 'CANCELADO' %}border-slate-200 bg-slate-50
+                            {% else %}border-slate-300 bg-white{% endif %}">
+                            {% if task.task_type == 'ORCAMENTO' %}
+                                <i data-lucide="search" class="h-4 w-4 {% if task.status == 'CONCLUIDO' %}text-emerald-600{% elif task.status == 'EM_ANDAMENTO' %}text-blue-600{% else %}text-slate-400{% endif %}"></i>
+                            {% elif task.task_type == 'EXECUCAO' %}
+                                <i data-lucide="wrench" class="h-4 w-4 {% if task.status == 'CONCLUIDO' %}text-emerald-600{% elif task.status == 'EM_ANDAMENTO' %}text-blue-600{% else %}text-slate-400{% endif %}"></i>
+                            {% else %}
+                                <i data-lucide="shield-check" class="h-4 w-4 {% if task.status == 'CONCLUIDO' %}text-emerald-600{% elif task.status == 'EM_ANDAMENTO' %}text-blue-600{% else %}text-slate-400{% endif %}"></i>
+                            {% endif %}
+                        </div>
+                        <div class="ml-14 flex-1 pt-1.5">
+                            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-3">
                                 <div>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">{{ task.get_task_type_display }}</p>
-                                    <p class="text-[10px] text-slate-500 font-medium">{{ task.finished_at|date:"d/m/Y H:i" }}</p>
+                                    <h4 class="font-bold text-slate-900 leading-none mb-1">{{ task.get_task_type_display }}</h4>
+                                    <p class="text-xs text-slate-500">Agendado: {{ task.scheduled_at|localtime|date:"d/m/Y H:i" }}</p>
                                 </div>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
-                                    Finalizado
+                                <span class="self-start inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold
+                                    {% if task.status == 'CONCLUIDO' %}bg-emerald-100 text-emerald-700
+                                    {% elif task.status == 'EM_ANDAMENTO' %}bg-blue-100 text-blue-700
+                                    {% elif task.status == 'CANCELADO' %}bg-red-100 text-red-600
+                                    {% else %}bg-slate-100 text-slate-600{% endif %}">
+                                    {{ task.get_status_display }}
                                 </span>
                             </div>
-                            <div class="bg-slate-50 rounded-md p-4 border border-slate-100 flex flex-col items-center">
-                                <img src="{{ task.get_signature_url }}" alt="Assinatura" class="max-h-24 w-auto mix-blend-multiply contrast-125 grayscale" onerror="this.parentElement.innerHTML='<div class=\'text-xs text-slate-400 italic\'>Erro ao carregar assinatura</div>'">
-                                {% if task.customer_name %}
-                                <p class="mt-3 text-xs font-bold text-slate-700 border-t border-slate-200 pt-3 w-full text-center">
-                                    {{ task.customer_name }}
-                                </p>
+                            {% if task.team_members.exists %}
+                            <div class="flex flex-wrap gap-1.5 mb-3">
+                                {% for member in task.team_members.all %}
+                                <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-full border border-slate-200 text-xs font-medium text-slate-700">
+                                    <div class="w-4 h-4 rounded-full bg-slate-300 flex items-center justify-center text-[8px] font-bold text-slate-600">{{ member.professional.name|slice:":1" }}</div>
+                                    {{ member.professional.name }}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            {% if task.medias.exists %}
+                            <div class="grid grid-cols-5 sm:grid-cols-8 gap-1.5 mb-3">
+                                {% for media in task.medias.all %}
+                                <a href="{{ media.file.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="order-task-{{ task.id }}" data-is-video="{% if media.is_video %}true{% else %}false{% endif %}" class="aspect-square rounded-md overflow-hidden border border-slate-200 hover:ring-2 hover:ring-slate-900 transition-all relative group bg-slate-900 flex items-center justify-center">
+                                    {% if media.is_video %}
+                                        <video class="w-full h-full object-cover opacity-60 absolute inset-0 mix-blend-screen" src="{{ media.file.url }}"></video>
+                                        <i data-lucide="play-circle" class="h-5 w-5 text-white relative z-10 group-hover:scale-110 transition-transform"></i>
+                                    {% else %}
+                                        <img src="{{ media.file.url }}" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity" alt="Evidência">
+                                    {% endif %}
+                                </a>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            {% if task.notes %}
+                            <div class="mb-3 px-3 py-2.5 bg-slate-50 rounded-lg text-xs text-slate-600 italic border-l-2 border-slate-300">"{{ task.notes }}"</div>
+                            {% endif %}
+                            <div class="flex flex-wrap gap-2 pt-1">
+                                {% if task.status == 'AGENDADO' or task.status == 'EM_ANDAMENTO' %}
+                                <a href="{% url 'task_edit' task.id %}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-slate-900 text-white text-xs font-bold hover:bg-slate-700 transition-all">
+                                    <i data-lucide="play" class="h-3 w-3 fill-current"></i>
+                                    {% if task.status == 'EM_ANDAMENTO' %}Continuar{% else %}Operar{% endif %}
+                                </a>
+                                {% endif %}
+                                {% if task.status != 'CONCLUIDO' and task.status != 'CANCELADO' %}
+                                <a href="{% url 'task_edit' task.id %}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all">
+                                    <i data-lucide="edit-3" class="h-3 w-3"></i>Editar
+                                </a>
+                                <a href="{% url 'task_cancel' task.id %}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-red-50 border border-red-200 text-red-700 text-xs font-semibold hover:bg-red-100 transition-all">
+                                    <i data-lucide="x-circle" class="h-3 w-3"></i>Cancelar
+                                </a>
+                                {% endif %}
+                                {% if task.status == 'CONCLUIDO' %}
+                                <div class="flex items-center gap-1.5 text-xs text-slate-400">
+                                    <i data-lucide="clock" class="h-3 w-3"></i>
+                                    {% if task.started_at and task.finished_at %}
+                                    {{ task.started_at|localtime|date:"d/m H:i" }} &rarr; {{ task.finished_at|localtime|date:"d/m H:i" }}
+                                    {% elif task.finished_at %}
+                                    Finalizado: {{ task.finished_at|localtime|date:"d/m/Y H:i" }}
+                                    {% endif %}
+                                </div>
                                 {% endif %}
                             </div>
                         </div>
-                        {% endfor %}
                     </div>
-                </div>
-            {% endif %}
-
-            <!-- Local do Serviço -->
-            <div class="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-                <h3 class="font-bold text-slate-900 mb-5 flex items-center gap-2">
-                    <i data-lucide="map-pin" class="h-5 w-5 text-slate-500"></i>
-                    Local do Serviço
-                </h3>
-                <div class="space-y-5">
-                    <div>
-                        <p class="text-sm font-medium text-slate-500 mb-1">Endereço Completo</p>
-                        <p class="text-sm font-bold text-slate-900 leading-relaxed">
-                            {{ order.client_property.address }}, {{ order.client_property.number }}
-                            {% if order.client_property.complement %}<br><span class="text-slate-500 font-medium">{{ order.client_property.complement }}</span>{% endif %}
-                        </p>
-                        <p class="text-xs text-slate-500 mt-1">{{ order.client_property.neighborhood }} &bull; {{ order.client_property.city }}/{{ order.client_property.state }}</p>
-                    </div>
-                    
-                    <button type="button" class="w-full inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white border border-slate-200 px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-slate-50"
-                            data-gps-trigger="true"
-                            data-gps-lat="{{ order.client_property.latitude|default_if_none:''|unlocalize }}"
-                            data-gps-lng="{{ order.client_property.longitude|default_if_none:''|unlocalize }}"
-                            data-gps-address="{{ order.client_property.gps_address }}">
-                        <i data-lucide="navigation" class="h-4 w-4 text-slate-500"></i>
-                        Traçar Rota no GPS
-                    </button>
-                </div>
-            </div>
-
-            <!-- Notas e Descrição -->
-            <div class="bg-amber-50 rounded-lg border border-amber-200 p-6 shadow-sm">
-                <h3 class="text-xs font-bold text-amber-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <i data-lucide="alert-circle" class="h-4 w-4"></i>
-                    Descrição do Problema
-                </h3>
-                <p class="text-sm text-amber-900 leading-relaxed italic whitespace-pre-wrap">"{{ order.description }}"</p>
-                
-                <div class="mt-6 pt-6 border-t border-amber-200">
-                    <div class="flex items-center justify-between mb-4">
-                        <h4 class="text-xs font-bold text-amber-800 uppercase tracking-widest flex items-center gap-2">
-                            <i data-lucide="message-square" class="h-3 w-3"></i>
-                            Observação p/ Cliente
-                        </h4>
-                        {% if perms.services.change_serviceorder %}
-                        <button type="button" onclick="document.getElementById('edit-observation-form').classList.toggle('hidden'); document.getElementById('observation-display').classList.toggle('hidden')" class="inline-flex h-7 items-center rounded-md bg-white border border-amber-200 px-2.5 text-[10px] font-bold text-amber-800 shadow-sm hover:bg-amber-100 transition-colors">
-                            Editar
-                        </button>
-                        {% endif %}
-                    </div>
-                    
-                    <div id="observation-display" class="{% if not order.client_observation %}hidden{% endif %}">
-                        <p class="text-sm text-amber-900 leading-relaxed">{{ order.client_observation|default:"Nenhuma observação." }}</p>
-                    </div>
-                    
-                    {% if perms.services.change_serviceorder %}
-                    <form id="edit-observation-form" action="{% url 'order_observation_update' order.id %}" method="post" class="space-y-4 {% if order.client_observation %}hidden{% endif %}">
-                        {% csrf_token %}
-                        <textarea name="client_observation" rows="3" placeholder="Anotação para o orçamento PDF..." class="flex min-h-[80px] w-full rounded-md border border-amber-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-amber-800/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">{{ order.client_observation }}</textarea>
-                        <div class="flex justify-end gap-2">
-                            <button type="button" onclick="document.getElementById('edit-observation-form').classList.add('hidden'); document.getElementById('observation-display').classList.remove('hidden')" class="text-xs font-medium text-amber-700 px-3 py-2 hover:bg-amber-100 rounded-md">Cancelar</button>
-                            <button type="submit" class="inline-flex h-8 items-center justify-center rounded-md bg-amber-600 px-4 text-xs font-bold text-white shadow hover:bg-amber-700 transition-colors">Salvar</button>
-                        </div>
-                    </form>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Seção Financeira -->
-            {% if user.role != 'COLLABORATOR' %}
-            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                    <h3 class="font-bold text-slate-900 flex items-center gap-2">
-                        <i data-lucide="dollar-sign" class="h-4 w-4 text-slate-400"></i>
-                        Financeiro
-                    </h3>
-                    <div class="flex gap-2">
-                        <a href="{% url 'order_discount_update' order.id %}" class="inline-flex items-center justify-center h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors" title="Desconto">
-                            <i data-lucide="percent" class="h-4 w-4"></i>
-                        </a>
-                        <a href="{% url 'order_payment_add' order.id %}" class="inline-flex h-8 items-center rounded-md bg-green-600 px-3 text-xs font-bold text-white shadow hover:bg-green-700 transition-colors">
-                            Pagar
-                        </a>
-                    </div>
-                </div>
-                <div class="p-5 space-y-4">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-slate-500 font-medium">Valor Estimado:</span>
-                        <span class="font-bold text-slate-900">R$ <span data-order-estimated-value>{{ order.estimated_value|default_if_none:0|floatformat:2 }}</span></span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-slate-500 font-medium">Total do Serviço:</span>
-                        <span class="font-bold text-slate-900">R$ <span data-order-total-value>{{ order.total_value|floatformat:2 }}</span></span>
-                    </div>
-                    {% if order.discount > 0 %}
-                    <div class="flex justify-between text-sm">
-                        <span class="text-slate-500 font-medium">Desconto Aplicado:</span>
-                        <span class="font-bold text-red-600">- R$ {{ order.discount|floatformat:2 }}</span>
-                    </div>
-                    {% endif %}
-                    <div class="flex justify-between text-sm">
-                        <span class="text-slate-500 font-medium">Total Pago:</span>
-                        <span class="font-bold text-emerald-600">R$ {{ order.total_paid|floatformat:2 }}</span>
-                    </div>
-                    <div class="pt-4 border-t border-slate-100 flex justify-between items-center">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Saldo Devedor</span>
-                        <span data-order-balance-wrap class="text-xl font-black {% if order.balance_due > 0 %}text-slate-900{% else %}text-emerald-600{% endif %}">
-                            R$ <span data-order-balance-due>{{ order.balance_due|floatformat:2 }}</span>
-                        </span>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Origem e Garantia -->
-            <div class="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-                <h3 class="font-bold text-slate-900 mb-5 flex items-center gap-2">
-                    <i data-lucide="info" class="h-5 w-5 text-slate-500"></i>
-                    Origem e Garantia
-                </h3>
-                <div class="space-y-5">
-                    {% if order.origin_date %}
-                    <div>
-                        <p class="text-xs font-medium text-slate-500 mb-1">Data de Origem</p>
-                        <p class="text-sm font-bold text-slate-900">{{ order.origin_date|date:"d/m/Y" }}</p>
-                    </div>
-                    {% endif %}
-                    
-                    {% if order.originator %}
-                    <div>
-                        <p class="text-xs font-medium text-slate-500 mb-1">Responsável</p>
-                        <p class="text-sm font-bold text-slate-900">{{ order.originator.name }}</p>
-                    </div>
-                    {% endif %}
-                    
-                    {% if order.warranty_until %}
-                    <div class="p-4 bg-emerald-50 rounded-md border border-emerald-100">
-                        <p class="text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-1">Garantia Válida Até</p>
-                        <p class="text-base font-black text-emerald-700">{{ order.warranty_until|date:"d/m/Y" }}</p>
-                    </div>
-                    {% endif %}
+                    {% endfor %}
                 </div>
             </div>
         </div>
     </div>
+
+    {# ── TAB: ITENS ───────────────────────────────────────────────────────── #}
+    <div id="tab-itens" class="js-tab-panel hidden pt-5 space-y-4">
+
+        {# Formulário inline de adição #}
+        {% if user.role != 'COLLABORATOR' and perms.services.add_serviceitem %}
+        <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+            <div class="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-900 flex items-center gap-2 text-sm">
+                    <i data-lucide="plus-circle" class="h-4 w-4 text-slate-400"></i>Adicionar Item
+                </h3>
+                {% if user.role != 'COLLABORATOR' %}
+                <span class="text-sm font-bold text-slate-900">Total: R$ <span data-order-total-value>{{ order.total_value|floatformat:2 }}</span></span>
+                {% endif %}
+            </div>
+            <div class="p-5">
+                <form id="inline-add-item-form" method="post" action="{% url 'order_item_add' order.id %}" class="space-y-4" data-preserve-submit-button="true">
+                    {% csrf_token %}
+                    <div id="inline-add-item-feedback" class="hidden rounded-md px-3 py-2 text-sm font-semibold"></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-slate-700">Item pertence a</label>
+                            <div class="space-y-1.5">
+                                <label class="flex items-center gap-3 px-3 py-2.5 border border-slate-200 rounded-md cursor-pointer hover:bg-slate-50 transition-all [&:has(input:checked)]:border-slate-900 [&:has(input:checked)]:bg-slate-50">
+                                    <input type="radio" name="task" value="" checked class="w-4 h-4 text-slate-900 focus:ring-slate-900">
+                                    <span class="text-sm font-medium text-slate-800">Orçamento Geral</span>
+                                </label>
+                                {% for task in tasks %}
+                                <label class="flex items-center gap-3 px-3 py-2.5 border border-slate-200 rounded-md cursor-pointer hover:bg-slate-50 transition-all [&:has(input:checked)]:border-slate-900 [&:has(input:checked)]:bg-slate-50">
+                                    <input type="radio" name="task" value="{{ task.id }}" class="w-4 h-4 text-slate-900 focus:ring-slate-900">
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-medium text-slate-800">{{ task.get_task_type_display }}</span>
+                                        <span class="text-xs text-slate-500">{{ task.scheduled_at|date:"d/m H:i" }}</span>
+                                    </div>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="inline-flex h-9 items-center justify-center rounded-md bg-slate-100 p-1 text-slate-500 w-full sm:w-auto">
+                                <button type="button" data-type-toggle="PRODUCT" class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-4 py-1.5 text-sm font-medium bg-white text-slate-950 shadow-sm transition-all">Produto</button>
+                                <button type="button" data-type-toggle="SERVICE" class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-4 py-1.5 text-sm font-medium hover:text-slate-900 transition-all">Serviço</button>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="space-y-1.5">
+                                    <label id="catalog-label" class="text-sm font-medium text-slate-700">Produto Cadastrado *</label>
+                                    <input type="hidden" id="inline-product-id" name="product">
+                                    <input type="hidden" id="inline-service-id" name="service">
+                                    <div class="relative">
+                                        <input type="text" id="inline-product-search" autocomplete="off" placeholder="Digite nome ou código do produto..." class="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2">
+                                        <div id="inline-product-suggestions" class="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-64 overflow-auto hidden"></div>
+                                    </div>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <label class="text-sm font-medium text-slate-700">Descrição</label>
+                                    <input type="text" id="inline-item-description" name="description" readonly placeholder="Selecione no catálogo" class="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 cursor-not-allowed">
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="space-y-1.5">
+                                        <label id="inline-quantity-label" class="text-sm font-medium text-slate-700">Qtd *</label>
+                                        <input type="number" id="inline-item-quantity" name="quantity" step="0.01" value="1" required class="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2">
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-sm font-medium text-slate-700">Preço Unitário</label>
+                                        <input type="number" id="inline-item-unit-price" name="unit_price" step="0.01" class="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between">
+                                <span class="text-sm text-slate-500">Subtotal</span>
+                                <span id="inline-item-total" class="text-base font-bold text-slate-900">R$ 0,00</span>
+                            </div>
+                            <button type="submit" class="w-full inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2">
+                                <i data-lucide="plus" class="h-4 w-4"></i>Adicionar ao Orçamento
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Itens por etapa #}
+        {% for task in tasks %}
+        <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm" data-items-card="{{ task.id }}">
+            <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between
+                {% if task.task_type == 'ORCAMENTO' %}bg-blue-50/70{% elif task.task_type == 'EXECUCAO' %}bg-emerald-50/70{% else %}bg-purple-50/70{% endif %}">
+                <h4 class="font-semibold text-slate-800 flex items-center gap-2 text-sm">
+                    {% if task.task_type == 'ORCAMENTO' %}
+                        <i data-lucide="search" class="h-4 w-4 text-blue-500"></i>
+                        <span class="text-blue-800">{{ task.get_task_type_display }}</span>
+                    {% elif task.task_type == 'EXECUCAO' %}
+                        <i data-lucide="wrench" class="h-4 w-4 text-emerald-500"></i>
+                        <span class="text-emerald-800">{{ task.get_task_type_display }}</span>
+                    {% else %}
+                        <i data-lucide="shield-check" class="h-4 w-4 text-purple-500"></i>
+                        <span class="text-purple-800">{{ task.get_task_type_display }}</span>
+                    {% endif %}
+                    <span class="text-[10px] font-medium text-slate-500">{{ task.scheduled_at|date:"d/m/Y H:i" }}</span>
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded
+                        {% if task.status == 'CONCLUIDO' %}bg-emerald-100 text-emerald-700
+                        {% elif task.status == 'EM_ANDAMENTO' %}bg-blue-100 text-blue-700
+                        {% else %}bg-slate-100 text-slate-600{% endif %}">
+                        {{ task.get_status_display }}
+                    </span>
+                </h4>
+                {% if user.role != 'COLLABORATOR' %}
+                <span class="text-xs font-bold text-slate-600 tabular-nums">R$ {{ task.billing_value|floatformat:2 }}</span>
+                {% endif %}
+            </div>
+
+            {# Mobile list #}
+            <div class="md:hidden divide-y divide-slate-100 js-items-group" data-task-id="{{ task.id }}">
+                {% for item in task.items.all %}
+                <div class="p-4 space-y-3 js-order-item-row" data-item-id="{{ item.id }}">
+                    <div class="flex justify-between items-start gap-4">
+                        <div class="flex-1">
+                            <p class="text-sm font-bold text-slate-900">{{ item.description }}</p>
+                            <p class="text-[11px] text-slate-500 mt-0.5">
+                                {% if item.product %}{% if item.product.code %}{{ item.product.code }} &bull; {% endif %}{{ item.product.name }}{% elif item.service %}{{ item.service.name }}{% endif %}
+                            </p>
+                        </div>
+                        {% if user.role != 'COLLABORATOR' %}
+                        <div class="flex items-center gap-1">
+                            <button type="button" class="js-edit-item p-2 text-slate-400 hover:text-blue-600 transition-colors" data-item-id="{{ item.id }}" aria-label="Editar item"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
+                            <button type="button" class="js-delete-item p-2 text-slate-400 hover:text-red-600 transition-colors" data-item-id="{{ item.id }}" aria-label="Remover item"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
+                            {% if item.product %}{{ item.product.get_unit_type_display }}{% else %}{{ item.service.unit_of_measure }}{% endif %}:
+                            <span class="js-item-quantity-display">{{ item.quantity|floatformat:2 }}</span>
+                            <input type="number" step="0.01" class="hidden js-item-quantity-input w-16 px-1 py-0.5 text-[10px] border rounded" value="{{ item.quantity|unlocalize }}">
+                        </span>
+                    </div>
+                    {% if user.role != 'COLLABORATOR' %}
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <span class="text-xs text-slate-500">Unit.: R$ <span class="js-item-unit-price-display">{{ item.unit_price|floatformat:2 }}</span><input type="number" step="0.01" class="hidden js-item-unit-price-input w-20 px-1 py-0.5 text-xs border rounded text-right" value="{{ item.unit_price|unlocalize }}"></span>
+                        <span class="text-sm font-bold text-slate-900">R$ <span class="js-item-total-price-display">{{ item.total_price|floatformat:2 }}</span></span>
+                    </div>
+                    <div class="hidden js-edit-actions flex items-center justify-end gap-2 pt-2">
+                        <button type="button" class="js-cancel-edit px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 rounded-md transition-colors">Cancelar</button>
+                        <button type="button" class="js-save-item px-3 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md shadow-sm transition-colors">Salvar</button>
+                    </div>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div class="p-8 text-center text-slate-400 text-sm italic">Nenhum item nesta etapa.</div>
+                {% endfor %}
+            </div>
+
+            {# Desktop table #}
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-slate-50 text-slate-500 text-[11px] font-semibold uppercase tracking-wide border-b border-slate-200">
+                        <tr>
+                            <th class="px-5 py-3">Descrição</th>
+                            <th class="px-5 py-3 text-center">Tipo</th>
+                            <th class="px-5 py-3 text-center">Unidade</th>
+                            <th class="px-5 py-3 text-center">Qtd</th>
+                            {% if user.role != 'COLLABORATOR' %}
+                            <th class="px-5 py-3 text-right">Unitário</th>
+                            <th class="px-5 py-3 text-right">Total</th>
+                            <th class="px-5 py-3 text-center">Ações</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100" id="order-items-table-body-{{ task.id }}">
+                        {% for item in task.items.all %}
+                        <tr class="hover:bg-slate-50/60 transition-colors js-order-item-row" data-item-id="{{ item.id }}">
+                            <td class="px-5 py-3.5">
+                                <div class="flex flex-col">
+                                    <span class="font-medium text-slate-900">{{ item.description }}</span>
+                                    {% if item.product and item.product.code %}<span class="text-xs text-slate-400 mt-0.5 font-mono">{{ item.product.code }}</span>{% endif %}
+                                </div>
+                            </td>
+                            <td class="px-5 py-3.5 text-center">
+                                {% if item.product %}<span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[10px] font-bold border border-blue-100">Produto</span>{% elif item.service %}<span class="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-md text-[10px] font-bold border border-purple-100">Serviço</span>{% endif %}
+                            </td>
+                            <td class="px-5 py-3.5 text-center text-slate-500 text-xs font-medium">
+                                {% if item.product %}{{ item.product.get_unit_type_display }}{% else %}{{ item.service.unit_of_measure }}{% endif %}
+                            </td>
+                            <td class="px-5 py-3.5 text-center font-bold text-slate-900 tabular-nums">
+                                <span class="js-item-quantity-display">{{ item.quantity|floatformat:2 }}</span>
+                                <input type="number" step="0.01" class="hidden js-item-quantity-input w-20 px-2 py-1 text-sm border rounded" value="{{ item.quantity|unlocalize }}">
+                            </td>
+                            {% if user.role != 'COLLABORATOR' %}
+                            <td class="px-5 py-3.5 text-right text-slate-500 tabular-nums">R$ <span class="js-item-unit-price-display">{{ item.unit_price|floatformat:2 }}</span><input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="{{ item.unit_price|unlocalize }}"></td>
+                            <td class="px-5 py-3.5 text-right font-bold text-slate-900 tabular-nums">R$ <span class="js-item-total-price-display">{{ item.total_price|floatformat:2 }}</span></td>
+                            <td class="px-5 py-3.5 text-center">
+                                <div class="flex items-center justify-center gap-0.5">
+                                    <button type="button" class="js-edit-item p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Editar"><i data-lucide="edit-2" class="h-3.5 w-3.5"></i></button>
+                                    <button type="button" class="hidden js-save-item p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Salvar"><i data-lucide="check" class="h-3.5 w-3.5"></i></button>
+                                    <button type="button" class="hidden js-cancel-edit p-1.5 text-slate-400 hover:bg-slate-100 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Cancelar"><i data-lucide="x" class="h-3.5 w-3.5"></i></button>
+                                    <button type="button" class="js-delete-item p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Remover"><i data-lucide="trash-2" class="h-3.5 w-3.5"></i></button>
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="px-5 py-8 text-center text-slate-400 italic text-sm">Nenhum item nesta etapa.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+
+        {# Itens Gerais (sem etapa) #}
+        <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm" data-items-card="general">
+            <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h4 class="font-semibold text-slate-700 flex items-center gap-2 text-sm">
+                    <span class="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>Itens sem etapa
+                </h4>
+                {% if user.role != 'COLLABORATOR' %}
+                <span class="text-xs font-bold text-slate-700 tabular-nums">Total OS: R$ <span data-order-total-value>{{ order.total_value|floatformat:2 }}</span></span>
+                {% endif %}
+            </div>
+
+            {# Mobile #}
+            <div class="md:hidden divide-y divide-slate-100">
+                {% for item in order.items.all %}{% if not item.task %}
+                <div class="p-4 space-y-3 js-order-item-row" data-item-id="{{ item.id }}">
+                    <div class="flex justify-between items-start gap-4">
+                        <div class="flex-1">
+                            <p class="text-sm font-bold text-slate-900">{{ item.description }}</p>
+                            <p class="text-[11px] text-slate-500 mt-0.5">{% if item.product %}{% if item.product.code %}{{ item.product.code }} &bull; {% endif %}{{ item.product.name }}{% elif item.service %}{{ item.service.name }}{% endif %}</p>
+                        </div>
+                        {% if user.role != 'COLLABORATOR' %}
+                        <div class="flex items-center gap-1">
+                            <button type="button" class="js-edit-item p-2 text-slate-400 hover:text-blue-600 transition-colors" data-item-id="{{ item.id }}" aria-label="Editar item"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
+                            <button type="button" class="js-delete-item p-2 text-slate-400 hover:text-red-600 transition-colors" data-item-id="{{ item.id }}" aria-label="Remover item"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
+                            {% if item.product %}{{ item.product.get_unit_type_display }}{% else %}{{ item.service.unit_of_measure }}{% endif %}:
+                            <span class="js-item-quantity-display">{{ item.quantity|floatformat:2 }}</span>
+                            <input type="number" step="0.01" class="hidden js-item-quantity-input w-16 px-1 py-0.5 text-[10px] border rounded" value="{{ item.quantity|unlocalize }}">
+                        </span>
+                    </div>
+                    {% if user.role != 'COLLABORATOR' %}
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <span class="text-xs text-slate-500">Unit.: R$ <span class="js-item-unit-price-display">{{ item.unit_price|floatformat:2 }}</span><input type="number" step="0.01" class="hidden js-item-unit-price-input w-20 px-1 py-0.5 text-xs border rounded text-right" value="{{ item.unit_price|unlocalize }}"></span>
+                        <span class="text-sm font-bold text-slate-900">R$ <span class="js-item-total-price-display">{{ item.total_price|floatformat:2 }}</span></span>
+                    </div>
+                    <div class="hidden js-edit-actions flex items-center justify-end gap-2 pt-2">
+                        <button type="button" class="js-cancel-edit px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 rounded-md transition-colors">Cancelar</button>
+                        <button type="button" class="js-save-item px-3 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md shadow-sm transition-colors">Salvar</button>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}{% endfor %}
+            </div>
+
+            {# Desktop #}
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-slate-50 text-slate-500 text-[11px] font-semibold uppercase tracking-wide border-b border-slate-200">
+                        <tr>
+                            <th class="px-5 py-3">Descrição</th>
+                            <th class="px-5 py-3 text-center">Tipo</th>
+                            <th class="px-5 py-3 text-center">Unidade</th>
+                            <th class="px-5 py-3 text-center">Qtd</th>
+                            {% if user.role != 'COLLABORATOR' %}
+                            <th class="px-5 py-3 text-right">Unitário</th>
+                            <th class="px-5 py-3 text-right">Total</th>
+                            <th class="px-5 py-3 text-center">Ações</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody id="order-items-table-body" class="divide-y divide-slate-100">
+                        {% for item in order.items.all %}{% if not item.task %}
+                        <tr class="hover:bg-slate-50/60 transition-colors js-order-item-row" data-item-id="{{ item.id }}">
+                            <td class="px-5 py-3.5">
+                                <div class="flex flex-col">
+                                    <span class="font-medium text-slate-900">{{ item.description }}</span>
+                                    {% if item.product and item.product.code %}<span class="text-xs text-slate-400 mt-0.5 font-mono">{{ item.product.code }}</span>{% endif %}
+                                </div>
+                            </td>
+                            <td class="px-5 py-3.5 text-center">{% if item.product %}<span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[10px] font-bold border border-blue-100">Produto</span>{% elif item.service %}<span class="px-2 py-0.5 bg-purple-50 text-purple-700 rounded-md text-[10px] font-bold border border-purple-100">Serviço</span>{% endif %}</td>
+                            <td class="px-5 py-3.5 text-center text-slate-500 text-xs font-medium">{% if item.product %}{{ item.product.get_unit_type_display }}{% else %}{{ item.service.unit_of_measure }}{% endif %}</td>
+                            <td class="px-5 py-3.5 text-center font-bold text-slate-900 tabular-nums">
+                                <span class="js-item-quantity-display">{{ item.quantity|floatformat:2 }}</span>
+                                <input type="number" step="0.01" class="hidden js-item-quantity-input w-20 px-2 py-1 text-sm border rounded" value="{{ item.quantity|unlocalize }}">
+                            </td>
+                            {% if user.role != 'COLLABORATOR' %}
+                            <td class="px-5 py-3.5 text-right text-slate-500 tabular-nums">R$ <span class="js-item-unit-price-display">{{ item.unit_price|floatformat:2 }}</span><input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="{{ item.unit_price|unlocalize }}"></td>
+                            <td class="px-5 py-3.5 text-right font-bold text-slate-900 tabular-nums">R$ <span class="js-item-total-price-display">{{ item.total_price|floatformat:2 }}</span></td>
+                            <td class="px-5 py-3.5 text-center">
+                                <div class="flex items-center justify-center gap-0.5">
+                                    <button type="button" class="js-edit-item p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Editar"><i data-lucide="edit-2" class="h-3.5 w-3.5"></i></button>
+                                    <button type="button" class="hidden js-save-item p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Salvar"><i data-lucide="check" class="h-3.5 w-3.5"></i></button>
+                                    <button type="button" class="hidden js-cancel-edit p-1.5 text-slate-400 hover:bg-slate-100 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Cancelar"><i data-lucide="x" class="h-3.5 w-3.5"></i></button>
+                                    <button type="button" class="js-delete-item p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" data-item-id="{{ item.id }}" title="Remover"><i data-lucide="trash-2" class="h-3.5 w-3.5"></i></button>
+                                </div>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endif %}{% endfor %}
+                        {% if not order.items.filter %}
+                        <tr><td colspan="7" class="px-5 py-10 text-center text-slate-400 italic text-sm">Nenhum item adicionado.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# ── TAB: OCORRÊNCIAS ─────────────────────────────────────────────────── #}
+    <div id="tab-ocorrencias" class="js-tab-panel hidden pt-5">
+        <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+            <div class="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-900 flex items-center gap-2 text-sm">
+                    <i data-lucide="alert-triangle" class="h-4 w-4 text-slate-400"></i>Ocorrências do Serviço
+                </h3>
+                {% if occurrences %}
+                <span class="text-xs font-bold text-slate-500">{{ occurrences|length }} registro{% if occurrences|length != 1 %}s{% endif %}</span>
+                {% endif %}
+            </div>
+            <div class="divide-y divide-slate-100">
+                {% if occurrences %}
+                {% for occurrence in occurrences %}
+                <div class="p-5 {% if occurrence.status == 'REGISTERED' %}{% else %}bg-emerald-50/30{% endif %} hover:bg-slate-50/50 transition-colors">
+                    <div class="flex items-start justify-between gap-4 mb-3">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap mb-1">
+                                <h4 class="font-bold text-slate-900 text-sm">{{ occurrence.get_occurrence_type_display }}</h4>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold
+                                    {% if occurrence.status == 'REGISTERED' %}bg-amber-100 text-amber-700 border border-amber-200
+                                    {% else %}bg-emerald-100 text-emerald-700 border border-emerald-200{% endif %}">
+                                    {{ occurrence.get_status_display }}
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-500">{{ occurrence.task.get_task_type_display }} &bull; {{ occurrence.get_category_display }}</p>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <p class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{{ occurrence.description }}</p>
+                        {% if occurrence.medias.exists %}
+                        <div class="flex gap-2 overflow-x-auto pb-1">
+                            {% for media in occurrence.medias.all %}
+                            <a href="{{ media.file.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="order-occ-{{ occurrence.id }}" data-is-video="{% if media.is_video %}true{% else %}false{% endif %}" class="w-20 h-20 shrink-0 rounded-md bg-slate-900 border border-slate-200 hover:ring-2 hover:ring-slate-900 transition-all flex items-center justify-center overflow-hidden group relative shadow-sm">
+                                {% if media.is_video %}<video class="w-full h-full object-cover opacity-60 absolute inset-0" src="{{ media.file.url }}"></video><i data-lucide="video" class="h-6 w-6 text-white group-hover:scale-110 transition-transform relative z-10"></i>
+                                {% else %}<img src="{{ media.file.url }}" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity" alt="Mídia">{% endif %}
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% if occurrence.status == 'RESOLVED' and occurrence.observation %}
+                        <div class="px-4 py-3 bg-emerald-50 border border-emerald-100 rounded-md">
+                            <p class="text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-1">Resolução</p>
+                            <p class="text-sm text-slate-700 italic">"{{ occurrence.observation }}"</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="py-12 flex flex-col items-center justify-center text-center">
+                    <div class="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3">
+                        <i data-lucide="check-circle" class="h-6 w-6 text-slate-300"></i>
+                    </div>
+                    <p class="text-slate-500 font-medium text-sm">Sem ocorrências registradas</p>
+                    <p class="text-slate-400 text-xs mt-1">O serviço transcorreu sem intercorrências.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ── TAB: CHECKLISTS ──────────────────────────────────────────────────── #}
+    <div id="tab-checklists" class="js-tab-panel hidden pt-5">
+        <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+            <div class="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+                <h3 class="font-semibold text-slate-900 flex items-center gap-2 text-sm">
+                    <i data-lucide="check-square" class="h-4 w-4 text-slate-400"></i>Checklists de Verificação
+                </h3>
+            </div>
+            <div class="p-5">
+                {% if any_task_has_checklist %}
+                <div class="space-y-8">
+                    {% for task in tasks %}
+                    {% if task.checklist_responses.exists %}
+                    <div>
+                        <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+                            <div class="w-9 h-9 rounded-md bg-slate-900 flex items-center justify-center shrink-0">
+                                {% if task.task_type == 'ORCAMENTO' %}
+                                    <i data-lucide="search" class="h-4 w-4 text-white"></i>
+                                {% elif task.task_type == 'EXECUCAO' %}
+                                    <i data-lucide="wrench" class="h-4 w-4 text-white"></i>
+                                {% else %}
+                                    <i data-lucide="shield-check" class="h-4 w-4 text-white"></i>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-900">{{ task.get_task_type_display }}</h4>
+                                <p class="text-xs text-slate-500">Finalizado em {{ task.finished_at|date:"d/m/Y H:i" }}</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {% for response in task.checklist_responses.all %}
+                            <div class="p-4 rounded-lg border {% if response.completed %}border-emerald-200 bg-emerald-50/40{% else %}border-slate-200 bg-slate-50/50{% endif %} flex flex-col gap-3">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="flex-1">
+                                        <p class="text-sm font-bold text-slate-900">{{ response.item.name }}</p>
+                                        {% if response.item.description %}<p class="text-xs text-slate-500 mt-0.5 leading-relaxed">{{ response.item.description }}</p>{% endif %}
+                                    </div>
+                                    {% if response.completed %}
+                                        <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-sm" aria-label="Concluído"><i data-lucide="check" class="h-3.5 w-3.5 text-white"></i></div>
+                                    {% else %}
+                                        <div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0" aria-label="Não concluído"><i data-lucide="minus" class="h-3.5 w-3.5 text-slate-400"></i></div>
+                                    {% endif %}
+                                </div>
+                                {% if response.text_response %}<div class="px-3 py-2 bg-white rounded-md border border-slate-100 text-xs text-slate-600 italic">"{{ response.text_response }}"</div>{% endif %}
+                                {% if response.medias.exists %}
+                                <div class="flex flex-wrap gap-1.5 pt-1">
+                                    {% for media in response.medias.all %}
+                                    <a href="{{ media.file.url }}" onclick="event.preventDefault(); MediaDropzoneManager.openGallery(this)" data-gallery="checklist-{{ response.id }}" data-is-video="{% if media.is_video %}true{% else %}false{% endif %}" class="w-14 h-14 rounded-md overflow-hidden border border-slate-200 bg-slate-900 flex items-center justify-center group relative shadow-sm hover:ring-2 hover:ring-slate-900 transition-all">
+                                        {% if media.is_video %}<video class="w-full h-full object-cover opacity-60 absolute" src="{{ media.file.url }}"></video><i data-lucide="play" class="h-5 w-5 text-white relative z-10"></i>
+                                        {% else %}<img src="{{ media.file.url }}" class="w-full h-full object-cover group-hover:opacity-75 transition-opacity" alt="Evidência">{% endif %}
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="py-12 flex flex-col items-center justify-center text-center">
+                    <div class="w-14 h-14 rounded-full bg-slate-50 flex items-center justify-center mb-3">
+                        <i data-lucide="clipboard-list" class="h-7 w-7 text-slate-300"></i>
+                    </div>
+                    <h4 class="text-slate-800 font-bold mb-1 text-sm">Nenhum Checklist Preenchido</h4>
+                    <p class="text-xs text-slate-400 max-w-[200px]">Os checklists serão exibidos após a conclusão das etapas.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ── TAB: FINANCEIRO ──────────────────────────────────────────────────── #}
+    {% if user.role != 'COLLABORATOR' %}
+    <div id="tab-financeiro" class="js-tab-panel hidden pt-5">
+        <div class="flex flex-col lg:flex-row gap-5">
+
+            {# Coluna: Resumo de valores #}
+            <div class="flex-1 bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                <div class="px-5 py-4 bg-slate-50 border-b border-slate-200">
+                    <h3 class="font-semibold text-slate-900 flex items-center gap-2 text-sm">
+                        <i data-lucide="bar-chart-2" class="h-4 w-4 text-slate-400"></i>Detalhamento Financeiro
+                    </h3>
+                </div>
+                <div class="p-5 space-y-1">
+                    {# Linhas de valor #}
+                    <div class="flex items-center justify-between py-3 border-b border-slate-50">
+                        <div>
+                            <p class="text-sm font-medium text-slate-700">Valor Estimado</p>
+                            <p class="text-xs text-slate-400">Previsto antes da execução</p>
+                        </div>
+                        <span class="text-sm font-bold text-slate-900 tabular-nums">R$ <span data-order-estimated-value>{{ order.estimated_value|default_if_none:0|floatformat:2 }}</span></span>
+                    </div>
+                    <div class="flex items-center justify-between py-3 border-b border-slate-50">
+                        <div>
+                            <p class="text-sm font-medium text-slate-700">Total do Serviço</p>
+                            <p class="text-xs text-slate-400">Soma dos itens faturáveis</p>
+                        </div>
+                        <span class="text-sm font-bold text-slate-900 tabular-nums">R$ <span data-order-total-value>{{ order.total_value|floatformat:2 }}</span></span>
+                    </div>
+                    {% if order.discount > 0 %}
+                    <div class="flex items-center justify-between py-3 border-b border-slate-50">
+                        <div>
+                            <p class="text-sm font-medium text-slate-700">Desconto Aplicado</p>
+                            <p class="text-xs text-slate-400"><a href="{% url 'order_discount_update' order.id %}" class="text-blue-600 hover:underline">Alterar</a></p>
+                        </div>
+                        <span class="text-sm font-bold text-red-600 tabular-nums">- R$ {{ order.discount|floatformat:2 }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="flex items-center justify-between py-3 border-b border-slate-50">
+                        <div>
+                            <p class="text-sm font-medium text-slate-700">Total Pago</p>
+                            <p class="text-xs text-slate-400">Confirmado até o momento</p>
+                        </div>
+                        <span class="text-sm font-bold text-emerald-600 tabular-nums">R$ {{ order.total_paid|floatformat:2 }}</span>
+                    </div>
+                    {# Saldo devedor — destaque #}
+                    <div class="flex items-center justify-between pt-4 mt-2">
+                        <div>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Saldo Devedor</p>
+                        </div>
+                        <span data-order-balance-wrap class="text-3xl font-black tabular-nums {% if order.balance_due > 0 %}text-slate-900{% else %}text-emerald-600{% endif %}">
+                            R$ <span data-order-balance-due>{{ order.balance_due|floatformat:2 }}</span>
+                        </span>
+                    </div>
+                    {% if not order.discount > 0 %}
+                    <div class="pt-4">
+                        <a href="{% url 'order_discount_update' order.id %}" class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors">
+                            <i data-lucide="percent" class="h-3.5 w-3.5"></i>Aplicar desconto
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Coluna: Status e Ações #}
+            <div class="lg:w-72 xl:w-80 shrink-0 flex flex-col gap-4">
+
+                {# Status do Billing #}
+                {% if billing %}
+                <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Status do Faturamento</h4>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold
+                            {% if billing.status == 'PAGO' %}bg-emerald-100 text-emerald-700 border border-emerald-200
+                            {% elif billing.status == 'PARCIAL' %}bg-blue-100 text-blue-700 border border-blue-200
+                            {% elif billing.status == 'ATRASADO' %}bg-red-100 text-red-700 border border-red-200
+                            {% else %}bg-amber-100 text-amber-700 border border-amber-200{% endif %}">
+                            {{ billing.get_status_display }}
+                        </span>
+                    </div>
+                    <a href="{% url 'billing_detail' billing.id %}" class="w-full inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-700 transition-colors shadow-sm">
+                        <i data-lucide="receipt" class="h-4 w-4"></i>Ver Faturamento Completo
+                    </a>
+                </div>
+                {% else %}
+                <div class="bg-white rounded-lg border border-dashed border-slate-300 shadow-sm p-5 flex flex-col items-center text-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center">
+                        <i data-lucide="file-plus" class="h-5 w-5 text-slate-400"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold text-slate-700">Sem cobrança gerada</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Gere uma conta a receber para registrar o pagamento.</p>
+                    </div>
+                    <a href="{% url 'order_payment_add' order.id %}" class="w-full inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm">
+                        <i data-lucide="plus-circle" class="h-4 w-4"></i>Gerar Conta a Receber
+                    </a>
+                </div>
+                {% endif %}
+
+                {# Atalho desconto se houver billing #}
+                {% if billing %}
+                <a href="{% url 'order_discount_update' order.id %}" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
+                    <i data-lucide="percent" class="h-4 w-4 text-slate-400"></i>Aplicar / Editar Desconto
+                </a>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 
 {% include 'services/components/gps_modal.html' %}
-
 {% endblock %}
 
 {% block extra_js %}
@@ -841,27 +973,42 @@
 {{ services_data|json_script:"service-data-inline" }}
 
 <script>
+// --- TAB LOGIC ---
+(function() {
+    const tabs = document.querySelectorAll('.js-tab-btn');
+    const panels = document.querySelectorAll('.js-tab-panel');
+
+    function activateTab(tabName) {
+        tabs.forEach(btn => {
+            const active = btn.dataset.tab === tabName;
+            btn.classList.toggle('text-slate-900', active);
+            btn.classList.toggle('border-slate-900', active);
+            btn.classList.toggle('text-slate-500', !active);
+            btn.classList.toggle('border-transparent', !active);
+        });
+        panels.forEach(panel => {
+            panel.classList.toggle('hidden', panel.id !== 'tab-' + tabName);
+        });
+        history.replaceState(null, '', '#' + tabName);
+    }
+
+    tabs.forEach(btn => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
+
+    const hash = location.hash.replace('#', '');
+    const defaultTab = (hash && document.getElementById('tab-' + hash)) ? hash : 'resumo';
+    activateTab(defaultTab);
+})();
+
 // --- DROPDOWN LOGIC ---
 document.addEventListener('click', function(e) {
     const trigger = e.target.closest('.js-dropdown-trigger');
     const dropdown = e.target.closest('.js-dropdown');
-    
-    // Close all other dropdowns
-    if (!dropdown) {
-        document.querySelectorAll('.js-dropdown-menu').forEach(menu => menu.classList.add('hidden'));
-        return;
-    }
-
+    if (!dropdown) { document.querySelectorAll('.js-dropdown-menu').forEach(m => m.classList.add('hidden')); return; }
     if (trigger) {
         const menu = dropdown.querySelector('.js-dropdown-menu');
-        const isHidden = menu.classList.contains('hidden');
-        
-        // Close others
+        const hidden = menu.classList.contains('hidden');
         document.querySelectorAll('.js-dropdown-menu').forEach(m => m.classList.add('hidden'));
-        
-        if (isHidden) {
-            menu.classList.remove('hidden');
-        }
+        if (hidden) menu.classList.remove('hidden');
     }
 });
 
@@ -878,32 +1025,37 @@ document.addEventListener('DOMContentLoaded', function() {
     const descriptionInput = document.getElementById('inline-item-description');
     const unitPriceInput = document.getElementById('inline-item-unit-price');
     const quantityInput = document.getElementById('inline-item-quantity');
-    const quantityLabel = document.getElementById('inline-quantity-label');
     const catalogLabel = document.getElementById('catalog-label');
     const totalEl = document.getElementById('inline-item-total');
 
     const products = JSON.parse(document.getElementById('product-data-inline').textContent || '[]');
     const services = JSON.parse(document.getElementById('service-data-inline').textContent || '[]');
-    
     let currentType = 'PRODUCT';
 
-    // Toggle logic for Product/Service Tabs
+    // Filtra os cards de itens para mostrar só a etapa selecionada no radio
+    function filterItemCards(value) {
+        document.querySelectorAll('[data-items-card]').forEach(card => {
+            const show = value === '' ? card.dataset.itemsCard === 'general' : card.dataset.itemsCard === value;
+            card.classList.toggle('hidden', !show);
+        });
+    }
+    document.querySelectorAll('input[name="task"]').forEach(r =>
+        r.addEventListener('change', e => filterItemCards(e.target.value))
+    );
+    const checkedTask = document.querySelector('input[name="task"]:checked');
+    if (checkedTask) filterItemCards(checkedTask.value);
+
     document.querySelectorAll('[data-type-toggle]').forEach(btn => {
         btn.addEventListener('click', () => {
             currentType = btn.getAttribute('data-type-toggle');
-            
-            // UI Updates (Active state styles)
             document.querySelectorAll('[data-type-toggle]').forEach(b => {
                 b.classList.remove('bg-white', 'text-slate-950', 'shadow-sm');
-                b.classList.add('text-slate-50', 'hover:text-slate-900');
+                b.classList.add('hover:text-slate-900');
             });
-            btn.classList.remove('text-slate-50', 'hover:text-slate-900');
             btn.classList.add('bg-white', 'text-slate-950', 'shadow-sm');
-            
-            // Labels
+            btn.classList.remove('hover:text-slate-900');
             catalogLabel.textContent = currentType === 'PRODUCT' ? 'Produto Cadastrado *' : 'Serviço do Catálogo *';
             productSearch.placeholder = currentType === 'PRODUCT' ? 'Nome ou código...' : 'Nome do serviço...';
-            
             resetForm();
         });
     });
@@ -911,50 +1063,22 @@ document.addEventListener('DOMContentLoaded', function() {
     function showFeedback(message, isError) {
         feedback.textContent = message;
         feedback.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'border-red-200', 'bg-green-50', 'text-green-700', 'border-green-200');
-        feedback.classList.add('border');
-        if (isError) {
-            feedback.classList.add('bg-red-50', 'text-red-700', 'border-red-200');
-        } else {
-            feedback.classList.add('bg-green-50', 'text-green-700', 'border-green-200');
-        }
+        feedback.classList.add('border', isError ? 'bg-red-50' : 'bg-green-50', isError ? 'text-red-700' : 'text-green-700', isError ? 'border-red-200' : 'border-green-200');
     }
 
-    function clearFeedback() {
-        feedback.classList.add('hidden');
-    }
-
-    function formatCurrencyBR(value) {
-        return Number(value || 0).toFixed(2).replace('.', ',');
-    }
-
+    function formatCurrencyBR(value) { return Number(value || 0).toFixed(2).replace('.', ','); }
     function parseDecimal(value) {
         if (!value) return 0;
-        const normalized = String(value).trim().replace(',', '.').replace(/[^0-9.-]/g, '');
-        return parseFloat(normalized) || 0;
+        return parseFloat(String(value).trim().replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
     }
-
-    function closeSuggestions() {
-        suggestions.classList.add('hidden');
-        suggestions.innerHTML = '';
-    }
-
+    function closeSuggestions() { suggestions.classList.add('hidden'); suggestions.innerHTML = ''; }
     function updateTotal() {
-        const qty = parseDecimal(quantityInput.value);
-        const unit = parseDecimal(unitPriceInput.value);
-        totalEl.textContent = 'R$ ' + formatCurrencyBR(qty * unit);
+        totalEl.textContent = 'R$ ' + formatCurrencyBR(parseDecimal(quantityInput.value) * parseDecimal(unitPriceInput.value));
     }
 
     function applyItem(item) {
-        if (currentType === 'PRODUCT') {
-            productIdInput.value = item.id;
-            serviceIdInput.value = '';
-            productSearch.value = item.code ? `${item.code} - ${item.name}` : item.name;
-        } else {
-            productIdInput.value = '';
-            serviceIdInput.value = item.id;
-            productSearch.value = item.name;
-        }
-        
+        if (currentType === 'PRODUCT') { productIdInput.value = item.id; serviceIdInput.value = ''; productSearch.value = item.code ? `${item.code} - ${item.name}` : item.name; }
+        else { productIdInput.value = ''; serviceIdInput.value = item.id; productSearch.value = item.name; }
         descriptionInput.value = item.name;
         unitPriceInput.value = parseDecimal(item.price).toFixed(2);
         updateTotal();
@@ -962,11 +1086,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderSuggestions(matches) {
-        if (!matches.length) {
-            closeSuggestions();
-            return;
-        }
-
+        if (!matches.length) { closeSuggestions(); return; }
         suggestions.innerHTML = matches.map(item => `
             <button type="button" class="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0" data-id="${item.id}">
                 <div class="flex items-center justify-between">
@@ -974,9 +1094,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${item.code ? `<span class="text-[10px] font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">${item.code}</span>` : ''}
                 </div>
                 <div class="text-xs text-slate-500 mt-1">${item.unitDisplay} &bull; R$ ${formatCurrencyBR(item.price)}</div>
-            </button>
-        `).join('');
-
+            </button>`).join('');
         suggestions.classList.remove('hidden');
         suggestions.querySelectorAll('button[data-id]').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -988,23 +1106,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function resetForm() {
-        productIdInput.value = '';
-        serviceIdInput.value = '';
-        productSearch.value = '';
-        descriptionInput.value = '';
-        unitPriceInput.value = '';
-        quantityInput.value = '1';
-        closeSuggestions();
-        updateTotal();
+        productIdInput.value = ''; serviceIdInput.value = ''; productSearch.value = '';
+        descriptionInput.value = ''; unitPriceInput.value = ''; quantityInput.value = '1';
+        closeSuggestions(); updateTotal();
     }
 
     function updateDOM(data) {
-        if (data.order_total_display) {
-            document.querySelectorAll('[data-order-total-value]').forEach(el => el.textContent = data.order_total_display);
-        }
-        if (data.estimated_value_display) {
-            document.querySelectorAll('[data-order-estimated-value]').forEach(el => el.textContent = data.estimated_value_display);
-        }
+        if (data.order_total_display) document.querySelectorAll('[data-order-total-value]').forEach(el => el.textContent = data.order_total_display);
+        if (data.estimated_value_display) document.querySelectorAll('[data-order-estimated-value]').forEach(el => el.textContent = data.estimated_value_display);
         if (data.balance_due_display !== undefined) {
             document.querySelectorAll('[data-order-balance-due]').forEach(el => el.textContent = data.balance_due_display);
             document.querySelectorAll('[data-order-balance-wrap]').forEach(el => {
@@ -1015,107 +1124,66 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function prependItemRow(item) {
-        // Desktop Table
+        // Desktop Table (itens sem etapa — "order-items-table-body")
         const tbody = document.getElementById('order-items-table-body');
-        if (tbody) {
+        if (tbody && !item.origin_is_task) {
             const empty = tbody.querySelector('td[colspan]');
             if (empty) empty.parentElement.remove();
-
             const tr = document.createElement('tr');
-            tr.className = 'hover:bg-slate-50/50 transition-colors js-order-item-row';
+            tr.className = 'hover:bg-slate-50/60 transition-colors js-order-item-row';
             tr.setAttribute('data-item-id', item.id);
             tr.innerHTML = `
-                <td class="px-6 py-4">
-                    <div class="flex flex-col">
-                        <span class="font-medium text-slate-900">${item.description}</span>
-                    </div>
-                </td>
-                <td class="px-6 py-4 text-center">
-                    ${item.origin_is_task
-                        ? `<div class="flex flex-col items-center gap-0.5">
-                               <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[10px] font-bold border border-blue-100">${item.origin_display}</span>
-                               ${item.task_scheduled ? `<span class="text-[10px] text-slate-400 font-medium">${item.task_scheduled}</span>` : ''}
-                           </div>`
-                        : `<span class="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md text-[10px] font-bold border border-slate-200">Geral</span>`
-                    }
-                </td>
-                <td class="px-6 py-4 text-center">
-                    <span class="px-2 py-0.5 ${item.type_class} rounded-md text-[10px] font-bold border">${item.type_display}</span>
-                </td>
-                <td class="px-6 py-4 text-center text-slate-600 font-medium">${item.unit_display}</td>
-                <td class="px-6 py-4 text-center font-bold text-slate-900">
+                <td class="px-5 py-3.5"><div class="flex flex-col"><span class="font-medium text-slate-900">${item.description}</span></div></td>
+                <td class="px-5 py-3.5 text-center"><span class="px-2 py-0.5 ${item.type_class} rounded-md text-[10px] font-bold border">${item.type_display}</span></td>
+                <td class="px-5 py-3.5 text-center text-slate-500 text-xs font-medium">${item.unit_display}</td>
+                <td class="px-5 py-3.5 text-center font-bold text-slate-900 tabular-nums">
                     <span class="js-item-quantity-display">${item.quantity_display}</span>
                     <input type="number" step="0.01" class="hidden js-item-quantity-input w-20 px-2 py-1 text-sm border rounded" value="${item.quantity_display.replace(',', '.')}">
                 </td>
-                <td class="px-6 py-4 text-right text-slate-500">
-                    R$ <span class="js-item-unit-price-display">${item.unit_price_display}</span>
-                    <input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="${item.unit_price_display.replace(',', '.')}">
-                </td>
-                <td class="px-6 py-4 text-right font-bold text-slate-900">R$ <span class="js-item-total-price-display">${item.total_price_display}</span></td>
-                <td class="px-6 py-4 text-center">
-                    <div class="flex items-center justify-center gap-1">
-                        <button type="button" class="js-edit-item p-2 text-slate-400 hover:text-blue-600 transition-colors" data-item-id="${item.id}" title="Editar item">
-                            <i data-lucide="edit-2" class="h-4 w-4"></i>
-                        </button>
-                        <button type="button" class="hidden js-save-item p-2 text-green-600 hover:bg-green-50 rounded-md transition-colors" data-item-id="${item.id}" title="Salvar">
-                            <i data-lucide="check" class="h-4 w-4"></i>
-                        </button>
-                        <button type="button" class="hidden js-cancel-edit p-2 text-slate-400 hover:bg-slate-50 rounded-md transition-colors" data-item-id="${item.id}" title="Cancelar">
-                            <i data-lucide="x" class="h-4 w-4"></i>
-                        </button>
-                        <button type="button" class="js-delete-item p-2 text-slate-400 hover:text-red-600 transition-colors" data-item-id="${item.id}">
-                            <i data-lucide="trash-2" class="h-4 w-4"></i>
-                        </button>
+                <td class="px-5 py-3.5 text-right text-slate-500 tabular-nums">R$ <span class="js-item-unit-price-display">${item.unit_price_display}</span><input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="${item.unit_price_display.replace(',', '.')}"></td>
+                <td class="px-5 py-3.5 text-right font-bold text-slate-900 tabular-nums">R$ <span class="js-item-total-price-display">${item.total_price_display}</span></td>
+                <td class="px-5 py-3.5 text-center">
+                    <div class="flex items-center justify-center gap-0.5">
+                        <button type="button" class="js-edit-item p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" data-item-id="${item.id}"><i data-lucide="edit-2" class="h-3.5 w-3.5"></i></button>
+                        <button type="button" class="hidden js-save-item p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" data-item-id="${item.id}"><i data-lucide="check" class="h-3.5 w-3.5"></i></button>
+                        <button type="button" class="hidden js-cancel-edit p-1.5 text-slate-400 hover:bg-slate-100 rounded-md transition-colors" data-item-id="${item.id}"><i data-lucide="x" class="h-3.5 w-3.5"></i></button>
+                        <button type="button" class="js-delete-item p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" data-item-id="${item.id}"><i data-lucide="trash-2" class="h-3.5 w-3.5"></i></button>
                     </div>
-                </td>
-            `;
+                </td>`;
             tbody.prepend(tr);
         }
 
-        // Mobile List
-        const mobileList = document.getElementById('order-items-mobile-list');
-        if (mobileList) {
-            const div = document.createElement('div');
-            div.className = 'p-4 space-y-3 js-order-item-row';
-            div.setAttribute('data-item-id', item.id);
-            div.innerHTML = `
-                <div class="flex justify-between items-start gap-4">
-                    <div class="flex-1">
-                        <p class="text-sm font-bold text-slate-900">${item.description}</p>
-                        <p class="text-[11px] text-slate-500 mt-0.5">${item.product_name}</p>
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <button type="button" class="js-edit-item p-2 text-slate-400 hover:text-blue-600 transition-colors" data-item-id="${item.id}">
-                            <i data-lucide="edit-2" class="h-4 w-4"></i>
-                        </button>
-                        <button type="button" class="js-delete-item p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors" data-item-id="${item.id}">
-                            <i data-lucide="trash-2" class="h-4 w-4"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="flex flex-wrap items-center gap-2">
-                    <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
-                        ${item.unit_display}: 
+        // Desktop Table (itens de etapa)
+        if (item.origin_is_task && item.task_id) {
+            const taskTbody = document.getElementById('order-items-table-body-' + item.task_id);
+            if (taskTbody) {
+                const empty = taskTbody.querySelector('td[colspan]');
+                if (empty) empty.parentElement.remove();
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50/60 transition-colors js-order-item-row';
+                tr.setAttribute('data-item-id', item.id);
+                tr.innerHTML = `
+                    <td class="px-5 py-3.5"><div class="flex flex-col"><span class="font-medium text-slate-900">${item.description}</span></div></td>
+                    <td class="px-5 py-3.5 text-center"><span class="px-2 py-0.5 ${item.type_class} rounded-md text-[10px] font-bold border">${item.type_display}</span></td>
+                    <td class="px-5 py-3.5 text-center text-slate-500 text-xs font-medium">${item.unit_display}</td>
+                    <td class="px-5 py-3.5 text-center font-bold text-slate-900 tabular-nums">
                         <span class="js-item-quantity-display">${item.quantity_display}</span>
-                        <input type="number" step="0.01" class="hidden js-item-quantity-input w-16 px-1 py-0.5 text-[10px] border rounded" value="${item.quantity_display.replace(',', '.')}">
-                    </span>
-                    <span class="px-2 py-0.5 rounded-full ${item.origin_is_task ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'} text-[10px] font-bold">${item.origin_display}</span>
-                </div>
-                <div class="flex items-center justify-between pt-2 border-t border-slate-50">
-                    <span class="text-xs text-slate-500">
-                        Unitário: R$ <span class="js-item-unit-price-display">${item.unit_price_display}</span>
-                        <input type="number" step="0.01" class="hidden js-item-unit-price-input w-20 px-1 py-0.5 text-xs border rounded text-right" value="${item.unit_price_display.replace(',', '.')}">
-                    </span>
-                    <span class="text-sm font-bold text-slate-900">Total: R$ <span class="js-item-total-price-display">${item.total_price_display}</span></span>
-                </div>
-                <div class="hidden js-edit-actions flex items-center justify-end gap-2 pt-2">
-                    <button type="button" class="js-cancel-edit px-3 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 rounded-md">Cancelar</button>
-                    <button type="button" class="js-save-item px-3 py-1 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm">Salvar</button>
-                </div>
-            `;
-            mobileList.prepend(div);
+                        <input type="number" step="0.01" class="hidden js-item-quantity-input w-20 px-2 py-1 text-sm border rounded" value="${item.quantity_display.replace(',', '.')}">
+                    </td>
+                    <td class="px-5 py-3.5 text-right text-slate-500 tabular-nums">R$ <span class="js-item-unit-price-display">${item.unit_price_display}</span><input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="${item.unit_price_display.replace(',', '.')}"></td>
+                    <td class="px-5 py-3.5 text-right font-bold text-slate-900 tabular-nums">R$ <span class="js-item-total-price-display">${item.total_price_display}</span></td>
+                    <td class="px-5 py-3.5 text-center">
+                        <div class="flex items-center justify-center gap-0.5">
+                            <button type="button" class="js-edit-item p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" data-item-id="${item.id}"><i data-lucide="edit-2" class="h-3.5 w-3.5"></i></button>
+                            <button type="button" class="hidden js-save-item p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" data-item-id="${item.id}"><i data-lucide="check" class="h-3.5 w-3.5"></i></button>
+                            <button type="button" class="hidden js-cancel-edit p-1.5 text-slate-400 hover:bg-slate-100 rounded-md transition-colors" data-item-id="${item.id}"><i data-lucide="x" class="h-3.5 w-3.5"></i></button>
+                            <button type="button" class="js-delete-item p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" data-item-id="${item.id}"><i data-lucide="trash-2" class="h-3.5 w-3.5"></i></button>
+                        </div>
+                    </td>`;
+                taskTbody.prepend(tr);
+            }
         }
-        
+
         if (window.lucide) window.lucide.createIcons();
     }
 
@@ -1123,8 +1191,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const term = productSearch.value.trim().toLowerCase();
         if (term.length < 1) { closeSuggestions(); return; }
         const list = currentType === 'PRODUCT' ? products : services;
-        const matches = list.filter(p => p.name.toLowerCase().includes(term) || (p.code && p.code.toLowerCase().includes(term))).slice(0, 10);
-        renderSuggestions(matches);
+        renderSuggestions(list.filter(p => p.name.toLowerCase().includes(term) || (p.code && p.code.toLowerCase().includes(term))).slice(0, 10));
     });
 
     quantityInput.addEventListener('input', updateTotal);
@@ -1132,89 +1199,52 @@ document.addEventListener('DOMContentLoaded', function() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!productIdInput.value && !serviceIdInput.value) {
-            showFeedback("Selecione um item do catálogo.", true);
-            return;
-        }
-
+        if (!productIdInput.value && !serviceIdInput.value) { showFeedback("Selecione um item do catálogo.", true); return; }
         const btn = form.querySelector('button[type="submit"]');
-        const originalContent = btn.innerHTML;
+        const orig = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i>';
         lucide.createIcons();
-
         try {
-            const response = await fetch(form.action, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: new FormData(form)
-            });
+            const response = await fetch(form.action, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: new FormData(form) });
             const data = await response.json();
-            if (data.success) {
-                prependItemRow(data.item);
-                updateDOM(data);
-                resetForm();
-                showFeedback("Item adicionado!", false);
-            } else {
-                showFeedback(data.message || "Erro ao adicionar.", true);
-            }
-        } catch (err) {
-            showFeedback("Erro de conexão.", true);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = originalContent;
-            lucide.createIcons();
-        }
+            if (data.success) { prependItemRow(data.item); updateDOM(data); resetForm(); showFeedback("Item adicionado!", false); }
+            else showFeedback(data.message || "Erro ao adicionar.", true);
+        } catch { showFeedback("Erro de conexão.", true); }
+        finally { btn.disabled = false; btn.innerHTML = orig; lucide.createIcons(); }
     });
 
-    // Delegated events for Edit, Save, Cancel, and Delete
     document.addEventListener('click', async (e) => {
         const target = e.target;
-        
-        // --- DELETE ITEM ---
+
         const delBtn = target.closest('.js-delete-item');
         if (delBtn) {
             if (!confirm("Remover este item?")) return;
             const id = delBtn.dataset.itemId;
             try {
-                const response = await fetch(`/items/${id}/delete/`, {
-                    method: 'POST',
-                    headers: { 
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                    }
-                });
-                const data = await response.json();
-                if (data.success) {
-                    document.querySelectorAll(`.js-order-item-row[data-item-id="${id}"]`).forEach(el => el.remove());
-                    updateDOM(data);
-                }
-            } catch (err) { console.error(err); }
+                const res = await fetch(`/items/${id}/delete/`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value } });
+                const data = await res.json();
+                if (data.success) { document.querySelectorAll(`.js-order-item-row[data-item-id="${id}"]`).forEach(el => el.remove()); updateDOM(data); }
+            } catch(err) { console.error(err); }
             return;
         }
 
-        // --- EDIT ITEM ---
         const editBtn = target.closest('.js-edit-item');
         if (editBtn) {
             const rowId = editBtn.dataset.itemId;
-            const rows = document.querySelectorAll(`.js-order-item-row[data-item-id="${rowId}"]`);
-            rows.forEach(row => {
-                row.querySelectorAll('.js-item-quantity-display, .js-item-unit-price-display, .js-edit-item, .js-delete-item').forEach(el => el.classList.add('hidden'));
-                row.querySelectorAll('.js-item-quantity-input, .js-item-unit-price-input, .js-save-item, .js-cancel-edit, .js-edit-actions').forEach(el => el.classList.remove('hidden'));
+            document.querySelectorAll(`.js-order-item-row[data-item-id="${rowId}"]`).forEach(row => {
+                row.querySelectorAll('.js-item-quantity-display,.js-item-unit-price-display,.js-edit-item,.js-delete-item').forEach(el => el.classList.add('hidden'));
+                row.querySelectorAll('.js-item-quantity-input,.js-item-unit-price-input,.js-save-item,.js-cancel-edit,.js-edit-actions').forEach(el => el.classList.remove('hidden'));
             });
             return;
         }
 
-        // --- CANCEL EDIT ---
         const cancelBtn = target.closest('.js-cancel-edit');
         if (cancelBtn) {
             const rowId = cancelBtn.dataset.itemId;
-            const rows = document.querySelectorAll(`.js-order-item-row[data-item-id="${rowId}"]`);
-            rows.forEach(row => {
-                row.querySelectorAll('.js-item-quantity-display, .js-item-unit-price-display, .js-edit-item, .js-delete-item').forEach(el => el.classList.remove('hidden'));
-                row.querySelectorAll('.js-item-quantity-input, .js-item-unit-price-input, .js-save-item, .js-cancel-edit, .js-edit-actions').forEach(el => el.classList.add('hidden'));
-                
-                // Reset input values
+            document.querySelectorAll(`.js-order-item-row[data-item-id="${rowId}"]`).forEach(row => {
+                row.querySelectorAll('.js-item-quantity-display,.js-item-unit-price-display,.js-edit-item,.js-delete-item').forEach(el => el.classList.remove('hidden'));
+                row.querySelectorAll('.js-item-quantity-input,.js-item-unit-price-input,.js-save-item,.js-cancel-edit,.js-edit-actions').forEach(el => el.classList.add('hidden'));
                 const qtyDisplay = row.querySelector('.js-item-quantity-display').textContent.replace(',', '.');
                 const priceDisplay = row.querySelector('.js-item-unit-price-display').textContent.replace(',', '.');
                 row.querySelector('.js-item-quantity-input').value = qtyDisplay;
@@ -1223,55 +1253,32 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // --- SAVE ITEM ---
         const saveBtn = target.closest('.js-save-item');
         if (saveBtn) {
             const rowId = saveBtn.dataset.itemId;
             const row = target.closest('.js-order-item-row');
-            const qtyInput = row.querySelector('.js-item-quantity-input');
-            const priceInput = row.querySelector('.js-item-unit-price-input');
-            
             const formData = new FormData();
-            formData.append('quantity', qtyInput.value);
-            formData.append('unit_price', priceInput.value);
-            
+            formData.append('quantity', row.querySelector('.js-item-quantity-input').value);
+            formData.append('unit_price', row.querySelector('.js-item-unit-price-input').value);
             saveBtn.disabled = true;
-            const originalContent = saveBtn.innerHTML;
+            const orig = saveBtn.innerHTML;
             saveBtn.innerHTML = '<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i>';
             if (window.lucide) window.lucide.createIcons();
-
             try {
-                const response = await fetch(`/items/${rowId}/update/`, {
-                    method: 'POST',
-                    headers: { 
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                    },
-                    body: formData
-                });
-                const data = await response.json();
+                const res = await fetch(`/items/${rowId}/update/`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }, body: formData });
+                const data = await res.json();
                 if (data.success) {
-                    const rows = document.querySelectorAll(`.js-order-item-row[data-item-id="${rowId}"]`);
-                    rows.forEach(r => {
+                    document.querySelectorAll(`.js-order-item-row[data-item-id="${rowId}"]`).forEach(r => {
                         r.querySelector('.js-item-quantity-display').textContent = data.item.quantity_display;
                         r.querySelector('.js-item-unit-price-display').textContent = data.item.unit_price_display;
                         r.querySelector('.js-item-total-price-display').textContent = data.item.total_price_display;
-                        
-                        r.querySelectorAll('.js-item-quantity-display, .js-item-unit-price-display, .js-edit-item, .js-delete-item').forEach(el => el.classList.remove('hidden'));
-                        r.querySelectorAll('.js-item-quantity-input, .js-item-unit-price-input, .js-save-item, .js-cancel-edit, .js-edit-actions').forEach(el => el.classList.add('hidden'));
+                        r.querySelectorAll('.js-item-quantity-display,.js-item-unit-price-display,.js-edit-item,.js-delete-item').forEach(el => el.classList.remove('hidden'));
+                        r.querySelectorAll('.js-item-quantity-input,.js-item-unit-price-input,.js-save-item,.js-cancel-edit,.js-edit-actions').forEach(el => el.classList.add('hidden'));
                     });
                     updateDOM(data);
-                } else {
-                    alert(data.message || "Erro ao atualizar item.");
-                }
-            } catch (err) {
-                console.error(err);
-                alert("Erro de conexão ao atualizar item.");
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.innerHTML = originalContent;
-                if (window.lucide) window.lucide.createIcons();
-            }
+                } else alert(data.message || "Erro ao atualizar.");
+            } catch { alert("Erro de conexão."); }
+            finally { saveBtn.disabled = false; saveBtn.innerHTML = orig; if (window.lucide) window.lucide.createIcons(); }
         }
     });
 });

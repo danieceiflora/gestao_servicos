@@ -1122,6 +1122,11 @@ class SaleReturnItem(models.Model):
 
 
 class ServiceOrder(models.Model):
+    class ServiceType(models.TextChoices):
+        INSTALACAO = 'INSTALACAO', 'Instalação'
+        MANUTENCAO_CORRETIVA = 'MANUTENCAO_CORRETIVA', 'Manutenção Corretiva'
+        MANUTENCAO_PREVENTIVA = 'MANUTENCAO_PREVENTIVA', 'Manutenção Preventiva'
+
     class Status(models.TextChoices):
         AGUARDANDO_VISITA = 'AGUARDANDO_VISITA', 'Aguardando visita inicial'
         ORCAMENTO_AGENDADO = 'ORCAMENTO_AGENDADO', 'Orçamento Agendado'
@@ -1179,6 +1184,13 @@ class ServiceOrder(models.Model):
     finished_at = models.DateTimeField(null=True, blank=True, verbose_name="Finalizado em")
     warranty_until = models.DateField(null=True, blank=True, verbose_name="Garantia Válida até")
     
+    service_type = models.CharField(
+        max_length=30,
+        choices=ServiceType.choices,
+        null=True,
+        blank=True,
+        verbose_name="Tipo de OS",
+    )
     stock_lowered = models.BooleanField(default=False, verbose_name="Estoque Baixado")
 
     def save(self, *args, **kwargs):
@@ -1323,6 +1335,7 @@ class ServiceOrderTask(models.Model):
         AGENDADO = 'AGENDADO', 'Agendado'
         EM_ANDAMENTO = 'EM_ANDAMENTO', 'Em Andamento'
         CONCLUIDO = 'CONCLUIDO', 'Concluído'
+        PARCIALMENTE_EXECUTADO = 'PARCIALMENTE_EXECUTADO', 'Parcialmente Executado'
         CANCELADO = 'CANCELADO', 'Cancelado'
         NAO_EXECUTADO = 'NAO_EXECUTADO', 'Não Executado'
 
@@ -1338,7 +1351,7 @@ class ServiceOrderTask(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='tasks', verbose_name="Ordem de Serviço")
     task_type = models.CharField(max_length=20, choices=TaskType.choices, default=TaskType.EXECUCAO, verbose_name="Tipo de Etapa")
-    status = models.CharField(max_length=20, choices=TaskStatus.choices, default=TaskStatus.AGENDADO, verbose_name="Status")
+    status = models.CharField(max_length=30, choices=TaskStatus.choices, default=TaskStatus.AGENDADO, verbose_name="Status")
     
     # Valor e Aprovação
     value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Valor da Etapa (R$)")
@@ -1759,6 +1772,11 @@ class FinanceSettings(models.Model):
         default=7,
         verbose_name="Dias de antecedência para geração",
         help_text="Quantos dias antes do vencimento o sistema deve gerar o registro de contas a pagar"
+    )
+    enable_commission = models.BooleanField(
+        default=False,
+        verbose_name="Habilitar módulo de comissão",
+        help_text="Quando ativo, exibe o relatório de comissões por etapa no painel financeiro."
     )
     updated_at = models.DateTimeField(auto_now=True)
 

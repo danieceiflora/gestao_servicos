@@ -465,21 +465,32 @@ def api_tecnico_sync_push(request):
                                     Q(descricao__iexact=method_code) | Q(ativo=True)
                                 ).first()
 
-                                # No fluxo mobile simplificado, damos baixa na primeira parcela pendente
-                                installment = billing.installments.filter(status=Installment.Status.PENDENTE).first()
-                                if installment:
-                                    installment.amount = amount
-                                    installment.payment_method = payment_method
-                                    installment.status = Installment.Status.PAGO
-                                    installment.paid_at = task.finished_at or timezone.now()
+                                # Registra o pagamento sem sobrescrever o valor da parcela
+                                installment = billing.installments.filter(
+                                    status__in=[Installment.Status.PENDENTE, Installment.Status.PARCIAL]
+                                ).first()
+                                if installment and payment_method:
+                                    from .models import SalePayment
+                                    SalePayment.objects.create(
+                                        os=task.service_order,
+                                        installment=installment,
+                                        metodo_pagamento=payment_method,
+                                        valor_bruto=amount,
+                                        valor_tarifa=Decimal('0.00'),
+                                        valor_liquido=amount,
+                                        data_pagamento=task.finished_at or timezone.now(),
+                                        data_previsao=(task.finished_at or timezone.now()).date(),
+                                    )
+                                    total_paid_inst = installment.get_total_paid()
+                                    if total_paid_inst >= installment.amount:
+                                        installment.status = Installment.Status.PAGO
+                                        installment.paid_at = task.finished_at or timezone.now()
+                                    elif total_paid_inst > 0:
+                                        installment.status = Installment.Status.PARCIAL
                                     installment.save()
-                                    
-                                    # Recalcula status da cobrança
-                                    total_paid = billing.installments.filter(status=Installment.Status.PAGO).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
-                                    if total_paid >= (billing.total_amount - billing.discount):
-                                        billing.status = Billing.Status.PAGO
-                                    else:
-                                        billing.status = Billing.Status.PARCIAL
+
+                                    remaining = billing.get_remaining_balance()
+                                    billing.status = Billing.Status.PAGO if remaining <= 0 else Billing.Status.PARCIAL
                                     billing.save()
 
                                 # Mantém compatibilidade com ServicePayment legado para relatórios antigos se necessário
@@ -532,12 +543,13 @@ def api_tecnico_sync_push(request):
                     # Para simplificar, o upload de mídia de ocorrência pode ser tratado separadamente.
                     processed_count += 1
                 
-                # 5. Serviço registrado como incompleto (impedimento)
+                # 5. Serviço registrado como incompleto pelo técnico
                 elif change_type == 'TASK_INCOMPLETE':
                     incomplete_data = payload.get('data', {})
+                    task.status = ServiceOrderTask.TaskStatus.PARCIALMENTE_EXECUTADO
                     if incomplete_data.get('notes'):
-                        task.notes = (task.notes or '') + '\n\n[Incompleto]: ' + incomplete_data['notes']
-                        task.save(update_fields=['notes'])
+                        task.notes = (task.notes or '') + '\n\n[Parcial]: ' + incomplete_data['notes']
+                    task.save(update_fields=['status', 'notes'])
                     processed_count += 1
 
                 # 6. Outros tipos podem ser adicionados aqui

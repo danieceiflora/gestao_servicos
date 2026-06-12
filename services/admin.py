@@ -180,8 +180,9 @@ class ServiceOrderTaskAdmin(admin.ModelAdmin):
 
 @admin.register(ServiceOrder)
 class ServiceOrderAdmin(admin.ModelAdmin):
-    list_display = ['id_short', 'client_name', 'status', 'is_recurrent', 'total_value_display', 'created_at']
-    list_filter = ['status', 'is_recurrent', 'created_at']
+    list_display = ['id_short', 'client_name', 'service_type', 'status', 'is_recurrent', 'total_value_display', 'created_at']
+    list_filter = ['service_type', 'status', 'is_recurrent', 'created_at']
+    search_fields = ['number', 'client_property__client__name']
     inlines = [ServiceOrderTaskInline, ServiceItemInline]
 
     def id_short(self, obj):
