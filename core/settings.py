@@ -66,6 +66,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'django.template.context_processors.media',
                 'services.context_processors.vapid_keys',
+                'services.context_processors.system_config',
             ],
         },
     },

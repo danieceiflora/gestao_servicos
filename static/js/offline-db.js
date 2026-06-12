@@ -303,7 +303,6 @@ const OfflineDB = {
         this._syncInProgress = true;
 
         try {
-            await db.media.where('status').equals('synced').delete();
             const pendingItems = await db.sync_queue
                 .where('status')
                 .anyOf(['pending', 'error'])
@@ -342,6 +341,7 @@ const OfflineDB = {
 
             try {
                 let totalSuccess = true;
+                let occurrenceIdMap = {}; // local_id → server_uuid (retornado pelo backend)
                 const textChanges = pendingItems.filter(i => i.type !== 'MEDIA_UPLOAD' && i.type !== 'PROPERTY_GPS_UPDATE');
                 const mediaChanges = pendingItems.filter(i => i.type === 'MEDIA_UPLOAD');
                 const gpsChanges = pendingItems.filter(i => i.type === 'PROPERTY_GPS_UPDATE');
@@ -360,9 +360,11 @@ const OfflineDB = {
                     });
 
                     if (response.ok) {
+                        const responseData = await response.json().catch(() => ({}));
+                        occurrenceIdMap = responseData.occurrence_id_map || {};
                         const ids = textChanges.map(i => i.id);
                         await db.sync_queue.bulkDelete(ids);
-                        console.log(`✅ ${textChanges.length} mudanças de texto sincronizadas.`);
+                        console.log(`✅ ${textChanges.length} mudanças de texto sincronizadas.`, occurrenceIdMap);
                     } else {
                         totalSuccess = false;
                         const errorData = await response.json().catch(() => ({}));
@@ -425,7 +427,10 @@ const OfflineDB = {
                     const filename = `upload_${Date.now()}.${ext}`;
                     formData.append('file', mediaRecord.blob, filename);
                     formData.append('response_id', item.payload.response_id || '');
-                    formData.append('occurrence_id', item.payload.occurrence_id || '');
+                    // Resolve o ID local da ocorrência para o UUID do servidor quando disponível
+                    const localOccId = String(item.payload.occurrence_id || '');
+                    const resolvedOccId = occurrenceIdMap[localOccId] || localOccId;
+                    formData.append('occurrence_id', resolvedOccId);
 
                     const rawTaskId = String(item.payload.task_id || '');
                     const uploadUrl = rawTaskId.startsWith('maint_')
@@ -442,9 +447,9 @@ const OfflineDB = {
                     });
 
                     if (response.ok) {
-                        await db.media.delete(mediaRecord.id);
+                        await db.media.update(mediaRecord.id, { status: 'synced' });
                         await db.sync_queue.delete(item.id);
-                        console.log(`📸 Mídia ${mediaRecord.id} enviada e removida do dispositivo.`);
+                        console.log(`📸 Mídia ${mediaRecord.id} enviada com sucesso.`);
                     } else if (response.status === 429) {
                         totalSuccess = false;
                         await db.sync_queue.update(item.id, { status: 'pending' });

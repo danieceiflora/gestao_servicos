@@ -1854,7 +1854,9 @@ def occurrence_list(request):
         messages.error(request, "Acesso negado.")
         return redirect('home')
 
-    occurrences = Occurrence.objects.all().order_by('-created_at')
+    occurrences = Occurrence.objects.select_related(
+        'task', 'task__service_order'
+    ).prefetch_related('medias').order_by('-created_at')
     
     status_filter = request.GET.get('status', Occurrence.OccurrenceStatus.REGISTRADA)
     if status_filter and status_filter != 'ALL':

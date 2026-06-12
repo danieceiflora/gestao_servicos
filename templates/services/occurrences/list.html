@@ -66,7 +66,7 @@
                         <div class="text-xs text-slate-500 mt-0.5">{{ occurrence.get_category_display }}</div>
                     </td>
                     <td class="px-4 py-3">
-                        {% if occurrence.status == 'REGISTERED' %}
+                        {% if occurrence.status == 'REGISTRADA' %}
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
                                 {{ occurrence.get_status_display }}
                             </span>
@@ -78,8 +78,8 @@
                     </td>
                     <td class="px-4 py-3 text-right">
                         <button onclick="document.getElementById('modal-{{ occurrence.id }}').showModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors border border-slate-200">
-                            {% if occurrence.status == 'REGISTERED' %}
-                                Resolucão
+                            {% if occurrence.status == 'REGISTRADA' %}
+                                Resolução
                             {% else %}
                                 Detalhes
                             {% endif %}
@@ -133,7 +133,7 @@
             </div>
             {% endif %}
 
-            {% if occurrence.status == 'RESOLVED' %}
+            {% if occurrence.status == 'RESOLVIDA' %}
             <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
                 <h4 class="text-sm font-medium text-slate-500">Observação da Resolução</h4>
                 <p class="text-slate-800 mt-1 whitespace-pre-wrap">{{ occurrence.observation|default:"Sem observação." }}</p>
@@ -141,7 +141,7 @@
             {% endif %}
         </div>
 
-        {% if occurrence.status == 'REGISTERED' %}
+        {% if occurrence.status == 'REGISTRADA' %}
         <form method="POST" action="{% url 'occurrence_resolve' occurrence.id %}">
             {% csrf_token %}
             <div class="space-y-4">

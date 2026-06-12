@@ -6,38 +6,74 @@
     <header class="hidden lg:flex sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="container mx-auto flex h-16 items-center justify-between px-4">
             <div class="flex items-center gap-2">
+                {% if SYSTEM_CONFIG and SYSTEM_CONFIG.company_logo %}
+                <img src="{{ SYSTEM_CONFIG.company_logo.url }}" alt="{{ SYSTEM_CONFIG.company_name }}" class="h-8 w-8 rounded-lg object-cover">
+                {% else %}
                 <div class="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center">
                     <i data-lucide="briefcase" class="h-5 w-5 text-white"></i>
                 </div>
-                <span class="text-lg font-bold tracking-tight">Gestão de Serviços</span>
+                {% endif %}
+                <span class="text-lg font-bold tracking-tight">{% if SYSTEM_CONFIG %}{{ SYSTEM_CONFIG.company_name }}{% else %}Gestão de Serviços{% endif %}</span>
             </div>
             {% if user.is_authenticated %}
-            <nav class="flex items-center gap-6">
+            <nav class="flex items-center gap-3">
                 <a href="{% url 'home' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'home' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Dashboard</a>
-                
-                {% if perms.services.view_client %}
-                <a href="{% url 'client_list' %}" class="text-sm font-medium {% if 'client' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Clientes</a>
-                {% endif %}
-                
-                {% if perms.services.view_professional %}
-                <a href="{% url 'professional_list' %}" class="text-sm font-medium {% if 'professional' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Equipe</a>
-                {% endif %}
-                
-                {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
-                <a href="{% url 'product_list' %}" class="text-sm font-medium {% if 'product' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Estoque</a>
-                <a href="{% url 'sale_list' %}" class="text-sm font-medium {% if 'sale' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Vendas</a>
-                {% endif %}
-                
-                  {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
-                  <a href="{% url 'occurrence_list' %}" class="text-sm font-medium {% if 'occurrence' in request.resolver_match.url_name %}text-amber-600{% else %}text-slate-600{% endif %} hover:text-amber-600 transition-colors">Ocorrências</a>
-                  {% endif %}
 
-                                  <a href="{% url 'service_order_calendar' %}" class="text-sm font-medium {% if 'calendar' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Agenda</a>
+                <a href="{% url 'service_order_calendar' %}" class="text-sm font-medium {% if 'calendar' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Agenda</a>
+
                 {% if not user.is_manager %}
                 <a href="{% url 'equipe_task_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'equipe_task_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Tarefas</a>
                 {% else %}
                 <a href="{% url 'service_order_list' %}" class="text-sm font-medium {% if request.resolver_match.url_name == 'service_order_list' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors">Ordens</a>
+                {% endif %}
 
+                {% if perms.services.view_client or perms.services.view_professional or user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
+                <div class="relative group">
+                    <button type="button" class="text-sm font-medium {% if 'client' in request.resolver_match.url_name or 'professional' in request.resolver_match.url_name or 'occurrence' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
+                        Operacional <i data-lucide="chevron-down" class="h-3 w-3"></i>
+                    </button>
+                    <div class="absolute left-0 top-full -mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
+                        {% if perms.services.view_client %}
+                        <a href="{% url 'client_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="users" class="h-4 w-4 text-blue-500"></i>
+                            Clientes
+                        </a>
+                        {% endif %}
+                        {% if perms.services.view_professional %}
+                        <a href="{% url 'professional_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="hard-hat" class="h-4 w-4 text-slate-400"></i>
+                            Equipe
+                        </a>
+                        {% endif %}
+                        {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
+                        <a href="{% url 'occurrence_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-amber-600">
+                            <i data-lucide="alert-triangle" class="h-4 w-4 text-amber-500"></i>
+                            Ocorrências
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
+                <div class="relative group">
+                    <button type="button" class="text-sm font-medium {% if 'product' in request.resolver_match.url_name or 'sale' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
+                        Estoque <i data-lucide="chevron-down" class="h-3 w-3"></i>
+                    </button>
+                    <div class="absolute left-0 top-full -mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
+                        <a href="{% url 'product_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="package" class="h-4 w-4 text-slate-400"></i>
+                            Produtos
+                        </a>
+                        <a href="{% url 'sale_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                            <i data-lucide="shopping-cart" class="h-4 w-4 text-emerald-500"></i>
+                            Vendas
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if user.is_manager %}
                 <div class="relative group">
                     <button type="button" class="text-sm font-medium {% if 'contract' in request.resolver_match.url_name or 'asset' in request.resolver_match.url_name or 'closing' in request.resolver_match.url_name or 'visit' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
                         Manutenção <i data-lucide="chevron-down" class="h-3 w-3"></i>
@@ -95,11 +131,11 @@
                             <i data-lucide="ban" class="h-4 w-4 text-red-500 rotate-180"></i>
                             Contas a Pagar
                         </a>
-                        <a href="{% url 'finance_dashboard' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                        <a href="{% url 'finance_dashboard' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
                             <i data-lucide="line-chart" class="h-4 w-4 text-slate-400"></i>
                             Comissões & Relatórios
                         </a>
-                        <a href="{% url 'finance_professional_payments' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                        <a href="{% url 'finance_professional_payments' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
                             <i data-lucide="banknote" class="h-4 w-4 text-slate-400"></i>
                             Pagamentos de Técnicos
                         </a>
@@ -110,26 +146,26 @@
                     </div>
                 </div>
                 {% endif %}
-                
+
                 {% if user.is_staff %}
                 <div class="relative group">
                     <button type="button" class="text-sm font-medium {% if 'whatsapp' in request.path or 'admin' in request.path %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
                         <i data-lucide="settings" class="h-4 w-4"></i> Configurações <i data-lucide="chevron-down" class="h-3 w-3"></i>
                     </button>
                     <div class="absolute right-0 top-full -mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
-                        <a href="{% url 'admin:index' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                        <a href="{% url 'admin:index' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
                             <i data-lucide="shield-check" class="h-4 w-4 text-slate-400"></i>
                             Admin
                         </a>
-                        <a href="{% url 'integracoes:whatsapp_template_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                        <a href="{% url 'integracoes:whatsapp_template_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
                             <i data-lucide="message-square" class="h-4 w-4 text-slate-400"></i>
                             Templates WhatsApp
                         </a>
-                        <a href="{% url 'integracoes:notification_config_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                        <a href="{% url 'integracoes:notification_config_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
                             <i data-lucide="zap" class="h-4 w-4 text-slate-400"></i>
                             Notificações Automáticas
                         </a>
-                        <a href="{% url 'integracoes:collection_sequence_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                        <a href="{% url 'integracoes:collection_sequence_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
                             <i data-lucide="git-branch" class="h-4 w-4 text-slate-400"></i>
                             Régua de Cobrança
                         </a>
@@ -137,10 +173,9 @@
                             <i data-lucide="bell" class="h-4 w-4 text-slate-400"></i>
                             Lembretes Agendados
                         </a>
-                        </div>
-                        </div>
-                        {% endif %}
-
+                    </div>
+                </div>
+                {% endif %}
 
                 <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
                     <div class="text-right hidden xl:block">
@@ -166,7 +201,7 @@
 
     <!-- Mobile Header -->
     <header class="flex lg:hidden sticky top-0 z-40 w-full border-b border-slate-200 bg-white px-4 py-3 items-center justify-between">
-        <span class="text-base font-bold tracking-tight">Gestão de Serviços</span>
+        <span class="text-base font-bold tracking-tight">{% if SYSTEM_CONFIG %}{{ SYSTEM_CONFIG.company_name }}{% else %}Gestão de Serviços{% endif %}</span>
         {% if user.is_authenticated %}
         <div class="flex items-center gap-3">
             <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{{ user.get_role_display }}</span>
@@ -235,12 +270,3 @@
     </nav>
     {% endif %}
 {% endblock %}
-
-
-
-
-ock %}
-
-
-
-

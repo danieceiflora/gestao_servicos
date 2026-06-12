@@ -32,7 +32,20 @@ const OfflineApp = {
     // Inicialização
     async init() {
         console.log('📱 OfflineApp inicializando...');
-        
+
+        // Limpa mídias sincronizadas de sessões anteriores apenas para tarefas já concluídas.
+        // Tarefas em andamento mantêm suas mídias locais para exibição (ocorrências, etc.)
+        try {
+            const completedTasks = await db.tasks.where('status').equals('CONCLUIDO').toArray();
+            const completedIds = completedTasks.map(t => String(t.id));
+            if (completedIds.length > 0) {
+                await db.media
+                    .where('task_id').anyOf(completedIds)
+                    .and(item => item.status === 'synced')
+                    .delete();
+            }
+        } catch (_) {}
+
         // Monitora mudanças na hash para navegação
         window.addEventListener('hashchange', () => this.handleRouting());
 

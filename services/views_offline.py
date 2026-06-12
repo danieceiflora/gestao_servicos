@@ -11,10 +11,17 @@ from .models import (
 )
 from .utils_media import (
     MediaProcessingBusyError,
+    MediaFileInfo,
     save_upload_for_processing,
+    process_media_path,
+    cleanup_processed_media,
 )
 from .utils.finance import create_billing_for_os
 from integracoes.models import SystemConfig
+from django.conf import settings
+from django.core.files import File
+from .models import ServiceMedia, ChecklistResponseMedia
+import os
 import uuid
 import json
 from decimal import Decimal
@@ -367,6 +374,8 @@ def api_tecnico_sync_push(request):
         processed_count = 0
         errors = []
         
+        occurrence_id_map = {}  # local_id (str) → server_uuid (str)
+
         for index, change in enumerate(changes):
             try:
                 change_type = change.get('type')
@@ -538,9 +547,9 @@ def api_tecnico_sync_push(request):
                         description=occ_data.get('description', ''),
                         status=Occurrence.OccurrenceStatus.REGISTRADA
                     )
-                    # Se houver um ID temporário local, podemos retornar para o cliente se necessário
-                    # Mas o importante é que mídias vinculadas a esta ocorrência usem o ID real depois.
-                    # Para simplificar, o upload de mídia de ocorrência pode ser tratado separadamente.
+                    local_occ_id = occ_data.get('local_occurrence_id')
+                    if local_occ_id is not None:
+                        occurrence_id_map[str(local_occ_id)] = str(occ.id)
                     processed_count += 1
                 
                 # 5. Serviço registrado como incompleto pelo técnico
@@ -560,9 +569,10 @@ def api_tecnico_sync_push(request):
                 errors.append(error_msg)
 
         return JsonResponse({
-            'success': len(errors) == 0, 
+            'success': len(errors) == 0,
             'processed_count': processed_count,
-            'errors': errors
+            'errors': errors,
+            'occurrence_id_map': occurrence_id_map,
         }, status=400 if errors else 200)
     except Exception as e:
         import traceback
@@ -599,6 +609,34 @@ def api_tecnico_upload_media(request, task_id):
                 occurrence = None
 
         raw_path, file_info = save_upload_for_processing(file)
+
+        if settings.DEBUG:
+            # Em desenvolvimento processa a mídia imediatamente (sem worker).
+            processed = process_media_path(raw_path, file_info=file_info)
+            try:
+                with open(processed.output_path, 'rb') as fh:
+                    processed_file = File(fh, name=processed.output_name)
+                    if response:
+                        media = ChecklistResponseMedia.objects.create(
+                            response=response,
+                            file=processed_file,
+                        )
+                    else:
+                        media = ServiceMedia.objects.create(
+                            task=task,
+                            occurrence=occurrence,
+                            file=processed_file,
+                        )
+            finally:
+                cleanup_processed_media(processed)
+                try:
+                    os.remove(raw_path)
+                except OSError:
+                    pass
+            return JsonResponse(
+                {'success': True, 'media_id': media.id, 'queued': False},
+                status=201,
+            )
 
         job = MediaProcessingJob.objects.create(
             task=task,

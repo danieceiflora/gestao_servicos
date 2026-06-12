@@ -1222,7 +1222,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!confirm("Remover este item?")) return;
             const id = delBtn.dataset.itemId;
             try {
-                const res = await fetch(`/items/${id}/delete/`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value } });
+                const res = await fetch(`/itens/${id}/excluir/`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value } });
                 const data = await res.json();
                 if (data.success) { document.querySelectorAll(`.js-order-item-row[data-item-id="${id}"]`).forEach(el => el.remove()); updateDOM(data); }
             } catch(err) { console.error(err); }
