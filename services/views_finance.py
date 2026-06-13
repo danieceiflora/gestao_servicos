@@ -96,7 +96,6 @@ def finance_dashboard(request):
     now = timezone.now()
     month = int(request.GET.get('month', now.month))
     year = int(request.GET.get('year', now.year))
-    professional_id = request.GET.get('professional')
 
     tz = timezone.get_current_timezone()
     start_of_month = timezone.make_aware(datetime(year, month, 1), tz)
@@ -105,82 +104,6 @@ def finance_dashboard(request):
     else:
         end_of_month = timezone.make_aware(datetime(year, month + 1, 1), tz)
 
-    # Verifica se o módulo de comissão está habilitado
-    finance_settings, _ = FinanceSettings.objects.get_or_create(pk=1)
-    commission_enabled = finance_settings.enable_commission
-
-    # Query allocations for completed/partial executions in the selected period
-    billable_statuses = [
-        ServiceOrderTask.TaskStatus.CONCLUIDO,
-        ServiceOrderTask.TaskStatus.PARCIALMENTE_EXECUTADO,
-    ]
-    allocations = ServiceOrderTeam.objects.filter(
-        task__task_type=ServiceOrderTask.TaskType.EXECUCAO,
-        task__status__in=billable_statuses,
-        task__finished_at__gte=start_of_month,
-        task__finished_at__lt=end_of_month
-    ).select_related('task__service_order', 'professional', 'role').order_by('professional__name', 'task__finished_at')
-
-    if professional_id:
-        allocations = allocations.filter(professional_id=professional_id)
-
-    # Process data grouped by professional
-    grouped_data = {}
-    total_commission_global = Decimal('0')
-    total_services_value_global = Decimal('0')
-    total_base_salary_global = Decimal('0')
-    professionals_seen = set()
-
-    for alloc in allocations:
-        p_id = str(alloc.professional.id)
-        if p_id not in grouped_data:
-            grouped_data[p_id] = {
-                'professional_name': alloc.professional.name,
-                'base_salary': alloc.professional.base_salary or Decimal('0'),
-                'items': [],
-                'total_commission': Decimal('0'),
-                'total_services_value': Decimal('0'),
-            }
-        
-        task_value = alloc.task.billing_value or Decimal('0')
-        comm_rate = alloc.role.commission_rate if alloc.role else Decimal('0')
-        commission_value = (task_value * (comm_rate / 100))
-        
-        item = {
-            'date': alloc.task.finished_at,
-            'order_id': alloc.task.service_order.id,
-            'os_number': alloc.task.service_order.number,
-            'client_name': alloc.task.service_order.client_property.client.name,
-            'address': alloc.task.service_order.client_property.address,
-            'role': alloc.role.name if alloc.role else '---',
-            'task_value': task_value,
-            'comm_rate': comm_rate,
-            'commission_value': commission_value,
-        }
-        
-        grouped_data[p_id]['items'].append(item)
-        grouped_data[p_id]['total_commission'] += commission_value
-        grouped_data[p_id]['total_services_value'] += task_value
-        
-        total_commission_global += commission_value
-        total_services_value_global += task_value
-        
-        if alloc.professional.id not in professionals_seen:
-            professionals_seen.add(alloc.professional.id)
-            total_base_salary_global += alloc.professional.base_salary or Decimal('0')
-
-    # Flatten report_items for the dashboard table (simple list)
-    report_items = []
-    for p_id, data in grouped_data.items():
-        for item in data['items']:
-            # Inject professional name for each item in flat list
-            item_with_name = item.copy()
-            item_with_name['professional'] = data['professional_name']
-            report_items.append(item_with_name)
-
-    # ── BI Financeiro ─────────────────────────────────────────────────────────
-
-    # Helper: last 6 months starting from selected month
     try:
         from dateutil.relativedelta import relativedelta as _rdelta
         _has_rdelta = True
@@ -206,7 +129,6 @@ def finance_dashboard(request):
         label = f"{mm:02d}/{my}"
         bi_months_meta.append((my, mm, ms, me, ms_dt, me_dt, label))
 
-    # Revenue by month (SalePayment.valor_bruto, data_pagamento in period)
     monthly_revenue_labels = [m[6] for m in bi_months_meta]
     monthly_revenue_values = []
     for my, mm, ms, me, ms_dt, me_dt, _ in bi_months_meta:
@@ -216,7 +138,6 @@ def finance_dashboard(request):
         ).aggregate(total=Sum('valor_bruto'))['total'] or Decimal('0')
         monthly_revenue_values.append(float(rev))
 
-    # Expenses by month (InstallmentPayment.amount, payment_date in period)
     monthly_expense_values = []
     for my, mm, ms, me, ms_dt, me_dt, _ in bi_months_meta:
         exp = InstallmentPayment.objects.filter(
@@ -226,7 +147,6 @@ def finance_dashboard(request):
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
         monthly_expense_values.append(float(exp))
 
-    # DRE for selected month
     _cur_my, _cur_mm, _cur_ms, _cur_me = bi_months_meta[-1][:4]
     dre_receita = SalePayment.objects.filter(
         data_pagamento__date__gte=_cur_ms,
@@ -241,7 +161,6 @@ def finance_dashboard(request):
 
     dre_resultado = dre_receita - dre_despesas
 
-    # Ticket médio (avg value of FINALIZADO OS in selected month)
     avg_ticket = ServiceOrder.objects.filter(
         status__in=[ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CONCLUIDA],
         finished_at__gte=bi_months_meta[-1][4],
@@ -249,7 +168,6 @@ def finance_dashboard(request):
         estimated_value__isnull=False,
     ).aggregate(avg=Avg('estimated_value'))['avg'] or Decimal('0')
 
-    # Inadimplência: installments overdue or pending past due date
     today_date = date.today()
     total_active_installments = Installment.objects.exclude(
         status__in=[Installment.Status.PAGO, Installment.Status.CANCELADO]
@@ -263,7 +181,6 @@ def finance_dashboard(request):
         if total_active_installments > 0 else 0, 1
     )
 
-    # Top 10 clientes por faturamento (billing total_amount, not CANCELADO)
     top_clients = (
         Billing.objects
         .exclude(status=Billing.Status.CANCELADO)
@@ -274,7 +191,121 @@ def finance_dashboard(request):
     top_clients_labels = json.dumps([c['cliente'] or 'Sem nome' for c in top_clients])
     top_clients_values = json.dumps([float(c['total']) for c in top_clients])
 
-    # ── End BI Financeiro ─────────────────────────────────────────────────────
+    os_count = ServiceOrder.objects.filter(
+        status__in=[ServiceOrder.Status.FINALIZADO, ServiceOrder.Status.CONCLUIDA],
+        finished_at__gte=start_of_month,
+        finished_at__lt=end_of_month,
+    ).count()
+
+    context = {
+        'months': range(1, 13),
+        'years': range(now.year - 2, now.year + 1),
+        'selected_month': month,
+        'selected_year': year,
+        'monthly_revenue_labels_json': json.dumps(monthly_revenue_labels),
+        'monthly_revenue_json': json.dumps(monthly_revenue_values),
+        'monthly_expense_json': json.dumps(monthly_expense_values),
+        'dre_receita': dre_receita,
+        'dre_despesas': dre_despesas,
+        'dre_resultado': dre_resultado,
+        'avg_ticket': avg_ticket,
+        'overdue_installments': overdue_installments,
+        'inadimplencia_rate': inadimplencia_rate,
+        'top_clients_labels_json': top_clients_labels,
+        'top_clients_values_json': top_clients_values,
+        'os_count': os_count,
+    }
+
+    return render(request, 'services/finance/dashboard.html', context)
+
+
+@login_required
+@user_passes_test(is_manager)
+def finance_commissions(request):
+    now = timezone.now()
+    month = int(request.GET.get('month', now.month))
+    year = int(request.GET.get('year', now.year))
+    professional_id = request.GET.get('professional')
+
+    tz = timezone.get_current_timezone()
+    start_of_month = timezone.make_aware(datetime(year, month, 1), tz)
+    if month == 12:
+        end_of_month = timezone.make_aware(datetime(year + 1, 1, 1), tz)
+    else:
+        end_of_month = timezone.make_aware(datetime(year, month + 1, 1), tz)
+
+    finance_settings, _ = FinanceSettings.objects.get_or_create(pk=1)
+    commission_enabled = finance_settings.enable_commission
+
+    billable_statuses = [
+        ServiceOrderTask.TaskStatus.CONCLUIDO,
+        ServiceOrderTask.TaskStatus.PARCIALMENTE_EXECUTADO,
+    ]
+    allocations = ServiceOrderTeam.objects.filter(
+        task__task_type=ServiceOrderTask.TaskType.EXECUCAO,
+        task__status__in=billable_statuses,
+        task__finished_at__gte=start_of_month,
+        task__finished_at__lt=end_of_month
+    ).select_related('task__service_order', 'professional', 'role').order_by('professional__name', 'task__finished_at')
+
+    if professional_id:
+        allocations = allocations.filter(professional_id=professional_id)
+
+    grouped_data = {}
+    total_commission_global = Decimal('0')
+    total_services_value_global = Decimal('0')
+    total_base_salary_global = Decimal('0')
+    professionals_seen = set()
+
+    for alloc in allocations:
+        p_id = str(alloc.professional.id)
+        if p_id not in grouped_data:
+            grouped_data[p_id] = {
+                'professional_name': alloc.professional.name,
+                'base_salary': alloc.professional.base_salary or Decimal('0'),
+                'items': [],
+                'total_commission': Decimal('0'),
+                'total_services_value': Decimal('0'),
+            }
+
+        task_value = alloc.task.billing_value or Decimal('0')
+        comm_rate = alloc.role.commission_rate if alloc.role else Decimal('0')
+        commission_value = (task_value * (comm_rate / 100))
+
+        item = {
+            'date': alloc.task.finished_at,
+            'order_id': alloc.task.service_order.id,
+            'os_number': alloc.task.service_order.number,
+            'client_name': alloc.task.service_order.client_property.client.name,
+            'address': alloc.task.service_order.client_property.address,
+            'role': alloc.role.name if alloc.role else '---',
+            'task_value': task_value,
+            'comm_rate': comm_rate,
+            'commission_value': commission_value,
+        }
+
+        grouped_data[p_id]['items'].append(item)
+        grouped_data[p_id]['total_commission'] += commission_value
+        grouped_data[p_id]['total_services_value'] += task_value
+
+        total_commission_global += commission_value
+        total_services_value_global += task_value
+
+        if alloc.professional.id not in professionals_seen:
+            professionals_seen.add(alloc.professional.id)
+            total_base_salary_global += alloc.professional.base_salary or Decimal('0')
+
+    report_items = []
+    for p_id, data in grouped_data.items():
+        for item in data['items']:
+            item_with_name = item.copy()
+            item_with_name['professional'] = data['professional_name']
+            report_items.append(item_with_name)
+
+    if request.GET.get('export') == 'xlsx':
+        return export_finance_xlsx(grouped_data, month, year)
+    elif request.GET.get('export') == 'pdf':
+        return export_finance_pdf(grouped_data, month, year)
 
     context = {
         'report_items': report_items,
@@ -291,26 +322,10 @@ def finance_dashboard(request):
         'selected_year': year,
         'selected_professional': professional_id,
         'professionals': Professional.objects.filter(is_active=True),
-        # BI
-        'monthly_revenue_labels_json': json.dumps(monthly_revenue_labels),
-        'monthly_revenue_json': json.dumps(monthly_revenue_values),
-        'monthly_expense_json': json.dumps(monthly_expense_values),
-        'dre_receita': dre_receita,
-        'dre_despesas': dre_despesas,
-        'dre_resultado': dre_resultado,
-        'avg_ticket': avg_ticket,
-        'overdue_installments': overdue_installments,
-        'inadimplencia_rate': inadimplencia_rate,
-        'top_clients_labels_json': top_clients_labels,
-        'top_clients_values_json': top_clients_values,
     }
 
-    if request.GET.get('export') == 'xlsx':
-        return export_finance_xlsx(grouped_data, month, year)
-    elif request.GET.get('export') == 'pdf':
-        return export_finance_pdf(grouped_data, month, year)
+    return render(request, 'services/finance/commissions.html', context)
 
-    return render(request, 'services/finance/dashboard.html', context)
 
 def export_finance_xlsx(grouped_data, month, year):
     wb = Workbook()

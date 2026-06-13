@@ -9,10 +9,16 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from pywebpush import webpush, WebPushException
-from .models import PushSubscription, User
+from .models import PushSubscription, PushNotificationJob, User
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def queue_push_notification(user, title, body, url='/'):
+    """Enfileira uma notificação push para envio assíncrono pelo worker."""
+    PushNotificationJob.objects.create(user=user, title=title, body=body, url=url)
+
 
 def send_push_notification(user, title, body, url='/'):
     """

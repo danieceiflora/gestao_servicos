@@ -10,7 +10,7 @@ from datetime import timedelta, datetime
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import django.utils.timezone
 import logging
-from .notifications import send_push_notification
+from .notifications import queue_push_notification
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .utils.pdf_generator import BudgetPDFGenerator, CompletionPDFGenerator
@@ -738,7 +738,7 @@ def service_order_scheduling(request):
                                 if professional.user:
                                     title = "Nova O.S. Agendada 🛠️"
                                     body = f"Você foi escalado para {task.get_task_type_display()} na O.S. #{service_order.number}\nInício: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M') if task.scheduled_at else 'A definir'}"
-                                    send_push_notification(professional.user, title, body, url=f"/equipe/etapa/{task.id}/")
+                                    queue_push_notification(professional.user, title, body, url=f"/equipe/etapa/{task.id}/")
 
                             except (Professional.DoesNotExist, ProfessionalRole.DoesNotExist):
                                 pass
@@ -1052,6 +1052,21 @@ def task_add(request, order_id):
                     )
                     if not available:
                         # Se for apenas fora do horário de trabalho e não estiver ignorando, avise
+                        # Calcular budget_items para preservar a seção de clone no re-render
+                        _is_first_execucao_check = not order.tasks.filter(
+                            task_type=ServiceOrderTask.TaskType.EXECUCAO
+                        ).exists()
+                        _budget_items_rerender = []
+                        if form.cleaned_data.get('task_type') == ServiceOrderTask.TaskType.EXECUCAO and _is_first_execucao_check:
+                            _budget_items_rerender = list(
+                                (
+                                    order.items.filter(task__task_type=ServiceOrderTask.TaskType.ORCAMENTO) |
+                                    order.items.filter(task__isnull=True)
+                                )
+                                .select_related('product', 'service')
+                                .distinct()
+                            )
+
                         if conflict_type == "OUT_OF_HOURS":
                             messages.warning(request, f"Aviso de Agenda: {msg} (Confirme para forçar o agendamento).")
                             return render(request, 'services/tasks/task_form.html', {
@@ -1060,7 +1075,8 @@ def task_add(request, order_id):
                                 'order': order,
                                 'title': 'Adicionar Nova Etapa',
                                 'show_force_schedule_modal': True,
-                                'force_message': msg
+                                'force_message': msg,
+                                'budget_items': _budget_items_rerender,
                             })
                         else:
                             messages.error(request, f"Conflito de agenda: {msg}")
@@ -1068,7 +1084,8 @@ def task_add(request, order_id):
                                 'form': form,
                                 'formset': formset,
                                 'order': order,
-                                'title': 'Adicionar Nova Etapa'
+                                'title': 'Adicionar Nova Etapa',
+                                'budget_items': _budget_items_rerender,
                             })
 
             task.save()
@@ -1077,7 +1094,7 @@ def task_add(request, order_id):
             formset.instance = task
             formset.save()
 
-            # Clonar itens do orçamento para a primeira execução
+            # Clonar itens do orçamento para a primeira execução (clone seletivo)
             cloned_count = 0
             if task.task_type == ServiceOrderTask.TaskType.EXECUCAO:
                 is_first_execucao = not order.tasks.filter(
@@ -1085,11 +1102,23 @@ def task_add(request, order_id):
                 ).exclude(id=task.id).exists()
 
                 if is_first_execucao:
-                    budget_items = order.items.filter(
-                        task__task_type=ServiceOrderTask.TaskType.ORCAMENTO
-                    ) | order.items.filter(task__isnull=True)
+                    selected_ids_raw = request.POST.getlist('selected_budget_item_ids')
+                    selected_ids = [sid for sid in selected_ids_raw if sid.strip()]
 
-                    for item in budget_items:
+                    if selected_ids:
+                        # Clonar apenas os itens selecionados, garantindo que pertencem ao orçamento
+                        budget_items_qs = order.items.filter(id__in=selected_ids).filter(
+                            Q(task__task_type=ServiceOrderTask.TaskType.ORCAMENTO) |
+                            Q(task__isnull=True)
+                        )
+                    else:
+                        # Fallback: nenhum item selecionado → clonar tudo
+                        budget_items_qs = (
+                            order.items.filter(task__task_type=ServiceOrderTask.TaskType.ORCAMENTO) |
+                            order.items.filter(task__isnull=True)
+                        )
+
+                    for item in budget_items_qs:
                         ServiceItem.objects.create(
                             service_order=order,
                             task=task,
@@ -1111,7 +1140,7 @@ def task_add(request, order_id):
                 if professional and professional.user:
                     title = "Novo Agendamento 🛠️"
                     body = f"Você foi alocado em: {task.get_task_type_display()} para a OS #{order.number}\nAgendamento: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M') if task.scheduled_at else 'A definir'}"
-                    send_push_notification(professional.user, title, body, url=f"/equipe/etapa/{task.id}/")
+                    queue_push_notification(professional.user, title, body, url=f"/equipe/etapa/{task.id}/")
 
             # Processar arquivos de mídia (fotos/vídeos)
             files = request.FILES.getlist('files')
@@ -1128,12 +1157,28 @@ def task_add(request, order_id):
     else:
         form = TaskScheduleForm()
         formset = ServiceOrderTeamFormSet()
-    
+
+    # Itens de orçamento candidatos ao clone — só relevantes na primeira EXECUCAO
+    budget_items = []
+    is_first_execucao = not order.tasks.filter(
+        task_type=ServiceOrderTask.TaskType.EXECUCAO
+    ).exists()
+    if is_first_execucao:
+        budget_items = list(
+            (
+                order.items.filter(task__task_type=ServiceOrderTask.TaskType.ORCAMENTO) |
+                order.items.filter(task__isnull=True)
+            )
+            .select_related('product', 'service')
+            .distinct()
+        )
+
     return render(request, 'services/tasks/task_form.html', {
         'form': form,
         'formset': formset,
         'order': order,
-        'title': 'Adicionar Nova Etapa'
+        'title': 'Adicionar Nova Etapa',
+        'budget_items': budget_items,
     })
 
 @login_required

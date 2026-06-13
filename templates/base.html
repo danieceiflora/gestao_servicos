@@ -119,30 +119,44 @@
                 </div>
 
                 <div class="relative group">
-                    <button type="button" class="text-sm font-medium {% if 'finance' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
+                    <button type="button" class="text-sm font-medium {% if 'finance' in request.resolver_match.url_name or 'billing' in request.resolver_match.url_name or 'expense' in request.resolver_match.url_name or 'payment_method' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
                         Financeiro <i data-lucide="chevron-down" class="h-3 w-3"></i>
                     </button>
-                    <div class="absolute left-0 top-full -mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
-                        <a href="{% url 'billing_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                    <div class="absolute left-0 top-full -mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
+                        <!-- Resultados -->
+                        <p class="px-4 pt-1.5 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Resultados</p>
+                        <a href="{% url 'finance_dashboard' %}" class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                            <i data-lucide="line-chart" class="h-4 w-4 text-blue-500"></i>
+                            Painel Financeiro
+                        </a>
+                        <a href="{% url 'billing_list' %}" class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
                             <i data-lucide="receipt" class="h-4 w-4 text-emerald-500"></i>
                             Contas a Receber
                         </a>
-                        <a href="{% url 'expense_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                        <a href="{% url 'expense_list' %}" class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
                             <i data-lucide="ban" class="h-4 w-4 text-red-500 rotate-180"></i>
                             Contas a Pagar
                         </a>
-                        <a href="{% url 'finance_dashboard' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
-                            <i data-lucide="line-chart" class="h-4 w-4 text-slate-400"></i>
-                            Comissões & Relatórios
-                        </a>
-                        <a href="{% url 'finance_professional_payments' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
-                            <i data-lucide="banknote" class="h-4 w-4 text-slate-400"></i>
-                            Pagamentos de Técnicos
-                        </a>
-                        <a href="{% url 'payment_method_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
-                            <i data-lucide="credit-card" class="h-4 w-4 text-slate-400"></i>
-                            Métodos de Pagamento
-                        </a>
+                        <!-- Equipe -->
+                        <div class="border-t border-slate-100 mt-1.5 pt-1.5">
+                            <p class="px-4 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Equipe</p>
+                            <a href="{% url 'finance_commissions' %}" class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                                <i data-lucide="calculator" class="h-4 w-4 text-emerald-500"></i>
+                                Comissões
+                            </a>
+                            <a href="{% url 'finance_professional_payments' %}" class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                                <i data-lucide="banknote" class="h-4 w-4 text-slate-400"></i>
+                                Pagamentos de Técnicos
+                            </a>
+                        </div>
+                        <!-- Configurações -->
+                        <div class="border-t border-slate-100 mt-1.5 pt-1.5">
+                            <p class="px-4 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Configurações</p>
+                            <a href="{% url 'payment_method_list' %}" class="flex items-center gap-3 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                                <i data-lucide="credit-card" class="h-4 w-4 text-slate-400"></i>
+                                Métodos de Pagamento
+                            </a>
+                        </div>
                     </div>
                 </div>
                 {% endif %}

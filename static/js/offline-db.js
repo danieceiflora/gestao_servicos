@@ -25,6 +25,25 @@ db.version(6).stores({
     payment_methods: 'id, descricao'
 });
 
+db.version(7).stores({
+    tasks: 'id, service_order_id, status, scheduled_at',
+    orders: 'id, number, status, client_property_id',
+    properties: 'id, client_id',
+    clients: 'id, name',
+    checklist_items: 'id, service_id, template_id',
+    checklist_responses: 'id, task_id, item_id, status',
+    occurrences: '++id, task_id, category, occurrence_type',
+    services: 'id',
+    products: 'id',
+    media: '++id, task_id, response_id, occurrence_id, status',
+    sync_queue: '++id, type, status, timestamp',
+    settings: 'key',
+    billings: 'id, service_order_id, number, status',
+    installments: '++id, billing_id, status, due_date',
+    payment_methods: 'id, descricao',
+    task_items: 'id, task_id',
+});
+
 const OfflineDB = {
     _syncInProgress: false,
     _checkInInProgress: false,
@@ -81,10 +100,11 @@ const OfflineDB = {
             
             // Salva tudo no IndexedDB de uma vez
             await db.transaction('rw', [
-                db.tasks, db.orders, db.properties, db.clients, 
-                db.checklist_items, db.checklist_responses, 
+                db.tasks, db.orders, db.properties, db.clients,
+                db.checklist_items, db.checklist_responses,
                 db.services, db.products, db.settings,
-                db.payment_methods, db.billings, db.installments
+                db.payment_methods, db.billings, db.installments,
+                db.task_items,
             ], async () => {
                 // Aplica estado pendente às tarefas OS que vieram do servidor
                 const finalizedTasks = (data.tasks || []).map(serverTask => {
@@ -158,6 +178,9 @@ const OfflineDB = {
 
                 await db.installments.clear();
                 await db.installments.bulkPut(data.installments || []);
+
+                await db.task_items.clear();
+                await db.task_items.bulkPut(data.task_items || []);
                 
                 await db.settings.put({ key: 'last_sync', value: data.sync_token });
                 await db.settings.put({ key: 'technician', value: data.technician });

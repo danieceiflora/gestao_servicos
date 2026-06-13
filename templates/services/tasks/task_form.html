@@ -284,6 +284,80 @@
             </div>
         </div>
 
+        <!-- 3.5. REVISÃO DE ITENS DO ORÇAMENTO (clone seletivo) -->
+        {% if budget_items %}
+        <div id="section-budget-items" class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="space-y-1">
+                    <h3 class="font-semibold leading-none tracking-tight flex items-center gap-2 text-slate-900">
+                        <i data-lucide="package" class="h-5 w-5 text-slate-500"></i>
+                        Itens do Orçamento
+                    </h3>
+                    <p class="text-sm text-slate-500">Selecione os itens que serão executados nesta etapa.</p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" id="btn-select-all-budget" onclick="selectAllBudgetItems(true)" class="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white h-8 px-3 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-1">
+                        <i data-lucide="check-square" class="h-3.5 w-3.5"></i>
+                        Selecionar tudo
+                    </button>
+                    <button type="button" id="btn-deselect-all-budget" onclick="selectAllBudgetItems(false)" class="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white h-8 px-3 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-1">
+                        <i data-lucide="square" class="h-3.5 w-3.5"></i>
+                        Desmarcar tudo
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-5 md:p-6 space-y-4">
+                {# Aviso informativo #}
+                <div class="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3">
+                    <i data-lucide="info" class="h-4 w-4 text-blue-500 mt-0.5 shrink-0"></i>
+                    <p class="text-sm text-blue-700 leading-snug">
+                        Todos os itens estão pré-selecionados. Desmarque aqueles que <strong>não</strong> serão executados nesta etapa.
+                    </p>
+                </div>
+
+                {# Lista de itens #}
+                <div class="space-y-2" id="budget-items-list">
+                    {% for item in budget_items %}
+                    <label for="budget_item_{{ item.id }}" class="flex items-center gap-3 border border-slate-100 rounded-lg p-3 cursor-pointer transition-colors hover:bg-slate-50 has-[:checked]:border-slate-300 has-[:checked]:bg-slate-50/70">
+                        <input
+                            type="checkbox"
+                            id="budget_item_{{ item.id }}"
+                            name="selected_budget_item_ids"
+                            value="{{ item.id }}"
+                            checked
+                            class="budget-item-checkbox h-4 w-4 shrink-0 rounded-sm border border-slate-300 accent-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 cursor-pointer"
+                        >
+                        <span class="flex-1 text-sm font-medium text-slate-800 leading-snug">
+                            {% if item.product %}
+                                {{ item.product.name }}
+                            {% elif item.service %}
+                                {{ item.service.name }}
+                            {% else %}
+                                {{ item.description|default:"Item sem descrição" }}
+                            {% endif %}
+                        </span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-700 shrink-0">
+                            {{ item.quantity|floatformat:"-2" }}x
+                        </span>
+                        <span class="text-sm text-slate-500 font-medium shrink-0 tabular-nums">
+                            R$&nbsp;{{ item.unit_price|floatformat:"2" }}
+                        </span>
+                    </label>
+                    {% empty %}
+                    <div class="flex flex-col items-center justify-center py-8 text-center">
+                        <i data-lucide="package-open" class="h-10 w-10 text-slate-300 mb-3"></i>
+                        <p class="text-sm font-medium text-slate-500">Nenhum item encontrado no orçamento.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {# Contador de selecionados #}
+                <p id="budget-selection-count" class="text-xs text-slate-400 text-right tabular-nums"></p>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- 4. MÍDIAS (Fotos/Vídeos) -->
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div class="p-5 md:p-6 border-b border-slate-100 bg-slate-50/30">
@@ -365,8 +439,8 @@
             ta.classList.add("min-h-[80px]");
         });
 
-        // Checkboxes
-        const checkboxes = document.querySelectorAll("form input[type='checkbox']");
+        // Checkboxes — exclui os de clone de orçamento, que já têm estilo próprio
+        const checkboxes = document.querySelectorAll("form input[type='checkbox']:not(.budget-item-checkbox)");
         checkboxes.forEach(cb => {
             cb.classList.add(
                 "h-4", "w-4", "shrink-0", "rounded-sm", "border", "border-slate-200",
@@ -376,6 +450,59 @@
             );
         });
     });
+</script>
+
+<script>
+    // -----------------------------------------------------------------------
+    // Seção de Revisão de Itens do Orçamento — show/hide e seleção em massa
+    // -----------------------------------------------------------------------
+    (function () {
+        const EXECUCAO_VALUE = 'EXECUCAO';
+
+        const section = document.getElementById('section-budget-items');
+        if (!section) return; // budget_items vazio → seção não existe no DOM
+
+        const taskTypeSelect = document.querySelector('select[name="task_type"]');
+        const countLabel     = document.getElementById('budget-selection-count');
+        const checkboxes     = document.querySelectorAll('.budget-item-checkbox');
+
+        /** Atualiza o contador "X de Y itens selecionados" */
+        function updateCount() {
+            if (!countLabel || checkboxes.length === 0) return;
+            const selected = document.querySelectorAll('.budget-item-checkbox:checked').length;
+            countLabel.textContent = `${selected} de ${checkboxes.length} ite${checkboxes.length === 1 ? 'm' : 'ns'} selecionado${selected === 1 ? '' : 's'}`;
+        }
+
+        /** Mostra ou oculta a seção conforme o tipo de etapa */
+        function syncVisibility() {
+            if (!taskTypeSelect) return;
+            const isExecucao = taskTypeSelect.value === EXECUCAO_VALUE;
+            section.style.display = isExecucao ? '' : 'none';
+        }
+
+        // Inicializa no carregamento (re-render com task_type já preenchido)
+        syncVisibility();
+        updateCount();
+
+        // Reage à mudança do select de tipo
+        if (taskTypeSelect) {
+            taskTypeSelect.addEventListener('change', syncVisibility);
+        }
+
+        // Atualiza contador ao marcar/desmarcar qualquer checkbox individual
+        checkboxes.forEach(function (cb) {
+            cb.addEventListener('change', updateCount);
+        });
+    })();
+
+    /** Seleciona ou desmarca todos os checkboxes de itens do orçamento */
+    function selectAllBudgetItems(checked) {
+        document.querySelectorAll('.budget-item-checkbox').forEach(function (cb) {
+            cb.checked = checked;
+            // Dispara 'change' para atualizar o contador
+            cb.dispatchEvent(new Event('change'));
+        });
+    }
 </script>
 
 <script>

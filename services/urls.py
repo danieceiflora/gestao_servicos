@@ -11,6 +11,7 @@ from . import views_bi
 urlpatterns = [
     path('', views.home, name='home'),
     path('financeiro/', views_finance.finance_dashboard, name='finance_dashboard'),
+    path('financeiro/comissoes/', views_finance.finance_commissions, name='finance_commissions'),
     path('financeiro/pagamentos-profissionais/', views_finance.finance_professional_payments, name='finance_professional_payments'),
     path('financeiro/pagamentos-profissionais/<int:payment_id>/confirmar/', views_finance.finance_confirm_payment, name='finance_confirm_payment'),
     path('financeiro/pagamentos-profissionais/confirmacao-em-massa/', views_finance.finance_bulk_confirm_payments, name='finance_bulk_confirm_payments'),

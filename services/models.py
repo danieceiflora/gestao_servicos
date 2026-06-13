@@ -1711,6 +1711,33 @@ class PushSubscription(models.Model):
     def __str__(self):
         return f"Push Subscription - {self.user.username}"
 
+
+class PushNotificationJob(models.Model):
+    class Status(models.TextChoices):
+        PENDENTE = 'PENDENTE', 'Pendente'
+        PROCESSANDO = 'PROCESSANDO', 'Processando'
+        CONCLUIDO = 'CONCLUIDO', 'Concluído'
+        ERRO = 'ERRO', 'Erro'
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='push_jobs', verbose_name="Usuário")
+    title = models.CharField(max_length=255, verbose_name="Título")
+    body = models.TextField(verbose_name="Corpo")
+    url = models.CharField(max_length=500, default='/', verbose_name="URL de destino")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, verbose_name="Status")
+    error_message = models.TextField(blank=True, verbose_name="Mensagem de erro")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Job de Notificação Push"
+        verbose_name_plural = "Jobs de Notificação Push"
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"PushJob [{self.status}] → {self.user.username}: {self.title}"
+
+
 # --- CONTAS A PAGAR ---
 
 class FinancialCategory(models.Model):

@@ -616,35 +616,38 @@ const OfflineApp = {
 
     async _initItemsTab(root, task, order) {
         const panel = root.querySelector('#tab-panel-itens');
-        const items = order && Array.isArray(order.items) ? order.items : [];
+        const items = await db.task_items.where('task_id').equals(String(task.id)).toArray();
 
         if (items.length === 0) {
             panel.innerHTML = `
                 <div class="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center">
                     <i data-lucide="package" class="h-8 w-8 text-slate-300 mx-auto mb-3"></i>
-                    <p class="text-sm font-medium text-slate-500">Sem itens sincronizados</p>
-                    <p class="text-xs text-slate-400 mt-1">Os itens estarão disponíveis após a próxima sincronização.</p>
+                    <p class="text-sm font-medium text-slate-500">Sem itens nesta etapa</p>
+                    <p class="text-xs text-slate-400 mt-1">Os itens aparecerão aqui após a próxima sincronização.</p>
                 </div>
             `;
             return;
         }
 
+        const total = items.reduce((acc, i) => acc + parseFloat(i.total_price || 0), 0);
+
         panel.innerHTML = `
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                     <span class="text-xs font-bold text-slate-700 uppercase tracking-wide">Itens da Etapa</span>
-                    <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">${items.length} itens</span>
+                    <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">${items.length} ${items.length === 1 ? 'item' : 'itens'}</span>
                 </div>
                 <div class="divide-y divide-slate-50">
                     ${items.map(item => `
-                        <div class="flex items-center justify-between px-4 py-3 gap-3">
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-semibold text-slate-800 truncate">${item.description || item.name || '—'}</p>
-                                <p class="text-[10px] text-slate-400 mt-0.5">${item.product_code ? `Cód: ${item.product_code} • ` : ''}Qtd: ${item.quantity || 1}</p>
-                            </div>
-                            <p class="text-sm font-bold text-slate-900 shrink-0">R$ ${parseFloat(item.total_price || 0).toFixed(2).replace('.', ',')}</p>
+                        <div class="px-4 py-3">
+                            <p class="text-sm font-semibold text-slate-800">${item.description || '—'}</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">${item.product_code ? `Cód: ${item.product_code} • ` : ''}Qtd: ${parseFloat(item.quantity || 1).toLocaleString('pt-BR')}</p>
                         </div>
                     `).join('')}
+                </div>
+                <div class="px-4 py-3 border-t border-slate-100 flex justify-between items-center bg-slate-50/60">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</span>
+                    <span class="text-sm font-extrabold text-slate-900">R$ ${total.toFixed(2).replace('.', ',')}</span>
                 </div>
             </div>
         `;

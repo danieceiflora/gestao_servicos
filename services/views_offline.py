@@ -136,6 +136,11 @@ def api_tecnico_bootstrap(request):
         orders = ServiceOrder.objects.filter(id__in=order_ids)
         properties = Property.objects.filter(id__in=property_ids)
         clients = Client.objects.filter(id__in=client_ids)
+
+        # Itens de cada etapa (apenas das tasks do técnico)
+        task_items = ServiceItem.objects.filter(
+            task__in=tasks_qs
+        ).select_related('product', 'service')
         
         # Serviços e Produtos para permitir adicionar itens offline
         services = Service.objects.filter(is_active=True)
@@ -316,6 +321,17 @@ def api_tecnico_bootstrap(request):
                     'amount': str(inst.amount),
                     'status': inst.status,
                 } for inst in installments
+            ],
+            'task_items': [
+                {
+                    'id': item.id,
+                    'task_id': str(item.task_id),
+                    'description': item.description or (item.product.name if item.product else '') or (item.service.name if item.service else ''),
+                    'product_code': item.product.code if item.product else None,
+                    'quantity': str(item.quantity),
+                    'unit_price': str(item.unit_price),
+                    'total_price': str(item.total_price),
+                } for item in task_items
             ],
             'config': {
                 'company_name': sys_config.company_name,

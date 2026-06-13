@@ -13,9 +13,9 @@
         <div class="flex items-center gap-2">
             <div class="bg-white border border-slate-200 rounded-lg p-1 flex gap-1 shadow-sm">
                 <a href="?status=" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if not request.GET.status %}bg-slate-900 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Todos</a>
-                <a href="?status=PENDING" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PENDENTE' %}bg-amber-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pendentes</a>
-                <a href="?status=PARTIAL" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PARCIAL' %}bg-blue-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Parciais</a>
-                <a href="?status=PAID" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PAGO' %}bg-emerald-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pagos</a>
+                <a href="?status=PENDENTE" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PENDENTE' %}bg-amber-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pendentes</a>
+                <a href="?status=PARCIAL" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PARCIAL' %}bg-blue-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Parciais</a>
+                <a href="?status=PAGO" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PAGO' %}bg-emerald-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pagos</a>
             </div>
         </div>
     </div>
