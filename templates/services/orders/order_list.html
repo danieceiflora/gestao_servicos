@@ -104,7 +104,7 @@
                         </td>
                         <td class="px-6 py-4">
                             <div>
-                                <div class="font-semibold text-slate-900">{{ order.client_property.client.name }}</div>
+                                <a href="{% url 'client_edit' order.client_property.client.id %}" class="font-semibold text-slate-900 hover:text-slate-600 transition-colors">{{ order.client_property.client.name }}</a>
                                 <div class="text-xs text-slate-500 truncate max-w-[200px]" title="{{ order.client_property.address }}, {{ order.client_property.number }}">{{ order.client_property.address }}, {{ order.client_property.number }}</div>
                             </div>
                         </td>
@@ -179,7 +179,7 @@
             
             <!-- Card Body -->
             <div class="space-y-1">
-                <h3 class="text-sm font-bold text-slate-900 leading-tight">{{ order.client_property.client.name }}</h3>
+                <a href="{% url 'client_edit' order.client_property.client.id %}" class="text-sm font-bold text-slate-900 hover:text-slate-600 transition-colors leading-tight">{{ order.client_property.client.name }}</a>
                 <p class="text-xs text-slate-500 line-clamp-2">{{ order.client_property.address }}, {{ order.client_property.number }}</p>
                 <p class="text-[10px] text-slate-400 font-medium">{{ order.created_at|date:"d/m/Y H:i" }}</p>
             </div>

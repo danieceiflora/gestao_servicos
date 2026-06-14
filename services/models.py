@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Sum, F
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
@@ -1207,11 +1208,12 @@ class ServiceOrder(models.Model):
     @property
     def total_value(self):
         # Itens de ORCAMENTO são referência histórica — nunca cobrados diretamente.
-        # Quando existem tarefas de EXECUCAO ou GARANTIA, apenas os itens dessas
+        # Quando existem tarefas de EXECUCAO, GARANTIA ou RETORNO, apenas os itens dessas
         # entram no total (evita soma dupla após clonagem de itens do orçamento).
         exec_garantia_types = [
             ServiceOrderTask.TaskType.EXECUCAO,
             ServiceOrderTask.TaskType.GARANTIA,
+            ServiceOrderTask.TaskType.RETORNO,
         ]
         has_exec_or_garantia = self.tasks.filter(task_type__in=exec_garantia_types).exists()
         if has_exec_or_garantia:
@@ -1281,11 +1283,12 @@ class ServiceOrder(models.Model):
                 self.status = self.Status.ORCAMENTO_AGENDADO
 
         # 3. GESTÃO DE ESTOQUE
-        # Usa o mesmo critério de total_value: apenas itens de EXECUCAO/GARANTIA
+        # Usa o mesmo critério de total_value: apenas itens de EXECUCAO/GARANTIA/RETORNO
         # quando essas tarefas existem, evitando baixa dupla dos itens clonados do orçamento.
         exec_garantia_types = [
             ServiceOrderTask.TaskType.EXECUCAO,
             ServiceOrderTask.TaskType.GARANTIA,
+            ServiceOrderTask.TaskType.RETORNO,
         ]
         has_exec_or_garantia = self.tasks.filter(task_type__in=exec_garantia_types).exists()
         if has_exec_or_garantia:
@@ -1330,6 +1333,7 @@ class ServiceOrderTask(models.Model):
         ORCAMENTO = 'ORCAMENTO', 'Vistoria/Orçamento'
         EXECUCAO = 'EXECUCAO', 'Execução/Instalação'
         GARANTIA = 'GARANTIA', 'Garantia'
+        RETORNO = 'RETORNO', 'Retorno'
 
     class TaskStatus(models.TextChoices):
         AGENDADO = 'AGENDADO', 'Agendado'
@@ -1350,6 +1354,10 @@ class ServiceOrderTask(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     service_order = models.ForeignKey(ServiceOrder, on_delete=models.CASCADE, related_name='tasks', verbose_name="Ordem de Serviço")
+    parent_task = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='continuations', verbose_name="Etapa de Origem"
+    )
     task_type = models.CharField(max_length=20, choices=TaskType.choices, default=TaskType.EXECUCAO, verbose_name="Tipo de Etapa")
     status = models.CharField(max_length=30, choices=TaskStatus.choices, default=TaskStatus.AGENDADO, verbose_name="Status")
     
@@ -1430,11 +1438,11 @@ class ServiceOrderTask(models.Model):
 
     @property
     def billing_value(self):
-        """Valor a cobrar: usa task.value se definido, senão a soma dos itens da etapa."""
-        if self.value is not None:
-            return self.value
-        items_total = sum((item.total_price for item in self.items.all()), Decimal('0'))
-        return quantize_money(items_total)
+        """Valor a cobrar: soma dos itens da etapa onde cobrar_cliente=True."""
+        result = self.items.filter(cobrar_cliente=True).aggregate(
+            total=Sum(F('quantity') * F('unit_price'))
+        )['total']
+        return quantize_money(result or Decimal('0'))
 
     def save(self, *args, **kwargs):
         if not self.pk and self.service_order.status == ServiceOrder.Status.CONCLUIDA:
@@ -1499,6 +1507,7 @@ class ServiceItem(models.Model):
     description = models.CharField(max_length=255, verbose_name="Descrição Manual/Complemento")
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Unitário")
+    cobrar_cliente = models.BooleanField(default=True, verbose_name="Cobrar do cliente")
 
     # Dados Fiscais "Congelados" no ato da venda/OS
     ncm_ato = models.CharField(max_length=8, blank=True, null=True, verbose_name="NCM no ato")
@@ -1804,6 +1813,11 @@ class FinanceSettings(models.Model):
         default=False,
         verbose_name="Habilitar módulo de comissão",
         help_text="Quando ativo, exibe o relatório de comissões por etapa no painel financeiro."
+    )
+    auto_billing_on_task_completion = models.BooleanField(
+        default=True,
+        verbose_name="Gerar cobrança automaticamente ao concluir etapa",
+        help_text="Quando ativo, uma cobrança é criada automaticamente ao concluir etapas de Execução, Garantia ou Retorno com valor > 0."
     )
     updated_at = models.DateTimeField(auto_now=True)
 

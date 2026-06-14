@@ -242,7 +242,11 @@ def finance_commissions(request):
         ServiceOrderTask.TaskStatus.PARCIALMENTE_EXECUTADO,
     ]
     allocations = ServiceOrderTeam.objects.filter(
-        task__task_type=ServiceOrderTask.TaskType.EXECUCAO,
+        task__task_type__in=[
+            ServiceOrderTask.TaskType.EXECUCAO,
+            ServiceOrderTask.TaskType.GARANTIA,
+            ServiceOrderTask.TaskType.RETORNO,
+        ],
         task__status__in=billable_statuses,
         task__finished_at__gte=start_of_month,
         task__finished_at__lt=end_of_month
@@ -1098,6 +1102,122 @@ def sale_return_cancel(request, return_id):
     return redirect('sale_detail', number=sale_return.sale.number)
 
 
+# --- CRIAÇÃO DE COBRANÇA COM PARCELAMENTO LIVRE ---
+
+def _billing_create_context(order, task, payment_methods, due_days):
+    suggested_value = task.billing_value if task else order.balance_due
+    today = timezone.now().date()
+    return {
+        'order': order,
+        'task': task,
+        'suggested_value': suggested_value,
+        'payment_methods': payment_methods,
+        'default_due_days': due_days,
+        'today_iso': today.strftime('%Y-%m-%d'),
+        'title': f'Gerar Cobrança — OS #{order.number}',
+        'active_menu': 'finance',
+    }
+
+
+def _billing_create_post(request, order, task):
+    from datetime import date as date_type
+    amounts = request.POST.getlist('amount[]')
+    due_dates = request.POST.getlist('due_date[]')
+    methods = request.POST.getlist('payment_method_id[]')
+
+    installments_data = []
+    for amt, dt, mid in zip(amounts, due_dates, methods):
+        amt = amt.strip().replace(',', '.')
+        dt = dt.strip()
+        if not amt or not dt:
+            continue
+        try:
+            amount = Decimal(amt)
+            due_date = date_type.fromisoformat(dt)
+        except (Exception,):
+            continue
+        pm_id = None
+        if mid and mid.strip():
+            try:
+                pm_id = int(mid.strip())
+            except ValueError:
+                pass
+        installments_data.append({'amount': amount, 'due_date': due_date, 'payment_method_id': pm_id})
+
+    if not installments_data:
+        messages.error(request, 'Adicione pelo menos uma parcela.')
+        return None
+
+    total = sum(d['amount'] for d in installments_data)
+
+    billing = Billing.objects.create(
+        client=order.client_property.client,
+        service_order=order,
+        task=task,
+        total_amount=total,
+        discount=Decimal('0'),
+        status=Billing.Status.PENDENTE,
+    )
+
+    for i, d in enumerate(installments_data, 1):
+        Installment.objects.create(
+            billing=billing,
+            installment_number=i,
+            due_date=d['due_date'],
+            amount=d['amount'],
+            payment_method_id=d['payment_method_id'],
+            status=Installment.Status.PENDENTE,
+        )
+
+    parcelas = len(installments_data)
+    messages.success(request, f'Cobrança #{billing.number} gerada com {parcelas} parcela{"s" if parcelas > 1 else ""}.')
+    return billing
+
+
+@login_required
+@user_passes_test(is_manager)
+def billing_create_for_os(request, order_id):
+    from django.urls import reverse
+    from django.http import HttpResponseRedirect
+    order = get_object_or_404(ServiceOrder, pk=order_id)
+    payment_methods = PaymentMethod.objects.filter(ativo=True).order_by('descricao')
+
+    if request.method == 'POST':
+        billing = _billing_create_post(request, order, task=None)
+        if billing:
+            url = reverse('service_order_detail', kwargs={'order_id': order.id}) + '#financeiro'
+            return HttpResponseRedirect(url)
+
+    from integracoes.models import SystemConfig as _SC
+    cfg = _SC.load()
+    due_days = cfg.billing_default_due_days or 1
+    ctx = _billing_create_context(order, None, payment_methods, due_days)
+    return render(request, 'services/finance/billing_create.html', ctx)
+
+
+@login_required
+@user_passes_test(is_manager)
+def billing_create_for_task(request, task_id):
+    from django.urls import reverse
+    from django.http import HttpResponseRedirect
+    task = get_object_or_404(ServiceOrderTask, pk=task_id)
+    order = task.service_order
+    payment_methods = PaymentMethod.objects.filter(ativo=True).order_by('descricao')
+
+    if request.method == 'POST':
+        billing = _billing_create_post(request, order, task=task)
+        if billing:
+            url = reverse('service_order_detail', kwargs={'order_id': order.id}) + '#financeiro'
+            return HttpResponseRedirect(url)
+
+    from integracoes.models import SystemConfig as _SC
+    cfg = _SC.load()
+    due_days = cfg.billing_default_due_days or 1
+    default_due_date = (timezone.now().date() + timezone.timedelta(days=due_days)).strftime('%Y-%m-%d')
+    ctx = _billing_create_context(order, task, payment_methods, default_due_date)
+    return render(request, 'services/finance/billing_create.html', ctx)
+
+
 # --- CONTAS A RECEBER (FINANCEIRO CENTRALIZADO) ---
 
 @login_required
@@ -1208,6 +1328,77 @@ def installment_pay(request, pk):
         messages.success(request, f"Pagamento de R$ {total_this_time} registrado para a parcela {installment.installment_number}!")
         
     return redirect('billing_detail', pk=installment.billing.id)
+
+def _apply_installment_form_data(installment, post_data):
+    """Aplica due_date e payment_method_id de um POST a uma parcela existente."""
+    from datetime import date as date_type
+    due_date_str = post_data.get('due_date', '').strip()
+    payment_method_id = post_data.get('payment_method_id', '').strip()
+    if due_date_str:
+        try:
+            installment.due_date = date_type.fromisoformat(due_date_str)
+        except ValueError:
+            pass
+    if payment_method_id:
+        try:
+            installment.payment_method_id = int(payment_method_id)
+        except (ValueError, TypeError):
+            pass
+    installment.save()
+
+
+@login_required
+@user_passes_test(is_manager)
+def billing_generate_for_os(request, order_id):
+    from .utils.finance import create_billing_for_os
+    from django.urls import reverse
+    from django.http import HttpResponseRedirect
+
+    order = get_object_or_404(ServiceOrder, pk=order_id)
+
+    if request.method == 'POST':
+        billing = create_billing_for_os(order)
+        installment = billing.installments.first()
+        if installment:
+            _apply_installment_form_data(installment, request.POST)
+        messages.success(request, f'Conta a receber #{billing.number} gerada com sucesso.')
+
+    url = reverse('service_order_detail', kwargs={'order_id': order.id}) + '#financeiro'
+    return HttpResponseRedirect(url)
+
+
+@login_required
+@user_passes_test(is_manager)
+def billing_generate_for_task(request, task_id):
+    from .utils.finance import create_billing_for_task
+    from django.urls import reverse
+    from django.http import HttpResponseRedirect
+
+    task = get_object_or_404(ServiceOrderTask, pk=task_id)
+    billable_types = [
+        ServiceOrderTask.TaskType.EXECUCAO,
+        ServiceOrderTask.TaskType.GARANTIA,
+        ServiceOrderTask.TaskType.RETORNO,
+    ]
+
+    if task.task_type not in billable_types:
+        messages.error(request, 'Este tipo de etapa não gera cobrança.')
+        url = reverse('service_order_detail', kwargs={'order_id': task.service_order_id}) + '#financeiro'
+        return HttpResponseRedirect(url)
+
+    if request.method == 'POST':
+        billing = create_billing_for_task(task)
+        if billing:
+            installment = billing.installments.first()
+            if installment:
+                _apply_installment_form_data(installment, request.POST)
+            messages.success(request, f'Cobrança #{billing.number} gerada para a etapa.')
+        else:
+            messages.warning(request, 'Nenhum item faturável encontrado nesta etapa.')
+
+    url = reverse('service_order_detail', kwargs={'order_id': task.service_order_id}) + '#financeiro'
+    return HttpResponseRedirect(url)
+
 
 # --- CONTAS A PAGAR (DESPESAS) ---
 

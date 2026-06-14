@@ -427,8 +427,10 @@ class BasePDFGenerator:
             ])
         return rows
 
-    def _build_grouped_items_table(self):
-        """Constrói tabela de itens agrupados por etapa. Usada por BudgetPDFGenerator e CompletionPDFGenerator."""
+    def _build_grouped_items_table(self, include_types=None):
+        """Constrói tabela de itens agrupados por etapa. Usada por BudgetPDFGenerator e CompletionPDFGenerator.
+        include_types: lista de task_type strings para filtrar (ex: ['ORCAMENTO']). None = todas as etapas.
+        """
         from decimal import Decimal
 
         col_widths = [2.5*cm, 8.5*cm, 2*cm, 2.5*cm, 2.5*cm]
@@ -440,8 +442,12 @@ class BasePDFGenerator:
             Paragraph("TOTAL", self.styles['TableHeader'])
         ]]
 
-        tasks = self.service_order.tasks.prefetch_related('items').order_by('scheduled_at')
-        general_items = self.service_order.items.filter(task__isnull=True)
+        task_qs = self.service_order.tasks.prefetch_related('items').order_by('scheduled_at')
+        if include_types:
+            task_qs = task_qs.filter(task_type__in=include_types)
+        tasks = task_qs
+        # Itens gerais (sem task) só aparecem quando não há filtro por tipo
+        general_items = self.service_order.items.filter(task__isnull=True) if not include_types else self.service_order.items.none()
 
         data = list(header_row)
         span_commands = [
@@ -530,25 +536,50 @@ class BudgetPDFGenerator(BasePDFGenerator):
         elements = []
         elements.append(self._section_title("DETALHAMENTO DOS ITENS"))
         elements.append(Spacer(1, 0.1*cm))
-        table, span_commands = self._build_grouped_items_table()
+        exec_types = ['EXECUCAO', 'GARANTIA', 'RETORNO']
+        has_exec = self.service_order.tasks.filter(task_type__in=exec_types).exists()
+        include = exec_types if has_exec else ['ORCAMENTO']
+        table, span_commands = self._build_grouped_items_table(include_types=include)
         table.setStyle(TableStyle(span_commands))
         elements.append(table)
         elements.append(Spacer(1, 0.4*cm))
         return elements
 
     def _get_summary(self):
+        from decimal import Decimal
         elements = []
-        gross_total = self.service_order.total_value or 0
-        discount = self.service_order.discount or 0
+        gross_total = self.service_order.total_value or Decimal('0')
+        discount = self.service_order.discount or Decimal('0')
         net_total = gross_total - discount
+
+        total_paid = sum(
+            (b.get_total_paid() for b in self.service_order.billings.all()),
+            Decimal('0')
+        )
+        remaining = net_total - total_paid
 
         summary_data = [
             [Paragraph("Frete", self.styles['SummaryLabel']), Paragraph(self._format_currency(0), self.styles['SummaryValue'])],
             [Paragraph("Subtotal", self.styles['SummaryLabel']), Paragraph(self._format_currency(gross_total), self.styles['SummaryValue'])],
             [Paragraph("Desconto", self.styles['SummaryLabel']), Paragraph(self._format_currency(discount), self.styles['SummaryValue'])],
-            [Paragraph("Total Final", self.styles['TotalFinalLabel']), Paragraph(self._format_currency(net_total), self.styles['TotalFinalValue'])],
         ]
-        
+
+        if total_paid > 0:
+            summary_data.append([
+                Paragraph("Pagamentos realizados", self.styles['SummaryLabel']),
+                Paragraph(f"- {self._format_currency(total_paid)}", self.styles['SummaryValue'])
+            ])
+            summary_data.append([
+                Paragraph("Saldo restante", self.styles['TotalFinalLabel']),
+                Paragraph(self._format_currency(remaining), self.styles['TotalFinalValue'])
+            ])
+        else:
+            summary_data.append([
+                Paragraph("Total Final", self.styles['TotalFinalLabel']),
+                Paragraph(self._format_currency(net_total), self.styles['TotalFinalValue'])
+            ])
+
+        total_row_idx = len(summary_data) - 1
         summary_table = Table(summary_data, colWidths=[10*cm, 3.5*cm])
         summary_table.setStyle(TableStyle([
             ('GRID', (0,0), (-1,-1), 0.5, self.grid_color),
@@ -557,12 +588,12 @@ class BudgetPDFGenerator(BasePDFGenerator):
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
             ('TOPPADDING', (0,0), (-1,-1), 4),
             ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-            ('BACKGROUND', (0,3), (1,3), self.bg_light), # Destaque no Total
+            ('BACKGROUND', (0, total_row_idx), (1, total_row_idx), self.bg_light),
         ]))
-        
+
         wrapper = Table([[Spacer(1,1), summary_table]], colWidths=[4.5*cm, 13.5*cm])
         wrapper.setStyle(TableStyle([('ALIGN', (1,0), (1,0), 'RIGHT')]))
-        
+
         elements.append(wrapper)
         elements.append(Spacer(1, 0.5*cm))
         return elements
@@ -670,7 +701,10 @@ class CompletionPDFGenerator(BasePDFGenerator):
         elements = []
         elements.append(self._section_title("MATERIAIS E SERVIÇOS"))
         elements.append(Spacer(1, 0.1*cm))
-        table, span_commands = self._build_grouped_items_table()
+        exec_types = ['EXECUCAO', 'GARANTIA', 'RETORNO']
+        has_exec = self.service_order.tasks.filter(task_type__in=exec_types).exists()
+        include = exec_types if has_exec else None
+        table, span_commands = self._build_grouped_items_table(include_types=include)
         table.setStyle(TableStyle(span_commands))
         elements.append(table)
         elements.append(Spacer(1, 0.4*cm))

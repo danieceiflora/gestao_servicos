@@ -1153,7 +1153,7 @@ class ExpenseForm(forms.ModelForm):
 class FinanceSettingsForm(forms.ModelForm):
     class Meta:
         model = FinanceSettings
-        fields = ['days_before_generation', 'enable_commission']
+        fields = ['days_before_generation', 'enable_commission', 'auto_billing_on_task_completion']
         widgets = {
             'days_before_generation': forms.NumberInput(attrs={
                 'class': 'flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2',
@@ -1161,6 +1161,9 @@ class FinanceSettingsForm(forms.ModelForm):
                 'max': 90,
             }),
             'enable_commission': forms.CheckboxInput(attrs={
+                'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded',
+            }),
+            'auto_billing_on_task_completion': forms.CheckboxInput(attrs={
                 'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded',
             }),
         }

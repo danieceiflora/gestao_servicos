@@ -19,8 +19,9 @@ from .models import (
     User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem,
     Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
     ServiceOrderTask, ServicePayment, Occurrence, Product, Service, ServiceCategory,
-    TaskChecklistResponse, StockMovement
+    TaskChecklistResponse, StockMovement, PaymentMethod
 )
+from integracoes.models import SystemConfig
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
     ServiceOrderSchedulingForm, ServiceOrderForm, ServiceInspectionForm,
@@ -920,6 +921,24 @@ def service_order_detail(request, order_id):
     
     billing = order.billings.filter(task__isnull=True).first()
 
+    config = SystemConfig.load()
+    due_days = config.billing_default_due_days or 1
+    default_due_date = (django.utils.timezone.now().date() + timedelta(days=due_days)).strftime('%Y-%m-%d')
+
+    billable_task_types = [
+        ServiceOrderTask.TaskType.EXECUCAO,
+        ServiceOrderTask.TaskType.GARANTIA,
+        ServiceOrderTask.TaskType.RETORNO,
+    ]
+    billable_tasks = [
+        t for t in tasks
+        if t.task_type in billable_task_types and t.status != ServiceOrderTask.TaskStatus.CANCELADO
+    ]
+    task_billings = {
+        b.task_id: b
+        for b in order.billings.filter(task__isnull=False).select_related('task')
+    }
+
     return render(request, 'services/orders/order_detail.html', {
         'order': order,
         'tasks': tasks,
@@ -929,6 +948,10 @@ def service_order_detail(request, order_id):
         'any_task_has_checklist': any_task_has_checklist,
         'tasks_with_signature': tasks_with_signature,
         'billing': billing,
+        'billable_tasks': billable_tasks,
+        'task_billings': task_billings,
+        'payment_methods': PaymentMethod.objects.filter(ativo=True).order_by('descricao'),
+        'default_due_date': default_due_date,
     })
 
 @login_required
@@ -1602,6 +1625,8 @@ def order_item_add(request, order_id):
             if quantity_value <= 0:
                 return error_response('A quantidade deve ser maior que zero.')
             
+            cobrar_cliente = request.POST.get('cobrar_cliente', 'true').lower() not in ('false', '0', 'off', '')
+
             item = ServiceItem.objects.create(
                 service_order=item_data['service_order'],
                 task=item_data['task'],
@@ -1609,7 +1634,8 @@ def order_item_add(request, order_id):
                 service=item_data['service'],
                 description=item_data['description'],
                 quantity=quantity_value,
-                unit_price=item_data['unit_price']
+                unit_price=item_data['unit_price'],
+                cobrar_cliente=cobrar_cliente,
             )
 
             if is_ajax:
@@ -1777,6 +1803,9 @@ def order_item_update(request, item_id):
             # Atualiza o item
             item.quantity = new_quantity
             item.unit_price = new_unit_price
+            cobrar_raw = request.POST.get('cobrar_cliente')
+            if cobrar_raw is not None:
+                item.cobrar_cliente = cobrar_raw.lower() not in ('false', '0', 'off', '')
             item.save()
 
             return JsonResponse({

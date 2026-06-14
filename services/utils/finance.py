@@ -11,14 +11,16 @@ def _get_due_date():
 
 def create_billing_for_task(task):
     """
-    Gera um Billing vinculado a uma etapa (task) concluída.
-    Usa task.value se definido; senão usa a soma dos itens da etapa.
-    Impede duplicata por etapa.
+    Gera um Billing vinculado a uma etapa concluída (EXECUCAO, GARANTIA ou RETORNO).
+    Valor = soma dos itens com cobrar_cliente=True. Impede duplicata por etapa.
+    Retorna None se o valor for zero.
     """
     if task.billings.exists():
         return task.billings.first()
 
     value = task.billing_value
+    if not value:
+        return None
 
     billing = Billing.objects.create(
         client=task.service_order.client_property.client,

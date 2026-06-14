@@ -242,14 +242,14 @@ const OfflineApp = {
             if (task.status === 'EM_ANDAMENTO') {
                 listInProgress.appendChild(itemEl);
                 inProgressCount++;
-            } else if (task.status === 'AGENDADO') {
+            } else if (task.status === 'AGENDADO' || task.status === 'PARCIALMENTE_EXECUTADO' || task.status === 'NAO_EXECUTADO') {
                 listScheduled.appendChild(itemEl);
                 scheduledCount++;
             } else if (task.status === 'CONCLUIDO') {
                 listCompleted.appendChild(itemEl);
                 completedCount++;
             }
-            // Outros status como CANCELLED não aparecem na listagem conforme o fluxo principal
+            // CANCELADO não aparece na listagem
         }
         
         // Atualizar Contadores
@@ -329,6 +329,12 @@ const OfflineApp = {
         } else if (task.status === 'CONCLUIDO') {
             card.classList.add('border-l-emerald-500', 'hover:border-emerald-300');
             statusBadge.classList.add('bg-emerald-50', 'text-emerald-700');
+        } else if (task.status === 'PARCIALMENTE_EXECUTADO') {
+            card.classList.add('border-l-orange-500', 'hover:border-orange-300');
+            statusBadge.classList.add('bg-orange-50', 'text-orange-700');
+        } else if (task.status === 'NAO_EXECUTADO') {
+            card.classList.add('border-l-red-400', 'hover:border-red-300');
+            statusBadge.classList.add('bg-red-50', 'text-red-700');
         } else {
             card.classList.add('border-l-slate-400');
             statusBadge.classList.add('bg-slate-100', 'text-slate-600');
@@ -367,7 +373,9 @@ const OfflineApp = {
             'AGENDADO': 'Agendado',
             'EM_ANDAMENTO': 'Em Execução',
             'CONCLUIDO': 'Finalizado',
-            'CANCELADO': 'Cancelado'
+            'CANCELADO': 'Cancelado',
+            'PARCIALMENTE_EXECUTADO': 'Parcialmente Executado',
+            'NAO_EXECUTADO': 'Não Executado',
         };
         return map[status] || status;
     },
@@ -438,6 +446,8 @@ const OfflineApp = {
         if (task.status === 'AGENDADO') statusBadge.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-100');
         else if (task.status === 'EM_ANDAMENTO') statusBadge.classList.add('bg-amber-50', 'text-amber-600', 'border-amber-100');
         else if (task.status === 'CONCLUIDO') statusBadge.classList.add('bg-emerald-50', 'text-emerald-600', 'border-emerald-100');
+        else if (task.status === 'PARCIALMENTE_EXECUTADO') statusBadge.classList.add('bg-orange-50', 'text-orange-600', 'border-orange-100');
+        else if (task.status === 'NAO_EXECUTADO') statusBadge.classList.add('bg-red-50', 'text-red-600', 'border-red-100');
     },
 
     _setupTabs(root, taskId, isMaintenance) {
@@ -737,7 +747,7 @@ const OfflineApp = {
         if (!isCompleted) {
             const btnAdd = document.createElement('button');
             btnAdd.id = 'tab-btn-add-occurrence';
-            btnAdd.className = 'w-full flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 p-4 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-95';
+            btnAdd.className = 'w-full flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 py-2.5 px-4 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-95';
             btnAdd.innerHTML = '<i data-lucide="plus-circle" class="h-4 w-4"></i> Registrar Ocorrência / Impedimento';
             btnAdd.onclick = () => this.openOccurrenceModal(taskId);
             panel.appendChild(btnAdd);
@@ -756,9 +766,9 @@ const OfflineApp = {
 
         if (occList) await this.renderOccurrences(occList, taskId);
 
-        // Verifica BLOCKING
+        // Verifica IMPEDITIVA
         const occurrences = await db.occurrences.where('task_id').equals(taskId).toArray();
-        const hasBlocking = occurrences.some(o => o.category === 'BLOCKING');
+        const hasBlocking = occurrences.some(o => o.category === 'IMPEDITIVA');
 
         if (blockingBanner) {
             blockingBanner.classList.toggle('hidden', !hasBlocking);
@@ -988,9 +998,9 @@ const OfflineApp = {
         const btnIncomplete = panel.querySelector('#sig-btn-register-incomplete');
         if (btnIncomplete) btnIncomplete.onclick = () => this._confirmIncomplete(taskId, panel);
 
-        // Checa blocking já existente
+        // Checa ocorrência impeditiva já existente
         const occurrences = await db.occurrences.where('task_id').equals(taskId).toArray();
-        const hasBlocking = occurrences.some(o => o.category === 'BLOCKING');
+        const hasBlocking = occurrences.some(o => o.category === 'IMPEDITIVA');
         const sigBlockingBanner = panel.querySelector('#sig-blocking-banner');
         if (sigBlockingBanner && hasBlocking) {
             sigBlockingBanner.classList.remove('hidden');
@@ -1159,7 +1169,7 @@ const OfflineApp = {
         if (occurrences.length > 0) {
             html += `<p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-2 pb-1">Ocorrências</p>`;
             for (const occ of occurrences) {
-                const catColor = occ.category === 'BLOCKING' ? 'red' : 'amber';
+                const catColor = occ.category === 'IMPEDITIVA' ? 'red' : 'amber';
                 html += `
                     <div class="flex items-start gap-3 p-3 bg-${catColor}-50 rounded-xl border border-${catColor}-100">
                         <i data-lucide="alert-triangle" class="h-4 w-4 text-${catColor}-600 mt-0.5 shrink-0"></i>
@@ -1207,7 +1217,7 @@ const OfflineApp = {
 
         for (const occ of occurrences) {
             const tpl = document.getElementById('tpl-occurrence-item').content.cloneNode(true);
-            tpl.querySelector('.occ-category').textContent = occ.category;
+            tpl.querySelector('.occ-category').textContent = this.translateOccCategory(occ.category);
             tpl.querySelector('.occ-type').textContent = this.translateOccType(occ.occurrence_type);
             tpl.querySelector('.occ-description').textContent = occ.description;
             
@@ -1226,10 +1236,19 @@ const OfflineApp = {
             'FALTA_MATERIAL': 'Falta de Material',
             'CLIENTE_AUSENTE': 'Cliente Ausente',
             'IMPEDIMENTO_LOCAL': 'Impedimento no Local',
-            'ACIONAMENTO_GARANTIA': 'Garantia',
+            'ACIONAMENTO_GARANTIA': 'Acionamento de Garantia',
             'OUTRO': 'Outro'
         };
         return map[type] || type;
+    },
+
+    translateOccCategory(category) {
+        const map = {
+            'GERAL': 'Geral',
+            'IMPEDITIVA': 'Impeditiva',
+            'SOLICITACAO_MATERIAL': 'Solicitação de Material'
+        };
+        return map[category] || category;
     },
 
     async openOccurrenceModal(taskId) {
@@ -1245,10 +1264,13 @@ const OfflineApp = {
         
         await this.refreshOccurrenceMediaGrid(taskId, tempId);
 
-        document.getElementById('btn-close-occurrence').onclick = async () => {
+        const closeModal = async () => {
             await this.cleanupTempMedia(taskId, tempId);
             modal.classList.add('hidden');
         };
+        document.getElementById('btn-close-occurrence').onclick = closeModal;
+        const footerCancel = document.getElementById('btn-close-occurrence-footer');
+        if (footerCancel) footerCancel.onclick = closeModal;
         document.getElementById('btn-confirm-occurrence').onclick = () => this.confirmOccurrence(taskId);
         
         if (window.lucide) lucide.createIcons();
@@ -1521,12 +1543,10 @@ const OfflineApp = {
         filteredItems.forEach((item, index) => {
             const media = mediaList[index];
             const div = document.createElement('div');
-            
-            // Ajusta tamanho se for em ocorrência
-            const sizeClass = occurrenceId ? 'w-12 h-12' : 'w-full aspect-square';
-            // Sprint UX: adicionado hover, scale effect e cursor pointer pra incentivar clique na visualização
+
+            const sizeClass = occurrenceId ? 'w-12 h-12 shrink-0' : 'w-full aspect-square';
             div.className = `relative ${sizeClass} rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group cursor-pointer hover:shadow-md hover:ring-2 hover:ring-blue-400 transition-all active:scale-[0.98]`;
-            
+
             if (media.isVideo) {
                 div.innerHTML = `
                     <video src="${media.url}" class="w-full h-full object-cover"></video>
@@ -1540,18 +1560,6 @@ const OfflineApp = {
                 `;
             }
 
-            // Excluir mídia (UX/IHC: Controle do usuário) - Exibe apenas se a OS não estiver finalizada
-            if (!isCompleted) {
-                const btnDelete = document.createElement('button');
-                btnDelete.className = 'absolute bottom-1 left-1 h-10 w-10 bg-red-600/90 rounded-full flex items-center justify-center shadow-sm hover:bg-red-700 active:scale-95 transition-all text-white backdrop-blur-sm z-10';
-                btnDelete.innerHTML = '<i data-lucide="trash-2" class="h-4 w-4"></i>';
-                btnDelete.onclick = (e) => {
-                    e.stopPropagation(); // Evita abrir o visualizador da foto ao assinar o botao
-                    this.deleteMedia(item.id, taskId, container, responseId, occurrenceId);
-                };
-                div.appendChild(btnDelete);
-            }
-
             // Badge de status da sincronização
             const badgeWrapper = document.createElement('div');
             badgeWrapper.className = 'absolute top-0.5 right-0.5 z-10 pointer-events-none';
@@ -1562,10 +1570,35 @@ const OfflineApp = {
             `;
             div.appendChild(badgeWrapper);
 
-            // Abre o visualizador ao clicar
             div.onclick = () => this.openMediaViewer(mediaList, index);
 
-            container.appendChild(div);
+            if (!isCompleted) {
+                // Botão de exclusão FORA da imagem para não obstruir a miniatura
+                const wrapper = document.createElement('div');
+                const btnDelete = document.createElement('button');
+                btnDelete.onclick = (e) => {
+                    e.stopPropagation();
+                    this.deleteMedia(item.id, taskId, container, responseId, occurrenceId);
+                };
+
+                if (occurrenceId) {
+                    // Miniaturas pequenas: [img] [trash] lado a lado
+                    wrapper.className = 'flex items-center gap-1.5';
+                    btnDelete.className = 'h-7 w-7 shrink-0 flex items-center justify-center rounded-lg bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 active:scale-95 transition-all';
+                    btnDelete.innerHTML = '<i data-lucide="trash-2" class="h-3.5 w-3.5"></i>';
+                } else {
+                    // Miniaturas grandes: [img] com botão "Excluir" abaixo
+                    wrapper.className = 'flex flex-col gap-1';
+                    btnDelete.className = 'w-full flex items-center justify-center gap-1 py-0.5 rounded text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors';
+                    btnDelete.innerHTML = '<i data-lucide="trash-2" class="h-3 w-3"></i><span>Excluir</span>';
+                }
+
+                wrapper.appendChild(div);
+                wrapper.appendChild(btnDelete);
+                container.appendChild(wrapper);
+            } else {
+                container.appendChild(div);
+            }
         });
 
         if (window.lucide) lucide.createIcons();

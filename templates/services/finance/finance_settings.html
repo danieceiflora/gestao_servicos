@@ -32,6 +32,24 @@
             </div>
 
             <div class="border-t border-slate-100 pt-6">
+                <p class="text-sm font-semibold text-slate-700 mb-4">Faturamento Automático</p>
+                <label class="flex items-start gap-3 cursor-pointer">
+                    {{ form.auto_billing_on_task_completion }}
+                    <div>
+                        <span class="text-sm font-medium text-slate-700">Gerar cobrança automaticamente ao concluir etapa</span>
+                        <p class="text-xs text-slate-400 mt-0.5">
+                            Quando ativo, uma cobrança é criada automaticamente ao marcar uma etapa de
+                            Execução, Garantia ou Retorno como concluída (desde que haja itens faturáveis).
+                            Desative para revisar manualmente antes de gerar a cobrança.
+                        </p>
+                    </div>
+                </label>
+                {% if form.auto_billing_on_task_completion.errors %}
+                <span class="text-xs text-red-500">{{ form.auto_billing_on_task_completion.errors|striptags }}</span>
+                {% endif %}
+            </div>
+
+            <div class="border-t border-slate-100 pt-6">
                 <p class="text-sm font-semibold text-slate-700 mb-4">Módulo de Comissão</p>
                 <label class="flex items-start gap-3 cursor-pointer">
                     {{ form.enable_commission }}
@@ -39,9 +57,7 @@
                         <span class="text-sm font-medium text-slate-700">Habilitar relatório de comissões por etapa</span>
                         <p class="text-xs text-slate-400 mt-0.5">
                             Quando ativo, o painel financeiro exibe o relatório de comissões calculadas
-                            com base no valor de cada etapa executada (<code>billing_value</code>) e na taxa
-                            da função do profissional. Etapas parcialmente executadas também são incluídas
-                            quando o administrador define o valor da etapa.
+                            com base nos itens faturáveis de cada etapa executada e na taxa da função do profissional.
                         </p>
                     </div>
                 </label>

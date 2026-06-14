@@ -2,6 +2,7 @@
 {% load static %}
 {% load l10n %}
 {% load tz %}
+{% load stock_tags %}
 
 {% block title %}OS #{{ order.number }} - Detalhes{% endblock %}
 
@@ -24,7 +25,9 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">Recorrente</span>
                         {% endif %}
                     </div>
-                    <h2 class="text-xl font-bold text-slate-900 leading-tight truncate">{{ order.client_property.client.name }}</h2>
+                    <h2 class="text-xl font-bold text-slate-900 leading-tight truncate">
+                        <a href="{% url 'client_edit' order.client_property.client.id %}" class="hover:text-slate-600 transition-colors">{{ order.client_property.client.name }}</a>
+                    </h2>
                     <p class="text-xs text-slate-500 mt-0.5 truncate">{{ order.client_property.address }}, {{ order.client_property.number }} &bull; {{ order.client_property.city }}</p>
                 </div>
             </div>
@@ -65,13 +68,13 @@
                         </a>
                         <div class="my-1 border-t border-slate-100"></div>
                         <a href="{% url 'service_order_send_budget' order.id %}" onclick="return confirm('Enviar orçamento via WhatsApp?')" class="flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-blue-50 transition-colors text-blue-600 gap-2">
-                            <i data-lucide="send" class="h-4 w-4"></i> Enviar p/ Cliente
+                            <i data-lucide="send" class="h-4 w-4"></i> Enviar Orçamento
                         </a>
                     </div>
                 </div>
 
                 <a href="{% url 'service_order_send_budget' order.id %}" onclick="return confirm('Enviar orçamento via WhatsApp?')" class="hidden sm:inline-flex h-9 items-center justify-center rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-100 gap-1.5">
-                    <i data-lucide="send" class="h-3.5 w-3.5"></i>Enviar
+                    <i data-lucide="send" class="h-3.5 w-3.5"></i>Enviar Orçamento
                 </a>
                 <a href="{% url 'service_order_execution' order.id %}" class="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-700 transition-all shadow-sm">
                     <i data-lucide="play" class="h-3.5 w-3.5 fill-current"></i><span class="hidden sm:inline">Painel de Operação</span><span class="sm:hidden">Operar</span>
@@ -261,7 +264,7 @@
                     <div class="space-y-3">
                         <div>
                             <p class="text-xs text-slate-500 mb-0.5">Nome</p>
-                            <p class="text-sm font-bold text-slate-900">{{ order.client_property.client.name }}</p>
+                            <a href="{% url 'client_edit' order.client_property.client.id %}" class="text-sm font-bold text-slate-900 hover:text-slate-600 transition-colors">{{ order.client_property.client.name }}</a>
                         </div>
                         {% for phone in order.client_property.client.phones.all %}
                         <div>
@@ -919,7 +922,49 @@
             {# Coluna: Status e Ações #}
             <div class="lg:w-72 xl:w-80 shrink-0 flex flex-col gap-4">
 
-                {# Status do Billing #}
+                {% if billable_tasks %}
+                {# Modo por etapa: cada etapa faturável tem seu próprio card #}
+                {% for task in billable_tasks %}
+                {% with task_billing=task_billings|get_item:task.id %}
+                <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">{{ task.get_task_type_display }}</span>
+                        {% if task_billing %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold
+                            {% if task_billing.status == 'PAGO' %}bg-emerald-100 text-emerald-700
+                            {% elif task_billing.status == 'PARCIAL' %}bg-blue-100 text-blue-700
+                            {% elif task_billing.status == 'ATRASADO' %}bg-red-100 text-red-700
+                            {% else %}bg-amber-100 text-amber-700{% endif %}">
+                            {{ task_billing.get_status_display }}
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500">Sem cobrança</span>
+                        {% endif %}
+                    </div>
+                    <div class="px-4 py-3">
+                        <p class="text-xs text-slate-500 mb-0.5">{{ task.scheduled_at|date:"d/m/Y" }}{% if task.finished_at %} · Concluído {{ task.finished_at|date:"d/m/Y" }}{% endif %}</p>
+                        <p class="text-lg font-black text-slate-900 tabular-nums">R$ {{ task.billing_value|floatformat:2 }}</p>
+                    </div>
+                    <div class="px-4 pb-4">
+                        {% if task_billing %}
+                        <a href="{% url 'billing_detail' task_billing.id %}" class="w-full inline-flex h-9 items-center justify-center gap-2 rounded-md bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-700 transition-colors">
+                            <i data-lucide="receipt" class="h-3.5 w-3.5"></i>Ver Cobrança
+                        </a>
+                        {% elif task.billing_value > 0 %}
+                        <a href="{% url 'billing_create_for_task' task.id %}"
+                            class="w-full inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors">
+                            <i data-lucide="plus-circle" class="h-3.5 w-3.5"></i>Gerar Cobrança
+                        </a>
+                        {% else %}
+                        <p class="text-xs text-slate-400 text-center">Nenhum item faturável</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endwith %}
+                {% endfor %}
+
+                {% else %}
+                {# Modo OS-level: sem etapas faturáveis (fluxo simples/legado) #}
                 {% if billing %}
                 <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
                     <div class="flex items-center justify-between mb-4">
@@ -945,14 +990,15 @@
                         <p class="text-sm font-semibold text-slate-700">Sem cobrança gerada</p>
                         <p class="text-xs text-slate-400 mt-0.5">Gere uma conta a receber para registrar o pagamento.</p>
                     </div>
-                    <a href="{% url 'order_payment_add' order.id %}" class="w-full inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm">
+                    <a href="{% url 'billing_create_for_os' order.id %}" class="w-full inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm">
                         <i data-lucide="plus-circle" class="h-4 w-4"></i>Gerar Conta a Receber
                     </a>
                 </div>
                 {% endif %}
+                {% endif %}
 
-                {# Atalho desconto se houver billing #}
-                {% if billing %}
+                {# Atalho desconto #}
+                {% if billing or billable_tasks %}
                 <a href="{% url 'order_discount_update' order.id %}" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
                     <i data-lucide="percent" class="h-4 w-4 text-slate-400"></i>Aplicar / Editar Desconto
                 </a>
@@ -966,6 +1012,102 @@
 </div>
 
 {% include 'services/components/gps_modal.html' %}
+
+{# Modais: Gerar Cobrança por Etapa #}
+{% for task in billable_tasks %}
+{% with task_billing=task_billings|get_item:task.id %}
+{% if not task_billing and task.billing_value > 0 %}
+<div id="modal-task-billing-{{ task.id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-sm">
+        <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+            <h3 class="text-base font-bold text-slate-900">Gerar Cobrança — {{ task.get_task_type_display }}</h3>
+            <button type="button" onclick="document.getElementById('modal-task-billing-{{ task.id }}').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <i data-lucide="x" class="h-5 w-5"></i>
+            </button>
+        </div>
+        <form method="post" action="{% url 'billing_generate_for_task' task.id %}">
+            {% csrf_token %}
+            <div class="px-6 py-5 flex flex-col gap-4">
+                <div class="flex items-center justify-between py-2 bg-slate-50 rounded-lg px-3">
+                    <span class="text-xs text-slate-500">Valor da etapa</span>
+                    <span class="text-sm font-bold text-slate-900">R$ {{ task.billing_value|floatformat:2 }}</span>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-600 mb-1.5 block">Vencimento <span class="text-red-500">*</span></label>
+                    <input type="date" name="due_date" required value="{{ default_due_date }}"
+                        class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-600 mb-1.5 block">Método de Pagamento</label>
+                    <select name="payment_method_id"
+                        class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                        <option value="">Não definido</option>
+                        {% for method in payment_methods %}
+                        <option value="{{ method.id }}">{{ method.descricao }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="flex gap-3 px-6 pb-5">
+                <button type="button" onclick="document.getElementById('modal-task-billing-{{ task.id }}').classList.add('hidden')"
+                    class="flex-1 h-10 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit"
+                    class="flex-1 h-10 rounded-md bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm">
+                    Confirmar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endwith %}
+{% endfor %}
+
+{# Modal: Gerar Conta a Receber (nível OS — fluxo simples) #}
+<div id="modal-gerar-cobranca" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-sm">
+        <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+            <h3 class="text-base font-bold text-slate-900">Gerar Conta a Receber</h3>
+            <button type="button" onclick="document.getElementById('modal-gerar-cobranca').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <i data-lucide="x" class="h-5 w-5"></i>
+            </button>
+        </div>
+        <form method="post" action="{% url 'billing_generate_for_os' order.id %}">
+            {% csrf_token %}
+            <div class="px-6 py-5 flex flex-col gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-600 mb-1.5 block">Vencimento <span class="text-red-500">*</span></label>
+                    <input type="date" name="due_date" required value="{{ default_due_date }}"
+                        class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-600 mb-1.5 block">Método de Pagamento</label>
+                    <select name="payment_method_id"
+                        class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                        <option value="">Não definido</option>
+                        {% for method in payment_methods %}
+                        <option value="{{ method.id }}">{{ method.descricao }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <p class="text-xs text-slate-400">O valor será calculado automaticamente com base nos itens da OS. Status inicial: <strong>Pendente</strong>.</p>
+            </div>
+            <div class="flex gap-3 px-6 pb-5">
+                <button type="button" onclick="document.getElementById('modal-gerar-cobranca').classList.add('hidden')"
+                    class="flex-1 h-10 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit"
+                    class="flex-1 h-10 rounded-md bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm">
+                    Confirmar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}

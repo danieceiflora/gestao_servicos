@@ -20,6 +20,10 @@ urlpatterns = [
     path('financeiro/contas-a-receber/', views_finance.billing_list, name='billing_list'),
     path('financeiro/contas-a-receber/<uuid:pk>/', views_finance.billing_detail, name='billing_detail'),
     path('financeiro/parcelas/<int:pk>/pagar/', views_finance.installment_pay, name='installment_pay'),
+    path('ordens/<uuid:order_id>/gerar-cobranca/', views_finance.billing_generate_for_os, name='billing_generate_for_os'),
+    path('etapas/<uuid:task_id>/gerar-cobranca/', views_finance.billing_generate_for_task, name='billing_generate_for_task'),
+    path('ordens/<uuid:order_id>/cobranca/nova/', views_finance.billing_create_for_os, name='billing_create_for_os'),
+    path('etapas/<uuid:task_id>/cobranca/nova/', views_finance.billing_create_for_task, name='billing_create_for_task'),
     
     # --- MÉTODOS DE PAGAMENTO ---
     path('financeiro/metodos-pagamento/', views_finance.payment_method_list, name='payment_method_list'),
