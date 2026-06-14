@@ -179,7 +179,6 @@ urlpatterns = [
     # Uppy Test
     path('uppy-teste/', views.uppy_test_page, name='uppy_test_page'),
     path('api/uppy-upload/', views.uppy_upload, name='uppy_upload'),
-    path('os/<uuid:pk>/reenviar-cobranca/', views.resend_billing, name='service_order_resend_billing'),
 
     # --- MÓDULO DE MANUTENÇÃO ---
     # Categorias de Equipamentos

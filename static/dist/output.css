@@ -758,6 +758,9 @@
   .ml-1 {
     margin-left: calc(var(--spacing) * 1);
   }
+  .ml-1\.5 {
+    margin-left: calc(var(--spacing) * 1.5);
+  }
   .ml-2 {
     margin-left: calc(var(--spacing) * 2);
   }
@@ -3222,6 +3225,10 @@
     --tw-shadow: 0 -4px 6px -1px var(--tw-shadow-color, rgba(0,0,0,0.05));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
+  .shadow-\[0_-4px_12px_-4px_rgba\(0\,0\,0\,0\.08\)\] {
+    --tw-shadow: 0 -4px 12px -4px var(--tw-shadow-color, rgba(0,0,0,0.08));
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
   .shadow-lg {
     --tw-shadow: 0 10px 15px -3px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 4px 6px -4px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -3546,11 +3553,6 @@
   .group-focus-within\:text-blue-500 {
     &:is(:where(.group):focus-within *) {
       color: var(--color-blue-500);
-    }
-  }
-  .group-focus-within\:text-blue-600 {
-    &:is(:where(.group):focus-within *) {
-      color: var(--color-blue-600);
     }
   }
   .group-focus-within\:text-slate-600 {
@@ -5371,11 +5373,6 @@
       width: calc(var(--spacing) * 32);
     }
   }
-  .md\:w-64 {
-    @media (width >= 48rem) {
-      width: calc(var(--spacing) * 64);
-    }
-  }
   .md\:w-auto {
     @media (width >= 48rem) {
       width: auto;
@@ -5518,11 +5515,6 @@
   .md\:pl-8 {
     @media (width >= 48rem) {
       padding-left: calc(var(--spacing) * 8);
-    }
-  }
-  .md\:text-left {
-    @media (width >= 48rem) {
-      text-align: left;
     }
   }
   .md\:text-2xl {
@@ -5670,11 +5662,6 @@
       width: 100%;
     }
   }
-  .\[\&\>input\]\:rounded-2xl {
-    &>input {
-      border-radius: var(--radius-2xl);
-    }
-  }
   .\[\&\>input\]\:rounded-md {
     &>input {
       border-radius: var(--radius-md);
@@ -5684,11 +5671,6 @@
     &>input {
       border-style: var(--tw-border-style);
       border-width: 1px;
-    }
-  }
-  .\[\&\>input\]\:border-blue-200 {
-    &>input {
-      border-color: var(--color-blue-200);
     }
   }
   .\[\&\>input\]\:border-slate-300 {
@@ -5711,30 +5693,9 @@
       padding-block: calc(var(--spacing) * 2);
     }
   }
-  .\[\&\>input\]\:py-4 {
-    &>input {
-      padding-block: calc(var(--spacing) * 4);
-    }
-  }
-  .\[\&\>input\]\:pl-11 {
-    &>input {
-      padding-left: calc(var(--spacing) * 11);
-    }
-  }
-  .\[\&\>input\]\:pl-12 {
-    &>input {
-      padding-left: calc(var(--spacing) * 12);
-    }
-  }
   .\[\&\>input\]\:font-mono {
     &>input {
       font-family: var(--font-mono);
-    }
-  }
-  .\[\&\>input\]\:text-2xl {
-    &>input {
-      font-size: var(--text-2xl);
-      line-height: var(--tw-leading, var(--text-2xl--line-height));
     }
   }
   .\[\&\>input\]\:text-sm {
@@ -5743,27 +5704,10 @@
       line-height: var(--tw-leading, var(--text-sm--line-height));
     }
   }
-  .\[\&\>input\]\:font-black {
-    &>input {
-      --tw-font-weight: var(--font-weight-black);
-      font-weight: var(--font-weight-black);
-    }
-  }
   .\[\&\>input\]\:font-bold {
     &>input {
       --tw-font-weight: var(--font-weight-bold);
       font-weight: var(--font-weight-bold);
-    }
-  }
-  .\[\&\>input\]\:text-blue-700 {
-    &>input {
-      color: var(--color-blue-700);
-    }
-  }
-  .\[\&\>input\]\:shadow-inner {
-    &>input {
-      --tw-shadow: inset 0 2px 4px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.05));
-      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
     }
   }
   .\[\&\>input\]\:focus-visible\:ring-2 {

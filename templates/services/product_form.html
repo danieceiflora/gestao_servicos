@@ -1,487 +1,515 @@
 {% extends "base.html" %}
 {% load static %}
+{% load widget_tweaks %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto space-y-6 pb-20">
-    <!-- Header -->
-    <div class="flex items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <a href="{% url 'product_list' %}" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all">
-            <i data-lucide="arrow-left" class="h-6 w-6"></i>
-        </a>
-        <div>
-            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
-                {% if object %}Editar Produto{% else %}Novo Produto{% endif %}
-            </h1>
-            <p class="text-slate-500 text-sm">Gerencie informações cadastrais, estoque e dados fiscais.</p>
-        </div>
-    </div>
+<div class="max-w-4xl mx-auto space-y-6 pb-24">
 
-    <!-- Main Form Card -->
-    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-        <!-- Tabs Navigation -->
-        <div class="flex border-b border-slate-100 bg-slate-50/50 p-1">
-            <button type="button" onclick="switchTab('geral')" id="tab-geral-btn" 
-                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-blue-600 bg-white shadow-sm border border-slate-200">
-                <i data-lucide="package" class="h-4 w-4"></i>
-                Dados Gerais
-            </button>
-            <button type="button" onclick="switchTab('componentes')" id="tab-componentes-btn"
-                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all items-center justify-center gap-2 text-slate-500 hover:text-slate-700 hidden">
-                <i data-lucide="layers" class="h-4 w-4"></i>
-                Componentes
-            </button>
-            <button type="button" onclick="switchTab('variacoes')" id="tab-variacoes-btn"
-                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all items-center justify-center gap-2 text-slate-500 hover:text-slate-700 hidden">
-                <i data-lucide="git-branch" class="h-4 w-4"></i>
-                Variações
-            </button>
-            <button type="button" onclick="switchTab('midia')" id="tab-midia-btn" 
-                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700">
-                <i data-lucide="image" class="h-4 w-4"></i>
-                Mídia
-            </button>
-            <button type="button" onclick="switchTab('estoque')" id="tab-estoque-btn" 
-                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700">
-                <i data-lucide="boxes" class="h-4 w-4"></i>
-                Estoque
-            </button>
-            <button type="button" onclick="switchTab('fiscal')" id="tab-fiscal-btn" 
-                    class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700">
-                <i data-lucide="receipt" class="h-4 w-4"></i>
-                Dados Fiscais
-            </button>
-        </div>
+    <form method="post" enctype="multipart/form-data" id="product-form" onsubmit="return handleFormSubmit()">
+        {% csrf_token %}
 
-        <form method="post" enctype="multipart/form-data" class="p-6 md:p-8" id="product-form" onsubmit="return validateProductForm()">
-            {% csrf_token %}
-
-            <!-- Tab 1: Dados Gerais -->
-            <div id="tab-geral" class="tab-content space-y-8">
-                <!-- Preço Principal em Destaque -->
-                <div class="bg-blue-50/50 p-6 rounded-3xl border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div class="space-y-1 text-center md:text-left">
-                        <h3 class="text-sm font-bold text-blue-900 uppercase tracking-wider">Preço de Venda Sugerido</h3>
-                        <p class="text-xs text-blue-600">Este é o valor que aparecerá no PDV e Ordens de Serviço.</p>
-                    </div>
-                    <div class="w-full md:w-64">
-                        <div class="relative group">
-                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-blue-400 font-bold text-lg group-focus-within:text-blue-600">R$</span>
-                            <div class="[&>input]:pl-12 [&>input]:py-4 [&>input]:text-2xl [&>input]:font-black [&>input]:text-blue-700 [&>input]:border-blue-200 [&>input]:bg-white [&>input]:shadow-inner [&>input]:rounded-2xl">
-                                {{ form.default_unit_price }}
-                            </div>
-                        </div>
-                    </div>
+        {# Header #}
+        <div class="flex items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex items-center gap-4 min-w-0">
+                <a href="{% url 'product_list' %}" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all shrink-0">
+                    <i data-lucide="arrow-left" class="h-6 w-6"></i>
+                </a>
+                <div class="min-w-0">
+                    {% if object %}
+                    <h1 class="text-2xl font-bold text-slate-900 tracking-tight truncate">
+                        <a href="{% url 'product_edit' object.pk %}" class="hover:text-blue-600 transition-colors">{{ object.name }}</a>
+                    </h1>
+                    <p class="text-slate-500 text-sm">Editando cadastro do produto</p>
+                    {% else %}
+                    <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Novo Produto</h1>
+                    <p class="text-slate-500 text-sm">Preencha os dados do novo produto</p>
+                    {% endif %}
                 </div>
+            </div>
+            {% if object %}
+            <div class="flex items-center gap-3 shrink-0 p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-emerald-50/30 transition-colors">
+                {{ form.is_active }}
+                <label for="{{ form.is_active.id_for_label }}" class="text-sm font-bold text-slate-900 cursor-pointer whitespace-nowrap">Produto Ativo</label>
+            </div>
+            {% endif %}
+        </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="md:col-span-2 space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Nome do Produto</label>
-                        {{ form.name }}
-                        {% if form.name.errors %}
-                        <p class="text-xs text-red-500">{{ form.name.errors.0 }}</p>
-                        {% endif %}
-                    </div>
+        {# Main Card #}
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
 
-                    <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Formato</label>
-                        {{ form.format }}
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Tipo</label>
-                        {{ form.type }}
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Categoria</label>
-                        {{ form.category }}
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Código/SKU</label>
-                        {{ form.code }}
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Código de Barras (GTIN/EAN)</label>
-                        {{ form.barcode }}
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Preço de Custo (Unit.)</label>
-                        <div class="relative group">
-                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 font-bold text-sm">R$</span>
-                            <div class="[&>input]:pl-11 [&>input]:font-bold">
-                                {{ form.preco_custo }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-colors hover:bg-emerald-50/30 self-end">
-                        <div class="flex items-center h-5">
-                            {{ form.is_active }}
-                        </div>
-                        <div class="text-sm leading-6">
-                            <label for="{{ form.is_active.id_for_label }}" class="font-bold text-slate-900">Produto Ativo</label>
-                        </div>
-                    </div>
+            {# Tabs Navigation #}
+            <div class="border-b border-slate-100 bg-slate-50/50 p-1 overflow-x-auto">
+                <div class="flex min-w-max">
+                    <button type="button" onclick="switchTab('geral')" id="tab-geral-btn"
+                            class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 whitespace-nowrap px-3 text-blue-600 bg-white shadow-sm border border-slate-200">
+                        <i data-lucide="package" class="h-4 w-4 shrink-0"></i>
+                        <span class="hidden sm:inline">Dados Gerais</span>
+                    </button>
+                    <button type="button" onclick="switchTab('componentes')" id="tab-componentes-btn"
+                            class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all items-center justify-center gap-2 whitespace-nowrap px-3 text-slate-500 hover:text-slate-700 hidden">
+                        <i data-lucide="layers" class="h-4 w-4 shrink-0"></i>
+                        <span class="hidden sm:inline">Componentes</span>
+                    </button>
+                    <button type="button" onclick="switchTab('variacoes')" id="tab-variacoes-btn"
+                            class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all items-center justify-center gap-2 whitespace-nowrap px-3 text-slate-500 hover:text-slate-700 hidden">
+                        <i data-lucide="git-branch" class="h-4 w-4 shrink-0"></i>
+                        <span class="hidden sm:inline">Variações</span>
+                    </button>
+                    <button type="button" onclick="switchTab('midia')" id="tab-midia-btn"
+                            class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 whitespace-nowrap px-3 text-slate-500 hover:text-slate-700">
+                        <i data-lucide="image" class="h-4 w-4 shrink-0"></i>
+                        <span class="hidden sm:inline">Mídia</span>
+                    </button>
+                    <button type="button" onclick="switchTab('estoque')" id="tab-estoque-btn"
+                            class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 whitespace-nowrap px-3 text-slate-500 hover:text-slate-700">
+                        <i data-lucide="boxes" class="h-4 w-4 shrink-0"></i>
+                        <span class="hidden sm:inline">Estoque</span>
+                    </button>
+                    <button type="button" onclick="switchTab('fiscal')" id="tab-fiscal-btn"
+                            class="tab-btn flex-1 py-3 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 whitespace-nowrap px-3 text-slate-500 hover:text-slate-700">
+                        <i data-lucide="receipt" class="h-4 w-4 shrink-0"></i>
+                        <span class="hidden sm:inline">Dados Fiscais</span>
+                    </button>
                 </div>
             </div>
 
-            <!-- Tab: Componentes -->
-            <div id="tab-componentes" class="tab-content hidden space-y-6">
-                <!-- Totais da Composição -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
-                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Custo Total dos Componentes</h4>
-                        <div class="flex items-center justify-between">
-                            <span class="text-slate-500 font-bold">R$</span>
-                            <span id="display-custo-total" class="text-2xl font-black text-white">0,00</span>
-                        </div>
-                        <div class="hidden">{{ form.preco_custo_total }}</div>
+            <div class="p-6 md:p-8">
+
+                {# Tab 1: Dados Gerais #}
+                <div id="tab-geral" class="tab-content space-y-6">
+
+                    {# Toggle is_active apenas no modo criação (no modo edição fica no header) #}
+                    {% if not object %}
+                    <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 transition-colors hover:bg-emerald-50/30">
+                        {{ form.is_active }}
+                        <label for="{{ form.is_active.id_for_label }}" class="text-sm font-bold text-slate-900 cursor-pointer">Produto Ativo</label>
                     </div>
-                    <div class="bg-emerald-900 p-5 rounded-3xl border border-emerald-800 shadow-xl">
-                        <h4 class="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Soma das Vendas dos Componentes</h4>
-                        <div class="flex items-center justify-between">
-                            <span class="text-emerald-500 font-bold">R$</span>
-                            <span id="display-venda-total" class="text-2xl font-black text-white">0,00</span>
+                    {% endif %}
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {# Nome — primeiro no grid #}
+                        <div class="md:col-span-2 space-y-2">
+                            <label for="{{ form.name.id_for_label }}" class="text-sm font-bold text-slate-700">Nome do Produto</label>
+                            {{ form.name }}
+                            {% if form.name.errors %}
+                            <p class="text-xs text-red-500">{{ form.name.errors.0 }}</p>
+                            {% endif %}
                         </div>
-                        <div class="hidden">{{ form.preco_venda_total }}</div>
+
+                        <div class="space-y-2">
+                            <label for="{{ form.format.id_for_label }}" class="text-sm font-bold text-slate-700">Formato</label>
+                            {{ form.format }}
+                        </div>
+
+                        <div class="space-y-2">
+                            <label for="{{ form.type.id_for_label }}" class="text-sm font-bold text-slate-700">Tipo</label>
+                            {{ form.type }}
+                        </div>
+
+                        <div class="space-y-2">
+                            <label for="{{ form.category.id_for_label }}" class="text-sm font-bold text-slate-700">Categoria</label>
+                            {{ form.category }}
+                        </div>
+
+                        <div class="space-y-2">
+                            <label for="{{ form.code.id_for_label }}" class="text-sm font-bold text-slate-700">Código/SKU</label>
+                            {{ form.code }}
+                        </div>
+
+                        <div class="space-y-2">
+                            <label for="{{ form.barcode.id_for_label }}" class="text-sm font-bold text-slate-700">Código de Barras (GTIN/EAN)</label>
+                            {{ form.barcode }}
+                        </div>
+                    </div>
+
+                    {# Seção Preços ao final #}
+                    <div class="border border-slate-100 rounded-xl p-5 space-y-4">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">Preços</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-2">
+                                <label for="{{ form.default_unit_price.id_for_label }}" class="text-sm font-bold text-slate-700">Preço de Venda Sugerido</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-sm">R$</span>
+                                    {% render_field form.default_unit_price class="w-full pl-10 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-lg font-bold" %}
+                                </div>
+                                {% if form.default_unit_price.errors %}
+                                <p class="text-xs text-red-500">{{ form.default_unit_price.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            <div class="space-y-2">
+                                <label for="{{ form.preco_custo.id_for_label }}" class="text-sm font-bold text-slate-700">Preço de Custo (Unit.)</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-bold text-sm">R$</span>
+                                    {% render_field form.preco_custo class="w-full pl-10 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" %}
+                                </div>
+                                {% if form.preco_custo.errors %}
+                                <p class="text-xs text-red-500">{{ form.preco_custo.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-sm font-bold text-slate-900">Lista de Componentes (Matéria Prima)</h3>
-                        <p class="text-xs text-slate-500">Defina os itens que compõem este produto final.</p>
+                {# Tab: Componentes #}
+                <div id="tab-componentes" class="tab-content hidden space-y-6">
+                    {# Totais da Composição #}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-xl">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Custo Total dos Componentes</h4>
+                            <div class="flex items-center justify-between">
+                                <span class="text-slate-500 font-bold">R$</span>
+                                <span id="display-custo-total" class="text-2xl font-black text-white">0,00</span>
+                            </div>
+                            <div class="hidden">{{ form.preco_custo_total }}</div>
+                        </div>
+                        <div class="bg-emerald-900 p-5 rounded-xl border border-emerald-800 shadow-xl">
+                            <h4 class="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Soma das Vendas dos Componentes</h4>
+                            <div class="flex items-center justify-between">
+                                <span class="text-emerald-500 font-bold">R$</span>
+                                <span id="display-venda-total" class="text-2xl font-black text-white">0,00</span>
+                            </div>
+                            <div class="hidden">{{ form.preco_venda_total }}</div>
+                        </div>
                     </div>
 
-                    {{ composition_formset.management_form }}
-                    <div id="composition-formset-container" class="space-y-3">
-                        {% for cform in composition_formset %}
-                        <div class="composition-form-row flex flex-col bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group">
-                            {{ cform.id }}
-                            <div class="flex flex-col md:flex-row gap-4">
-                                <div class="flex-1 space-y-1">
-                                    <label class="text-[10px] font-bold text-slate-400 uppercase">Componente</label>
-                                    {{ cform.component }}
-                                </div>
-                                <div class="w-full md:w-32 space-y-1">
-                                    <label class="text-[10px] font-bold text-slate-400 uppercase">Quantidade</label>
-                                    {{ cform.quantity }}
-                                </div>
-                                
-                                <!-- Info Unitária -->
-                                <div class="flex flex-row md:flex-col justify-between md:justify-end gap-4 md:gap-1 text-right min-w-[120px]">
-                                    <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Valores Unit.</div>
-                                    <div class="flex flex-col">
-                                        <span class="text-[10px] text-slate-400 italic">Custo: R$ <span class="row-unit-cost font-mono">0,00</span></span>
-                                        <span class="text-[10px] text-slate-400 italic">Venda: R$ <span class="row-unit-sales font-mono">0,00</span></span>
-                                    </div>
-                                </div>
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-sm font-bold text-slate-900">Lista de Componentes (Matéria Prima)</h3>
+                            <p class="text-xs text-slate-500">Defina os itens que compõem este produto final.</p>
+                        </div>
 
-                                <!-- Subtotal -->
-                                <div class="flex flex-row md:flex-col justify-between md:justify-end gap-4 md:gap-1 text-right min-w-[100px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pt-0 md:pl-4">
-                                    <div class="text-[10px] font-bold text-slate-400 uppercase">Subtotal Custo</div>
-                                    <div class="text-sm font-bold text-slate-900 font-mono">
-                                        R$ <span class="row-subtotal-cost">0,00</span>
+                        {{ composition_formset.management_form }}
+                        <div id="composition-formset-container" class="space-y-3">
+                            {% for cform in composition_formset %}
+                            <div class="composition-form-row flex flex-col bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group">
+                                {{ cform.id }}
+                                <div class="flex flex-col md:flex-row gap-4">
+                                    <div class="flex-1 space-y-1">
+                                        <label class="text-[10px] font-bold text-slate-400 uppercase">Componente</label>
+                                        {{ cform.component }}
                                     </div>
-                                </div>
+                                    <div class="w-full md:w-32 space-y-1">
+                                        <label class="text-[10px] font-bold text-slate-400 uppercase">Quantidade</label>
+                                        {{ cform.quantity }}
+                                    </div>
 
-                                {% if composition_formset.can_delete %}
-                                <div class="flex items-end justify-end pb-1 ml-2">
-                                    <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-red-500 transition-colors">
-                                        {{ cform.DELETE }}
-                                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                    {# Info Unitária #}
+                                    <div class="flex flex-row md:flex-col justify-between md:justify-end gap-4 md:gap-1 text-right min-w-[120px]">
+                                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Valores Unit.</div>
+                                        <div class="flex flex-col">
+                                            <span class="text-[10px] text-slate-400 italic">Custo: R$ <span class="row-unit-cost font-mono">0,00</span></span>
+                                            <span class="text-[10px] text-slate-400 italic">Venda: R$ <span class="row-unit-sales font-mono">0,00</span></span>
+                                        </div>
+                                    </div>
+
+                                    {# Subtotal #}
+                                    <div class="flex flex-row md:flex-col justify-between md:justify-end gap-4 md:gap-1 text-right min-w-[100px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pt-0 md:pl-4">
+                                        <div class="text-[10px] font-bold text-slate-400 uppercase">Subtotal Custo</div>
+                                        <div class="text-sm font-bold text-slate-900 font-mono">
+                                            R$ <span class="row-subtotal-cost">0,00</span>
+                                        </div>
+                                    </div>
+
+                                    {% if composition_formset.can_delete %}
+                                    <div class="flex items-end justify-end pb-1 ml-2">
+                                        <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-red-500 transition-colors">
+                                            {{ cform.DELETE }}
+                                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                        </label>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <button type="button" onclick="addCompositionRow()" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all flex items-center justify-center gap-2 text-sm">
+                            <i data-lucide="plus" class="h-4 w-4"></i>
+                            Adicionar Componente
+                        </button>
+                    </div>
+                </div>
+
+                {# Tab: Variações #}
+                <div id="tab-variacoes" class="tab-content hidden space-y-6">
+                    <div class="bg-purple-50/50 p-4 rounded-xl border border-purple-100 flex items-start gap-3">
+                        <i data-lucide="info" class="h-4 w-4 text-purple-500 mt-0.5 shrink-0"></i>
+                        <p class="text-xs text-purple-700">Cada variação pode ter seu próprio código, diferença de preço e controle de estoque. O preço final da variação é o preço base do produto somado à diferença informada.</p>
+                    </div>
+
+                    {{ variant_formset.management_form }}
+                    <div id="variant-formset-container" class="space-y-3">
+                        {% for vform in variant_formset %}
+                        <div class="variant-form-row bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group">
+                            {{ vform.id }}
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <div class="lg:col-span-2 space-y-1">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nome da Variação *</label>
+                                    {{ vform.name }}
+                                    {% if vform.name.errors %}<p class="text-xs text-red-500">{{ vform.name.errors.0 }}</p>{% endif %}
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Código / SKU</label>
+                                    {{ vform.code }}
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                        <span class="text-purple-500">±</span> Diferença de Preço (R$)
                                     </label>
+                                    {{ vform.additional_price }}
                                 </div>
+                                <div class="space-y-1">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estoque Atual</label>
+                                    {{ vform.current_stock }}
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[10px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1">
+                                        <i data-lucide="alert-triangle" class="h-3 w-3"></i> Estoque Mínimo
+                                    </label>
+                                    {{ vform.min_stock }}
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                                <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600 font-medium">
+                                    {{ vform.is_active }}
+                                    Variação ativa
+                                </label>
+                                {% if variant_formset.can_delete %}
+                                <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-red-500 transition-colors text-xs font-bold">
+                                    {{ vform.DELETE }}
+                                    <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                    Remover
+                                </label>
                                 {% endif %}
                             </div>
                         </div>
                         {% endfor %}
                     </div>
 
-                    <button type="button" onclick="addCompositionRow()" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all flex items-center justify-center gap-2 text-sm">
+                    <button type="button" onclick="addVariantRow()" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold hover:border-purple-400 hover:text-purple-500 hover:bg-purple-50/50 transition-all flex items-center justify-center gap-2 text-sm">
                         <i data-lucide="plus" class="h-4 w-4"></i>
-                        Adicionar Componente
+                        Adicionar Variação
                     </button>
                 </div>
-            </div>
 
-            <!-- Tab: Variações -->
-            <div id="tab-variacoes" class="tab-content hidden space-y-6">
-                <div class="bg-purple-50/50 p-4 rounded-2xl border border-purple-100 flex items-start gap-3">
-                    <i data-lucide="info" class="h-4 w-4 text-purple-500 mt-0.5 shrink-0"></i>
-                    <p class="text-xs text-purple-700">Cada variação pode ter seu próprio código, diferença de preço e controle de estoque. O preço final da variação é o preço base do produto somado à diferença informada.</p>
-                </div>
+                {# Tab: Mídia #}
+                <div id="tab-midia" class="tab-content hidden space-y-8">
+                    <div class="space-y-4">
+                        <label class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="image" class="h-4 w-4 text-blue-500"></i>
+                            Imagem do Produto
+                        </label>
 
-                {{ variant_formset.management_form }}
-                <div id="variant-formset-container" class="space-y-3">
-                    {% for vform in variant_formset %}
-                    <div class="variant-form-row bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group">
-                        {{ vform.id }}
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            <div class="lg:col-span-2 space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nome da Variação *</label>
-                                {{ vform.name }}
-                                {% if vform.name.errors %}<p class="text-xs text-red-500">{{ vform.name.errors.0 }}</p>{% endif %}
+                        <div class="dz-container" id="product-image-container">
+                            {# Preview Area #}
+                            <div id="image-preview-zone" class="relative group w-48 h-48 mx-auto mb-4 {% if not object.image %}hidden{% endif %}">
+                                <img id="image-preview" src="{% if object.image %}{{ object.image.url }}{% endif %}"
+                                     class="w-full h-full object-cover rounded-xl border-2 border-slate-100 shadow-md"
+                                     alt="Imagem do produto">
+                                <button type="button" onclick="removeProductImage()"
+                                        class="absolute -top-2 -right-2 bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600 transition-all z-10"
+                                        aria-label="Remover imagem">
+                                    <i data-lucide="x" class="h-4 w-4"></i>
+                                </button>
                             </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Código / SKU</label>
-                                {{ vform.code }}
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                    <span class="text-purple-500">±</span> Diferença de Preço (R$)
-                                </label>
-                                {{ vform.additional_price }}
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estoque Atual</label>
-                                {{ vform.current_stock }}
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-[10px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1">
-                                    <i data-lucide="alert-triangle" class="h-3 w-3"></i> Estoque Mínimo
-                                </label>
-                                {{ vform.min_stock }}
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                            <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600 font-medium">
-                                {{ vform.is_active }}
-                                Variação ativa
-                            </label>
-                            {% if variant_formset.can_delete %}
-                            <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-red-500 transition-colors text-xs font-bold">
-                                {{ vform.DELETE }}
-                                <i data-lucide="trash-2" class="h-4 w-4"></i>
-                                Remover
-                            </label>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
 
-                <button type="button" onclick="addVariantRow()" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold hover:border-purple-400 hover:text-purple-500 hover:bg-purple-50/50 transition-all flex items-center justify-center gap-2 text-sm">
-                    <i data-lucide="plus" class="h-4 w-4"></i>
-                    Adicionar Variação
-                </button>
-            </div>
-
-            <!-- Tab 3: Mídia -->
-            <div id="tab-midia" class="tab-content hidden space-y-8">
-                <!-- Imagem do Produto Section -->
-                <div class="space-y-4">
-                    <label class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <i data-lucide="image" class="h-4 w-4 text-blue-500"></i>
-                        Imagem do Produto
-                    </label>
-                    
-                    <div class="dz-container" id="product-image-container">
-                        <!-- Preview Area -->
-                        <div id="image-preview-zone" class="relative group w-48 h-48 mx-auto mb-4 {% if not object.image %}hidden{% endif %}">
-                            <img id="image-preview" src="{% if object.image %}{{ object.image.url }}{% endif %}" 
-                                 class="w-full h-full object-cover rounded-2xl border-2 border-slate-100 shadow-md">
-                            <button type="button" onclick="removeProductImage()" 
-                                    class="absolute -top-2 -right-2 bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600 transition-all z-10">
-                                <i data-lucide="x" class="h-4 w-4"></i>
-                            </button>
-                        </div>
-
-                        <!-- Upload Zone -->
-                        <div id="upload-zone" class="{% if object.image %}hidden{% endif %}">
-                            <div class="relative group cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 rounded-2xl transition-all p-8 text-center"
-                                 onclick="document.getElementById('{{ form.image.id_for_label }}').click()">
-                                <div class="flex flex-col items-center gap-3">
-                                    <div class="p-4 bg-slate-50 rounded-2xl group-hover:bg-blue-100 transition-colors">
-                                        <i data-lucide="upload-cloud" class="h-8 w-8 text-slate-400 group-hover:text-blue-500"></i>
-                                    </div>
-                                    <div class="space-y-1">
-                                        <p class="text-sm font-bold text-slate-900">Toque para enviar uma foto</p>
-                                        <p class="text-xs text-slate-500">ou arraste o arquivo aqui</p>
+                            {# Upload Zone #}
+                            <div id="upload-zone" class="{% if object.image %}hidden{% endif %}">
+                                <div class="relative group cursor-pointer border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 rounded-xl transition-all p-8 text-center"
+                                     onclick="document.getElementById('{{ form.image.id_for_label }}').click()">
+                                    <div class="flex flex-col items-center gap-3">
+                                        <div class="p-4 bg-slate-50 rounded-xl group-hover:bg-blue-100 transition-colors">
+                                            <i data-lucide="upload-cloud" class="h-8 w-8 text-slate-400 group-hover:text-blue-500"></i>
+                                        </div>
+                                        <div class="space-y-1">
+                                            <p class="text-sm font-bold text-slate-900">Toque para enviar uma foto</p>
+                                            <p class="text-xs text-slate-500">ou arraste o arquivo aqui</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+
+                            {# Hidden Input #}
+                            <div class="hidden">
+                                {{ form.image }}
+                            </div>
+
+                            <div class="flex justify-center mt-4">
+                                <button type="button" data-open-camera="{{ form.image.id_for_label }}"
+                                        class="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all text-sm font-bold">
+                                    <i data-lucide="camera" class="h-4 w-4 text-blue-500"></i>
+                                    Tirar Foto com Câmera
+                                </button>
+                            </div>
+                        </div>
+                        {% if form.image.errors %}
+                        <p class="text-xs text-red-500 text-center">{{ form.image.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# Tab: Estoque #}
+                <div id="tab-estoque" class="tab-content hidden space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="md:col-span-2 space-y-2">
+                            <label for="{{ form.unit_type.id_for_label }}" class="text-sm font-bold text-slate-700">Unidade de Venda</label>
+                            {{ form.unit_type }}
                         </div>
 
-                        <!-- Hidden Input and Camera Option -->
-                        <div class="hidden">
-                            {{ form.image }}
+                        <div class="space-y-2">
+                            <label for="{{ form.current_stock.id_for_label }}" class="text-sm font-bold text-slate-700">Estoque Atual</label>
+                            <div class="[&>input]:font-mono [&>input]:font-bold">
+                                {{ form.current_stock }}
+                            </div>
+                            <p class="text-[10px] text-slate-500 italic">Ajuste de saldo manual.</p>
                         </div>
-                        
-                        <div class="flex justify-center mt-4">
-                            <button type="button" data-open-camera="{{ form.image.id_for_label }}"
-                                    class="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all text-sm font-bold">
-                                <i data-lucide="camera" class="h-4 w-4 text-blue-500"></i>
-                                Tirar Foto com Câmera
-                            </button>
+
+                        <div class="space-y-2">
+                            <label for="{{ form.min_stock.id_for_label }}" class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                                <i data-lucide="alert-triangle" class="h-3.5 w-3.5 text-amber-500"></i>
+                                Estoque Mínimo
+                            </label>
+                            {{ form.min_stock }}
+                            <p class="text-[10px] text-slate-500 italic">Alerta aparece quando o saldo ficar igual ou abaixo.</p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label for="{{ form.max_stock.id_for_label }}" class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                                <i data-lucide="trending-up" class="h-3.5 w-3.5 text-emerald-500"></i>
+                                Estoque Máximo
+                            </label>
+                            {{ form.max_stock }}
+                            <p class="text-[10px] text-slate-500 italic">Referência para ponto de reposição.</p>
                         </div>
                     </div>
-                    {% if form.image.errors %}
-                    <p class="text-xs text-red-500 text-center">{{ form.image.errors.0 }}</p>
+
+                    {# Status Visual #}
+                    {% if object %}
+                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Situação atual</p>
+                        <div class="flex items-center gap-3">
+                            <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                                {% if object.max_stock > 0 %}
+                                <div class="h-full rounded-full {% if object.current_stock <= 0 %}bg-red-500{% elif object.min_stock > 0 and object.current_stock <= object.min_stock %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+                                     style="width: {% widthratio object.current_stock object.max_stock 100 %}%"></div>
+                                {% else %}
+                                <div class="h-full rounded-full {% if object.current_stock <= 0 %}bg-red-500{% else %}bg-emerald-500{% endif %}" style="width: 100%"></div>
+                                {% endif %}
+                            </div>
+                            <span class="text-sm font-black {% if object.current_stock <= 0 %}text-red-600{% elif object.min_stock > 0 and object.current_stock <= object.min_stock %}text-amber-500{% else %}text-emerald-600{% endif %}">
+                                {{ object.current_stock }} {{ object.get_unit_type_display }}
+                            </span>
+                        </div>
+                        <a href="{% url 'product_stock_history' object.pk %}" class="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline mt-2 font-medium">
+                            <i data-lucide="history" class="h-3 w-3"></i> Ver histórico completo
+                        </a>
+                    </div>
                     {% endif %}
                 </div>
-            </div>
 
-            <!-- Tab 3: Estoque -->
-            <div id="tab-estoque" class="tab-content hidden space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="md:col-span-2 space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Unidade de Venda</label>
-                        {{ form.unit_type }}
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700">Estoque Atual</label>
-                        <div class="[&>input]:font-mono [&>input]:font-bold">
-                            {{ form.current_stock }}
+                {# Tab: Dados Fiscais #}
+                <div id="tab-fiscal" class="tab-content hidden space-y-8">
+                    {# Identificação Fiscal #}
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
+                            <i data-lucide="tag" class="h-4 w-4 text-blue-500"></i>
+                            Identificação Fiscal
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="md:col-span-2 space-y-1">
+                                <label for="{{ form.origem_mercadoria.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">Origem da Mercadoria</label>
+                                {{ form.origem_mercadoria }}
+                            </div>
+                            <div class="space-y-1">
+                                <label for="{{ form.ncm.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">NCM</label>
+                                {{ form.ncm }}
+                                <p class="text-[10px] text-slate-400">8 dígitos numéricos.</p>
+                            </div>
+                            <div class="space-y-1">
+                                <label for="{{ form.cest.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CEST</label>
+                                {{ form.cest }}
+                                <p class="text-[10px] text-slate-400">7 dígitos (Subst. Tributária).</p>
+                            </div>
+                            <div class="space-y-1">
+                                <label for="{{ form.cfop_padrao.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CFOP Padrão</label>
+                                {{ form.cfop_padrao }}
+                                <p class="text-[10px] text-slate-400">Ex: 5102, 5405.</p>
+                            </div>
                         </div>
-                        <p class="text-[10px] text-slate-500 italic">Ajuste de saldo manual.</p>
                     </div>
 
-                    <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                            <i data-lucide="alert-triangle" class="h-3.5 w-3.5 text-amber-500"></i>
-                            Estoque Mínimo
-                        </label>
-                        {{ form.min_stock }}
-                        <p class="text-[10px] text-slate-500 italic">Alerta aparece quando o saldo ficar igual ou abaixo.</p>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                            <i data-lucide="trending-up" class="h-3.5 w-3.5 text-emerald-500"></i>
-                            Estoque Máximo
-                        </label>
-                        {{ form.max_stock }}
-                        <p class="text-[10px] text-slate-500 italic">Referência para ponto de reposição.</p>
-                    </div>
-                </div>
-
-                <!-- Status Visual -->
-                {% if object %}
-                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Situação atual</p>
-                    <div class="flex items-center gap-3">
-                        <div class="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
-                            {% if object.max_stock > 0 %}
-                            <div class="h-full rounded-full {% if object.current_stock <= 0 %}bg-red-500{% elif object.min_stock > 0 and object.current_stock <= object.min_stock %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
-                                 style="width: {% widthratio object.current_stock object.max_stock 100 %}%"></div>
+                    {# Tributação #}
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
+                            <i data-lucide="percent" class="h-4 w-4 text-emerald-500"></i>
+                            Tributação
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {% if tax_regime == 'SIMPLES' %}
+                            <div class="space-y-1">
+                                <label for="{{ form.csosn.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CSOSN</label>
+                                {{ form.csosn }}
+                            </div>
+                            <div class="hidden">{{ form.cst_icms }}</div>
                             {% else %}
-                            <div class="h-full rounded-full {% if object.current_stock <= 0 %}bg-red-500{% else %}bg-emerald-500{% endif %}" style="width: 100%"></div>
+                            <div class="space-y-1">
+                                <label for="{{ form.cst_icms.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST ICMS</label>
+                                {{ form.cst_icms }}
+                            </div>
+                            <div class="hidden">{{ form.csosn }}</div>
                             {% endif %}
-                        </div>
-                        <span class="text-sm font-black {% if object.current_stock <= 0 %}text-red-600{% elif object.min_stock > 0 and object.current_stock <= object.min_stock %}text-amber-500{% else %}text-emerald-600{% endif %}">
-                            {{ object.current_stock }} {{ object.get_unit_type_display }}
-                        </span>
-                    </div>
-                    <a href="{% url 'product_stock_history' object.pk %}" class="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline mt-2 font-medium">
-                        <i data-lucide="history" class="h-3 w-3"></i> Ver histórico completo
-                    </a>
-                </div>
-                {% endif %}
-            </div>
 
-            <!-- Tab 4: Dados Fiscais -->
-            <div id="tab-fiscal" class="tab-content hidden space-y-8">
-                <!-- Identificação Fiscal -->
-                <div class="space-y-4">
-                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
-                        <i data-lucide="tag" class="h-4 w-4 text-blue-500"></i>
-                        Identificação Fiscal
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="md:col-span-2 space-y-1">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Origem da Mercadoria</label>
-                            {{ form.origem_mercadoria }}
+                            <div class="space-y-1">
+                                <label for="{{ form.cst_pis.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST PIS</label>
+                                {{ form.cst_pis }}
+                            </div>
+                            <div class="space-y-1">
+                                <label for="{{ form.cst_cofins.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST COFINS</label>
+                                {{ form.cst_cofins }}
+                            </div>
                         </div>
-                        <div class="space-y-1">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">NCM</label>
-                            {{ form.ncm }}
-                            <p class="text-[10px] text-slate-400">8 dígitos numéricos.</p>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CEST</label>
-                            {{ form.cest }}
-                            <p class="text-[10px] text-slate-400">7 dígitos (Subst. Tributária).</p>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CFOP Padrão</label>
-                            {{ form.cfop_padrao }}
-                            <p class="text-[10px] text-slate-400">Ex: 5102, 5405.</p>
+                    </div>
+
+                    {# Alíquotas IBPT #}
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
+                            <i data-lucide="info" class="h-4 w-4 text-blue-500"></i>
+                            Alíquotas IBPT (Lei da Transparência)
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <div class="space-y-1">
+                                <label for="{{ form.aliquota_ibpt_fed.id_for_label }}" class="text-xs font-bold text-slate-600">Federal (%)</label>
+                                {{ form.aliquota_ibpt_fed }}
+                            </div>
+                            <div class="space-y-1">
+                                <label for="{{ form.aliquota_ibpt_est.id_for_label }}" class="text-xs font-bold text-slate-600">Estadual (%)</label>
+                                {{ form.aliquota_ibpt_est }}
+                            </div>
+                            <div class="space-y-1">
+                                <label for="{{ form.aliquota_ibpt_mun.id_for_label }}" class="text-xs font-bold text-slate-600">Municipal (%)</label>
+                                {{ form.aliquota_ibpt_mun }}
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Tributação -->
-                <div class="space-y-4">
-                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
-                        <i data-lucide="percent" class="h-4 w-4 text-emerald-500"></i>
-                        Tributação
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {% if tax_regime == 'SIMPLES' %}
-                        <div class="space-y-1">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CSOSN</label>
-                            {{ form.csosn }}
-                        </div>
-                        <div class="hidden">{{ form.cst_icms }}</div>
-                        {% else %}
-                        <div class="space-y-1">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST ICMS</label>
-                            {{ form.cst_icms }}
-                        </div>
-                        <div class="hidden">{{ form.csosn }}</div>
-                        {% endif %}
+            </div>{# fim p-6/p-8 #}
+        </div>{# fim Main Card #}
 
-                        <div class="space-y-1">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST PIS</label>
-                            {{ form.cst_pis }}
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST COFINS</label>
-                            {{ form.cst_cofins }}
-                        </div>
-                    </div>
-                </div>
+    </form>
 
-                <!-- Alíquotas IBPT -->
-                <div class="space-y-4">
-                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
-                        <i data-lucide="info" class="h-4 w-4 text-blue-500"></i>
-                        Alíquotas IBPT (Lei da Transparência)
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <div class="space-y-1">
-                            <label class="text-xs font-bold text-slate-600">Federal (%)</label>
-                            {{ form.aliquota_ibpt_fed }}
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-xs font-bold text-slate-600">Estadual (%)</label>
-                            {{ form.aliquota_ibpt_est }}
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-xs font-bold text-slate-600">Municipal (%)</label>
-                            {{ form.aliquota_ibpt_mun }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="flex flex-col sm:flex-row gap-3 pt-8 mt-8 border-t border-slate-100">
-                <button type="submit" class="flex-1 bg-slate-900 text-white font-bold py-4 rounded-2xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-[0.98] flex items-center justify-center gap-2">
-                    <i data-lucide="save" class="h-5 w-5"></i>
-                    Salvar Produto
-                </button>
-                <a href="{% url 'product_list' %}" class="flex-1 bg-white text-slate-600 font-bold py-4 rounded-2xl text-center border border-slate-200 hover:bg-slate-50 transition-all active:scale-[0.98]">
-                    Cancelar
-                </a>
-            </div>
-        </form>
+    {# Sticky footer — fora do form, usa form="product-form" #}
+    <div class="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-4 flex flex-col sm:flex-row gap-3 shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.08)]">
+        <button type="submit" form="product-form" id="submit-btn" class="flex-1 bg-slate-900 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-slate-800 transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-2 text-sm">
+            <i data-lucide="save" class="h-4 w-4" id="submit-icon"></i>
+            <span id="submit-label">Salvar Produto</span>
+        </button>
+        <a href="{% url 'product_list' %}" id="cancel-btn" class="flex-1 bg-white text-slate-600 font-semibold py-2.5 px-4 rounded-lg text-center border border-slate-200 hover:bg-slate-50 transition-all active:scale-[0.98] text-sm">
+            Cancelar
+        </a>
     </div>
+
 </div>
 {% endblock %}
 
@@ -540,8 +568,35 @@
             activeBtn.classList.remove('text-slate-500', 'hover:text-slate-700');
             activeBtn.classList.add('text-blue-600', 'bg-white', 'shadow-sm', 'border', 'border-slate-200');
         }
-        
+
         lucide.createIcons();
+    }
+
+    function handleFormSubmit() {
+        if (!validateProductForm()) return false;
+        const btn = document.getElementById('submit-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.add('opacity-70', 'cursor-not-allowed');
+            document.getElementById('submit-label').textContent = 'Salvando...';
+            const icon = document.getElementById('submit-icon');
+            if (icon) { icon.setAttribute('data-lucide', 'loader-2'); lucide.createIcons(); }
+        }
+        return true;
+    }
+
+    function markTabsWithErrors() {
+        document.querySelectorAll('.tab-content').forEach(section => {
+            if (section.querySelector('.errorlist')) {
+                const tabId = section.id.replace('tab-', '');
+                const btn = document.getElementById('tab-' + tabId + '-btn');
+                if (btn && !btn.classList.contains('hidden')) {
+                    const dot = document.createElement('span');
+                    dot.className = 'ml-1.5 inline-block w-2 h-2 rounded-full bg-red-500 shrink-0';
+                    btn.appendChild(dot);
+                }
+            }
+        });
     }
 
     // Initialize state
@@ -550,13 +605,34 @@
         initializeComponentSelects();
         const formatSelect = document.getElementById('{{ form.format.id_for_label }}');
         if (formatSelect) formatSelect.addEventListener('change', toggleFormatTabs);
+
+        // Cancel confirmation
+        const cancelBtn = document.getElementById('cancel-btn');
+        const productForm = document.getElementById('product-form');
+        let formDirty = false;
+        productForm.addEventListener('change', () => { formDirty = true; });
+        productForm.addEventListener('input', () => { formDirty = true; });
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', (e) => {
+                if (formDirty && !confirm('Você tem alterações não salvas. Deseja sair sem salvar?')) {
+                    e.preventDefault();
+                }
+            });
+        }
+
+        // Error tab detection
+        markTabsWithErrors();
+        const firstError = document.querySelector('.errorlist');
+        if (firstError) {
+            const section = firstError.closest('.tab-content');
+            if (section) switchTab(section.id.replace('tab-', ''));
+        }
     });
 
     // Cache para preços de componentes
     const componentPriceCache = {};
 
     async function calculateCompositionTotals() {
-        // Seleciona apenas as linhas que estão dentro do container correto
         const container = document.getElementById('composition-formset-container');
         if (!container) return;
 
@@ -575,7 +651,7 @@
 
             const select = row.querySelector('select.component-select');
             const qtyInput = row.querySelector('input.quantity-input');
-            
+
             const costDisplay = row.querySelector('.row-unit-cost');
             const salesDisplay = row.querySelector('.row-unit-sales');
             const subtotalDisplay = row.querySelector('.row-subtotal-cost');
@@ -600,7 +676,6 @@
                 const unitSales = prices.default_unit_price || 0;
                 const subtotal = unitCost * quantity;
 
-                // Update Row Displays
                 if (costDisplay) costDisplay.textContent = unitCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 if (salesDisplay) salesDisplay.textContent = unitSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 if (subtotalDisplay) subtotalDisplay.textContent = subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -608,29 +683,25 @@
                 totalCusto += subtotal;
                 totalVenda += unitSales * quantity;
             } else {
-                // Clear row displays if no product
                 if (costDisplay) costDisplay.textContent = '0,00';
                 if (salesDisplay) salesDisplay.textContent = '0,00';
                 if (subtotalDisplay) subtotalDisplay.textContent = '0,00';
             }
         }
 
-        // Atualiza displays globais
         const globalCusto = document.getElementById('display-custo-total');
         const globalVenda = document.getElementById('display-venda-total');
-        
+
         if (globalCusto) globalCusto.textContent = totalCusto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         if (globalVenda) globalVenda.textContent = totalVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-        // Atualiza campos ocultos do form
         const inputCusto = document.getElementById('{{ form.preco_custo_total.id_for_label }}');
         const inputVenda = document.getElementById('{{ form.preco_venda_total.id_for_label }}');
         const mainPrecoCusto = document.getElementById('{{ form.preco_custo.id_for_label }}');
-        
+
         if (inputCusto) inputCusto.value = totalCusto.toFixed(2);
         if (inputVenda) inputVenda.value = totalVenda.toFixed(2);
-        
-        // Se for composição, o custo do produto é a soma dos custos dos componentes
+
         const formatSelect = document.getElementById('{{ form.format.id_for_label }}');
         if (formatSelect && formatSelect.value === 'COM_COMPOSICAO' && mainPrecoCusto) {
             mainPrecoCusto.value = totalCusto.toFixed(2);
@@ -718,24 +789,23 @@
         const container = document.getElementById('composition-formset-container');
         const totalForms = document.getElementById('id_compositions-TOTAL_FORMS');
         const rowCount = parseInt(totalForms.value);
-        
+
         const templateRow = container.querySelector('.composition-form-row');
         if (!templateRow) return;
 
         const template = templateRow.cloneNode(true);
         template.classList.remove('opacity-50');
-        
+
         const regex = new RegExp(`compositions-(\\d|__prefix__)`, 'g');
         template.innerHTML = template.innerHTML.replace(regex, `compositions-${rowCount}`);
-        
-        // Clear values and displays
+
         template.querySelectorAll('input:not([type=hidden]), select').forEach(input => {
             input.value = '';
         });
         template.querySelectorAll('.row-unit-cost, .row-unit-sales, .row-subtotal-cost').forEach(span => {
             span.textContent = '0,00';
         });
-        
+
         const deleteCheckbox = template.querySelector('input[type=checkbox][name$="-DELETE"]');
         if (deleteCheckbox) {
             deleteCheckbox.checked = false;
@@ -743,7 +813,7 @@
 
         container.appendChild(template);
         totalForms.value = rowCount + 1;
-        
+
         lucide.createIcons();
     }
 
@@ -772,7 +842,7 @@
             previewImage.src = '';
             previewZone.classList.add('hidden');
             uploadZone.classList.remove('hidden');
-            
+
             const clearCheckbox = document.getElementById('{{ form.image.id_for_label }}-clear_id');
             if (clearCheckbox) {
                 clearCheckbox.checked = true;

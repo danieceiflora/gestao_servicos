@@ -30,7 +30,6 @@ from .forms import (
     ServicePaymentForm, ServiceOrderDiscountForm,
 )
 from .utils import check_professional_availability, format_phone_e164
-from .workflow import trigger_payment_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -953,23 +952,6 @@ def service_order_detail(request, order_id):
         'payment_methods': PaymentMethod.objects.filter(ativo=True).order_by('descricao'),
         'default_due_date': default_due_date,
     })
-
-@login_required
-@permission_required('services.change_serviceorder', raise_exception=True)
-def resend_billing(request, pk):
-    """
-    View para re-enviar manualmente a cobrança (Pix + PDF) de uma OS.
-    """
-    order = get_object_or_404(ServiceOrder, id=pk)
-    
-    # Forçar limpeza do campo para permitir reenvio pelo workflow
-    order.pix_sent_at = None
-    order.save(update_fields=['pix_sent_at'])
-    
-    trigger_payment_workflow(order)
-    
-    messages.success(request, f"Workflow de cobrança reiniciado para a OS #{order.number}. A mensagem será enviada em instantes.")
-    return redirect('service_order_detail', order_id=order.id)
 
 @login_required
 @permission_required('services.change_serviceorder', raise_exception=True)

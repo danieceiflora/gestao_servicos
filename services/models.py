@@ -1319,9 +1319,6 @@ class ServiceOrder(models.Model):
 
             self.save()
 
-        if self.status == self.Status.CONCLUIDA:
-            from .workflow import trigger_payment_receipt_workflow
-            trigger_payment_receipt_workflow(self)
 
     class Meta:
         verbose_name = "Ordem de Serviço"
