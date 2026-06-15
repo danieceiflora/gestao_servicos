@@ -212,7 +212,7 @@ def api_tecnico_bootstrap(request):
                     'finished_at': t.finished_at.isoformat() if t.finished_at else None,
                     'notes': t.notes,
                     'customer_name': t.customer_name,
-                    'customer_signature': t.customer_signature,
+                    'customer_signature': t.get_signature_url,
                 } for t in tasks_qs
             ],
             'orders': [

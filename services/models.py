@@ -1441,6 +1441,18 @@ class ServiceOrderTask(models.Model):
         )['total']
         return quantize_money(result or Decimal('0'))
 
+    @property
+    def team_display(self):
+        """Retorna a equipe alocada formatada: 'Nome (Função), Nome (Função)'."""
+        members = self.team_members.select_related('professional', 'role').all()
+        if not members.exists():
+            return ""
+        parts = []
+        for m in members:
+            role_name = m.role.name if m.role else "Sem função"
+            parts.append(f"{m.professional.name} ({role_name})")
+        return ", ".join(parts)
+
     def save(self, *args, **kwargs):
         if not self.pk and self.service_order.status == ServiceOrder.Status.CONCLUIDA:
             self.requires_client_approval = True

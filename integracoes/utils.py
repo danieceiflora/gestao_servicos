@@ -69,9 +69,12 @@ def get_mappable_fields(model_name, max_depth=3, only_phones=False):
             if isinstance(field, ForeignKey) and depth < max_depth:
                 _get_fields(field.related_model, prefix=f"{path}__", depth=depth+1)
 
-        # 2. Casos Especiais: Telefones de Clientes (Relacionamento Reverso ou Especifico)
+        # 2. Casos Especiais: Relacionamentos reversos e campos calculados
         if current_model.__name__ == 'Client':
             mappable.append((f"{prefix}phones.first.phone".replace('__', '.'), f"{prefix.replace('__', ' > ') if prefix else ''}Telefone/Whatsapp"))
+
+        if current_model.__name__ == 'ServiceOrderTask':
+            mappable.append((f"{prefix}team_display".replace('__', '.'), f"{prefix.replace('__', ' > ') if prefix else ''}Equipe Alocada"))
 
         # 3. Properties Úteis (manualmente selecionadas ou via convenção)
         common_props = [
