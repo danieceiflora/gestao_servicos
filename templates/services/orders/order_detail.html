@@ -516,7 +516,7 @@
                     </span>
                 </h4>
                 {% if user.role != 'COLLABORATOR' %}
-                <span class="text-xs font-bold text-slate-600 tabular-nums">R$ {{ task.billing_value|floatformat:2 }}</span>
+                <span class="text-xs font-bold text-slate-600 tabular-nums" data-task-billing="{{ task.id }}">R$ {{ task.billing_value|floatformat:2 }}</span>
                 {% endif %}
             </div>
 
@@ -622,7 +622,7 @@
         <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm" data-items-card="general">
             <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                 <h4 class="font-semibold text-slate-700 flex items-center gap-2 text-sm">
-                    <span class="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>Itens sem etapa
+                    <span class="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>Itens do orçamento
                 </h4>
                 {% if user.role != 'COLLABORATOR' %}
                 <span class="text-xs font-bold text-slate-700 tabular-nums">Total OS: R$ <span data-order-total-value>{{ order.total_value|floatformat:2 }}</span></span>
@@ -1255,6 +1255,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateDOM(data) {
         if (data.order_total_display) document.querySelectorAll('[data-order-total-value]').forEach(el => el.textContent = data.order_total_display);
+        if (data.task_billing_updates) {
+            Object.entries(data.task_billing_updates).forEach(([taskId, val]) => {
+                const el = document.querySelector('[data-task-billing="' + taskId + '"]');
+                if (el) el.textContent = 'R$ ' + val;
+            });
+        }
         if (data.estimated_value_display) document.querySelectorAll('[data-order-estimated-value]').forEach(el => el.textContent = data.estimated_value_display);
         if (data.balance_due_display !== undefined) {
             document.querySelectorAll('[data-order-balance-due]').forEach(el => el.textContent = data.balance_due_display);

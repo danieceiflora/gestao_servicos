@@ -1641,17 +1641,20 @@ def order_item_add(request, order_id):
                         order_total_display = f'{order_total:.2f}'.replace('.', ',')
                         estimated_value_display = f'{order.estimated_value:.2f}'.replace('.', ',')
                         balance_due_display = f'{balance_due:.2f}'.replace('.', ',')
+                        task_billing_updates = {str(t.id): f'{t.billing_value:.2f}'.replace('.', ',') for t in order.tasks.all()}
                     except Exception as e:
                         print(f"Erro ao calcular total da order: {e}")
                         order_total_display = "0,00"
                         estimated_value_display = "0,00"
                         balance_due_display = "0,00"
+                        task_billing_updates = {}
 
                     return JsonResponse({
                         'success': True,
                         'message': 'Item adicionado com sucesso!',
                         'item': {
                             'id': item.id,
+                            'task_id': str(item.task_id) if item.task_id else None,
                             'description': item.description,
                             'product_code': item.product.code if item.product else '',
                             'product_name': item.product.name if item.product else (item.service.name if item.service else ''),
@@ -1669,6 +1672,7 @@ def order_item_add(request, order_id):
                         'estimated_value_display': estimated_value_display,
                         'balance_due_display': balance_due_display,
                         'balance_due_positive': bool(order.balance_due > 0),
+                        'task_billing_updates': task_billing_updates,
                     })
                 except Exception as e:
                     print(f"Erro ao preparar resposta JSON: {e}")
@@ -1677,6 +1681,7 @@ def order_item_add(request, order_id):
                         'message': 'Item adicionado com sucesso!',
                         'item': {
                             'id': item.id,
+                            'task_id': str(item.task_id) if item.task_id else None,
                             'description': item.description,
                             'product_code': item.product.code if item.product else '',
                             'product_name': item.product.name if item.product else (item.service.name if item.service else ''),
@@ -1694,6 +1699,7 @@ def order_item_add(request, order_id):
                         'estimated_value_display': '0,00',
                         'balance_due_display': '0,00',
                         'balance_due_positive': False,
+                        'task_billing_updates': {},
                     })
                     
             
@@ -1741,12 +1747,14 @@ def order_item_delete(request, item_id):
                 order_total_display = f'{order.total_value:.2f}'.replace('.', ',')
                 estimated_value_display = f'{order.estimated_value:.2f}'.replace('.', ',')
                 balance_due_display = f'{order.balance_due:.2f}'.replace('.', ',')
+                task_billing_updates = {str(t.id): f'{t.billing_value:.2f}'.replace('.', ',') for t in order.tasks.all()}
             except Exception as e:
                 print(f"Erro ao calcular total da order: {e}")
                 order_total_display = "0,00"
                 estimated_value_display = "0,00"
                 balance_due_display = "0,00"
-            
+                task_billing_updates = {}
+
             return JsonResponse({
                 'success': True,
                 'message': 'Item removido com sucesso!',
@@ -1754,6 +1762,7 @@ def order_item_delete(request, item_id):
                 'estimated_value_display': estimated_value_display,
                 'balance_due_display': balance_due_display,
                 'balance_due_positive': bool(order.balance_due > 0),
+                'task_billing_updates': task_billing_updates,
             })
         
         messages.success(request, 'Item removido com sucesso!')
@@ -1801,7 +1810,8 @@ def order_item_update(request, item_id):
                 'order_total_display': f'{order.total_value:.2f}'.replace('.', ','),
                 'estimated_value_display': f'{order.estimated_value:.2f}'.replace('.', ','),
                 'balance_due_display': f'{order.balance_due:.2f}'.replace('.', ','),
-                'balance_due_positive': bool(order.balance_due > 0)
+                'balance_due_positive': bool(order.balance_due > 0),
+                'task_billing_updates': {str(t.id): f'{t.billing_value:.2f}'.replace('.', ',') for t in order.tasks.all()},
             })
         except (InvalidOperation, TypeError, ValueError) as e:
             return JsonResponse({'success': False, 'message': 'Valores inválidos.'}, status=400)

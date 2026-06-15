@@ -487,7 +487,7 @@ class BasePDFGenerator:
         if general_rows:
             if len(data) > 1:
                 gen_idx = len(data)
-                data.append([Paragraph("Itens Gerais", self.styles.get('TableSubHeader', self.styles['TableHeader'])), "", "", "", ""])
+                data.append([Paragraph("Itens do Orçamento", self.styles.get('TableSubHeader', self.styles['TableHeader'])), "", "", "", ""])
                 span_commands.append(('SPAN', (0, gen_idx), (-1, gen_idx)))
                 span_commands.append(('BACKGROUND', (0, gen_idx), (-1, gen_idx), self.bg_header))
             data.extend(general_rows)
