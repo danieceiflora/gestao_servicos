@@ -1,5 +1,6 @@
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
+from django.db import transaction
 from services.models import (
     ServiceOrder, ServiceOrderTask, Sale,
     Billing, Installment, SalePayment,
@@ -45,18 +46,27 @@ def handle_dynamic_notifications(sender, instance, created, **kwargs):
 
     try:
         if created:
-            # Gatilho de Criação
-            dispatch_dynamic_notification(instance, 'CRIAR')
+            # Gatilho de Criação — adiado para após o commit para garantir que objetos
+            # relacionados (ex: ServiceOrderTeam) já estejam salvos quando a notificação disparar.
+            pk = instance.pk
+            sender_cls = sender
+            def _dispatch_criar():
+                try:
+                    fresh = sender_cls.objects.get(pk=pk)
+                    dispatch_dynamic_notification(fresh, 'CRIAR')
+                except Exception as e:
+                    logger.error(f"Erro ao processar notificação CRIAR para {sender_cls.__name__}: {e}")
+            transaction.on_commit(_dispatch_criar)
         else:
             # Gatilho de Alteração de Status
             old_status = getattr(instance, '_old_status', None)
             new_status = getattr(instance, 'status', None)
-            
+
             # Se o status mudou, ou se não tínhamos o status antigo (ex: primeiro save após migração)
             if new_status and old_status != new_status:
                 dispatch_dynamic_notification(
-                    instance, 
-                    'MUDANCA_STATUS', 
+                    instance,
+                    'MUDANCA_STATUS',
                     old_status=old_status
                 )
     except Exception as e:

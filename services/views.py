@@ -5,6 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMix
 from django.contrib.auth.decorators import login_required, permission_required, user_passes_test
 from django.urls import reverse_lazy
 from django.db.models import Q
+from django.db import transaction
 from django.core.paginator import Paginator
 from datetime import timedelta, datetime
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
@@ -718,37 +719,38 @@ def service_order_scheduling(request):
                             f'task_{task_index}_send_whatsapp_confirmation'
                         ) == 'on'
 
-                    task = ServiceOrderTask.objects.create(**task_kwargs)
                     professionals = request.POST.getlist(f'task_{task_index}_professional[]')
                     roles = request.POST.getlist(f'task_{task_index}_role[]')
-                    
-                    
-                    for prof_id, role_id in zip(professionals, roles):
-                        if prof_id and role_id:  # Ignorar campos vazios
-                            try:
-                                professional = Professional.objects.get(id=prof_id)
-                                role = ProfessionalRole.objects.get(id=role_id)
-                                ServiceOrderTeam.objects.create(
-                                    task=task,
-                                    professional=professional,
-                                    role=role
-                                )
-                                
-                                # Notificar o profissional
-                                if professional.user:
-                                    title = "Nova O.S. Agendada 🛠️"
-                                    body = f"Você foi escalado para {task.get_task_type_display()} na O.S. #{service_order.number}\nInício: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M') if task.scheduled_at else 'A definir'}"
-                                    queue_push_notification(professional.user, title, body, url=f"/equipe/etapa/{task.id}/")
 
-                            except (Professional.DoesNotExist, ProfessionalRole.DoesNotExist):
-                                pass
-                    
-                    # Anexar mídias à etapa
-                    media_files = request.FILES.getlist(f'task_{task_index}_media')
-                    for media in media_files:
-                        ServiceMedia.objects.create(task=task, file=media)
-                    
-                    tasks_created.append(task)
+                    with transaction.atomic():
+                        task = ServiceOrderTask.objects.create(**task_kwargs)
+
+                        for prof_id, role_id in zip(professionals, roles):
+                            if prof_id and role_id:  # Ignorar campos vazios
+                                try:
+                                    professional = Professional.objects.get(id=prof_id)
+                                    role = ProfessionalRole.objects.get(id=role_id)
+                                    ServiceOrderTeam.objects.create(
+                                        task=task,
+                                        professional=professional,
+                                        role=role
+                                    )
+
+                                    # Notificar o profissional
+                                    if professional.user:
+                                        title = "Nova O.S. Agendada 🛠️"
+                                        body = f"Você foi escalado para {task.get_task_type_display()} na O.S. #{service_order.number}\nInício: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M') if task.scheduled_at else 'A definir'}"
+                                        queue_push_notification(professional.user, title, body, url=f"/equipe/etapa/{task.id}/")
+
+                                except (Professional.DoesNotExist, ProfessionalRole.DoesNotExist):
+                                    pass
+
+                        # Anexar mídias à etapa
+                        media_files = request.FILES.getlist(f'task_{task_index}_media')
+                        for media in media_files:
+                            ServiceMedia.objects.create(task=task, file=media)
+
+                        tasks_created.append(task)
                     _send_visit_confirmation_if_needed(task)
                 
                 task_index += 1
@@ -1093,11 +1095,12 @@ def task_add(request, order_id):
                                 'budget_items': _budget_items_rerender,
                             })
 
-            task.save()
+            with transaction.atomic():
+                task.save()
 
-            # Salvar equipe
-            formset.instance = task
-            formset.save()
+                # Salvar equipe
+                formset.instance = task
+                formset.save()
 
             # Clonar itens do orçamento para a primeira execução (clone seletivo)
             cloned_count = 0
@@ -1487,24 +1490,25 @@ def api_quick_create_order(request):
                     }, status=400)
 
         status = ServiceOrder.Status.ORCAMENTO_AGENDADO if sched_type == 'ORCAMENTO' else ServiceOrder.Status.AGUARDANDO_EXECUCAO
-        order = ServiceOrder.objects.create(client_property=prop, status=status, description=data.get('description', ''))
-        
-        task = ServiceOrderTask.objects.create(
-            service_order=order, task_type=sched_type, 
-            scheduled_at=scheduled_at, status=ServiceOrderTask.TaskStatus.AGENDADO
-        )
+        with transaction.atomic():
+            order = ServiceOrder.objects.create(client_property=prop, status=status, description=data.get('description', ''))
 
-        for member in data.get('team', []):
-            prof = get_object_or_404(Professional, id=member.get('professional_id'))
-            role_id = member.get('role_id')
-            role = get_object_or_404(ProfessionalRole, id=role_id) if role_id else prof.roles.first()
-            ServiceOrderTeam.objects.create(task=task, professional=prof, role=role)
-            
-            # Notificar o profissional
-            if prof.user:
-                title = "Nova O.S. Rápida 🛠️"
-                body = f"Você foi alocado em: {task.get_task_type_display()} (OS #{order.number})\nAgendamento: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M')}"
-                send_push_notification(prof.user, title, body, url=f"/equipe/etapa/{task.id}/")
+            task = ServiceOrderTask.objects.create(
+                service_order=order, task_type=sched_type,
+                scheduled_at=scheduled_at, status=ServiceOrderTask.TaskStatus.AGENDADO
+            )
+
+            for member in data.get('team', []):
+                prof = get_object_or_404(Professional, id=member.get('professional_id'))
+                role_id = member.get('role_id')
+                role = get_object_or_404(ProfessionalRole, id=role_id) if role_id else prof.roles.first()
+                ServiceOrderTeam.objects.create(task=task, professional=prof, role=role)
+
+                # Notificar o profissional
+                if prof.user:
+                    title = "Nova O.S. Rápida 🛠️"
+                    body = f"Você foi alocado em: {task.get_task_type_display()} (OS #{order.number})\nAgendamento: {task.scheduled_at.strftime('%d/%m/%Y às %H:%M')}"
+                    send_push_notification(prof.user, title, body, url=f"/equipe/etapa/{task.id}/")
 
         return JsonResponse({'id': str(order.id), 'success': True})
     except Exception as e:
