@@ -2,6 +2,20 @@
 
 from django.db import migrations
 
+
+def ensure_column_widths(apps, schema_editor):
+    """
+    Garante fisicamente que a coluna serviceorder.status suporte os valores PT-BR
+    longos (ex: ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO = 36 chars).
+    Necessário porque o AlterField em 0073 pode não emitir ALTER TABLE quando o
+    estado de migração já registra max_length=50 mas a coluna física é varchar(20).
+    """
+    if schema_editor.connection.vendor == 'postgresql':
+        schema_editor.execute(
+            'ALTER TABLE services_serviceorder ALTER COLUMN status TYPE VARCHAR(50)'
+        )
+
+
 def translate_data(apps, schema_editor):
     # Mapping for translation
     mapping = {
@@ -116,5 +130,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(ensure_column_widths, migrations.RunPython.noop),
         migrations.RunPython(translate_data),
     ]
