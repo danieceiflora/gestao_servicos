@@ -14,9 +14,9 @@ def ensure_column_widths(apps, schema_editor):
     if schema_editor.connection.vendor != 'postgresql':
         return
 
-    # Tabelas cujos campos de escolha serão traduzidos por translate_data.
-    # Alargamos para varchar(100) todas as colunas varchar que ainda couberem
-    # menos de 50 chars — qualquer valor do mapeamento PT-BR cabe em 100 chars.
+    # Alargamos para VARCHAR(200) todas as colunas varchar com menos de 200 chars
+    # nas tabelas cujos campos serão traduzidos por translate_data.
+    # O valor mais longo do mapeamento PT-BR tem 36 chars; 200 dá margem folgada.
     target_tables = [
         'services_serviceorder',
         'services_serviceordertask',
@@ -39,11 +39,11 @@ def ensure_column_widths(apps, schema_editor):
     with schema_editor.connection.cursor() as cursor:
         cursor.execute(
             f"""
-            SELECT table_name, column_name
+            SELECT table_name, column_name, character_maximum_length
             FROM information_schema.columns
             WHERE table_schema = 'public'
               AND data_type = 'character varying'
-              AND (character_maximum_length IS NULL OR character_maximum_length < 50)
+              AND (character_maximum_length IS NULL OR character_maximum_length < 200)
               AND table_name IN ({placeholders})
             ORDER BY table_name, column_name
             """,
@@ -52,9 +52,9 @@ def ensure_column_widths(apps, schema_editor):
         columns = cursor.fetchall()
 
     with schema_editor.connection.cursor() as cursor:
-        for table, column in columns:
+        for table, column, current_length in columns:
             cursor.execute(
-                f'ALTER TABLE "{table}" ALTER COLUMN "{column}" TYPE VARCHAR(100)'
+                f'ALTER TABLE "{table}" ALTER COLUMN "{column}" TYPE VARCHAR(200)'
             )
 
 

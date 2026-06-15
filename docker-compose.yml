@@ -34,7 +34,7 @@ services:
     container_name: service_management_media_worker
     restart: always
     cpus: "1.0"
-    entrypoint: ["python", "manage.py", "process_media_queue"]
+    entrypoint: ["/bin/sh", "-c", "until python manage.py migrate --check 2>/dev/null; do echo 'Aguardando migrations...'; sleep 5; done && python manage.py process_media_queue"]
     volumes:
       - ./media:/app/media
     environment:
