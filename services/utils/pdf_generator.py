@@ -538,7 +538,7 @@ class BudgetPDFGenerator(BasePDFGenerator):
         elements.append(Spacer(1, 0.1*cm))
         exec_types = ['EXECUCAO', 'GARANTIA', 'RETORNO']
         has_exec = self.service_order.tasks.filter(task_type__in=exec_types).exists()
-        include = exec_types if has_exec else ['ORCAMENTO']
+        include = exec_types if has_exec else None
         table, span_commands = self._build_grouped_items_table(include_types=include)
         table.setStyle(TableStyle(span_commands))
         elements.append(table)
