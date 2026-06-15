@@ -5,15 +5,41 @@ from django.db import migrations
 
 def ensure_column_widths(apps, schema_editor):
     """
-    Garante fisicamente que a coluna serviceorder.status suporte os valores PT-BR
-    longos (ex: ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO = 36 chars).
-    Necessário porque o AlterField em 0073 pode não emitir ALTER TABLE quando o
-    estado de migração já registra max_length=50 mas a coluna física é varchar(20).
+    Garante fisicamente que colunas com valores PT-BR longos caibam antes da
+    tradução dos dados. Necessário porque AlterField pode ser no-op quando o
+    estado de migração já registra o max_length correto mas a coluna física
+    ainda está estreita no PostgreSQL.
+    Usa cursor direto para garantir execução imediata (não diferida).
     """
-    if schema_editor.connection.vendor == 'postgresql':
-        schema_editor.execute(
-            'ALTER TABLE services_serviceorder ALTER COLUMN status TYPE VARCHAR(50)'
-        )
+    if schema_editor.connection.vendor != 'postgresql':
+        return
+
+    # Colunas que podem receber valores > 20 chars do mapeamento de tradução.
+    # serviceorder.status recebe até 36 chars (ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO).
+    # serviceordertask.status pode receber valores de OS por dados históricos misturados.
+    columns_to_widen = [
+        ('services_serviceorder', 'status', 50),
+        ('services_serviceordertask', 'status', 50),
+        ('services_serviceordertask', 'task_type', 50),
+        ('services_serviceordertask', 'whatsapp_confirmation_status', 50),
+        ('services_serviceordertask', 'payment_method', 50),
+        ('services_installment', 'status', 50),
+        ('services_billing', 'status', 50),
+        ('services_sale', 'status', 50),
+        ('services_occurrence', 'category', 50),
+        ('services_occurrence', 'occurrence_type', 50),
+        ('services_occurrence', 'status', 50),
+        ('services_expenseinstallment', 'status', 50),
+        ('services_expenseinstallment', 'payment_method', 50),
+        ('services_mediaprocessingjob', 'status', 50),
+        ('services_servicepayment', 'status', 50),
+        ('services_servicepayment', 'payment_method', 50),
+    ]
+    with schema_editor.connection.cursor() as cursor:
+        for table, column, width in columns_to_widen:
+            cursor.execute(
+                f'ALTER TABLE {table} ALTER COLUMN {column} TYPE VARCHAR({width})'
+            )
 
 
 def translate_data(apps, schema_editor):
