@@ -5,40 +5,56 @@ from django.db import migrations
 
 def ensure_column_widths(apps, schema_editor):
     """
-    Garante fisicamente que colunas com valores PT-BR longos caibam antes da
-    tradução dos dados. Necessário porque AlterField pode ser no-op quando o
-    estado de migração já registra o max_length correto mas a coluna física
-    ainda está estreita no PostgreSQL.
-    Usa cursor direto para garantir execução imediata (não diferida).
+    Garante fisicamente que colunas varchar estreitas sejam alargadas antes da
+    tradução dos dados. Usa information_schema para descobrir as colunas que
+    existem e só executa ALTER TABLE nelas, evitando erros por tabelas ainda
+    não criadas neste ponto da cadeia de migrations.
+    Usa cursor direto (não schema_editor.execute) para execução imediata.
     """
     if schema_editor.connection.vendor != 'postgresql':
         return
 
-    # Colunas que podem receber valores > 20 chars do mapeamento de tradução.
-    # serviceorder.status recebe até 36 chars (ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO).
-    # serviceordertask.status pode receber valores de OS por dados históricos misturados.
-    columns_to_widen = [
-        ('services_serviceorder', 'status', 50),
-        ('services_serviceordertask', 'status', 50),
-        ('services_serviceordertask', 'task_type', 50),
-        ('services_serviceordertask', 'whatsapp_confirmation_status', 50),
-        ('services_serviceordertask', 'payment_method', 50),
-        ('services_installment', 'status', 50),
-        ('services_billing', 'status', 50),
-        ('services_sale', 'status', 50),
-        ('services_occurrence', 'category', 50),
-        ('services_occurrence', 'occurrence_type', 50),
-        ('services_occurrence', 'status', 50),
-        ('services_expenseinstallment', 'status', 50),
-        ('services_expenseinstallment', 'payment_method', 50),
-        ('services_mediaprocessingjob', 'status', 50),
-        ('services_servicepayment', 'status', 50),
-        ('services_servicepayment', 'payment_method', 50),
+    # Tabelas cujos campos de escolha serão traduzidos por translate_data.
+    # Alargamos para varchar(100) todas as colunas varchar que ainda couberem
+    # menos de 50 chars — qualquer valor do mapeamento PT-BR cabe em 100 chars.
+    target_tables = [
+        'services_serviceorder',
+        'services_serviceordertask',
+        'services_installment',
+        'services_billing',
+        'services_sale',
+        'services_occurrence',
+        'services_expenseinstallment',
+        'services_mediaprocessingjob',
+        'services_servicepayment',
+        'services_stockmovement',
+        'services_product',
+        'services_servicechecklistitem',
+        'services_expense',
+        'services_user',
+        'services_financialcategory',
     ]
+
+    placeholders = ', '.join(['%s'] * len(target_tables))
     with schema_editor.connection.cursor() as cursor:
-        for table, column, width in columns_to_widen:
+        cursor.execute(
+            f"""
+            SELECT table_name, column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND data_type = 'character varying'
+              AND (character_maximum_length IS NULL OR character_maximum_length < 50)
+              AND table_name IN ({placeholders})
+            ORDER BY table_name, column_name
+            """,
+            target_tables,
+        )
+        columns = cursor.fetchall()
+
+    with schema_editor.connection.cursor() as cursor:
+        for table, column in columns:
             cursor.execute(
-                f'ALTER TABLE {table} ALTER COLUMN {column} TYPE VARCHAR({width})'
+                f'ALTER TABLE "{table}" ALTER COLUMN "{column}" TYPE VARCHAR(100)'
             )
 
 
