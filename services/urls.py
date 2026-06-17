@@ -9,6 +9,7 @@ from . import views_maintenance
 from . import views_bi
 
 urlpatterns = [
+    path('confirmar/<uuid:token>/', views.task_public_confirmation, name='task_public_confirmation'),
     path('', views.home, name='home'),
     path('financeiro/', views_finance.finance_dashboard, name='finance_dashboard'),
     path('financeiro/comissoes/', views_finance.finance_commissions, name='finance_commissions'),

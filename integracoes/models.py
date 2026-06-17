@@ -188,21 +188,30 @@ class NotificationConfig(models.Model):
 
 class NotificationVariable(models.Model):
     """
-    Mapeamento de variáveis {{1}}, {{2}}, etc do template para campos do modelo.
+    Mapeamento de variáveis do template para campos do modelo.
+    component=BODY → {{index}} no corpo; component=BUTTON → sufixo dinâmico do botão na posição index.
     """
+    class Component(models.TextChoices):
+        BODY = 'BODY', 'Corpo'
+        BUTTON = 'BUTTON', 'Botão'
+
     config = models.ForeignKey(NotificationConfig, on_delete=models.CASCADE, related_name='variables', verbose_name="Configuração")
-    index = models.PositiveIntegerField('Índice da Variável (Ex: 1 para {{1}})')
+    index = models.PositiveIntegerField('Índice (corpo: 1-based; botão: 0-based)')
     field_path = models.CharField(
         'Caminho do Campo no Modelo',
         max_length=255,
         help_text='Ex: number, client_property.client.name, total_value'
     )
+    component = models.CharField(
+        'Componente', max_length=10,
+        choices=Component.choices, default=Component.BODY,
+    )
 
     class Meta:
         verbose_name = 'Variável de Notificação'
         verbose_name_plural = 'Variáveis de Notificação'
-        ordering = ['index']
-        unique_together = ('config', 'index')
+        ordering = ['component', 'index']
+        unique_together = ('config', 'component', 'index')
 
 
 # --- RÉGUA DE COBRANÇA ---

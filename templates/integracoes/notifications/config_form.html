@@ -26,10 +26,16 @@
                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
                 </div>
                 
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" name="is_active" id="is_active" {% if not config or config.is_active %}checked{% endif %} class="rounded border-slate-300">
-                    <label for="is_active" class="text-sm font-medium text-slate-700">Ativar esta automação</label>
-                </div>
+                <label for="is_active" class="flex items-center gap-3 cursor-pointer select-none w-fit">
+                    <div class="relative">
+                        <input type="checkbox" name="is_active" id="is_active"
+                               {% if not config or config.is_active %}checked{% endif %}
+                               class="peer sr-only">
+                        <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+                        <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+                    </div>
+                    <span class="text-sm font-medium text-slate-700">Ativar esta automação</span>
+                </label>
             </div>
         </div>
 

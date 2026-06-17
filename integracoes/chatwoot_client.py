@@ -479,6 +479,31 @@ class ChatwootClient:
                     }
                     content_attributes["template_params"]["processed_params"]["buttons"].append(button_payload)
 
+                elif b_type == 'url_suffix':
+                    # Formato Chatwoot para botão URL dinâmico (processed_params):
+                    # [{"type": "url", "parameter": "<sufixo_dinamico>"}]
+                    # O template já contém a parte fixa da URL; só o sufixo muda.
+                    # Se o campo mapeado retornou a URL completa, strip do prefixo fixo automaticamente.
+                    buttons_comp = next(
+                        (c for c in (template_def or {}).get('components', []) if c['type'] == 'BUTTONS'),
+                        None
+                    )
+                    # Ordena por índice para manter a ordem correta na lista
+                    for btn_idx in sorted(button_data.get('params', {}).keys(), key=int):
+                        suffix = str(button_data['params'][btn_idx])
+                        if buttons_comp:
+                            btns = buttons_comp.get('buttons', [])
+                            idx = int(btn_idx)
+                            if idx < len(btns) and btns[idx].get('type') == 'URL':
+                                btn_url = btns[idx].get('url', '')
+                                static_prefix = btn_url.split('{{1}}')[0] if '{{1}}' in btn_url else ''
+                                if static_prefix and suffix.startswith(static_prefix):
+                                    suffix = suffix[len(static_prefix):]
+                        content_attributes["template_params"]["processed_params"]["buttons"].append({
+                            "type": "url",
+                            "parameter": suffix,
+                        })
+
             # Payload final do Chatwoot
             payload = {
                 "content": content,

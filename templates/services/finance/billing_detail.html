@@ -41,7 +41,7 @@
             {% if billing.discount > 0 %}
                 <p class="text-xs font-bold text-red-500 mt-1">Desconto Aplicado: R$ {{ billing.discount|floatformat:2 }}</p>
             {% endif %}
-            
+
             {% with balance=billing.get_remaining_balance %}
                 {% if balance > 0 %}
                     <div class="mt-4 px-4 py-2 bg-red-50 border border-red-100 rounded-2xl text-right">
@@ -51,7 +51,7 @@
                 {% elif billing.status == 'PAGO' %}
                     <div class="mt-4 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl text-right">
                         <p class="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Status</p>
-                        <p class="text-xl font-black text-emerald-600 tracking-tighter text-right">RECEBIMENTO INTEGRAL</p>
+                        <p class="text-xl font-black text-emerald-600 tracking-tighter">RECEBIMENTO INTEGRAL</p>
                     </div>
                 {% endif %}
             {% endwith %}
@@ -61,70 +61,183 @@
     <!-- Lista de Parcelas -->
     <div class="space-y-4">
         <h3 class="text-xs font-black text-slate-900 uppercase tracking-widest px-1">Detalhamento das Parcelas</h3>
-        
+
         <div class="grid grid-cols-1 gap-4">
             {% for inst in installments %}
-            <div class="bg-white rounded-2xl border-2 {% if inst.status == 'PAGO' %}border-emerald-100 bg-emerald-50/10{% elif inst.status == 'ATRASADO' %}border-red-100 bg-red-50/10{% else %}border-slate-100{% endif %} p-6 flex flex-col md:flex-row items-center justify-between gap-6 transition-all hover:shadow-md">
-                <div class="flex items-center gap-6">
-                    <div class="w-12 h-12 rounded-xl {% if inst.status == 'PAGO' %}bg-emerald-500 text-white shadow-lg shadow-emerald-500/20{% else %}bg-slate-100 text-slate-400{% endif %} flex items-center justify-center font-black text-lg">
-                        {{ inst.installment_number }}
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Vencimento</p>
-                        <p class="text-base font-bold text-slate-800">{{ inst.due_date|date:"d/m/Y" }}</p>
-                    </div>
-                    {% if inst.payment_method %}
-                    <div>
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Forma Pagto</p>
-                        <p class="text-sm font-bold text-slate-600">{{ inst.payment_method.descricao }}</p>
-                    </div>
-                    {% endif %}
-                </div>
+            {% with active_charge=inst.gateway_charges.all|dictsort:"created_at"|last %}
+            <div class="bg-white rounded-2xl border-2 {% if inst.status == 'PAGO' %}border-emerald-100 bg-emerald-50/10{% elif inst.status == 'ATRASADO' %}border-red-100 bg-red-50/10{% else %}border-slate-100{% endif %} overflow-hidden transition-all hover:shadow-md">
 
-                <div class="flex items-center gap-8">
-                    <div class="text-right">
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Valor</p>
-                        <p class="text-xl font-black text-slate-900 tracking-tight">R$ {{ inst.amount|floatformat:2 }}</p>
-                        {% with paid=inst.get_total_paid balance=inst.get_remaining_balance %}
-                            {% if paid > 0 %}
-                                <p class="text-[9px] font-bold text-blue-500 uppercase">Recebido: R$ {{ paid|floatformat:2 }}</p>
-                                {% if balance > 0 %}
-                                    <p class="text-[9px] font-bold text-red-500 uppercase mt-0.5">Saldo: R$ {{ balance|floatformat:2 }}</p>
-                                {% endif %}
-                            {% endif %}
-                        {% endwith %}
-                    </div>
-
-                    {% if inst.status == 'PAGO' %}
-                        <div class="flex flex-col items-end">
-                            <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-700">Quitada</span>
-                            <p class="text-[9px] text-slate-400 font-medium mt-1">em {{ inst.paid_at|date:"d/m/Y H:i" }}</p>
+                <!-- Linha principal da parcela -->
+                <div class="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div class="flex items-center gap-6">
+                        <div class="w-12 h-12 rounded-xl {% if inst.status == 'PAGO' %}bg-emerald-500 text-white shadow-lg shadow-emerald-500/20{% else %}bg-slate-100 text-slate-400{% endif %} flex items-center justify-center font-black text-lg">
+                            {{ inst.installment_number }}
                         </div>
-                    {% elif inst.status == 'CANCELADO' %}
-                        <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-400">Cancelada</span>
-                    {% else %}
-                        <button type="button" onclick="openPayModal('{{ inst.id }}', '{{ inst.amount }}', '{{ inst.installment_number }}', '{{ inst.get_total_paid|stringformat:'.2f' }}')" class="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-95">
-                            {% if inst.status == 'PARCIAL' %}CONTINUAR RECEBIMENTO{% else %}BAIXAR PARCELA{% endif %}
-                        </button>
-                    {% endif %}
-                </div>
-            </div>
-            
-            <!-- Listagem de Pagamentos Reais da Parcela -->
-            {% if inst.actual_payments.all %}
-            <div class="ml-12 mr-6 -mt-3 mb-4 p-4 bg-slate-50 rounded-b-2xl border-x-2 border-b-2 border-slate-100 space-y-2">
-                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 mb-2">Histórico de Recebimentos</p>
-                {% for pay in inst.actual_payments.all %}
-                <div class="flex items-center justify-between text-xs px-2 py-1 border-b border-slate-200 last:border-0">
-                    <div class="flex items-center gap-3">
-                        <span class="font-bold text-slate-700">{{ pay.metodo_pagamento.descricao }}</span>
-                        <span class="text-slate-400 font-medium">{{ pay.data_pagamento|date:"d/m/Y H:i" }}</span>
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Vencimento</p>
+                            <p class="text-base font-bold text-slate-800">{{ inst.due_date|date:"d/m/Y" }}</p>
+                        </div>
+                        {% if inst.payment_method %}
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Forma Pagto</p>
+                            <p class="text-sm font-bold text-slate-600">{{ inst.payment_method.descricao }}</p>
+                        </div>
+                        {% endif %}
                     </div>
-                    <span class="font-black text-slate-900">R$ {{ pay.valor_bruto|floatformat:2 }}</span>
+
+                    <div class="flex items-center gap-8">
+                        <div class="text-right">
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Valor</p>
+                            <p class="text-xl font-black text-slate-900 tracking-tight">R$ {{ inst.amount|floatformat:2 }}</p>
+                            {% with paid=inst.get_total_paid balance=inst.get_remaining_balance %}
+                                {% if paid > 0 %}
+                                    <p class="text-[9px] font-bold text-blue-500 uppercase">Recebido: R$ {{ paid|floatformat:2 }}</p>
+                                    {% if balance > 0 %}
+                                        <p class="text-[9px] font-bold text-red-500 uppercase mt-0.5">Saldo: R$ {{ balance|floatformat:2 }}</p>
+                                    {% endif %}
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+
+                        {% if inst.status == 'PAGO' %}
+                            <div class="flex flex-col items-end">
+                                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-700">Quitada</span>
+                                <p class="text-[9px] text-slate-400 font-medium mt-1">em {{ inst.paid_at|date:"d/m/Y H:i" }}</p>
+                            </div>
+                        {% elif inst.status == 'CANCELADO' %}
+                            <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-400">Cancelada</span>
+                        {% else %}
+                            <button type="button"
+                                    onclick="openPayModal('{{ inst.id }}', '{{ inst.amount }}', '{{ inst.installment_number }}', '{{ inst.get_total_paid|stringformat:".2f" }}')"
+                                    class="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-95">
+                                {% if inst.status == 'PARCIAL' %}CONTINUAR RECEBIMENTO{% else %}BAIXAR PARCELA{% endif %}
+                            </button>
+                        {% endif %}
+                    </div>
                 </div>
-                {% endfor %}
+
+                <!-- Seção Gateway de Pagamentos (PIX / Boleto) -->
+                {% if inst.status != 'PAGO' and inst.status != 'CANCELADO' %}
+                <div class="border-t border-slate-100 px-6 py-4 bg-slate-50/60">
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                        <i data-lucide="credit-card" class="h-3 w-3"></i>
+                        Cobranças Digitais
+                    </p>
+
+                    {% if inst.gateway_charges.all %}
+                    <!-- Cobranças existentes -->
+                    <div class="space-y-2 mb-3">
+                        {% for charge in inst.gateway_charges.all %}
+                        <div class="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-4 py-2.5 text-xs">
+                            <div class="flex items-center gap-3">
+                                {% if charge.method == 'PIX' %}
+                                <span class="inline-flex items-center gap-1 font-bold text-emerald-700">
+                                    <i data-lucide="zap" class="h-3.5 w-3.5"></i> PIX
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center gap-1 font-bold text-blue-700">
+                                    <i data-lucide="file-text" class="h-3.5 w-3.5"></i> Boleto
+                                </span>
+                                {% endif %}
+                                <span class="text-slate-400">Venc. {{ charge.due_date|date:"d/m/Y" }}</span>
+                                <span class="
+                                    px-2 py-0.5 rounded-full font-bold uppercase text-[9px]
+                                    {% if charge.is_paid %}bg-emerald-100 text-emerald-700
+                                    {% elif charge.status == 'OVERDUE' %}bg-red-100 text-red-700
+                                    {% elif charge.status == 'CANCELLED' %}bg-slate-100 text-slate-400
+                                    {% else %}bg-amber-100 text-amber-700{% endif %}">
+                                    {{ charge.get_status_display }}
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                {% if charge.method == 'PIX' and charge.pix_copy_paste and charge.is_active %}
+                                <button type="button"
+                                        data-pix-id="{{ charge.id }}"
+                                        data-pix-qr="{{ charge.pix_qrcode }}"
+                                        data-pix-copy="{{ charge.pix_copy_paste }}"
+                                        onclick="openPixFromBtn(this)"
+                                        class="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-bold transition-colors">
+                                    <i data-lucide="qr-code" class="h-3.5 w-3.5"></i> Ver QR Code
+                                </button>
+                                {% elif charge.method == 'BOLETO' and charge.is_active and charge.invoice_url %}
+                                <a href="{{ charge.invoice_url }}" target="_blank"
+                                   class="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold transition-colors">
+                                    <i data-lucide="external-link" class="h-3.5 w-3.5"></i> Abrir Boleto
+                                </a>
+                                {% elif charge.method == 'BOLETO' and charge.boleto_url and charge.is_active %}
+                                <a href="{{ charge.boleto_url }}" target="_blank"
+                                   class="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold transition-colors">
+                                    <i data-lucide="external-link" class="h-3.5 w-3.5"></i> Abrir Boleto
+                                </a>
+                                {% endif %}
+                                <a href="{% url 'pagamentos:charge_detail' charge_pk=charge.pk %}"
+                                   class="text-slate-400 hover:text-slate-700 transition-colors" title="Detalhes">
+                                    <i data-lucide="arrow-right" class="h-3.5 w-3.5"></i>
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Botões para gerar nova cobrança (apenas se gateway habilitado e sem cobrança ativa) -->
+                    {% with has_active=inst.gateway_charges.all %}
+                    {% if gateway_config.can_generate_charges %}
+                        <div class="flex flex-wrap gap-2">
+                            {% if gateway_config.is_sandbox %}
+                            <span class="text-[10px] text-amber-600 font-medium px-1.5 py-0.5 bg-amber-50 rounded border border-amber-200">SANDBOX</span>
+                            {% endif %}
+                            <form method="post" action="{% url 'pagamentos:installment_create_charge' installment_pk=inst.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="method" value="PIX">
+                                <button type="submit"
+                                        class="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors">
+                                    <i data-lucide="zap" class="h-3 w-3"></i> Gerar PIX
+                                </button>
+                            </form>
+                            <form method="post" action="{% url 'pagamentos:installment_create_charge' installment_pk=inst.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="method" value="BOLETO">
+                                <button type="submit"
+                                        class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors">
+                                    <i data-lucide="file-text" class="h-3 w-3"></i> Gerar Boleto
+                                </button>
+                            </form>
+                        </div>
+                    {% elif not gateway_config.wallet_id %}
+                        <a href="{% url 'pagamentos:gateway_config' %}"
+                           class="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                            <i data-lucide="settings" class="h-3 w-3"></i>
+                            Configurar gateway para gerar PIX/Boleto
+                        </a>
+                    {% else %}
+                        <span class="text-xs text-amber-600 inline-flex items-center gap-1">
+                            <i data-lucide="clock" class="h-3 w-3"></i>
+                            Gateway aguardando aprovação ({{ gateway_config.get_status_display }})
+                        </span>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                {% endif %}
+
+                <!-- Histórico de recebimentos manuais -->
+                {% if inst.actual_payments.all %}
+                <div class="border-t border-slate-100 px-6 py-4 space-y-2">
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Histórico de Recebimentos</p>
+                    {% for pay in inst.actual_payments.all %}
+                    <div class="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
+                        <div class="flex items-center gap-3">
+                            <span class="font-bold text-slate-700">{{ pay.metodo_pagamento.descricao }}</span>
+                            <span class="text-slate-400 font-medium">{{ pay.data_pagamento|date:"d/m/Y H:i" }}</span>
+                        </div>
+                        <span class="font-black text-slate-900">R$ {{ pay.valor_bruto|floatformat:2 }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
             </div>
-            {% endif %}
+            {% endwith %}
             {% endfor %}
         </div>
     </div>
@@ -141,17 +254,15 @@
                 </div>
             </div>
             <p id="modal-desc" class="text-sm text-slate-500 font-medium mb-8">Dando baixa na parcela #1 de R$ 0,00</p>
-            
+
             <form id="pay-form" method="POST" class="space-y-6">
                 {% csrf_token %}
-                
+
                 <div id="payment-rows" class="space-y-4">
-                    <!-- Linha de Pagamento (Template) -->
                     <div class="payment-row bg-slate-50 rounded-3xl p-5 border-2 border-slate-100 space-y-4 relative">
                         <button type="button" onclick="removeRow(this)" class="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
-
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="space-y-1.5">
                                 <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Meio de Pagto</label>
@@ -167,7 +278,6 @@
                                 <input type="number" step="0.01" name="payment_amount[]" required oninput="calculateBalance()" class="amount-input w-full bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none transition-all" placeholder="0,00">
                             </div>
                         </div>
-
                         <div class="space-y-1.5">
                             <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data e Hora do Recebimento</label>
                             <input type="datetime-local" name="payment_date[]" required class="date-input w-full bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
@@ -188,7 +298,40 @@
     </div>
 </div>
 
+<!-- Modal de QR Code PIX -->
+<div id="pix-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div class="p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                    <i data-lucide="zap" class="h-4 w-4 text-emerald-600"></i> PIX
+                </h3>
+                <button type="button" onclick="closePixModal()" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors">
+                    <i data-lucide="x" class="h-4 w-4"></i>
+                </button>
+            </div>
+
+            <div class="flex justify-center py-2">
+                <img id="pix-qr-img" src="" alt="QR Code PIX" class="w-44 h-44 rounded-xl border border-slate-200 object-contain">
+            </div>
+
+            <div>
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">PIX Copia e Cola</p>
+                <div class="relative">
+                    <textarea id="pix-copy-text" readonly rows="3"
+                              class="w-full font-mono text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 resize-none pr-16"></textarea>
+                    <button onclick="copyPix()"
+                            class="absolute top-2 right-2 inline-flex items-center gap-1 bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg hover:bg-slate-700 transition-colors">
+                        <i data-lucide="copy" class="h-3 w-3"></i> Copiar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    /* ---- Baixa Manual ---- */
     let currentInstallmentAmount = 0;
     let currentAlreadyPaid = 0;
 
@@ -202,35 +345,30 @@
         const modal = document.getElementById('pay-modal');
         const form = document.getElementById('pay-form');
         const desc = document.getElementById('modal-desc');
-        
+
         currentInstallmentAmount = parseFloat(amount.replace(',', '.'));
         currentAlreadyPaid = parseFloat(alreadyPaid.replace(',', '.'));
-        
+
         form.action = `/financeiro/parcelas/${id}/pagar/`;
-        
+
         const remaining = currentInstallmentAmount - currentAlreadyPaid;
-        
+
         desc.textContent = `Parcela #${number} de R$ ${currentInstallmentAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
         if (currentAlreadyPaid > 0) {
             desc.innerHTML += `<br><span class="text-blue-600 font-bold">Já recebido: R$ ${currentAlreadyPaid.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>`;
         }
 
-        // Reset rows
         const container = document.getElementById('payment-rows');
         const firstRow = container.querySelector('.payment-row');
         container.innerHTML = '';
         container.appendChild(firstRow);
-        
-        // Set default values for the first row
-        const firstInput = firstRow.querySelector('.amount-input');
-        firstInput.value = remaining.toFixed(2);
-        
-        const firstDate = firstRow.querySelector('.date-input');
-        firstDate.value = getCurrentDateTime();
-        
+
+        firstRow.querySelector('.amount-input').value = remaining.toFixed(2);
+        firstRow.querySelector('.date-input').value = getCurrentDateTime();
+
         modal.classList.remove('hidden');
         modal.classList.add('flex');
-        
+
         calculateBalance();
         if (window.lucide) window.lucide.createIcons();
     }
@@ -239,16 +377,12 @@
         const container = document.getElementById('payment-rows');
         const firstRow = container.querySelector('.payment-row');
         const newRow = firstRow.cloneNode(true);
-        
-        const amountInput = newRow.querySelector('.amount-input');
-        amountInput.value = '';
-        
-        const dateInput = newRow.querySelector('.date-input');
-        dateInput.value = getCurrentDateTime();
-        
+
+        newRow.querySelector('.amount-input').value = '';
+        newRow.querySelector('.date-input').value = getCurrentDateTime();
         newRow.querySelector('select').value = '';
         container.appendChild(newRow);
-        
+
         calculateBalance();
         if (window.lucide) window.lucide.createIcons();
     }
@@ -262,22 +396,19 @@
     }
 
     function calculateBalance() {
-        const amountInputs = document.querySelectorAll('.amount-input');
         let totalInput = 0;
-        amountInputs.forEach(input => {
+        document.querySelectorAll('.amount-input').forEach(input => {
             if (input.value) totalInput += parseFloat(input.value);
         });
-
         const remaining = currentInstallmentAmount - currentAlreadyPaid - totalInput;
         const badge = document.getElementById('balance-badge');
-        
         if (Math.abs(remaining) > 0.001) {
             badge.classList.remove('hidden');
             if (remaining > 0) {
                 badge.textContent = `Restante: R$ ${remaining.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
                 badge.className = "px-3 py-1 rounded-full text-[10px] font-black uppercase bg-blue-100 text-blue-700 border border-blue-200";
             } else {
-                badge.textContent = `Troco/Excedente: R$ ${Math.abs(remaining).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+                badge.textContent = `Excedente: R$ ${Math.abs(remaining).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
                 badge.className = "px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-700 border border-emerald-200";
             }
         } else {
@@ -288,5 +419,49 @@
     function closePayModal() {
         document.getElementById('pay-modal').classList.add('hidden');
     }
+
+    /* ---- Modal PIX ---- */
+    function openPixFromBtn(btn) {
+        openPixModal(btn.dataset.pixId, btn.dataset.pixQr, btn.dataset.pixCopy);
+    }
+
+    function openPixModal(chargeId, qrcode, copyPaste) {
+        const img = document.getElementById('pix-qr-img');
+        const txt = document.getElementById('pix-copy-text');
+
+        if (qrcode) {
+            img.src = `data:image/png;base64,${qrcode}`;
+            img.style.display = 'block';
+        } else {
+            img.style.display = 'none';
+        }
+        txt.value = copyPaste;
+
+        document.getElementById('pix-modal').classList.remove('hidden');
+        document.getElementById('pix-modal').classList.add('flex');
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closePixModal() {
+        document.getElementById('pix-modal').classList.add('hidden');
+    }
+
+    function copyPix() {
+        const txt = document.getElementById('pix-copy-text');
+        navigator.clipboard.writeText(txt.value).then(() => {
+            const btn = txt.parentElement.querySelector('button');
+            btn.innerHTML = '<i data-lucide="check" class="h-3 w-3"></i> Copiado';
+            if (window.lucide) window.lucide.createIcons();
+            setTimeout(() => {
+                btn.innerHTML = '<i data-lucide="copy" class="h-3 w-3"></i> Copiar';
+                if (window.lucide) window.lucide.createIcons();
+            }, 2000);
+        });
+    }
+
+    // Fecha modais com ESC
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { closePayModal(); closePixModal(); }
+    });
 </script>
 {% endblock %}

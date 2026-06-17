@@ -5,17 +5,97 @@ from .chatwoot_client import ChatwootClient
 
 logger = logging.getLogger(__name__)
 
-from django.apps import apps
-from django.db.models import Model, ForeignKey
+# Campos mapeáveis por modelo — lista curada com labels amigáveis no formato "Grupo > Campo".
+# A ordem dentro de cada grupo define a ordem de exibição no dropdown.
+CURATED_FIELDS = {
+    'ServiceOrder': [
+        ('number',                                              'OS > Número'),
+        ('get_status_display',                                  'OS > Status'),
+        ('description',                                         'OS > Descrição'),
+        ('total_value',                                         'OS > Valor Total'),
+        ('created_at',                                          'OS > Data de Criação'),
+        ('finished_at',                                         'OS > Data de Conclusão'),
+        ('client_property.client.display_name',                 'Cliente > Nome Completo'),
+        ('client_property.client.phones.first.phone',           'Cliente > Telefone / WhatsApp'),
+        ('client_property.full_address',                        'Imóvel > Endereço Completo'),
+        ('client_property.address',                             'Imóvel > Logradouro'),
+        ('client_property.neighborhood',                        'Imóvel > Bairro'),
+        ('client_property.city',                                'Imóvel > Cidade'),
+        ('originator.name',                                     'Vendedor > Nome'),
+    ],
+    'ServiceOrderTask': [
+        ('get_task_type_display',                               'Etapa > Tipo'),
+        ('get_status_display',                                  'Etapa > Status'),
+        ('scheduled_at',                                        'Etapa > Data Agendada'),
+        ('started_at',                                          'Etapa > Início da Execução'),
+        ('finished_at',                                         'Etapa > Conclusão'),
+        ('notes',                                               'Etapa > Observações Técnicas'),
+        ('team_display',                                        'Etapa > Equipe Alocada'),
+        ('billing_value',                                       'Etapa > Valor da Etapa'),
+        ('customer_name',                                       'Etapa > Nome do Signatário'),
+        ('confirmation_token',                                  'Etapa > Token de Confirmação (sufixo URL)'),
+        ('confirmation_url',                                    'Etapa > Link de Confirmação (URL completa)'),
+        ('service_order.number',                                'OS > Número'),
+        ('service_order.get_status_display',                    'OS > Status'),
+        ('service_order.total_value',                           'OS > Valor Total'),
+        ('service_order.description',                           'OS > Descrição'),
+        ('service_order.client_property.client.display_name',   'Cliente > Nome Completo'),
+        ('service_order.client_property.client.phones.first.phone', 'Cliente > Telefone / WhatsApp'),
+        ('service_order.client_property.full_address',          'Imóvel > Endereço Completo'),
+        ('service_order.client_property.neighborhood',          'Imóvel > Bairro'),
+        ('service_order.client_property.city',                  'Imóvel > Cidade'),
+    ],
+    'Sale': [
+        ('number',                  'Venda > Número'),
+        ('get_status_display',      'Venda > Status'),
+        ('total_amount',            'Venda > Valor Total'),
+        ('created_at',              'Venda > Data'),
+        ('client.display_name',     'Cliente > Nome Completo'),
+        ('client.phones.first.phone', 'Cliente > Telefone / WhatsApp'),
+        ('user.get_full_name',      'Vendedor > Nome'),
+        ('user.username',           'Vendedor > Usuário'),
+    ],
+    'Billing': [
+        ('number',                  'Cobrança > Número'),
+        ('get_status_display',      'Cobrança > Status'),
+        ('total_amount',            'Cobrança > Valor Bruto'),
+        ('get_remaining_balance',   'Cobrança > Saldo Devedor'),
+        ('get_total_paid',          'Cobrança > Total Pago'),
+        ('service_order.number',    'OS > Número'),
+        ('client.display_name',     'Cliente > Nome Completo'),
+        ('client.phones.first.phone', 'Cliente > Telefone / WhatsApp'),
+    ],
+    'Installment': [
+        ('installment_number',          'Parcela > Número'),
+        ('amount',                      'Parcela > Valor'),
+        ('due_date',                    'Parcela > Vencimento'),
+        ('get_status_display',          'Parcela > Status'),
+        ('get_total_paid',              'Parcela > Total Pago'),
+        ('get_remaining_balance',       'Parcela > Saldo Restante'),
+        ('billing.number',              'Cobrança > Número'),
+        ('billing.service_order.number','OS > Número'),
+        ('billing.client.display_name', 'Cliente > Nome Completo'),
+        ('billing.client.phones.first.phone', 'Cliente > Telefone / WhatsApp'),
+    ],
+    'ExpenseInstallment': [
+        ('expense.description',         'Despesa > Descrição'),
+        ('expense.supplier.display_name', 'Despesa > Fornecedor'),
+        ('installment_number',          'Parcela > Número'),
+        ('amount',                      'Parcela > Valor'),
+        ('due_date',                    'Parcela > Vencimento'),
+        ('get_status_display',          'Parcela > Status'),
+        ('amount_paid',                 'Parcela > Valor Pago'),
+        ('amount_remaining',            'Parcela > Saldo Restante'),
+    ],
+}
+
 
 def get_mappable_fields(model_name, max_depth=3, only_phones=False):
     """
-    Usa introspecção para retornar campos e relacionamentos úteis para mapeamento.
-    Se only_phones=True, retorna uma lista curada e com labels amigáveis.
+    Retorna campos mapeáveis para o modelo informado.
+    Se only_phones=True, retorna lista curada de caminhos que levam ao telefone do destinatário.
     """
     if only_phones:
-        # Lista curada para facilitar a vida do usuário no seletor de destinatário
-        # Note: Paramos no objeto que possui o telefone, o get_client_phone resolverá o resto.
         if model_name == 'ServiceOrder':
             return [
                 ('client_property.client', 'Telefone do Cliente'),
@@ -32,70 +112,13 @@ def get_mappable_fields(model_name, max_depth=3, only_phones=False):
                 ('user', 'Telefone do Vendedor'),
             ]
         elif model_name == 'Billing':
-            return [
-                ('client', 'Telefone do Cliente'),
-            ]
+            return [('client', 'Telefone do Cliente')]
         elif model_name == 'Installment':
-            return [
-                ('billing.client', 'Telefone do Cliente'),
-            ]
+            return [('billing.client', 'Telefone do Cliente')]
         elif model_name == 'ExpenseInstallment':
-            # Despesas não têm cliente — usar Número Fixo (destinatário interno)
             return []
 
-    try:
-        model = apps.get_model('services', model_name)
-    except LookupError:
-        return []
-
-    mappable = []
-
-    def _get_fields(current_model, prefix='', depth=0):
-        if depth > max_depth:
-            return
-
-        # 1. Campos Reais do Banco
-        for field in current_model._meta.fields:
-            path = f"{prefix}{field.name}"
-            label = f"{prefix.replace('__', ' > ') if prefix else ''}{field.verbose_name or field.name}"
-            
-            # Pula campos internos ou IDs se não forem o primário
-            if field.name in ['id', 'created_at', 'updated_at'] and depth > 0:
-                continue
-                
-            mappable.append((path.replace('__', '.'), label))
-
-            # Se for ForeignKey, desce um nível (se depth permitir)
-            if isinstance(field, ForeignKey) and depth < max_depth:
-                _get_fields(field.related_model, prefix=f"{path}__", depth=depth+1)
-
-        # 2. Casos Especiais: Relacionamentos reversos e campos calculados
-        if current_model.__name__ == 'Client':
-            mappable.append((f"{prefix}phones.first.phone".replace('__', '.'), f"{prefix.replace('__', ' > ') if prefix else ''}Telefone/Whatsapp"))
-
-        if current_model.__name__ == 'ServiceOrderTask':
-            mappable.append((f"{prefix}team_display".replace('__', '.'), f"{prefix.replace('__', ' > ') if prefix else ''}Equipe Alocada"))
-
-        # 3. Properties Úteis (manualmente selecionadas ou via convenção)
-        common_props = [
-            'total_value', 'display_name', 'full_address', 'balance_due', 'total_paid', 'number', 'phone',
-            'amount_paid', 'amount_remaining', 'installment_label', 'get_remaining_balance', 'get_total_paid',
-        ]
-        for attr_name in dir(current_model):
-            if attr_name in common_props or attr_name.startswith('get_') and attr_name.endswith('_display'):
-                # Verifica se é property ou método sem argumentos
-                try:
-                    attr = getattr(current_model, attr_name)
-                    if isinstance(attr, property) or callable(attr):
-                        path = f"{prefix}{attr_name}"
-                        label_name = attr_name.replace('get_', '').replace('_display', '').replace('_', ' ').title()
-                        label = f"{prefix.replace('__', ' > ') if prefix else ''}{label_name}"
-                        mappable.append((path.replace('__', '.'), label))
-                except:
-                    continue
-
-    _get_fields(model)
-    return sorted(list(set(mappable)), key=lambda x: x[1])
+    return CURATED_FIELDS.get(model_name, [])
 
 def resolve_field_path(instance, path):
     """
@@ -215,14 +238,17 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
             
         # 2. Resolver Variáveis
         variables = []
-        # Ordenar por índice para garantir {{1}}, {{2}}...
-        mapping_vars = config.variables.all().order_by('index')
-        for var in mapping_vars:
+        for var in config.variables.filter(component='BODY').order_by('index'):
             val = resolve_field_path(instance, var.field_path)
-            # Formatar data/hora se necessário
             if hasattr(val, 'strftime'):
                 val = val.strftime('%d/%m/%Y %H:%M')
             variables.append(str(val) if val is not None else "")
+
+        # Variáveis de botão (sufixo de URL dinâmica)
+        btn_url_params = {}
+        for var in config.variables.filter(component='BUTTON').order_by('index'):
+            val = resolve_field_path(instance, var.field_path)
+            btn_url_params[var.index] = str(val) if val is not None else ""
 
         # 3. Resolver Mídia do Cabeçalho (Header)
         attachment = None
@@ -260,16 +286,33 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
         try:
             # Busca ou cria contato no Chatwoot
             cw_contact = client.create_contact(str(contact_name), phone)
-            
+
             if cw_contact:
                 conv = client.get_or_create_conversation(cw_contact['id'])
                 if conv:
+                    btn_data = None
+                    if btn_url_params:
+                        btn_data = {'type': 'url_suffix', 'params': btn_url_params}
                     client.send_template(
                         conversation_id=conv['id'],
                         template_name=config.template_name,
                         variables=variables,
-                        attachment=attachment
+                        attachment=attachment,
+                        button_data=btn_data,
                     )
                     logger.info(f"Notificação dinâmica '{config.name}' enviada para {phone}")
+
+                    # Persiste o conversation_id na task para permitir atualização
+                    # de etiqueta Chatwoot quando o cliente responder via página pública.
+                    if model_name == 'ServiceOrderTask':
+                        from django.utils import timezone
+                        instance.chatwoot_confirmation_conversation_id = str(conv['id'])
+                        instance.whatsapp_notification_sent_at = timezone.now()
+                        instance.whatsapp_confirmation_status = 'AGUARDANDO'
+                        instance.save(update_fields=[
+                            'chatwoot_confirmation_conversation_id',
+                            'whatsapp_notification_sent_at',
+                            'whatsapp_confirmation_status',
+                        ])
         except Exception as e:
             logger.exception(f"Erro ao disparar notificação dinâmica '{config.name}': {e}")

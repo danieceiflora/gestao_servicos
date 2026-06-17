@@ -2161,3 +2161,95 @@ def uppy_upload(request):
             'size': file.size
         })
     return JsonResponse({'status': 'error', 'message': 'No files received'}, status=400)
+
+
+# ---------------------------------------------------------------------------
+# PÁGINA PÚBLICA DE CONFIRMAÇÃO DE VISITA (sem login)
+# ---------------------------------------------------------------------------
+
+def task_public_confirmation(request, token):
+    from integracoes.models import SystemConfig
+    task = get_object_or_404(ServiceOrderTask, confirmation_token=token)
+
+    config = SystemConfig.objects.first()
+
+    task_items = (
+        task.items
+            .filter(cobrar_cliente=True)
+            .select_related('product', 'service')
+            .order_by('id')
+    )
+    billing_value = task.billing_value
+
+    payment_methods = PaymentMethod.objects.filter(ativo=True).order_by('descricao')
+
+    already_responded = task.whatsapp_confirmation_status in (
+        ServiceOrderTask.WhatsAppConfirmationStatus.CONFIRMADO,
+        ServiceOrderTask.WhatsAppConfirmationStatus.REAGENDAR,
+    )
+
+    if request.method == 'POST' and not already_responded:
+        action = request.POST.get('action')
+        note = request.POST.get('note', '').strip()
+
+        if action == 'confirm':
+            task.whatsapp_confirmation_status = ServiceOrderTask.WhatsAppConfirmationStatus.CONFIRMADO
+            task.whatsapp_response_content = 'Confirmado pelo cliente via página pública.'
+            label = 'visita-confirmada'
+
+            # Salva preferência de pagamento, se informada
+            pm_id = request.POST.get('payment_method_id')
+            installments_count = request.POST.get('installments', '1')
+            update_fields = [
+                'whatsapp_confirmation_status',
+                'whatsapp_confirmation_received_at',
+                'whatsapp_response_content',
+                'preferred_installments',
+            ]
+            try:
+                task.preferred_installments = max(1, int(installments_count))
+            except (ValueError, TypeError):
+                task.preferred_installments = 1
+            if pm_id:
+                pm = PaymentMethod.objects.filter(pk=pm_id, ativo=True).first()
+                if pm:
+                    task.preferred_payment_method = pm
+                    update_fields.append('preferred_payment_method')
+
+        elif action == 'reschedule':
+            task.whatsapp_confirmation_status = ServiceOrderTask.WhatsAppConfirmationStatus.REAGENDAR
+            task.whatsapp_response_content = note or 'Cliente solicitou reagendamento via página pública.'
+            label = 'reagendamento-solicitado'
+            update_fields = [
+                'whatsapp_confirmation_status',
+                'whatsapp_confirmation_received_at',
+                'whatsapp_response_content',
+            ]
+        else:
+            label = None
+            update_fields = []
+
+        if label:
+            task.whatsapp_confirmation_received_at = django.utils.timezone.now()
+            task.save(update_fields=update_fields)
+
+            conv_id = task.chatwoot_confirmation_conversation_id
+            if conv_id:
+                try:
+                    client = ChatwootClient()
+                    client.assign_label_to_conversation(conv_id, label)
+                except Exception:
+                    logger.exception("Erro ao atribuir label Chatwoot após confirmação pública")
+
+        return redirect(f"{request.path}?ok={action}")
+
+    return render(request, 'services/public/task_confirmation.html', {
+        'task': task,
+        'already_responded': already_responded,
+        'ok': request.GET.get('ok'),
+        'config': config,
+        'task_items': task_items,
+        'billing_value': billing_value,
+        'payment_methods': payment_methods,
+    })
+

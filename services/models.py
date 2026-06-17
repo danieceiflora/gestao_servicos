@@ -1409,7 +1409,34 @@ class ServiceOrderTask(models.Model):
         blank=True,
         verbose_name="Chatwoot Contact ID (Confirmação)"
     )
-    
+    confirmation_token = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+        verbose_name="Token de Confirmação Pública"
+    )
+
+    # Preferência de pagamento registrada pelo cliente na página pública
+    preferred_payment_method = models.ForeignKey(
+        'PaymentMethod',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='preferred_tasks',
+        verbose_name="Método de Pagamento Preferido (cliente)"
+    )
+    preferred_installments = models.PositiveIntegerField(
+        default=1,
+        null=True,
+        blank=True,
+        verbose_name="Parcelas Preferidas (cliente)"
+    )
+
+    @property
+    def confirmation_url(self):
+        from django.conf import settings
+        return f"{settings.SITE_URL.rstrip('/')}/confirmar/{self.confirmation_token}/"
+
     # Assinatura Digital do Cliente (Salva apenas o caminho do arquivo)
     customer_signature = models.CharField(max_length=255, null=True, blank=True, verbose_name="Caminho da Assinatura")
     customer_name = models.CharField(max_length=100, null=True, blank=True, verbose_name="Nome de quem assinou")

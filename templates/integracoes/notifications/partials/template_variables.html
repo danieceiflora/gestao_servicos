@@ -20,10 +20,10 @@
             <span class="text-sm font-bold">Mídia do Cabeçalho ({{ header_format }})</span>
         </div>
         <p class="text-xs text-blue-600">Este template exige uma mídia no cabeçalho. Selecione a origem:</p>
-        
+
         <div class="grid gap-4">
             <div class="space-y-2">
-                <select name="header_media_type" id="header_media_type" 
+                <select name="header_media_type" id="header_media_type"
                         class="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white">
                     {% for val, label in header_media_choices %}
                     <option value="{{ val }}" {% if config.header_media_type == val %}selected{% endif %}>{{ label }}</option>
@@ -31,7 +31,6 @@
                 </select>
             </div>
 
-            <!-- Campo de Upload Estático (Sempre visível se STATIC_PDF selecionado) -->
             <div id="static_file_container" class="{% if config.header_media_type != 'STATIC_PDF' %}hidden{% endif %} space-y-2">
                 <label class="text-[10px] font-bold uppercase text-blue-500">Upload do PDF Estático</label>
                 <input type="file" name="static_media_file" accept=".pdf,image/*"
@@ -45,11 +44,7 @@
     <script>
         document.getElementById('header_media_type').addEventListener('change', function() {
             const container = document.getElementById('static_file_container');
-            if (this.value === 'STATIC_PDF') {
-                container.classList.remove('hidden');
-            } else {
-                container.classList.add('hidden');
-            }
+            container.classList.toggle('hidden', this.value !== 'STATIC_PDF');
         });
     </script>
     {% endif %}
@@ -57,29 +52,42 @@
     <!-- Mapeamento de Variáveis -->
     {% if vars_count %}
     <div class="space-y-4">
-        <label class="text-sm font-bold text-slate-700">Mapeamento de Variáveis</label>
+        <label class="text-sm font-bold text-slate-700">Mapeamento de Variáveis do Corpo</label>
         <div class="grid gap-3">
             {% for i in vars_count %}
             <div class="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
                 <div class="flex-none h-8 w-8 flex items-center justify-center rounded-lg bg-slate-900 text-white text-xs font-bold">
                     {{ i }}
                 </div>
-                <div class="flex-grow">
+                <div class="flex-grow min-w-0">
                     {% with current_path=existing_vars|get_item:i %}
                     <input type="hidden" name="var_index[]" value="{{ i }}">
                     <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
                         <input type="hidden" name="var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
-                        <input type="text"
-                               class="sel-search w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:border-slate-900 transition-all"
-                               placeholder="Digite para buscar campo..."
-                               autocomplete="off">
-                        <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto z-50 hidden">
-                            <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50" data-value="" data-label="">Selecione um campo...</div>
-                            {% for path, label in suggested_fields %}
-                            <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-slate-50"
-                                 data-value="{{ path }}" data-label="{{ label }}">
-                                <span class="text-slate-700">{{ label }}</span>
-                                <span class="ml-2 text-[11px] text-slate-400 font-mono">{{ path }}</span>
+                        <div class="relative">
+                            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
+                            <input type="text"
+                                   class="sel-search w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-slate-900 transition-all"
+                                   placeholder="Buscar campo..."
+                                   autocomplete="off">
+                        </div>
+                        <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 hidden">
+                            <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50 border-b border-slate-100"
+                                 data-value="" data-label="">
+                                Selecione um campo...
+                            </div>
+                            {% for group_name, group_fields in suggested_fields_grouped %}
+                            <div class="sel-group">
+                                <div class="sel-group-header sticky top-0 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5">
+                                    <span>{{ group_name }}</span>
+                                </div>
+                                {% for path, full_label, field_label in group_fields %}
+                                <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center justify-between gap-2"
+                                     data-value="{{ path }}" data-label="{{ full_label }}">
+                                    <span class="text-slate-800 font-medium">{{ field_label }}</span>
+                                    <span class="shrink-0 text-[10px] text-slate-400 font-mono truncate max-w-[40%]">{{ path }}</span>
+                                </div>
+                                {% endfor %}
                             </div>
                             {% endfor %}
                         </div>
@@ -93,7 +101,67 @@
     {% else %}
     <div class="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-lg text-xs">
         <i data-lucide="info" class="h-4 w-4"></i>
-        Este template não possui variáveis ({{1}}, {{2}}, etc).
+        Este template não possui variáveis no corpo.
+    </div>
+    {% endif %}
+
+    {% if button_vars %}
+    <div class="space-y-4 pt-2 border-t border-slate-100">
+        <div class="flex items-center gap-2">
+            <label class="text-sm font-bold text-slate-700">Variáveis de Botão (URL dinâmica)</label>
+            <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">{{ button_vars|length }} botão</span>
+        </div>
+        <div class="grid gap-3">
+            {% for btn in button_vars %}
+            {% with current_path=existing_btn_vars|get_item:btn.btn_index %}
+            <div class="flex items-start gap-3 p-3 bg-white border border-violet-100 rounded-xl shadow-sm">
+                <div class="flex-none flex flex-col items-center gap-1 pt-0.5">
+                    <div class="h-8 w-8 flex items-center justify-center rounded-lg bg-violet-600 text-white text-xs font-bold">
+                        <i data-lucide="mouse-pointer-click" class="h-4 w-4"></i>
+                    </div>
+                </div>
+                <div class="flex-grow min-w-0 space-y-1.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-xs font-semibold text-slate-700">{{ btn.btn_text }}</span>
+                        <span class="text-[10px] font-mono text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded truncate max-w-[200px]">{{ btn.url_template }}</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400">Selecione o campo que vai preencher o sufixo dinâmico da URL deste botão.</p>
+                    <input type="hidden" name="btn_var_index[]" value="{{ btn.btn_index }}">
+                    <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
+                        <input type="hidden" name="btn_var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
+                        <div class="relative">
+                            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
+                            <input type="text"
+                                   class="sel-search w-full rounded-lg border border-violet-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-violet-500 transition-all"
+                                   placeholder="Buscar campo para URL..."
+                                   autocomplete="off">
+                        </div>
+                        <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 hidden">
+                            <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50 border-b border-slate-100"
+                                 data-value="" data-label="">
+                                Selecione um campo...
+                            </div>
+                            {% for group_name, group_fields in suggested_fields_grouped %}
+                            <div class="sel-group">
+                                <div class="sel-group-header sticky top-0 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100">
+                                    {{ group_name }}
+                                </div>
+                                {% for path, full_label, field_label in group_fields %}
+                                <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-violet-50 flex items-center justify-between gap-2"
+                                     data-value="{{ path }}" data-label="{{ full_label }}">
+                                    <span class="text-slate-800 font-medium">{{ field_label }}</span>
+                                    <span class="shrink-0 text-[10px] text-slate-400 font-mono truncate max-w-[40%]">{{ path }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endwith %}
+            {% endfor %}
+        </div>
     </div>
     {% endif %}
     {% endif %}
@@ -109,11 +177,11 @@
             const hiddenValue = container.querySelector('.sel-hidden-value');
             const allOpts = container.querySelectorAll('.sel-opt');
 
-            // Restore label for saved value
+            // Restaura label do valor salvo
             const savedVal = hiddenValue.value;
             if (savedVal) {
                 const match = [...allOpts].find(o => o.dataset.value === savedVal);
-                if (match) searchInput.value = match.dataset.label;
+                if (match) searchInput.value = match.dataset.label.split(' > ').pop();
             }
 
             function filterOpts(query) {
@@ -122,6 +190,11 @@
                     const label = (opt.dataset.label || '').toLowerCase();
                     const val = (opt.dataset.value || '').toLowerCase();
                     opt.classList.toggle('hidden', !!q && !label.includes(q) && !val.includes(q));
+                });
+                // Oculta grupos que ficaram sem itens visíveis
+                dropdown.querySelectorAll('.sel-group').forEach(function(group) {
+                    const hasVisible = group.querySelector('.sel-opt:not(.hidden)');
+                    group.classList.toggle('hidden', !hasVisible && !!q);
                 });
             }
 
@@ -132,11 +205,9 @@
             searchInput.addEventListener('input', function() {
                 dropdown.classList.remove('hidden');
                 filterOpts(this.value);
-                // Clear hidden value while user is typing
                 hiddenValue.value = '';
             });
             searchInput.addEventListener('blur', function() {
-                // Restore last valid label if input was cleared
                 setTimeout(function() {
                     if (!hiddenValue.value) searchInput.value = '';
                     dropdown.classList.add('hidden');
@@ -147,7 +218,9 @@
                 opt.addEventListener('mousedown', function(e) {
                     e.preventDefault();
                     hiddenValue.value = this.dataset.value;
-                    searchInput.value = this.dataset.label || '';
+                    // Mostra só a parte "Campo" do label "Grupo > Campo"
+                    const label = this.dataset.label || '';
+                    searchInput.value = label.includes(' > ') ? label.split(' > ').pop() : label;
                     dropdown.classList.add('hidden');
                     filterOpts('');
                 });
@@ -162,5 +235,6 @@
     initSearchableSelects(document.currentScript.closest('.space-y-4') || document);
     document.body.addEventListener('htmx:afterSwap', function(evt) {
         initSearchableSelects(evt.detail.target);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     });
 </script>

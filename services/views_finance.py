@@ -1243,13 +1243,17 @@ def billing_list(request):
 def billing_detail(request, pk):
     """Detalhamento de uma cobrança e suas parcelas."""
     billing = get_object_or_404(Billing, pk=pk)
-    installments = billing.installments.all().select_related('payment_method')
+    installments = billing.installments.all().select_related('payment_method').prefetch_related('gateway_charges')
     payment_methods = PaymentMethod.objects.filter(ativo=True)
-    
+
+    from pagamentos.models import GatewayConfig
+    gateway_config = GatewayConfig.load()
+
     context = {
         'billing': billing,
         'installments': installments,
         'payment_methods': payment_methods,
+        'gateway_config': gateway_config,
         'title': f'Cobrança #{billing.number}'
     }
     return render(request, 'services/finance/billing_detail.html', context)

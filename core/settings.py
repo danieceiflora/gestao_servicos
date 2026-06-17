@@ -1,5 +1,9 @@
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 ##importar storages para usar o S3
 from storages.backends.s3boto3 import S3Boto3Storage
 
@@ -14,9 +18,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-d)7wxg0q$t5rat7#5ti5i*7g!@n)n53+tsp0$!02dnvi3w@1f@'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
+
+SITE_URL = os.environ.get('SITE_URL', 'https://osonline.douradoscalhas.com.br')
 
 CSRF_TRUSTED_ORIGINS = [
     'http://osonline.douradoscalhas.com.br',
@@ -38,7 +44,13 @@ INSTALLED_APPS = [
     'widget_tweaks',
     'services',
     'integracoes',
+    'pagamentos',
 ]
+
+# --- ASAAS PAYMENT GATEWAY ---
+ASAAS_API_KEY = os.environ.get('ASAAS_API_KEY', '')
+ASAAS_ENVIRONMENT = os.environ.get('ASAAS_ENVIRONMENT', 'SANDBOX')  # SANDBOX ou PRODUCTION
+ASAAS_MASTER_WALLET_ID = os.environ.get('ASAAS_MASTER_WALLET_ID', '')  # Wallet da conta master (recebe split das subcontas)
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

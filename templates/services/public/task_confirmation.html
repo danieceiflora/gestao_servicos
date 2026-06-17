@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmação de Visita{% if config %} — {{ config.company_name }}{% endif %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-50 flex items-start justify-center p-4 pt-8 pb-12">
+    <div class="w-full max-w-md space-y-4">
+
+        <!-- Cabeçalho da empresa -->
+        <div class="text-center space-y-2">
+            {% if config and config.company_logo %}
+                <img src="{{ config.company_logo.url }}" alt="{{ config.company_name }}" class="h-16 w-auto mx-auto object-contain">
+            {% else %}
+                <div class="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-slate-900 text-white mx-auto">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                </div>
+            {% endif %}
+
+            {% if config %}
+                <p class="text-base font-bold text-slate-900">{{ config.company_name }}</p>
+                {% if config.company_address %}
+                    <p class="text-xs text-slate-500 leading-snug">{{ config.company_address }}</p>
+                {% endif %}
+                {% if config.company_phone %}
+                    <p class="text-xs text-slate-500">{{ config.company_phone }}</p>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <!-- Card principal -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+            {% if ok %}
+            <!-- Estado: acabou de responder nesta sessão -->
+            <div class="p-8 text-center">
+                {% if ok == 'confirm' %}
+                <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 text-green-600 mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-slate-900 mb-1">Presença confirmada!</h2>
+                <p class="text-sm text-slate-500">Ótimo! Aguardamos você na data e horário agendados. Nossa equipe estará no local.</p>
+                {% else %}
+                <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-amber-100 text-amber-600 mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-slate-900 mb-1">Reagendamento solicitado</h2>
+                <p class="text-sm text-slate-500">Recebemos sua solicitação. Nossa equipe entrará em contato para definir uma nova data.</p>
+                {% endif %}
+            </div>
+
+            {% elif already_responded %}
+            <!-- Estado: já havia respondido antes -->
+            <div class="p-8 text-center">
+                {% if task.whatsapp_confirmation_status == 'CONFIRMADO' %}
+                <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 text-green-600 mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-slate-900 mb-1">Visita já confirmada</h2>
+                <p class="text-sm text-slate-500">Você já confirmou sua presença. Aguardamos você na data agendada!</p>
+                {% else %}
+                <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-amber-100 text-amber-600 mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-slate-900 mb-1">Reagendamento já solicitado</h2>
+                <p class="text-sm text-slate-500">Já registramos sua solicitação. Nossa equipe entrará em contato em breve.</p>
+                {% endif %}
+            </div>
+
+            {% else %}
+            <!-- Estado: aguardando resposta -->
+
+            <!-- Detalhes da visita -->
+            <div class="p-5 border-b border-slate-100 space-y-3">
+                <h2 class="text-base font-bold text-slate-900">Detalhes da Visita</h2>
+                <div class="space-y-2.5">
+
+                    <div class="flex items-start gap-3">
+                        <div class="mt-0.5 h-8 w-8 flex-none flex items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tipo de Visita</p>
+                            <p class="text-sm font-medium text-slate-900">{{ task.get_task_type_display }}</p>
+                        </div>
+                    </div>
+
+                    {% if task.scheduled_at %}
+                    <div class="flex items-start gap-3">
+                        <div class="mt-0.5 h-8 w-8 flex-none flex items-center justify-center rounded-lg bg-blue-50 text-blue-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Data e Horário</p>
+                            <p class="text-sm font-medium text-slate-900">{{ task.scheduled_at|date:"l, d \d\e F \d\e Y" }}</p>
+                            <p class="text-sm text-slate-500">{{ task.scheduled_at|time:"H:i" }}{% if task.scheduled_end_at %} até {{ task.scheduled_end_at|time:"H:i" }}{% endif %}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% with address=task.service_order.client_property.full_address %}
+                    {% if address %}
+                    <div class="flex items-start gap-3">
+                        <div class="mt-0.5 h-8 w-8 flex-none flex items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Endereço</p>
+                            <p class="text-sm font-medium text-slate-900">{{ address }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+
+                    {% if task.team_display %}
+                    <div class="flex items-start gap-3">
+                        <div class="mt-0.5 h-8 w-8 flex-none flex items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Equipe Técnica</p>
+                            <p class="text-sm font-medium text-slate-900">{{ task.team_display }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if task.service_order.description %}
+                    <div class="flex items-start gap-3">
+                        <div class="mt-0.5 h-8 w-8 flex-none flex items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Serviço</p>
+                            <p class="text-sm font-medium text-slate-900">{{ task.service_order.description }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                </div>
+            </div>
+
+            <!-- Formulário de confirmação (inclui preferência de pagamento) -->
+            <form method="post" id="confirm-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="confirm">
+
+                <!-- Itens que serão cobrados -->
+                {% if task_items %}
+                <div class="p-5 border-b border-slate-100 space-y-3">
+                    <h2 class="text-base font-bold text-slate-900">Resumo do Serviço</h2>
+
+                    <div class="space-y-1.5">
+                        {% for item in task_items %}
+                        <div class="flex items-center justify-between gap-2 py-1.5 border-b border-slate-50 last:border-0">
+                            <span class="text-sm text-slate-700 flex-1 min-w-0 truncate">
+                                {% if item.product %}{{ item.product.name }}{% elif item.service %}{{ item.service.name }}{% else %}{{ item.description }}{% endif %}
+                            </span>
+                            <span class="text-xs text-slate-400 shrink-0">{{ item.quantity|floatformat:"-2" }}x</span>
+                            <span class="text-sm font-medium text-slate-800 tabular-nums shrink-0">R$&nbsp;{{ item.total_price|floatformat:"2" }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="flex items-center justify-between pt-1.5 border-t border-slate-200">
+                        <span class="text-sm font-bold text-slate-700">Total estimado</span>
+                        <span class="text-base font-bold text-slate-900 tabular-nums">R$&nbsp;{{ billing_value|floatformat:"2" }}</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 leading-snug">* Valor estimado com base nos itens previstos. O valor final será confirmado após a execução do serviço.</p>
+                </div>
+                {% endif %}
+
+                <!-- Preferência de pagamento -->
+                {% if payment_methods %}
+                <div class="p-5 border-b border-slate-100 space-y-3">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900">Forma de Pagamento</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Como prefere pagar após a conclusão do serviço? (opcional)</p>
+                    </div>
+
+                    <div class="space-y-2" id="payment-method-list">
+                        {% for pm in payment_methods %}
+                        <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer transition-colors hover:bg-slate-50 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50">
+                            <input type="radio" name="payment_method_id" value="{{ pm.pk }}"
+                                   class="h-4 w-4 shrink-0 accent-slate-900">
+                            <span class="text-sm font-medium text-slate-800">{{ pm.descricao }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Parcelas (aparece quando método selecionado permite parcelamento) -->
+                    <div id="installments-section" class="hidden space-y-2">
+                        <label class="text-sm font-medium text-slate-700">Número de parcelas</label>
+                        <select name="installments" id="installments-select"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-slate-900">
+                            <option value="1">À vista (1x)</option>
+                            <option value="2">2x</option>
+                            <option value="3">3x</option>
+                            <option value="4">4x</option>
+                            <option value="5">5x</option>
+                            <option value="6">6x</option>
+                            <option value="7">7x</option>
+                            <option value="8">8x</option>
+                            <option value="9">9x</option>
+                            <option value="10">10x</option>
+                            <option value="11">11x</option>
+                            <option value="12">12x</option>
+                        </select>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Ação: confirmar -->
+                <div class="p-5 space-y-3">
+                    <p class="text-sm font-medium text-slate-700 text-center">Confirma que terá um adulto para receber a nossa equipe?</p>
+
+                    <button type="submit"
+                            class="w-full flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold text-sm py-3 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Sim, confirmo presença
+                    </button>
+                </div>
+            </form>
+
+            <!-- Reagendar (form separado, sem salvar pagamento) -->
+            <div class="px-5 pb-5 space-y-3">
+                <div class="relative flex items-center gap-3">
+                    <div class="flex-1 h-px bg-slate-100"></div>
+                    <span class="text-xs text-slate-400 shrink-0">ou</span>
+                    <div class="flex-1 h-px bg-slate-100"></div>
+                </div>
+
+                <button type="button"
+                        onclick="document.getElementById('reschedule-form').classList.toggle('hidden')"
+                        class="w-full flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold text-sm py-3 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Não, preciso reagendar
+                </button>
+
+                <form id="reschedule-form" method="post" class="hidden space-y-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reschedule">
+                    <textarea name="note" rows="3" placeholder="Deixe uma mensagem (opcional)..."
+                              class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:border-amber-400 resize-none text-slate-700 placeholder-slate-400"></textarea>
+                    <button type="submit"
+                            class="w-full rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm py-3 transition-colors">
+                        Enviar solicitação de reagendamento
+                    </button>
+                </form>
+            </div>
+
+            {% endif %}
+        </div>
+
+        <p class="text-center text-xs text-slate-400">Esta página é exclusiva para você. Não compartilhe este link.</p>
+    </div>
+
+<script>
+    // Mostra campo de parcelas apenas para métodos que tipicamente parcelam (cartão de crédito / crediário)
+    // Detecta pelo tipo_provedor embutido em data-attr nos inputs
+    (function () {
+        const pmInputs = document.querySelectorAll('input[name="payment_method_id"]');
+        const section  = document.getElementById('installments-section');
+        if (!pmInputs.length || !section) return;
+
+        // Métodos que permitem parcelamento (nomes parciais, case-insensitive)
+        const parcelableKeywords = ['crédito', 'credito', 'crediário', 'crediario', 'parcel'];
+
+        function labelOf(input) {
+            return (input.closest('label')?.querySelector('span')?.textContent || '').toLowerCase();
+        }
+
+        function toggleInstallments() {
+            const checked = document.querySelector('input[name="payment_method_id"]:checked');
+            if (!checked) { section.classList.add('hidden'); return; }
+            const label = labelOf(checked);
+            const allows = parcelableKeywords.some(k => label.includes(k));
+            section.classList.toggle('hidden', !allows);
+            if (!allows) {
+                document.getElementById('installments-select').value = '1';
+            }
+        }
+
+        pmInputs.forEach(inp => inp.addEventListener('change', toggleInstallments));
+    })();
+</script>
+
+</body>
+</html>

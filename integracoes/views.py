@@ -652,13 +652,20 @@ def notification_config_create(request):
             static_media_file=static_media_file
         )
         
-        # Salvar variáveis
+        # Salvar variáveis do corpo
         indices = request.POST.getlist('var_index[]')
         paths = request.POST.getlist('var_path[]')
         for i, path in zip(indices, paths):
             if path:
-                NotificationVariable.objects.create(config=config, index=i, field_path=path)
-        
+                NotificationVariable.objects.create(config=config, index=i, field_path=path, component='BODY')
+
+        # Salvar variáveis de botão (URL dinâmica)
+        btn_indices = request.POST.getlist('btn_var_index[]')
+        btn_paths = request.POST.getlist('btn_var_path[]')
+        for i, path in zip(btn_indices, btn_paths):
+            if path:
+                NotificationVariable.objects.create(config=config, index=int(i), field_path=path, component='BUTTON')
+
         messages.success(request, "Configuração de notificação criada com sucesso!")
         return redirect('integracoes:notification_config_list')
 
@@ -699,14 +706,21 @@ def notification_config_edit(request, pk):
             
         config.save()
         
-        # Atualizar variáveis
+        # Atualizar variáveis do corpo
         config.variables.all().delete()
         indices = request.POST.getlist('var_index[]')
         paths = request.POST.getlist('var_path[]')
         for i, path in zip(indices, paths):
             if path:
-                NotificationVariable.objects.create(config=config, index=i, field_path=path)
-                
+                NotificationVariable.objects.create(config=config, index=i, field_path=path, component='BODY')
+
+        # Atualizar variáveis de botão (URL dinâmica)
+        btn_indices = request.POST.getlist('btn_var_index[]')
+        btn_paths = request.POST.getlist('btn_var_path[]')
+        for i, path in zip(btn_indices, btn_paths):
+            if path:
+                NotificationVariable.objects.create(config=config, index=int(i), field_path=path, component='BUTTON')
+
         messages.success(request, "Configuração atualizada!")
         return redirect('integracoes:notification_config_list')
 
@@ -759,18 +773,38 @@ def ajax_get_template_details(request):
     header_format = header_comp.get('format') if header_comp else None
     has_media_header = header_format in ['IMAGE', 'VIDEO', 'DOCUMENT']
     
-    # Introspecção dinâmica de campos do modelo
+    # Campos curados do modelo, agrupados por categoria para a UI
     suggested_fields = get_mappable_fields(model_name)
-    
+    from collections import OrderedDict
+    groups_dict = OrderedDict()
+    for path, label in suggested_fields:
+        group, field_label = label.split(' > ', 1) if ' > ' in label else ('Outros', label)
+        groups_dict.setdefault(group, []).append((path, label, field_label))
+    suggested_fields_grouped = list(groups_dict.items())
+
+    # Detectar botões com URL dinâmica (ex: https://site.com/pagar/{{1}})
+    buttons_comp = next((c for c in template.get('components', []) if c['type'] == 'BUTTONS'), None)
+    button_vars = []
+    if buttons_comp:
+        for btn_idx, btn in enumerate(buttons_comp.get('buttons', [])):
+            if btn.get('type') == 'URL' and '{{1}}' in btn.get('url', ''):
+                button_vars.append({
+                    'btn_index': btn_idx,
+                    'btn_text': btn.get('text', f'Botão {btn_idx + 1}'),
+                    'url_template': btn.get('url', ''),
+                })
+
     # Carrega mapeamentos existentes
     config_id = request.GET.get('config_id')
     step_id = request.GET.get('step_id')
     reminder_id = request.GET.get('reminder_id')
     existing_vars = {}
+    existing_btn_vars = {}
     config = None
     if config_id and config_id.isdigit():
         config = NotificationConfig.objects.filter(id=config_id).first()
-        existing_vars = {v.index: v.field_path for v in NotificationVariable.objects.filter(config_id=config_id)}
+        existing_vars = {v.index: v.field_path for v in NotificationVariable.objects.filter(config_id=config_id, component='BODY')}
+        existing_btn_vars = {v.index: v.field_path for v in NotificationVariable.objects.filter(config_id=config_id, component='BUTTON')}
     elif step_id and step_id.isdigit():
         existing_vars = {v.index: v.field_path for v in CollectionStepVariable.objects.filter(step_id=step_id)}
     elif reminder_id and reminder_id.isdigit():
@@ -782,7 +816,10 @@ def ajax_get_template_details(request):
         'has_media_header': has_media_header,
         'header_format': header_format,
         'suggested_fields': suggested_fields,
+        'suggested_fields_grouped': suggested_fields_grouped,
         'existing_vars': existing_vars,
+        'existing_btn_vars': existing_btn_vars,
+        'button_vars': button_vars,
         'config': config,
         'header_media_choices': NotificationConfig.HEADER_MEDIA_CHOICES
     })
@@ -891,6 +928,7 @@ def whatsapp_template_create(request):
         button_types = request.POST.getlist('button_type[]')
         button_texts = request.POST.getlist('button_text[]')
         button_urls = request.POST.getlist('button_url[]')
+        button_url_examples = request.POST.getlist('button_url_example[]')
         button_phones = request.POST.getlist('button_phone[]')
         
         components = []
@@ -941,10 +979,17 @@ def whatsapp_template_create(request):
                 
                 btn = {"type": b_type, "text": b_text}
                 if b_type == 'URL':
-                    btn['url'] = button_urls[i]
+                    url = button_urls[i] if i < len(button_urls) else ''
+                    if not url:
+                        continue  # URL vazia — pula botão inválido
+                    btn['url'] = url
+                    example = button_url_examples[i] if i < len(button_url_examples) else ''
+                    # example só é válido quando a URL tem variável dinâmica {{1}}
+                    if '{{1}}' in url and example:
+                        btn['example'] = [example]
                 elif b_type == 'PHONE_NUMBER':
-                    btn['phone_number'] = button_phones[i]
-                
+                    btn['phone_number'] = button_phones[i] if i < len(button_phones) else ''
+
                 buttons.append(btn)
             
             if buttons:
@@ -953,7 +998,13 @@ def whatsapp_template_create(request):
         result = api.create_template(name, language, category, components)
         
         if 'error' in result:
-            messages.error(request, f"Erro ao criar template: {result['error'].get('message', 'Erro desconhecido')}")
+            err = result['error']
+            user_title = err.get('error_user_title', '')
+            user_msg = err.get('error_user_msg', '')
+            generic_msg = err.get('message', 'Erro desconhecido')
+            detail = f"{user_title}: {user_msg}" if user_title or user_msg else generic_msg
+            logger.error(f"Meta API template creation error: {result}")
+            messages.error(request, f"Erro ao criar template: {detail}")
         else:
             messages.success(request, f"Template '{name}' criado com sucesso e enviado para revisão.")
             return redirect('integracoes:whatsapp_template_list')
