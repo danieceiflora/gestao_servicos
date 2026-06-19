@@ -5,6 +5,18 @@ from .chatwoot_client import ChatwootClient
 
 logger = logging.getLogger(__name__)
 
+# Campos globais do SystemConfig disponíveis em todos os modelos.
+# Prefixo __config__ é interceptado em resolve_field_path.
+CONFIG_FIELDS = [
+    ('__config__.company_name',    'Configurações Globais > Nome da Empresa'),
+    ('__config__.company_cnpj',    'Configurações Globais > CNPJ'),
+    ('__config__.company_phone',   'Configurações Globais > Telefone da Empresa'),
+    ('__config__.company_address', 'Configurações Globais > Endereço da Empresa'),
+    ('__config__.pix_key',         'Configurações Globais > Chave PIX'),
+    ('__config__.pix_bank',        'Configurações Globais > Banco PIX'),
+    ('__config__.pix_recipient',   'Configurações Globais > Destinatário PIX'),
+]
+
 # Campos mapeáveis por modelo — lista curada com labels amigáveis no formato "Grupo > Campo".
 # A ordem dentro de cada grupo define a ordem de exibição no dropdown.
 CURATED_FIELDS = {
@@ -92,6 +104,10 @@ CURATED_FIELDS = {
     ],
 }
 
+# Adiciona campos globais a todos os modelos
+for _model_key in list(CURATED_FIELDS.keys()):
+    CURATED_FIELDS[_model_key] = CURATED_FIELDS[_model_key] + CONFIG_FIELDS
+
 
 def get_mappable_fields(model_name, max_depth=3, only_phones=False):
     """
@@ -127,10 +143,17 @@ def resolve_field_path(instance, path):
     """
     Resolve um caminho de campo separado por pontos (ex: 'client_property.client.name').
     Suporta atributos e propriedades.
+    Caminhos iniciados com '__config__.' resolvem a partir do SystemConfig singleton.
     """
     if not path or path == 'self':
         return instance
-    
+
+    if path.startswith('__config__.'):
+        from integracoes.models import SystemConfig
+        config_instance = SystemConfig.load()
+        remainder = path[len('__config__.'):]
+        return resolve_field_path(config_instance, remainder)
+
     parts = path.split('.')
     current = instance
     for part in parts:
