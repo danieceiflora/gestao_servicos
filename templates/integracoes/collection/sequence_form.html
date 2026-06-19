@@ -3,7 +3,7 @@
 {% block content %}
 <div class="max-w-3xl mx-auto">
 
-    {# ===== Cabeçalho com back button ===== #}
+    {# ===== Cabeçalho ===== #}
     <div class="mb-8 flex items-center gap-4">
         <a href="{% url 'integracoes:collection_sequence_list' %}"
            class="h-10 w-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
@@ -20,7 +20,7 @@
         </div>
     </div>
 
-    {# ===== Formulário de configuração da sequência ===== #}
+    {# ===== Formulário ===== #}
     <form method="post" class="space-y-6">
         {% csrf_token %}
 
@@ -37,7 +37,6 @@
                        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
             </div>
 
-            {# Checkbox is_active apenas no edit #}
             {% if sequence %}
             <div class="flex items-center gap-2 pt-1">
                 <input type="checkbox" name="is_active" id="id_is_active"
@@ -53,8 +52,6 @@
             <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Regras de Disparo</h2>
 
             <div class="grid sm:grid-cols-2 gap-4">
-
-                {# start_after_days_overdue #}
                 <div class="space-y-2">
                     <label for="id_start_after" class="text-sm font-bold text-slate-700">
                         Iniciar após
@@ -67,7 +64,6 @@
                     <p class="text-xs text-slate-400">Só inicia cobranças após X dias em atraso.</p>
                 </div>
 
-                {# stop_after_days_overdue #}
                 <div class="space-y-2">
                     <label for="id_stop_after" class="text-sm font-bold text-slate-700">
                         Parar após
@@ -80,11 +76,8 @@
                     <p class="text-xs text-slate-400">Encerra a sequência após este número de dias de atraso.</p>
                 </div>
 
-                {# max_occurrences #}
                 <div class="space-y-2">
-                    <label for="id_max_occurrences" class="text-sm font-bold text-slate-700">
-                        Máximo de cobranças
-                    </label>
+                    <label for="id_max_occurrences" class="text-sm font-bold text-slate-700">Máximo de cobranças</label>
                     <input type="number" name="max_occurrences" id="id_max_occurrences"
                            value="{{ sequence.max_occurrences|default:3 }}"
                            min="1" max="50"
@@ -92,7 +85,6 @@
                     <p class="text-xs text-slate-400">Número máximo de vezes que uma parcela pode ser cobrada nesta régua.</p>
                 </div>
 
-                {# min_interval_days #}
                 <div class="space-y-2">
                     <label for="id_min_interval" class="text-sm font-bold text-slate-700">
                         Intervalo mínimo
@@ -144,54 +136,76 @@
         {% if steps %}
         <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-white divide-y divide-slate-100">
             {% for step in steps %}
-            <div class="flex items-start gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
+            {% with var_count=step.variables.count %}
+            <div class="px-5 py-4 hover:bg-slate-50 transition-colors">
+                <div class="flex items-start gap-4">
 
-                {# Número de ocorrência #}
-                <div class="flex-none h-9 w-9 rounded-full bg-slate-900 text-white text-sm font-bold flex items-center justify-center shadow-sm mt-0.5">
-                    {{ step.occurrence }}
-                </div>
-
-                {# Detalhes da etapa #}
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span class="font-semibold text-sm text-slate-800">{{ step.label }}</span>
-                        <span class="text-[11px] font-mono text-slate-400 bg-slate-100 rounded px-1.5 py-0.5">{{ step.template_name }}</span>
+                    {# Badge de ocorrência #}
+                    <div class="flex-none h-9 w-9 rounded-full bg-slate-900 text-white text-sm font-bold flex items-center justify-center shadow-sm mt-0.5">
+                        {{ step.occurrence }}
                     </div>
-                    <div class="flex items-center gap-3 mt-1 flex-wrap">
-                        <span class="text-xs text-slate-500 flex items-center gap-1">
-                            <i data-lucide="timer" class="h-3 w-3 text-slate-400"></i>
-                            Aguarda {{ step.wait_days_before_next }}d antes do próximo
-                        </span>
-                        {% if step.effective_interval > step.wait_days_before_next %}
-                        <span class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 rounded px-1.5 py-0.5 border border-amber-100">
-                            <i data-lucide="alert-triangle" class="h-2.5 w-2.5"></i>
-                            intervalo efetivo: {{ step.effective_interval }}d (mínimo da régua aplicado)
-                        </span>
+
+                    {# Conteúdo principal #}
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-semibold text-sm text-slate-800">{{ step.label }}</span>
+                            <span class="text-[11px] font-mono text-slate-400 bg-slate-100 rounded px-1.5 py-0.5">{{ step.template_name }}</span>
+                        </div>
+
+                        <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+                            <span class="text-xs text-slate-500 flex items-center gap-1">
+                                <i data-lucide="timer" class="h-3 w-3 text-slate-400"></i>
+                                Aguarda {{ step.wait_days_before_next }}d antes do próximo
+                            </span>
+                            {% if step.effective_interval > step.wait_days_before_next %}
+                            <span class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 rounded px-1.5 py-0.5 border border-amber-100">
+                                <i data-lucide="alert-triangle" class="h-2.5 w-2.5"></i>
+                                intervalo efetivo: {{ step.effective_interval }}d
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        {# Variáveis mapeadas #}
+                        {% if step.variables.all %}
+                        <div class="mt-2.5 flex flex-wrap gap-1.5">
+                            {% for var in step.variables.all %}
+                            <span class="inline-flex items-center gap-1 text-[11px] bg-blue-50 border border-blue-100 text-blue-700 rounded-md px-2 py-0.5">
+                                <span class="font-bold">&#123;&#123;{{ var.index }}&#125;&#125;</span>
+                                <span class="text-blue-500">→</span>
+                                <span class="font-mono truncate max-w-[120px]">{{ var.field_path }}</span>
+                            </span>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="mt-2 inline-flex items-center gap-1 text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-md px-2 py-0.5">
+                            <i data-lucide="alert-circle" class="h-3 w-3"></i>
+                            Nenhuma variável mapeada — verifique o template
+                        </div>
                         {% endif %}
                     </div>
-                </div>
 
-                {# Ações #}
-                <div class="flex items-center gap-1 flex-none">
-                    <a href="{% url 'integracoes:collection_step_edit' step.pk %}"
-                       class="p-2 text-slate-400 hover:text-slate-900 transition-colors rounded-lg hover:bg-slate-100"
-                       title="Editar etapa">
-                        <i data-lucide="edit-3" class="h-4 w-4"></i>
-                    </a>
-                    <form action="{% url 'integracoes:collection_step_delete' step.pk %}" method="post" class="inline"
-                          onsubmit="return confirm('Remover a etapa #{{ step.occurrence }} ({{ step.label }})?')">
-                        {% csrf_token %}
-                        <button type="submit" class="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50" title="Excluir etapa">
-                            <i data-lucide="trash-2" class="h-4 w-4"></i>
-                        </button>
-                    </form>
+                    {# Ações #}
+                    <div class="flex items-center gap-1 flex-none">
+                        <a href="{% url 'integracoes:collection_step_edit' step.pk %}"
+                           class="p-2 text-slate-400 hover:text-slate-900 transition-colors rounded-lg hover:bg-slate-100"
+                           title="Editar etapa">
+                            <i data-lucide="edit-3" class="h-4 w-4"></i>
+                        </a>
+                        <form action="{% url 'integracoes:collection_step_delete' step.pk %}" method="post" class="inline"
+                              onsubmit="return confirm('Remover a etapa #{{ step.occurrence }} ({{ step.label }})?')">
+                            {% csrf_token %}
+                            <button type="submit" class="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50" title="Excluir etapa">
+                                <i data-lucide="trash-2" class="h-4 w-4"></i>
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
+            {% endwith %}
             {% endfor %}
         </div>
 
         {% else %}
-        {# Empty state de etapas #}
         <div class="text-center py-12 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
             <div class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-3">
                 <i data-lucide="list-ordered" class="h-5 w-5"></i>
@@ -206,8 +220,101 @@
         </div>
         {% endif %}
     </div>
+
+    {# ===== Painel de Simulação ===== #}
+    {% if steps %}
+    <div class="mt-8 space-y-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="flask-conical" class="h-4 w-4 text-slate-500"></i>
+                    Simular Disparo
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">Veja quais parcelas seriam atingidas hoje. Nenhuma mensagem é enviada.</p>
+            </div>
+            <button type="button"
+                    hx-get="{% url 'integracoes:collection_sequence_simulate' sequence.pk %}"
+                    hx-target="#simulate-result"
+                    hx-indicator="#simulate-spinner"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                <i data-lucide="play" class="h-3.5 w-3.5"></i>
+                Simular hoje
+                <span id="simulate-spinner" class="htmx-indicator">
+                    <i data-lucide="loader-2" class="h-3.5 w-3.5 animate-spin"></i>
+                </span>
+            </button>
+        </div>
+
+        <div id="simulate-result" class="min-h-[60px]">
+            <div class="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-xs text-slate-400 text-center">
+                Clique em "Simular hoje" para ver os resultados.
+            </div>
+        </div>
+    </div>
     {% endif %}
-    {# /if sequence #}
+
+    {# ===== Logs Recentes ===== #}
+    <div class="mt-8 space-y-4">
+        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <i data-lucide="history" class="h-4 w-4 text-slate-500"></i>
+            Últimos Disparos
+        </h2>
+
+        {% if recent_logs %}
+        <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-white">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        <th class="px-4 py-2.5">Data</th>
+                        <th class="px-4 py-2.5">Cliente</th>
+                        <th class="px-4 py-2.5">Parcela</th>
+                        <th class="px-4 py-2.5">Etapa</th>
+                        <th class="px-4 py-2.5">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for log in recent_logs %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
+                            {{ log.sent_at|date:"d/m/Y H:i" }}
+                        </td>
+                        <td class="px-4 py-3 font-medium text-slate-800">
+                            {{ log.installment.billing.client.display_name|default:"—" }}
+                        </td>
+                        <td class="px-4 py-3 text-slate-600 text-xs">
+                            Parc. {{ log.installment.installment_number }}
+                            <span class="text-slate-400 font-mono">{{ log.phone }}</span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="text-[11px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                                #{{ log.step.occurrence }} {{ log.step.label|truncatechars:18 }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if log.status == 'SENT' %}
+                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                <i data-lucide="check" class="h-3 w-3"></i> Enviado
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full"
+                                  title="{{ log.notes }}">
+                                <i data-lucide="x" class="h-3 w-3"></i> Falhou
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
+            Nenhum disparo registrado ainda para esta régua.
+        </div>
+        {% endif %}
+    </div>
+
+    {% endif %}{# /if sequence #}
 
 </div>
 {% endblock %}

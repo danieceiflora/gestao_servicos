@@ -76,6 +76,9 @@ CURATED_FIELDS = {
         ('billing.service_order.number','OS > Número'),
         ('billing.client.display_name', 'Cliente > Nome Completo'),
         ('billing.client.phones.first.phone', 'Cliente > Telefone / WhatsApp'),
+        ('gateway_pix_code',            'PIX > Código Copia e Cola'),
+        ('gateway_payment_link',        'PIX/Boleto > Link de Pagamento'),
+        ('gateway_boleto_barcode',      'Boleto > Linha Digitável'),
     ],
     'ExpenseInstallment': [
         ('expense.description',         'Despesa > Descrição'),

@@ -806,9 +806,11 @@ def ajax_get_template_details(request):
         existing_vars = {v.index: v.field_path for v in NotificationVariable.objects.filter(config_id=config_id, component='BODY')}
         existing_btn_vars = {v.index: v.field_path for v in NotificationVariable.objects.filter(config_id=config_id, component='BUTTON')}
     elif step_id and step_id.isdigit():
-        existing_vars = {v.index: v.field_path for v in CollectionStepVariable.objects.filter(step_id=step_id)}
+        existing_vars = {v.index: v.field_path for v in CollectionStepVariable.objects.filter(step_id=step_id, component='BODY')}
+        existing_btn_vars = {v.index: v.field_path for v in CollectionStepVariable.objects.filter(step_id=step_id, component='BUTTON')}
     elif reminder_id and reminder_id.isdigit():
-        existing_vars = {v.index: v.field_path for v in ScheduledReminderVariable.objects.filter(reminder_id=reminder_id)}
+        existing_vars = {v.index: v.field_path for v in ScheduledReminderVariable.objects.filter(reminder_id=reminder_id, component='BODY')}
+        existing_btn_vars = {v.index: v.field_path for v in ScheduledReminderVariable.objects.filter(reminder_id=reminder_id, component='BUTTON')}
 
     return render(request, 'integracoes/notifications/partials/template_variables.html', {
         'body_text': body_text,
@@ -1302,9 +1304,85 @@ def collection_sequence_edit(request, pk):
         return redirect('integracoes:collection_sequence_list')
 
     steps = sequence.steps.prefetch_related('variables').all()
+    recent_logs = (
+        CollectionLog.objects
+        .filter(step__sequence=sequence)
+        .select_related('installment__billing__client', 'step')
+        .order_by('-sent_at')[:15]
+    )
     return render(request, 'integracoes/collection/sequence_form.html', {
         'sequence': sequence,
         'steps': steps,
+        'recent_logs': recent_logs,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def collection_sequence_simulate(request, pk):
+    """Simula o disparo da régua para hoje e retorna tabela de resultados via HTMX."""
+    from datetime import timedelta
+    from integracoes.models import CollectionInstallmentState
+    from integracoes.utils import get_client_phone
+    from services.models import Installment
+
+    sequence = get_object_or_404(CollectionSequence, pk=pk)
+    today = timezone.localdate()
+
+    max_due_date = today - timedelta(days=sequence.start_after_days_overdue)
+    min_due_date = today - timedelta(days=sequence.stop_after_days_overdue)
+
+    installments = (
+        Installment.objects
+        .filter(
+            due_date__lte=max_due_date,
+            due_date__gte=min_due_date,
+            status__in=['PENDENTE', 'PARCIAL', 'ATRASADO'],
+        )
+        .select_related('billing__client')
+        .prefetch_related('billing__client__phones', 'gateway_charges')
+    )
+
+    results = []
+    for installment in installments:
+        state = CollectionInstallmentState.objects.filter(installment=installment).first()
+
+        skip_reason = None
+        if state and state.sequence_id != sequence.id:
+            skip_reason = 'Em outra régua'
+        elif state and state.is_paused:
+            skip_reason = 'Pausado'
+        elif state and state.current_occurrence >= sequence.max_occurrences:
+            skip_reason = 'Máximo de cobranças atingido'
+        elif state and state.next_eligible_date and today < state.next_eligible_date:
+            skip_reason = f'Aguardando até {state.next_eligible_date.strftime("%d/%m")}'
+
+        current_occ = state.current_occurrence if state else 0
+        step = sequence.steps.filter(occurrence__gt=current_occ).order_by('occurrence').first()
+        if not step and not skip_reason:
+            skip_reason = 'Sem próxima etapa'
+
+        client = getattr(getattr(installment, 'billing', None), 'client', None)
+        phone = get_client_phone(client)
+
+        results.append({
+            'installment': installment,
+            'client': client,
+            'phone': phone,
+            'step': step,
+            'state': state,
+            'skip_reason': skip_reason,
+            'would_send': not skip_reason and bool(phone) and bool(step),
+        })
+
+    results.sort(key=lambda r: (not r['would_send'], r['installment'].due_date))
+
+    return render(request, 'integracoes/collection/partials/simulate_result.html', {
+        'sequence': sequence,
+        'results': results,
+        'today': today,
+        'send_count': sum(1 for r in results if r['would_send']),
+        'skip_count': sum(1 for r in results if not r['would_send']),
     })
 
 
@@ -1339,11 +1417,12 @@ def collection_step_create(request, seq_pk):
             wait_days_before_next=wait_days,
         )
 
-        indices = request.POST.getlist('var_index[]')
-        paths = request.POST.getlist('var_path[]')
-        for i, path in zip(indices, paths):
+        for i, path in zip(request.POST.getlist('var_index[]'), request.POST.getlist('var_path[]')):
             if path:
-                CollectionStepVariable.objects.create(step=step, index=i, field_path=path)
+                CollectionStepVariable.objects.create(step=step, index=i, field_path=path, component='BODY')
+        for i, path in zip(request.POST.getlist('btn_var_index[]'), request.POST.getlist('btn_var_path[]')):
+            if path:
+                CollectionStepVariable.objects.create(step=step, index=i, field_path=path, component='BUTTON')
 
         messages.success(request, f'Etapa #{occurrence} adicionada!')
         return redirect('integracoes:collection_sequence_edit', pk=seq_pk)
@@ -1369,11 +1448,12 @@ def collection_step_edit(request, pk):
         step.save()
 
         step.variables.all().delete()
-        indices = request.POST.getlist('var_index[]')
-        paths = request.POST.getlist('var_path[]')
-        for i, path in zip(indices, paths):
+        for i, path in zip(request.POST.getlist('var_index[]'), request.POST.getlist('var_path[]')):
             if path:
-                CollectionStepVariable.objects.create(step=step, index=i, field_path=path)
+                CollectionStepVariable.objects.create(step=step, index=i, field_path=path, component='BODY')
+        for i, path in zip(request.POST.getlist('btn_var_index[]'), request.POST.getlist('btn_var_path[]')):
+            if path:
+                CollectionStepVariable.objects.create(step=step, index=i, field_path=path, component='BUTTON')
 
         messages.success(request, f'Etapa #{step.occurrence} atualizada!')
         return redirect('integracoes:collection_sequence_edit', pk=step.sequence_id)
@@ -1430,11 +1510,12 @@ def scheduled_reminder_create(request):
             template_name=template_name,
         )
 
-        indices = request.POST.getlist('var_index[]')
-        paths = request.POST.getlist('var_path[]')
-        for i, path in zip(indices, paths):
+        for i, path in zip(request.POST.getlist('var_index[]'), request.POST.getlist('var_path[]')):
             if path:
-                ScheduledReminderVariable.objects.create(reminder=reminder, index=i, field_path=path)
+                ScheduledReminderVariable.objects.create(reminder=reminder, index=i, field_path=path, component='BODY')
+        for i, path in zip(request.POST.getlist('btn_var_index[]'), request.POST.getlist('btn_var_path[]')):
+            if path:
+                ScheduledReminderVariable.objects.create(reminder=reminder, index=i, field_path=path, component='BUTTON')
 
         messages.success(request, f'Lembrete "{name}" criado!')
         return redirect('integracoes:scheduled_reminder_list')
@@ -1458,11 +1539,12 @@ def scheduled_reminder_edit(request, pk):
         reminder.save()
 
         reminder.variables.all().delete()
-        indices = request.POST.getlist('var_index[]')
-        paths = request.POST.getlist('var_path[]')
-        for i, path in zip(indices, paths):
+        for i, path in zip(request.POST.getlist('var_index[]'), request.POST.getlist('var_path[]')):
             if path:
-                ScheduledReminderVariable.objects.create(reminder=reminder, index=i, field_path=path)
+                ScheduledReminderVariable.objects.create(reminder=reminder, index=i, field_path=path, component='BODY')
+        for i, path in zip(request.POST.getlist('btn_var_index[]'), request.POST.getlist('btn_var_path[]')):
+            if path:
+                ScheduledReminderVariable.objects.create(reminder=reminder, index=i, field_path=path, component='BUTTON')
 
         messages.success(request, 'Lembrete atualizado!')
         return redirect('integracoes:scheduled_reminder_list')

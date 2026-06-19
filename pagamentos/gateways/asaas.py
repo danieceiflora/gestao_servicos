@@ -38,22 +38,37 @@ class AsaasGateway(BasePaymentGateway):
             'access_token': api_key or self.api_key,
         }
 
+    def _raise_for_status(self, resp):
+        if not resp.ok:
+            body = resp.text[:1000]
+            logger.error('Asaas API error %s on %s %s: %s', resp.status_code, resp.request.method, resp.url, body)
+            detail = body
+            try:
+                parsed = resp.json()
+                errors = parsed.get('errors', [])
+                msgs = [e.get('description', '') for e in errors if e.get('description')]
+                if msgs:
+                    detail = '; '.join(msgs)
+            except Exception:
+                pass
+            raise Exception(f'Asaas {resp.status_code}: {detail}')
+
     def _get(self, path, params=None, api_key: str = None):
         url = f'{self.base_url}/{path.lstrip("/")}'
         resp = requests.get(url, headers=self._headers(api_key), params=params, timeout=30)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return resp.json()
 
     def _post(self, path, data, api_key: str = None):
         url = f'{self.base_url}/{path.lstrip("/")}'
         resp = requests.post(url, headers=self._headers(api_key), json=data, timeout=30)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return resp.json()
 
     def _delete(self, path):
         url = f'{self.base_url}/{path.lstrip("/")}'
         resp = requests.delete(url, headers=self._headers(), timeout=30)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return resp.json()
 
     def _clean_document(self, doc: str) -> str:
@@ -67,9 +82,12 @@ class AsaasGateway(BasePaymentGateway):
             if result.get('data'):
                 return result['data'][0]['id']
 
-        payload = {'name': name, 'email': email or ''}
+        payload = {'name': name}
+        if email:
+            payload['email'] = email
         if doc_clean:
             payload['cpfCnpj'] = doc_clean
+        logger.info('Asaas _get_or_create_customer payload: %s', payload)
         created = self._post('customers', payload, api_key=api_key)
         return created['id']
 

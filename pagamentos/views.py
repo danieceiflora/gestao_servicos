@@ -42,20 +42,22 @@ def gateway_config_view(request):
             'company_name', 'company_type', 'cpf_cnpj', 'email', 'phone',
             'address_street', 'address_number', 'address_complement',
             'address_neighborhood', 'address_city', 'address_state', 'address_zip',
-            'environment', 'platform_split_type',
+            'environment',
         ]
         for f in text_fields:
             val = request.POST.get(f, '').strip()
             if val:
                 setattr(config, f, val)
 
-        for decimal_field in ('platform_split_value', 'income_value'):
-            raw = request.POST.get(decimal_field, '').strip().replace(',', '.')
-            if raw:
-                try:
-                    setattr(config, decimal_field, Decimal(raw))
-                except Exception:
-                    pass
+        raw_income = request.POST.get('income_value', '').strip().replace(',', '.')
+        if raw_income:
+            try:
+                config.income_value = Decimal(raw_income)
+            except Exception:
+                pass
+
+        config.pix_enabled = 'pix_enabled' in request.POST
+        config.boleto_enabled = 'boleto_enabled' in request.POST
 
         config.save()
 
@@ -158,11 +160,34 @@ def installment_create_charge(request, installment_pk):
         messages.error(request, f'Gateway não habilitado (status: {config.get_status_display()}, wallet: {"configurada" if config.wallet_id else "não configurada"}). Acesse Configurações → Gateway de Pagamentos.')
         return redirect('billing_detail', pk=installment.billing_id)
 
+    if method == 'PIX' and not config.pix_enabled:
+        messages.error(request, 'PIX não está habilitado nas configurações do gateway.')
+        return redirect('billing_detail', pk=installment.billing_id)
+    if method == 'BOLETO' and not config.boleto_enabled:
+        messages.error(request, 'Boleto não está habilitado nas configurações do gateway.')
+        return redirect('billing_detail', pk=installment.billing_id)
+
     client = installment.billing.client
     client_doc = client.document or ''
     client_email = client.emails.values_list('email', flat=True).first() or ''
 
+    if not client_doc.strip():
+        messages.error(
+            request,
+            f'O cliente <strong>{client.name}</strong> não possui CPF/CNPJ cadastrado. '
+            f'Adicione o documento antes de gerar a cobrança.'
+        )
+        return redirect('billing_detail', pk=installment.billing_id)
+
     try:
+        # Calcula margem da plataforma conforme método
+        if method == 'PIX':
+            pct = Decimal(getattr(settings, 'PLATFORM_PIX_SPLIT_PERCENT', '0.008'))
+            minimum = Decimal(getattr(settings, 'PLATFORM_PIX_SPLIT_MINIMUM', '2.50'))
+            split_amount = max(installment.amount * pct, minimum)
+        else:
+            split_amount = Decimal(getattr(settings, 'PLATFORM_BOLETO_SPLIT_FIXED', '2.50'))
+
         gw = _get_gateway()
         data = ChargeData(
             customer_name=client.name,
@@ -179,8 +204,8 @@ def installment_create_charge(request, installment_pk):
             wallet_id=config.wallet_id,
             subaccount_api_key=config.subaccount_api_key,
             master_wallet_id=getattr(settings, 'ASAAS_MASTER_WALLET_ID', ''),
-            split_type=config.platform_split_type,
-            split_value=float(config.platform_split_value),
+            split_type='FIXED',
+            split_value=float(split_amount.quantize(Decimal('0.01'))),
         )
 
         GatewayCharge.objects.create(

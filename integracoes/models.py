@@ -272,15 +272,20 @@ class CollectionStep(models.Model):
 
 
 class CollectionStepVariable(models.Model):
+    class Component(models.TextChoices):
+        BODY   = 'BODY',   'Corpo'
+        BUTTON = 'BUTTON', 'Botão'
+
     step = models.ForeignKey(CollectionStep, on_delete=models.CASCADE, related_name='variables')
-    index = models.PositiveIntegerField('Índice (Ex: 1 para {{1}})')
+    index = models.PositiveIntegerField('Índice')
     field_path = models.CharField('Caminho do Campo', max_length=255)
+    component = models.CharField('Componente', max_length=10, choices=Component.choices, default=Component.BODY)
 
     class Meta:
         verbose_name = 'Variável da Etapa'
         verbose_name_plural = 'Variáveis da Etapa'
-        ordering = ['index']
-        unique_together = ('step', 'index')
+        ordering = ['component', 'index']
+        unique_together = ('step', 'component', 'index')
 
 
 class CollectionInstallmentState(models.Model):
@@ -357,15 +362,20 @@ class ScheduledReminder(models.Model):
 
 
 class ScheduledReminderVariable(models.Model):
+    class Component(models.TextChoices):
+        BODY   = 'BODY',   'Corpo'
+        BUTTON = 'BUTTON', 'Botão'
+
     reminder = models.ForeignKey(ScheduledReminder, on_delete=models.CASCADE, related_name='variables')
-    index = models.PositiveIntegerField('Índice (Ex: 1 para {{1}})')
+    index = models.PositiveIntegerField('Índice')
     field_path = models.CharField('Caminho do Campo', max_length=255)
+    component = models.CharField('Componente', max_length=10, choices=Component.choices, default=Component.BODY)
 
     class Meta:
         verbose_name = 'Variável do Lembrete'
         verbose_name_plural = 'Variáveis do Lembrete'
-        unique_together = ('reminder', 'index')
-        ordering = ['index']
+        unique_together = ('reminder', 'component', 'index')
+        ordering = ['component', 'index']
 
 
 class ScheduledReminderLog(models.Model):

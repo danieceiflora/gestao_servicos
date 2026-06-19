@@ -145,6 +145,39 @@
         </h2>
       </div>
 
+      <!-- Métodos de pagamento habilitados -->
+      <div class="px-5 py-4 space-y-3">
+        <p class="text-xs font-medium text-slate-600">Métodos de Pagamento Habilitados</p>
+        <div class="flex flex-wrap gap-6">
+          <label for="pix_enabled" class="flex items-center gap-3 cursor-pointer select-none">
+            <div class="relative">
+              <input type="checkbox" name="pix_enabled" id="pix_enabled"
+                     {% if config.pix_enabled %}checked{% endif %}
+                     class="peer sr-only">
+              <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+              <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <i data-lucide="zap" class="h-4 w-4 text-emerald-500"></i>
+              <span class="text-sm font-medium text-slate-700">PIX</span>
+            </div>
+          </label>
+          <label for="boleto_enabled" class="flex items-center gap-3 cursor-pointer select-none">
+            <div class="relative">
+              <input type="checkbox" name="boleto_enabled" id="boleto_enabled"
+                     {% if config.boleto_enabled %}checked{% endif %}
+                     class="peer sr-only">
+              <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+              <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <i data-lucide="file-text" class="h-4 w-4 text-blue-500"></i>
+              <span class="text-sm font-medium text-slate-700">Boleto Bancário</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
       <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Ambiente</label>
@@ -154,35 +187,6 @@
             <option value="{{ val }}" {% if config.environment == val %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Margem da Plataforma — Tipo</label>
-          <select name="platform_split_type" id="split-type"
-                  onchange="updateSplitHint()"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-            {% for val, label in config.SplitType.choices %}
-            <option value="{{ val }}" {% if config.platform_split_type == val %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">
-            Margem da Plataforma — Valor
-            <span id="split-unit" class="text-slate-400 font-normal">
-              {% if config.platform_split_type == 'FIXED' %}(R$){% else %}(%){% endif %}
-            </span>
-          </label>
-          <input type="text" inputmode="decimal" name="platform_split_value"
-                 value="{{ config.platform_split_value }}"
-                 placeholder="Ex: 1,5"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-          <p id="split-hint" class="text-[11px] text-slate-400 mt-1">
-            {% if config.platform_split_type == 'FIXED' %}
-              Valor fixo em R$ retido pela plataforma por transação.
-            {% else %}
-              Percentual (0–100) retido pela plataforma. O cliente recebe o restante.
-            {% endif %}
-          </p>
         </div>
       </div>
 
@@ -254,18 +258,4 @@
 
 </div>
 
-<script>
-function updateSplitHint() {
-    const type = document.getElementById('split-type').value;
-    const unit = document.getElementById('split-unit');
-    const hint = document.getElementById('split-hint');
-    if (type === 'FIXED') {
-        unit.textContent = '(R$)';
-        hint.textContent = 'Valor fixo em R$ retido pela plataforma por transação.';
-    } else {
-        unit.textContent = '(%)';
-        hint.textContent = 'Percentual (0–100) retido pela plataforma. O cliente recebe o restante.';
-    }
-}
-</script>
 {% endblock %}

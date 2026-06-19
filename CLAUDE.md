@@ -217,6 +217,26 @@ Categoria `IMPEDITIVA` bloqueia o fluxo normal de conclusão no app do técnico.
 - **WhatsApp automático**: **DEFERIDO** — não implementar disparo automático até que o usuário configure nas regras de notificação
 - `trigger_payment_receipt_workflow(service_order)` — dispara em thread separada ao concluir uma OS
 
+### Formato de Botão CTA (URL dinâmica) no Chatwoot — CRÍTICO
+
+O Chatwoot usa seu **próprio formato** para parâmetros de botão, diferente da Meta API nativa. Nunca usar a estrutura da Meta (`index`, `sub_type`, `parameters[]`).
+
+**Formato correto** em `processed_params.buttons`:
+```json
+[
+  { "type": "url", "parameter": "sufixo-dinamico-aqui" }
+]
+```
+
+**Formato ERRADO** (Meta API nativa — não funciona no Chatwoot):
+```json
+[
+  { "index": 0, "sub_type": "url", "type": "button", "parameters": [{ "type": "text", "text": "sufixo" }] }
+]
+```
+
+O `parameter` deve conter **apenas o sufixo dinâmico** (ex: UUID), nunca a URL completa. O template WhatsApp já contém o prefixo estático; o Chatwoot/Meta concatena os dois. Implementação em `integracoes/chatwoot_client.py` → método `send_template`, bloco `url_suffix`.
+
 ---
 
 ## Processamento de Mídia

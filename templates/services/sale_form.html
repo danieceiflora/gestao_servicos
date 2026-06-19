@@ -186,12 +186,21 @@
                         {% for error in form.non_field_errors %}
                             <p class="text-[10px] font-medium">• {{ error }}</p>
                         {% endfor %}
-                        {% for error in formset.non_form_errors %}
-                            <p class="text-[10px] font-medium">• {{ error }}</p>
+                        {% for field in form %}
+                            {% for error in field.errors %}
+                                <p class="text-[10px] font-medium">• Campo <strong>{{ field.label }}</strong>: {{ error }}</p>
+                            {% endfor %}
                         {% endfor %}
-                        {% if not form.non_field_errors and not formset.non_form_errors %}
-                            <p class="text-[10px] font-medium">Verifique os campos marcados em vermelho nas abas de Itens e Pagamento.</p>
-                        {% endif %}
+                        {% for error in formset.non_form_errors %}
+                            <p class="text-[10px] font-medium">• Itens: {{ error }}</p>
+                        {% endfor %}
+                        {% for item_form in formset %}
+                            {% for field in item_form %}
+                                {% for error in field.errors %}
+                                    <p class="text-[10px] font-medium">• Item {{ forloop.parentloop.parentloop.counter }} — <strong>{{ field.label }}</strong>: {{ error }}</p>
+                                {% endfor %}
+                            {% endfor %}
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -354,7 +363,7 @@
                         ---
                     {% endif %}
                 </div>
-                <div class="hidden">{{ item_form.product }}</div>
+                <div class="hidden">{{ item_form.id }}{{ item_form.product }}</div>
                 {% if item_form.product.errors %}
                 <p class="text-[9px] text-red-500 font-bold mt-0.5">{{ item_form.product.errors.0 }}</p>
                 {% endif %}
@@ -743,7 +752,7 @@
         <td class="px-6 py-3 text-[11px] font-medium text-slate-400 text-center">#</td>
         <td class="px-2 py-3">
             <div class="text-[13px] font-bold text-slate-700 truncate product-display-name">Nome do Produto</div>
-            <div class="hidden">{{ formset.empty_form.product }}</div>
+            <div class="hidden">{{ formset.empty_form.id }}{{ formset.empty_form.product }}</div>
         </td>
         <td class="px-2 py-3"><div class="table-input-border">{{ formset.empty_form.quantity }}</div></td>
         <td class="px-2 py-3"><div class="table-input-border">{{ formset.empty_form.unit_price }}</div></td>

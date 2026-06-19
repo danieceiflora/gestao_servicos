@@ -1,0 +1,82 @@
+{% if results %}
+<div class="space-y-4">
+
+  <!-- Resumo -->
+  <div class="flex items-center gap-3 flex-wrap">
+    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+      <i data-lucide="send" class="h-3 w-3"></i>
+      {{ send_count }} seriam enviados
+    </span>
+    {% if skip_count %}
+    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+      <i data-lucide="skip-forward" class="h-3 w-3"></i>
+      {{ skip_count }} ignorados
+    </span>
+    {% endif %}
+    <span class="text-xs text-slate-400">Simulação de {{ today|date:"d/m/Y" }} — nenhuma mensagem foi enviada</span>
+  </div>
+
+  <!-- Tabela -->
+  <div class="border border-slate-200 rounded-xl overflow-hidden text-sm">
+    <table class="w-full">
+      <thead>
+        <tr class="bg-slate-50 border-b border-slate-200 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          <th class="px-4 py-2.5">Cliente</th>
+          <th class="px-4 py-2.5">Parcela</th>
+          <th class="px-4 py-2.5">Vencimento</th>
+          <th class="px-4 py-2.5">Telefone</th>
+          <th class="px-4 py-2.5">Etapa</th>
+          <th class="px-4 py-2.5">Resultado</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for r in results %}
+        <tr class="{% if r.would_send %}hover:bg-emerald-50/40{% else %}opacity-50 hover:bg-slate-50{% endif %} transition-colors">
+          <td class="px-4 py-3 font-medium text-slate-800">
+            {{ r.client.display_name|default:"—" }}
+          </td>
+          <td class="px-4 py-3 text-slate-600">
+            Parc. {{ r.installment.installment_number }} — R$ {{ r.installment.amount }}
+          </td>
+          <td class="px-4 py-3 text-slate-600">
+            {{ r.installment.due_date|date:"d/m/Y" }}
+          </td>
+          <td class="px-4 py-3 font-mono text-xs text-slate-500">
+            {% if r.phone %}{{ r.phone }}{% else %}<span class="text-red-500">Sem telefone</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-slate-600">
+            {% if r.step %}
+              <span class="inline-flex items-center gap-1 text-[11px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                #{{ r.step.occurrence }} {{ r.step.label|truncatechars:20 }}
+              </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-3">
+            {% if r.would_send %}
+            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+              <i data-lucide="check" class="h-3 w-3"></i> Enviaria
+            </span>
+            {% elif not r.phone %}
+            <span class="inline-flex items-center gap-1 text-[11px] text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+              <i data-lucide="phone-off" class="h-3 w-3"></i> Sem telefone
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 text-[11px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+              <i data-lucide="skip-forward" class="h-3 w-3"></i> {{ r.skip_reason }}
+            </span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-500">
+  <i data-lucide="inbox" class="h-4 w-4 text-slate-400 shrink-0"></i>
+  Nenhuma parcela elegível para esta régua hoje ({{ today|date:"d/m/Y" }}).
+</div>
+{% endif %}
+
+<script>if (typeof lucide !== 'undefined') lucide.createIcons();</script>

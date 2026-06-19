@@ -845,6 +845,29 @@ class Installment(models.Model):
     def get_remaining_balance(self):
         return self.amount - self.get_total_paid()
 
+    @property
+    def active_gateway_charge(self):
+        return self.gateway_charges.filter(status='PENDING').order_by('-created_at').first()
+
+    @property
+    def gateway_pix_code(self):
+        charge = self.active_gateway_charge
+        if charge and charge.method == 'PIX':
+            return charge.pix_copy_paste or ''
+        return ''
+
+    @property
+    def gateway_payment_link(self):
+        charge = self.active_gateway_charge
+        return charge.invoice_url if charge else ''
+
+    @property
+    def gateway_boleto_barcode(self):
+        charge = self.active_gateway_charge
+        if charge and charge.method == 'BOLETO':
+            return charge.boleto_barcode or ''
+        return ''
+
     class Meta:
         verbose_name = "Parcela"
         verbose_name_plural = "Parcelas"

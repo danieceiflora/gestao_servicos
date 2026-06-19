@@ -187,6 +187,7 @@
                             {% if gateway_config.is_sandbox %}
                             <span class="text-[10px] text-amber-600 font-medium px-1.5 py-0.5 bg-amber-50 rounded border border-amber-200">SANDBOX</span>
                             {% endif %}
+                            {% if gateway_config.pix_enabled %}
                             <form method="post" action="{% url 'pagamentos:installment_create_charge' installment_pk=inst.pk %}">
                                 {% csrf_token %}
                                 <input type="hidden" name="method" value="PIX">
@@ -195,6 +196,8 @@
                                     <i data-lucide="zap" class="h-3 w-3"></i> Gerar PIX
                                 </button>
                             </form>
+                            {% endif %}
+                            {% if gateway_config.boleto_enabled %}
                             <form method="post" action="{% url 'pagamentos:installment_create_charge' installment_pk=inst.pk %}">
                                 {% csrf_token %}
                                 <input type="hidden" name="method" value="BOLETO">
@@ -203,6 +206,7 @@
                                     <i data-lucide="file-text" class="h-3 w-3"></i> Gerar Boleto
                                 </button>
                             </form>
+                            {% endif %}
                         </div>
                     {% elif not gateway_config.wallet_id %}
                         <a href="{% url 'pagamentos:gateway_config' %}"
@@ -241,6 +245,57 @@
             {% endfor %}
         </div>
     </div>
+
+    <!-- Histórico de Comunicações WhatsApp -->
+    {% if comms_timeline %}
+    <div>
+        <h3 class="text-xs font-black text-slate-900 uppercase tracking-widest px-1 mb-4">Histórico de Mensagens</h3>
+        <div class="bg-white rounded-2xl border-2 border-slate-100 overflow-hidden">
+            <div class="divide-y divide-slate-50">
+                {% for entry in comms_timeline %}
+                <div class="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50/60 transition-colors">
+
+                    <!-- Ícone de tipo -->
+                    <div class="flex-none">
+                        {% if entry.type == 'reminder' %}
+                        <div class="h-8 w-8 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center">
+                            <i data-lucide="bell" class="h-3.5 w-3.5 text-blue-500"></i>
+                        </div>
+                        {% else %}
+                        <div class="h-8 w-8 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center">
+                            <i data-lucide="repeat" class="h-3.5 w-3.5 text-violet-500"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Conteúdo principal -->
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-bold text-slate-800 truncate">{{ entry.label }}</p>
+                        <div class="flex items-center gap-3 mt-0.5 flex-wrap">
+                            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Parc. #{{ entry.installment_number }}</span>
+                            <span class="text-[10px] text-slate-400">{{ entry.sent_at|date:"d/m/Y H:i" }}</span>
+                            {% if entry.phone %}
+                            <span class="text-[10px] text-slate-400 font-mono">{{ entry.phone }}</span>
+                            {% endif %}
+                            {% if entry.notes and entry.status == 'FAILED' %}
+                            <span class="text-[10px] text-red-400 truncate max-w-xs">{{ entry.notes|truncatechars:55 }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Status -->
+                    {% if entry.status == 'SENT' %}
+                    <span class="flex-none px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-700 border border-emerald-200">Enviado</span>
+                    {% else %}
+                    <span class="flex-none px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-red-100 text-red-600 border border-red-200">Falhou</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 
 <!-- Modal de Baixa Manual -->

@@ -33,6 +33,8 @@ urlpatterns = [
     path('regua-cobranca/<int:seq_pk>/etapas/criar/', views.collection_step_create, name='collection_step_create'),
     path('regua-cobranca/etapas/<int:pk>/editar/', views.collection_step_edit, name='collection_step_edit'),
     path('regua-cobranca/etapas/<int:pk>/excluir/', views.collection_step_delete, name='collection_step_delete'),
+    # Régua de Cobrança — Simulação
+    path('regua-cobranca/<int:pk>/simular/', views.collection_sequence_simulate, name='collection_sequence_simulate'),
 
     # Lembretes Agendados (envio único)
     path('lembretes/', views.scheduled_reminder_list, name='scheduled_reminder_list'),

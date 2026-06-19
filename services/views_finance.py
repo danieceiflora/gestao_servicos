@@ -716,6 +716,10 @@ def sale_create(request):
                 print(traceback.format_exc())
                 messages.error(request, f"Erro ao processar venda: {str(e)}")
         else:
+            import logging
+            _log = logging.getLogger(__name__)
+            _log.warning("sale_create validation failed — form.errors=%s formset.errors=%s formset.non_form_errors=%s",
+                         form.errors.as_json(), [f.errors.as_json() for f in formset], formset.non_form_errors())
             messages.error(request, "Por favor, corrija os erros no formulário.")
     else:
         form = SaleForm()
@@ -806,6 +810,10 @@ def sale_detail(request, number):
                 print(traceback.format_exc())
                 messages.error(request, f"Erro ao atualizar venda: {str(e)}")
         else:
+            import logging
+            _log = logging.getLogger(__name__)
+            _log.warning("sale_detail validation failed — form.errors=%s formset.errors=%s formset.non_form_errors=%s",
+                         form.errors.as_json(), [f.errors.as_json() for f in formset], formset.non_form_errors())
             messages.error(request, "Por favor, corrija os erros no formulário.")
     else:
         form = SaleForm(instance=sale)
@@ -1247,13 +1255,55 @@ def billing_detail(request, pk):
     payment_methods = PaymentMethod.objects.filter(ativo=True)
 
     from pagamentos.models import GatewayConfig
+    from integracoes.models import ScheduledReminderLog, CollectionLog
+
     gateway_config = GatewayConfig.load()
+
+    installment_ids = list(billing.installments.values_list('id', flat=True))
+
+    reminder_logs = (
+        ScheduledReminderLog.objects
+        .filter(installment_id__in=installment_ids)
+        .select_related('reminder', 'installment')
+        .order_by('-sent_at')
+    )
+    collection_logs = (
+        CollectionLog.objects
+        .filter(installment_id__in=installment_ids)
+        .select_related('step__sequence', 'installment')
+        .order_by('-sent_at')
+    )
+
+    # Timeline unificada: cada entrada tem tipo, label, parcela, data, status, notes
+    comms_timeline = []
+    for log in reminder_logs:
+        comms_timeline.append({
+            'type': 'reminder',
+            'label': log.reminder.name,
+            'installment_number': log.installment.installment_number,
+            'sent_at': log.sent_at,
+            'phone': log.phone,
+            'status': log.status,
+            'notes': log.notes,
+        })
+    for log in collection_logs:
+        comms_timeline.append({
+            'type': 'collection',
+            'label': f'{log.step.sequence.name} — Etapa #{log.occurrence_number}',
+            'installment_number': log.installment.installment_number,
+            'sent_at': log.sent_at,
+            'phone': log.phone,
+            'status': log.status,
+            'notes': log.notes,
+        })
+    comms_timeline.sort(key=lambda x: x['sent_at'], reverse=True)
 
     context = {
         'billing': billing,
         'installments': installments,
         'payment_methods': payment_methods,
         'gateway_config': gateway_config,
+        'comms_timeline': comms_timeline,
         'title': f'Cobrança #{billing.number}'
     }
     return render(request, 'services/finance/billing_detail.html', context)
@@ -1328,10 +1378,35 @@ def installment_pay(request, pk):
             billing.status = Billing.Status.PENDENTE
             
         billing.save()
-        
+
+        # Cancela cobranças pendentes no gateway para evitar pagamento duplo
+        if installment.status == Installment.Status.PAGO:
+            _cancel_pending_gateway_charges(installment)
+
         messages.success(request, f"Pagamento de R$ {total_this_time} registrado para a parcela {installment.installment_number}!")
-        
+
     return redirect('billing_detail', pk=installment.billing.id)
+
+
+def _cancel_pending_gateway_charges(installment):
+    """Cancela no Asaas todas as cobranças PENDING da parcela para evitar pagamento duplo."""
+    from pagamentos.gateways.asaas import AsaasGateway
+    from pagamentos.models import GatewayCharge
+
+    pending_charges = installment.gateway_charges.filter(status=GatewayCharge.Status.PENDING)
+    if not pending_charges.exists():
+        return
+
+    gw = AsaasGateway()
+    for charge in pending_charges:
+        try:
+            gw.cancel_charge(charge.external_id)
+            charge.status = GatewayCharge.Status.CANCELLED
+            charge.save(update_fields=['status', 'updated_at'])
+            logger.info('Cobrança %s cancelada no gateway após baixa manual da parcela %s', charge.external_id, installment.pk)
+        except Exception:
+            logger.exception('Erro ao cancelar cobrança %s no gateway após baixa manual', charge.external_id)
+
 
 def _apply_installment_form_data(installment, post_data):
     """Aplica due_date e payment_method_id de um POST a uma parcela existente."""

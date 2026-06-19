@@ -60,6 +60,10 @@ class GatewayConfig(models.Model):
                               choices=Status.choices, default=Status.NOT_CONFIGURED)
     status_detail = models.TextField('Detalhes do Status', blank=True)
 
+    # Métodos de pagamento habilitados
+    pix_enabled = models.BooleanField('PIX habilitado', default=True)
+    boleto_enabled = models.BooleanField('Boleto habilitado', default=False)
+
     # Split — margem retida pela plataforma
     platform_split_type = models.CharField('Tipo de Split', max_length=10,
                                            choices=SplitType.choices, default=SplitType.PERCENT)

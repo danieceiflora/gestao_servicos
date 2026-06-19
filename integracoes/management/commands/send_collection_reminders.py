@@ -47,7 +47,7 @@ class Command(BaseCommand):
                     status__in=['PENDENTE', 'PARCIAL', 'ATRASADO'],
                 )
                 .select_related('billing__client')
-                .prefetch_related('billing__client__phones')
+                .prefetch_related('billing__client__phones', 'gateway_charges')
             )
 
             for installment in installments:
@@ -106,10 +106,12 @@ class Command(BaseCommand):
                     if not conv:
                         raise ValueError('Conversa não criada no Chatwoot')
 
+                    button_data = self._resolve_button_data(step, installment)
                     cw_client.send_template(
                         conversation_id=conv['id'],
                         template_name=step.template_name,
                         variables=variables,
+                        button_data=button_data,
                     )
 
                     CollectionLog.objects.create(
@@ -158,9 +160,19 @@ class Command(BaseCommand):
 
     def _resolve_variables(self, step, installment):
         variables = []
-        for var in step.variables.order_by('index'):
+        for var in step.variables.filter(component='BODY').order_by('index'):
             val = resolve_field_path(installment, var.field_path)
             if hasattr(val, 'strftime'):
                 val = val.strftime('%d/%m/%Y')
             variables.append(str(val) if val is not None else '')
         return variables
+
+    def _resolve_button_data(self, step, installment):
+        btn_vars = step.variables.filter(component='BUTTON').order_by('index')
+        if not btn_vars.exists():
+            return None
+        params = {}
+        for var in btn_vars:
+            val = resolve_field_path(installment, var.field_path)
+            params[str(var.index)] = str(val) if val is not None else ''
+        return {'type': 'url_suffix', 'params': params}

@@ -52,6 +52,13 @@ ASAAS_API_KEY = os.environ.get('ASAAS_API_KEY', '')
 ASAAS_ENVIRONMENT = os.environ.get('ASAAS_ENVIRONMENT', 'SANDBOX')  # SANDBOX ou PRODUCTION
 ASAAS_MASTER_WALLET_ID = os.environ.get('ASAAS_MASTER_WALLET_ID', '')  # Wallet da conta master (recebe split das subcontas)
 
+# Margem da plataforma por método de pagamento (interna — não exposta na UI)
+# PIX: percentual sobre o valor da transação, com valor mínimo em R$
+PLATFORM_PIX_SPLIT_PERCENT = '0.008'   # 0,80%
+PLATFORM_PIX_SPLIT_MINIMUM = '2.50'    # mínimo R$ 2,50 (cobre o custo Asaas de R$ 1,99)
+# Boleto: taxa fixa por transação
+PLATFORM_BOLETO_SPLIT_FIXED = '2.50'   # R$ 2,50 fixo
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
