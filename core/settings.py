@@ -165,13 +165,13 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Cloudflare R2 Storage Configuration
-AWS_ACCESS_KEY_ID = "92a69e5e36b7b5ca24c1c67aac169427"
-AWS_SECRET_ACCESS_KEY = "26c51d95cbe863791a279143bce6167c966781528592321740da6a8ec2f54a89"
-AWS_STORAGE_BUCKET_NAME = "douradoscalhas"
-AWS_S3_ENDPOINT_URL = "https://864993dbb991b65dd66badf35775168d.r2.cloudflarestorage.com"
-AWS_S3_REGION_NAME = 'auto'
-AWS_S3_CUSTOM_DOMAIN = "pub-bfbc628274d94815aeff1489b7330bf0.r2.dev"
-AWS_QUERYSTRING_AUTH = False  # Set to True if you want signed URLs
+AWS_ACCESS_KEY_ID = os.environ.get('R2_ACCESS_KEY_ID', '')
+AWS_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY', '')
+AWS_STORAGE_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME', '')
+AWS_S3_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL', '')
+AWS_S3_REGION_NAME = os.environ.get('R2_REGION_NAME', 'auto')
+AWS_S3_CUSTOM_DOMAIN = os.environ.get('R2_CUSTOM_DOMAIN', '')
+AWS_QUERYSTRING_AUTH = False
 
 if all([AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_STORAGE_BUCKET_NAME, AWS_S3_ENDPOINT_URL]):
     STORAGES = {
@@ -220,9 +220,9 @@ PWA_SERVICE_WORKER_PATH = str(BASE_DIR / 'static' / 'js' / 'serviceworker.js')
 # Push Notifications (VAPID Keys)
 # Para gerar as chaves, execute: python -c "from pywebpush import webpush; print(webpush.generate_vapid_keys())"
 
-VAPID_PUBLIC_KEY = 'BDZbfktaARHBARUImIrqiUjk8qVLP7voLcr2DppTOWYF4lMJRCsIav6EBywVgtnUMeMZ1b7NbHOc1Dni7gyOgf0'
-VAPID_PRIVATE_KEY = 'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgh5fSGKWI80xtyhl9M6mjDd43eKUMpL6q2en2s0rwkUehRANCAAQ2W35LWgERwQEVCJiK6olI5PKlSz-76C3K9g6aUzlmBeJTCUQrCGr-hAcsFYLZ1DHjGdW-zWxznNQ54u4MjoH9'
-VAPID_ADMIN_EMAIL = 'admin@douradoscalhas.com.br'
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_ADMIN_EMAIL = os.environ.get('VAPID_ADMIN_EMAIL', 'admin@douradoscalhas.com.br')
 
 # Configuração de limites de upload para suportar arquivos grandes (ex: vídeos)
 # 210MB em bytes (210 * 1024 * 1024)
@@ -249,7 +249,7 @@ BLING_CLIENT_SECRET = None
 # Webhook Integration (Chatwoot)
 # Segredo fixo para facilitar testes locais.
 ##WEBHOOK_SHARED_SECRET = "NN2L3AnkCoT9jzGeFg4XcKZK"
-WEBHOOK_SHARED_SECRET = 'ofMMvS4WT9qusYCsjGZD3d5D'
+WEBHOOK_SHARED_SECRET = os.environ.get('WEBHOOK_SHARED_SECRET', '')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
