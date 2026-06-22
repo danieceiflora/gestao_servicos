@@ -1750,7 +1750,7 @@ def order_payment_add(request, order_id):
     })
 
 from django.http import JsonResponse
-import urllib.request
+import requests as _requests
 
 @login_required
 def resolve_maps_url(request):
@@ -1758,11 +1758,17 @@ def resolve_maps_url(request):
     short_url = request.GET.get('url', '')
     if not short_url:
         return JsonResponse({'error': 'No URL provided'}, status=400)
-    
+
     try:
-        req = urllib.request.Request(short_url, method='HEAD', headers={'User-Agent': 'Mozilla/5.0'})
-        response = urllib.request.urlopen(req, timeout=5)
-        return JsonResponse({'resolved_url': response.url})
+        resp = _requests.get(
+            short_url,
+            allow_redirects=True,
+            timeout=8,
+            headers={'User-Agent': 'Mozilla/5.0'},
+            stream=True,
+        )
+        resp.close()
+        return JsonResponse({'resolved_url': resp.url})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
@@ -2064,6 +2070,236 @@ def uppy_upload(request):
 # ---------------------------------------------------------------------------
 # PÁGINA PÚBLICA DE CONFIRMAÇÃO DE VISITA (sem login)
 # ---------------------------------------------------------------------------
+
+def public_os_page(request, token):
+    from integracoes.models import SystemConfig
+    from pagamentos.models import GatewayConfig, GatewayCharge
+    order = get_object_or_404(ServiceOrder, public_token=token)
+    config = SystemConfig.objects.first()
+
+    exec_task = order.tasks.filter(
+        task_type=ServiceOrderTask.TaskType.EXECUCAO
+    ).order_by('-scheduled_at').first()
+
+    budget_task = order.tasks.filter(
+        task_type=ServiceOrderTask.TaskType.ORCAMENTO
+    ).order_by('-scheduled_at').first()
+
+    # Itens do orçamento
+    budget_items = list(
+        budget_task.items.filter(cobrar_cliente=True).select_related('product', 'service')
+        if budget_task else []
+    )
+    budget_total = sum(i.total_price for i in budget_items)
+
+    # Itens e fotos da execução
+    exec_items = list(
+        exec_task.items.filter(cobrar_cliente=True).select_related('product', 'service')
+        if exec_task else []
+    )
+    exec_photos = list(exec_task.medias.all() if exec_task else [])
+    exec_total = sum(i.total_price for i in exec_items)
+
+    # Cobrança e parcela
+    billing = order.billings.order_by('-created_at').first()
+    installment = billing.installments.order_by('installment_number').first() if billing else None
+    active_charge = None
+    if installment:
+        active_charge = installment.gateway_charges.filter(
+            status=GatewayCharge.Status.PENDING
+        ).order_by('-created_at').first()
+
+    # Capacidade do gateway
+    gateway_config = GatewayConfig.load()
+    pix_available = gateway_config.can_generate_charges and gateway_config.pix_enabled
+    boleto_available = gateway_config.can_generate_charges and gateway_config.boleto_enabled
+
+    # CPF do cliente
+    client = order.client_property.client
+    has_cpf = bool(client.document)
+
+    # Preferência de pagamento registrada pelo cliente (na confirmação de visita)
+    payment_pref = exec_task.payment_method if exec_task else None
+
+    # Status da OS para controle de seções
+    paid_statuses = {
+        ServiceOrder.Status.FINALIZADO,
+        ServiceOrder.Status.CONCLUIDA,
+        ServiceOrder.Status.AGUARDANDO_PAGAMENTO,
+        ServiceOrder.Status.PAGAMENTO_PARCIAL,
+    }
+    show_payment_section = order.status in paid_statuses
+
+    return render(request, 'services/public/order_page.html', {
+        'order': order,
+        'config': config,
+        'exec_task': exec_task,
+        'budget_task': budget_task,
+        'budget_items': budget_items,
+        'budget_total': budget_total,
+        'exec_items': exec_items,
+        'exec_photos': exec_photos,
+        'exec_total': exec_total,
+        'billing': billing,
+        'installment': installment,
+        'active_charge': active_charge,
+        'pix_available': pix_available,
+        'boleto_available': boleto_available,
+        'has_cpf': has_cpf,
+        'payment_pref': payment_pref,
+        'show_payment_section': show_payment_section,
+    })
+
+
+def public_os_approve_budget(request, token):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+    order = get_object_or_404(ServiceOrder, public_token=token)
+    exec_task = order.tasks.filter(
+        task_type=ServiceOrderTask.TaskType.EXECUCAO
+    ).order_by('-scheduled_at').first()
+    if exec_task and not exec_task.is_approved:
+        exec_task.is_approved = True
+        exec_task.save(update_fields=['is_approved'])
+    return render(request, 'services/public/partials/budget_approved.html', {
+        'order': order,
+        'exec_task': exec_task,
+    })
+
+
+def public_os_generate_charge(request, token):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    from pagamentos.models import GatewayConfig, GatewayCharge
+    from pagamentos.gateways.asaas import AsaasGateway, ChargeData
+    from services.utils.finance import create_billing_for_os
+    from decimal import Decimal
+    from django.conf import settings
+
+    order = get_object_or_404(ServiceOrder, public_token=token)
+    method = request.POST.get('method', 'PIX').upper()
+    cpf_input = request.POST.get('cpf', '').strip()
+
+    def _error(msg):
+        return render(request, 'services/public/partials/charge_result.html', {'error': msg})
+
+    if method not in ('PIX', 'BOLETO'):
+        return _error('Método de pagamento inválido.')
+
+    gateway_config = GatewayConfig.load()
+    if not gateway_config.can_generate_charges:
+        return _error('Pagamento online não disponível no momento.')
+    if method == 'PIX' and not gateway_config.pix_enabled:
+        return _error('PIX não está disponível no momento.')
+    if method == 'BOLETO' and not gateway_config.boleto_enabled:
+        return _error('Boleto não está disponível no momento.')
+
+    # Garante billing/installment
+    billing = order.billings.order_by('-created_at').first()
+    if not billing:
+        billing = create_billing_for_os(order)
+    if not billing:
+        return _error('Não foi possível criar a cobrança. Valor da OS é zero.')
+
+    installment = billing.installments.order_by('installment_number').first()
+    if not installment:
+        return _error('Parcela não encontrada.')
+
+    # Verifica se já existe cobrança ativa
+    existing = installment.gateway_charges.filter(
+        status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
+                    GatewayCharge.Status.CONFIRMED]
+    ).first()
+    if existing:
+        return render(request, 'services/public/partials/charge_result.html', {
+            'charge': existing,
+        })
+
+    # Resolve CPF: usa o do cliente ou o informado na hora
+    client = order.client_property.client
+    client_doc = client.document or cpf_input
+    client_doc = ''.join(filter(str.isdigit, client_doc))
+    if not client_doc:
+        return render(request, 'services/public/partials/charge_result.html', {
+            'need_cpf': True,
+            'method': method,
+        })
+
+    client_email = client.emails.values_list('email', flat=True).first() or ''
+
+    try:
+        if method == 'PIX':
+            pct = Decimal(getattr(settings, 'PLATFORM_PIX_SPLIT_PERCENT', '0.008'))
+            minimum = Decimal(getattr(settings, 'PLATFORM_PIX_SPLIT_MINIMUM', '2.50'))
+            split_amount = max(installment.amount * pct, minimum)
+        else:
+            split_amount = Decimal(getattr(settings, 'PLATFORM_BOLETO_SPLIT_FIXED', '2.50'))
+
+        gw = AsaasGateway()
+        charge_data = ChargeData(
+            customer_name=client.name,
+            customer_document=client_doc,
+            customer_email=client_email,
+            description=f'OS #{order.number}',
+            amount=installment.amount,
+            due_date=installment.due_date,
+            method=method,
+            external_reference=str(installment.pk),
+        )
+        result = gw.create_charge(charge_data, split_amount=split_amount, gateway_config=gateway_config)
+
+        charge = GatewayCharge.objects.create(
+            installment=installment,
+            config=gateway_config,
+            gateway='ASAAS',
+            external_id=result['id'],
+            method=method,
+            status=GatewayCharge.Status.PENDING,
+            amount=installment.amount,
+            due_date=installment.due_date,
+        )
+
+        if method == 'PIX':
+            pix_data = gw.get_pix_qrcode(result['id'])
+            charge.pix_qrcode = pix_data.get('encodedImage', '')
+            charge.pix_copy_paste = pix_data.get('payload', '')
+            charge.invoice_url = result.get('invoiceUrl', '')
+            charge.save(update_fields=['pix_qrcode', 'pix_copy_paste', 'invoice_url'])
+        else:
+            charge.boleto_url = result.get('bankSlipUrl', '')
+            charge.boleto_barcode = result.get('nossoNumero', '')
+            charge.invoice_url = result.get('invoiceUrl', '')
+            charge.save(update_fields=['boleto_url', 'boleto_barcode', 'invoice_url'])
+
+        return render(request, 'services/public/partials/charge_result.html', {
+            'charge': charge,
+        })
+
+    except Exception as exc:
+        logger.exception('Erro ao gerar cobrança na página pública da OS #%s', order.number)
+        return _error(f'Não foi possível gerar a cobrança: {exc}')
+
+
+def public_os_pdf_budget(request, token):
+    from .utils.pdf_generator import BudgetPDFGenerator
+    order = get_object_or_404(ServiceOrder, public_token=token)
+    generator = BudgetPDFGenerator(order)
+    pdf_content = generator.generate()
+    response = HttpResponse(pdf_content, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="Orcamento_OS_{order.number}.pdf"'
+    return response
+
+
+def public_os_pdf_report(request, token):
+    from .utils.pdf_generator import CompletionPDFGenerator
+    order = get_object_or_404(ServiceOrder, public_token=token)
+    generator = CompletionPDFGenerator(order)
+    pdf_content = generator.generate()
+    response = HttpResponse(pdf_content, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="Relatorio_OS_{order.number}.pdf"'
+    return response
+
 
 def task_public_confirmation(request, token):
     from integracoes.models import SystemConfig

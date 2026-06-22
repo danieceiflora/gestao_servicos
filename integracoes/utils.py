@@ -27,6 +27,8 @@ CURATED_FIELDS = {
         ('total_value',                                         'OS > Valor Total'),
         ('created_at',                                          'OS > Data de Criação'),
         ('finished_at',                                         'OS > Data de Conclusão'),
+        ('public_token',                                        'OS > Token da Página Pública (sufixo URL)'),
+        ('public_page_url',                                     'OS > Link da Página Pública (URL completa)'),
         ('client_property.client.display_name',                 'Cliente > Nome Completo'),
         ('client_property.client.phones.first.phone',           'Cliente > Telefone / WhatsApp'),
         ('client_property.full_address',                        'Imóvel > Endereço Completo'),

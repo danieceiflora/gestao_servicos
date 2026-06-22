@@ -10,6 +10,11 @@ from . import views_bi
 
 urlpatterns = [
     path('confirmar/<uuid:token>/', views.task_public_confirmation, name='task_public_confirmation'),
+    path('os/<uuid:token>/', views.public_os_page, name='public_os_page'),
+    path('os/<uuid:token>/aprovar-orcamento/', views.public_os_approve_budget, name='public_os_approve_budget'),
+    path('os/<uuid:token>/gerar-cobranca/', views.public_os_generate_charge, name='public_os_generate_charge'),
+    path('os/<uuid:token>/pdf/orcamento/', views.public_os_pdf_budget, name='public_os_pdf_budget'),
+    path('os/<uuid:token>/pdf/relatorio/', views.public_os_pdf_report, name='public_os_pdf_report'),
     path('', views.home, name='home'),
     path('financeiro/', views_finance.finance_dashboard, name='finance_dashboard'),
     path('financeiro/comissoes/', views_finance.finance_commissions, name='finance_commissions'),
@@ -150,7 +155,7 @@ urlpatterns = [
     path('etapas/midia/<int:media_id>/excluir/', views.task_media_delete, name='task_media_delete'),
     
     # Itens da OS e Pagamentos
-    path('api/resolver-url-mapas/', views.resolve_maps_url, name='resolve_maps_url'),
+    path('api/resolve-maps-url/', views.resolve_maps_url, name='resolve_maps_url'),
     path('ordens/<uuid:order_id>/itens/adicionar/', views.order_item_add, name='order_item_add'),
     path('itens/<int:item_id>/excluir/', views.order_item_delete, name='order_item_delete'),
     path('itens/<int:item_id>/atualizar/', views.order_item_update, name='order_item_update'),

@@ -1217,6 +1217,13 @@ class ServiceOrder(models.Model):
     )
     stock_lowered = models.BooleanField(default=False, verbose_name="Estoque Baixado")
 
+    public_token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name="Token da Página Pública",
+    )
+
     def save(self, *args, **kwargs):
         if not self.number:
             from django.db.models import Max
@@ -1227,6 +1234,11 @@ class ServiceOrder(models.Model):
     def __str__(self):
         numero_visual = self.number if self.number else self.number
         return f"OS #{numero_visual} - {self.client_property.client.name}"
+
+    @property
+    def public_page_url(self):
+        from django.urls import reverse
+        return reverse('public_os_page', kwargs={'token': self.public_token})
 
     @property
     def total_value(self):

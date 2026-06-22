@@ -64,6 +64,14 @@ class GatewayConfig(models.Model):
     pix_enabled = models.BooleanField('PIX habilitado', default=True)
     boleto_enabled = models.BooleanField('Boleto habilitado', default=False)
 
+    webhook_token = models.CharField(
+        'Token de Autenticação do Webhook',
+        max_length=100,
+        blank=True,
+        help_text='Token cadastrado no painel Asaas ao registrar o webhook. '
+                  'O Asaas envia este valor no header asaas-access-token.',
+    )
+
     # Split — margem retida pela plataforma
     platform_split_type = models.CharField('Tipo de Split', max_length=10,
                                            choices=SplitType.choices, default=SplitType.PERCENT)

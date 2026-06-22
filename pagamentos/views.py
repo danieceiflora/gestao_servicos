@@ -59,6 +59,9 @@ def gateway_config_view(request):
         config.pix_enabled = 'pix_enabled' in request.POST
         config.boleto_enabled = 'boleto_enabled' in request.POST
 
+        # webhook_token pode ser vazio intencionalmente (desabilitar validação)
+        config.webhook_token = request.POST.get('webhook_token', '').strip()
+
         config.save()
 
         if action == 'create_subaccount':
@@ -202,7 +205,7 @@ def installment_create_charge(request, installment_pk):
         result = gw.create_charge(
             data,
             wallet_id=config.wallet_id,
-            subaccount_api_key=config.subaccount_api_key,
+            subaccount_api_key='',
             master_wallet_id=getattr(settings, 'ASAAS_MASTER_WALLET_ID', ''),
             split_type='FIXED',
             split_value=float(split_amount.quantize(Decimal('0.01'))),
@@ -283,6 +286,14 @@ def charge_detail(request, charge_pk):
 def asaas_webhook(request):
     if request.method != 'POST':
         return HttpResponse(status=405)
+
+    config = GatewayConfig.load()
+    
+    if config.webhook_token:
+        token_recebido = request.headers.get('asaas-access-token', '')
+        if token_recebido != config.webhook_token:
+            logger.warning(f'Webhook Asaas: token inválido recebido: {token_recebido!r}')
+            return HttpResponse(status=401)
 
     try:
         payload = json.loads(request.body)

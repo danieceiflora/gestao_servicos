@@ -18,6 +18,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-d)7wxg0q$t5rat7#5ti5i*7g!@n)n53+tsp0$!02dnvi3w@1f@'
 
 # SECURITY WARNING: don't run with debug turned on in production!
+##DEBUG = True if os.environ.get('DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on') else False
 DEBUG = False
 
 ALLOWED_HOSTS = ['*']
@@ -50,7 +51,7 @@ INSTALLED_APPS = [
 # --- ASAAS PAYMENT GATEWAY ---
 ASAAS_API_KEY = os.environ.get('ASAAS_API_KEY', '')
 ASAAS_ENVIRONMENT = os.environ.get('ASAAS_ENVIRONMENT', 'SANDBOX')  # SANDBOX ou PRODUCTION
-ASAAS_MASTER_WALLET_ID = os.environ.get('ASAAS_MASTER_WALLET_ID', '')  # Wallet da conta master (recebe split das subcontas)
+ASAAS_MASTER_WALLET_ID = os.environ.get('ASAAS_CLIENT_WALLET_ID', '')  # Wallet da conta master (recebe split das subcontas)
 
 # Margem da plataforma por método de pagamento (interna — não exposta na UI)
 # PIX: percentual sobre o valor da transação, com valor mínimo em R$

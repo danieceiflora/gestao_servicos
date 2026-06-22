@@ -211,6 +211,33 @@
       {% endif %}
     </div>
 
+    <!-- Bloco 3: Webhook -->
+    <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 mt-4">
+      <div class="px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <i data-lucide="webhook" class="h-4 w-4 text-slate-400"></i>
+          Autenticação do Webhook
+        </h2>
+      </div>
+      <div class="px-5 py-4 space-y-3">
+        <p class="text-xs text-slate-500">
+          Ao cadastrar o webhook no painel do Asaas, defina um <strong>Access Token</strong> e cole-o aqui.
+          O sistema irá rejeitar (HTTP 401) qualquer notificação que não apresente este token no header
+          <code class="bg-slate-100 px-1 py-0.5 rounded text-[11px]">asaas-access-token</code>.
+        </p>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Token de Autenticação</label>
+          <input type="text" name="webhook_token" value="{{ config.webhook_token }}"
+                 placeholder="Cole aqui o token configurado no Asaas"
+                 autocomplete="off"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+          <p class="text-[11px] text-slate-400 mt-1">
+            Deixe em branco para desabilitar a validação (não recomendado em produção).
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Ações -->
     <div class="flex flex-wrap items-center gap-3 mt-4">
       <button type="submit" name="action" value="save"
