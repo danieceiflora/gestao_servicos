@@ -12,6 +12,13 @@ logger = logging.getLogger(__name__)
 SANDBOX_URL = 'https://api-sandbox.asaas.com/v3'
 PRODUCTION_URL = 'https://api.asaas.com/v3'
 
+# Margem retida pela plataforma por método de pagamento.
+# A tarifa do Asaas é absorvida pela conta master; o cliente paga apenas estes valores.
+# Cálculo sempre sobre o valor bruto da cobrança.
+PIX_PLATFORM_PERCENT = Decimal('0.008')   # 0,80% do valor total
+PIX_PLATFORM_MINIMUM = Decimal('2.50')    # mínimo R$ 2,50 (cobre custo Asaas de R$ 1,99)
+BOLETO_PLATFORM_FIXED = Decimal('2.50')   # R$ 2,50 fixo
+
 STATUS_MAP = {
     'PENDING': 'PENDING',
     'RECEIVED': 'RECEIVED',
@@ -53,27 +60,36 @@ class AsaasGateway(BasePaymentGateway):
                 pass
             raise Exception(f'Asaas {resp.status_code}: {detail}')
 
+    # (connect_timeout, read_timeout) — Asaas sandbox pode ser lento para responder
+    _TIMEOUT = (10, 60)
+
     def _get(self, path, params=None, api_key: str = None):
         url = f'{self.base_url}/{path.lstrip("/")}'
-        resp = requests.get(url, headers=self._headers(api_key), params=params, timeout=30)
+        resp = requests.get(url, headers=self._headers(api_key), params=params, timeout=self._TIMEOUT)
         self._raise_for_status(resp)
         return resp.json()
 
     def _post(self, path, data, api_key: str = None):
         url = f'{self.base_url}/{path.lstrip("/")}'
-        resp = requests.post(url, headers=self._headers(api_key), json=data, timeout=30)
+        resp = requests.post(url, headers=self._headers(api_key), json=data, timeout=self._TIMEOUT)
         self._raise_for_status(resp)
         return resp.json()
 
     def _delete(self, path):
         url = f'{self.base_url}/{path.lstrip("/")}'
-        resp = requests.delete(url, headers=self._headers(), timeout=30)
+        resp = requests.delete(url, headers=self._headers(), timeout=self._TIMEOUT)
         self._raise_for_status(resp)
         return resp.json()
 
     def _clean_document(self, doc: str) -> str:
         import re
         return re.sub(r'\D', '', doc or '')
+
+    def _platform_margin(self, amount: Decimal, method: str) -> Decimal:
+        """Margem retida pela plataforma, calculada sobre o valor bruto."""
+        if method == 'PIX':
+            return max(amount * PIX_PLATFORM_PERCENT, PIX_PLATFORM_MINIMUM)
+        return BOLETO_PLATFORM_FIXED
 
     def _get_or_create_customer(self, name: str, document: str, email: str, api_key: str = None) -> str:
         doc_clean = self._clean_document(document)
@@ -124,21 +140,16 @@ class AsaasGateway(BasePaymentGateway):
             detail=str(result),
         )
 
-    def create_charge(
-        self,
-        data: ChargeData,
-        wallet_id: str = '',
-        subaccount_api_key: str = '',
-        master_wallet_id: str = '',
-        split_type: str = 'PERCENT',
-        split_value: float = 0,
-    ) -> ChargeResult:
-        # Se temos a API key da subconta, emitimos a cobrança através dela
-        # (remetente = empresa do cliente). Caso contrário, usa a master key.
-        use_key = subaccount_api_key or None
+    def create_charge(self, data: ChargeData, wallet_id: str = '') -> ChargeResult:
+        """Gera cobrança pela conta master.
 
+        Se wallet_id for fornecido, configura split automático:
+        o cliente (subconta) recebe o valor total menos a margem da plataforma,
+        calculada sobre o valor bruto (PIX: 0,80% mín R$2,50 | Boleto: R$2,50 fixo).
+        A tarifa do Asaas é absorvida pela conta master.
+        """
         customer_id = self._get_or_create_customer(
-            data.customer_name, data.customer_document, data.customer_email, api_key=use_key
+            data.customer_name, data.customer_document, data.customer_email
         )
 
         billing_type = 'PIX' if data.method == 'PIX' else 'BOLETO'
@@ -151,27 +162,12 @@ class AsaasGateway(BasePaymentGateway):
             'externalReference': data.external_reference,
         }
 
-        if subaccount_api_key:
-            # Cobrança via subconta → repasse da margem para a carteira master (nunca para a própria carteira do emissor)
-            if master_wallet_id:
-                platform_pct = float(split_value) if split_value else 0
-                if split_type == 'FIXED' and platform_pct > 0:
-                    payload['split'] = [{'walletId': master_wallet_id, 'fixedValue': round(platform_pct, 2)}]
-                elif platform_pct > 0:
-                    payload['split'] = [{'walletId': master_wallet_id, 'percentualValue': platform_pct}]
-            else:
-                logger.warning('ASAAS_MASTER_WALLET_ID não configurado — cobrança será emitida sem split de margem')
-        elif wallet_id:
-            # Cobrança via master → repasse da parte do cliente para subconta
-            if split_type == 'FIXED' and split_value > 0:
-                client_fixed = float(data.amount) - split_value
-                payload['split'] = [{'walletId': wallet_id, 'fixedValue': round(max(client_fixed, 0), 2)}]
-            else:
-                platform_pct = float(split_value) if split_value else 0
-                client_pct = round(100 - platform_pct, 4)
-                payload['split'] = [{'walletId': wallet_id, 'percentualValue': client_pct}]
+        if wallet_id:
+            margin = self._platform_margin(data.amount, data.method)
+            client_amount = max(data.amount - margin, Decimal('0'))
+            payload['split'] = [{'walletId': wallet_id, 'fixedValue': float(round(client_amount, 2))}]
 
-        result = self._post('payments', payload, api_key=use_key)
+        result = self._post('payments', payload)
         charge_id = result['id']
 
         charge = ChargeResult(
@@ -185,7 +181,7 @@ class AsaasGateway(BasePaymentGateway):
 
         if billing_type == 'PIX':
             try:
-                pix = self._get(f'payments/{charge_id}/pixQrCode', api_key=use_key)
+                pix = self._get(f'payments/{charge_id}/pixQrCode')
                 charge.pix_qrcode = pix.get('encodedImage', '')
                 charge.pix_copy_paste = pix.get('payload', '')
                 if pix.get('expirationDate'):
@@ -195,7 +191,7 @@ class AsaasGateway(BasePaymentGateway):
         else:
             charge.boleto_url = result.get('bankSlipUrl', '')
             try:
-                ident = self._get(f'payments/{charge_id}/identificationField', api_key=use_key)
+                ident = self._get(f'payments/{charge_id}/identificationField')
                 charge.boleto_barcode = ident.get('identificationField', '')
             except Exception:
                 logger.warning(f'Não foi possível obter código de barras para {charge_id}')

@@ -183,14 +183,6 @@ def installment_create_charge(request, installment_pk):
         return redirect('billing_detail', pk=installment.billing_id)
 
     try:
-        # Calcula margem da plataforma conforme método
-        if method == 'PIX':
-            pct = Decimal(getattr(settings, 'PLATFORM_PIX_SPLIT_PERCENT', '0.008'))
-            minimum = Decimal(getattr(settings, 'PLATFORM_PIX_SPLIT_MINIMUM', '2.50'))
-            split_amount = max(installment.amount * pct, minimum)
-        else:
-            split_amount = Decimal(getattr(settings, 'PLATFORM_BOLETO_SPLIT_FIXED', '2.50'))
-
         gw = _get_gateway()
         data = ChargeData(
             customer_name=client.name,
@@ -202,14 +194,7 @@ def installment_create_charge(request, installment_pk):
             method=method,
             external_reference=str(installment.pk),
         )
-        result = gw.create_charge(
-            data,
-            wallet_id=config.wallet_id,
-            subaccount_api_key='',
-            master_wallet_id=getattr(settings, 'ASAAS_MASTER_WALLET_ID', ''),
-            split_type='FIXED',
-            split_value=float(split_amount.quantize(Decimal('0.01'))),
-        )
+        result = gw.create_charge(data, wallet_id=config.wallet_id)
 
         GatewayCharge.objects.create(
             installment=installment,
