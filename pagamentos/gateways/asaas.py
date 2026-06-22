@@ -4,6 +4,7 @@ from datetime import datetime
 
 import requests
 from django.conf import settings
+from django.utils import timezone as dj_timezone
 
 from .base import BasePaymentGateway, SubaccountData, SubaccountResult, ChargeData, ChargeResult
 
@@ -185,7 +186,8 @@ class AsaasGateway(BasePaymentGateway):
                 charge.pix_qrcode = pix.get('encodedImage', '')
                 charge.pix_copy_paste = pix.get('payload', '')
                 if pix.get('expirationDate'):
-                    charge.pix_expiration_date = datetime.fromisoformat(pix['expirationDate'])
+                    naive = datetime.fromisoformat(pix['expirationDate'])
+                    charge.pix_expiration_date = dj_timezone.make_aware(naive) if naive.tzinfo is None else naive
             except Exception:
                 logger.warning(f'Não foi possível obter QR Code PIX para {charge_id}')
         else:
