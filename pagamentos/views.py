@@ -312,11 +312,35 @@ def asaas_webhook(request):
 
 
 def _auto_baixa_installment(charge: GatewayCharge):
-    from services.models import Installment as Inst, Billing
+    from services.models import Installment as Inst, Billing, SalePayment, PaymentMethod
+    from decimal import Decimal as D
+
     installment = charge.installment
     installment.status = Inst.Status.PAGO
     installment.paid_at = timezone.now()
     installment.save(update_fields=['status', 'paid_at'])
+
+    # Cria SalePayment para que get_total_paid() / saldo devedor reflitam o recebimento
+    method_label = 'PIX' if charge.method == 'PIX' else 'Boleto'
+    payment_method = (
+        PaymentMethod.objects.filter(descricao__icontains=method_label, ativo=True).first()
+        or PaymentMethod.objects.filter(ativo=True).first()
+    )
+    if payment_method:
+        valor_liquido = charge.net_value if charge.net_value else charge.amount
+        valor_tarifa = max(charge.amount - valor_liquido, D('0.00'))
+        SalePayment.objects.create(
+            installment=installment,
+            metodo_pagamento=payment_method,
+            valor_bruto=charge.amount,
+            valor_tarifa=valor_tarifa,
+            valor_liquido=valor_liquido,
+            data_pagamento=timezone.now(),
+            data_previsao=timezone.now().date(),
+        )
+    else:
+        logger.warning('_auto_baixa_installment: nenhum PaymentMethod ativo encontrado; '
+                       'SalePayment não criado para charge %s', charge.external_id)
 
     billing = installment.billing
     if not billing.installments.exclude(status=Inst.Status.PAGO).exists():
