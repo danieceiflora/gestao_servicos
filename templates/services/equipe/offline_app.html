@@ -275,9 +275,14 @@
             </div>
             <div class="type-photo-video hidden">
                 <div class="preview-container flex flex-wrap gap-2 mb-2"></div>
-                <button class="btn-capture w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 min-h-[44px] text-xs font-bold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
-                    <i data-lucide="camera" class="h-3.5 w-3.5"></i> Anexar Foto de Evidência
-                </button>
+                <div class="flex gap-2">
+                    <button class="btn-capture-photo hidden flex-1 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 min-h-[44px] text-xs font-bold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                        <i data-lucide="camera" class="h-3.5 w-3.5"></i> Foto de Evidência
+                    </button>
+                    <button class="btn-capture-video hidden flex-1 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 min-h-[44px] text-xs font-bold text-slate-600 hover:border-violet-400 hover:text-violet-600 transition-colors">
+                        <i data-lucide="video" class="h-3.5 w-3.5"></i> Gravar Vídeo
+                    </button>
+                </div>
             </div>
         </div>
     </div>

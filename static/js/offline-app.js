@@ -1784,13 +1784,25 @@ const OfflineApp = {
                 } else if (item.evidence_type === 'PHOTO' || item.evidence_type === 'VIDEO' || item.evidence_type === 'PHOTO_VIDEO') {
                     const photoSection = evidenceDiv.querySelector('.type-photo-video');
                     photoSection.classList.remove('hidden');
-                    const btnCapture = photoSection.querySelector('.btn-capture');
+                    const btnPhoto = photoSection.querySelector('.btn-capture-photo');
+                    const btnVideo = photoSection.querySelector('.btn-capture-video');
                     const previewContainer = photoSection.querySelector('.preview-container');
-                    
+
                     this.renderOfflineMedia(previewContainer, taskId, resp.id);
-                    
-                    if (disabled) btnCapture.classList.add('hidden');
-                    else btnCapture.onclick = () => this.captureMedia(taskId, resp.id, previewContainer);
+
+                    const showPhoto = item.evidence_type === 'PHOTO' || item.evidence_type === 'PHOTO_VIDEO';
+                    const showVideo = item.evidence_type === 'VIDEO' || item.evidence_type === 'PHOTO_VIDEO';
+
+                    if (!disabled) {
+                        if (showPhoto) {
+                            btnPhoto.classList.remove('hidden');
+                            btnPhoto.onclick = () => this.captureMedia(taskId, resp.id, previewContainer);
+                        }
+                        if (showVideo) {
+                            btnVideo.classList.remove('hidden');
+                            btnVideo.onclick = () => this.captureVideo(taskId, resp.id, previewContainer);
+                        }
+                    }
                 }
             }
 
