@@ -99,7 +99,8 @@ class GatewayConfig(models.Model):
 
     @property
     def is_sandbox(self):
-        return self.environment == self.Environment.SANDBOX
+        from django.conf import settings
+        return getattr(settings, 'ASAAS_ENVIRONMENT', 'SANDBOX').upper() == 'SANDBOX'
 
     @property
     def can_generate_charges(self):
