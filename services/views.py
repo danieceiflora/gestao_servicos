@@ -2166,7 +2166,7 @@ def public_os_page(request, token):
         is_paid = False
         billing_value = None
 
-        if is_exec_type and is_concluido:
+        if is_exec_type:
             billing_value = task.billing_value
             billing = task.billings.first()
             if billing:
@@ -2184,8 +2184,7 @@ def public_os_page(request, token):
         show_approval = is_orcamento and is_concluido and unapproved_exec is not None
         show_payment = (
             is_exec_type
-            and is_concluido
-            and (billing is not None or (billing_value and billing_value > 0))
+            and billing is not None
         )
 
         needs_action = (

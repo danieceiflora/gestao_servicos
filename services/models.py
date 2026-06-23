@@ -794,16 +794,20 @@ class Billing(models.Model):
             self.number = (max_number or 5000) + 1
         super().save(*args, **kwargs)
 
-    def __str__(self):
+    @property
+    def origem(self):
         if self.task:
-            origin = f"OS #{self.service_order.number} — Etapa {self.task.get_task_type_display()}" if self.service_order else f"Etapa {self.task.get_task_type_display()}"
-        elif self.sale and hasattr(self.sale, 'number'):
-            origin = f"Venda #{self.sale.number}"
-        elif self.service_order:
-            origin = f"OS #{self.service_order.number}"
-        else:
-            origin = "Manual"
-        return f"Cobrança #{self.number} ({origin})"
+            if self.service_order:
+                return f"OS #{self.service_order.number} — Etapa {self.task.get_task_type_display()}"
+            return f"Etapa {self.task.get_task_type_display()}"
+        if self.sale and hasattr(self.sale, 'number'):
+            return f"Venda #{self.sale.number}"
+        if self.service_order:
+            return f"OS #{self.service_order.number}"
+        return "Manual"
+
+    def __str__(self):
+        return f"Cobrança #{self.number} ({self.origem})"
 
     def get_total_paid(self):
         return sum(inst.get_total_paid() for inst in self.installments.all())
@@ -1262,6 +1266,19 @@ class ServiceOrder(models.Model):
             billable = self.items.all()
         items_total = sum((item.total_price for item in billable), Decimal('0'))
         return quantize_money(items_total)
+
+    @property
+    def total_value_net(self):
+        """Valor total após descontos por etapa (ou desconto legado da OS)."""
+        exec_garantia_types = [
+            ServiceOrderTask.TaskType.EXECUCAO,
+            ServiceOrderTask.TaskType.GARANTIA,
+            ServiceOrderTask.TaskType.RETORNO,
+        ]
+        billable_tasks = list(self.tasks.filter(task_type__in=exec_garantia_types))
+        if billable_tasks:
+            return quantize_money(sum((t.billing_value_net for t in billable_tasks), Decimal('0')))
+        return quantize_money(self.total_value - (self.discount or Decimal('0')))
 
     @property
     def total_paid(self):

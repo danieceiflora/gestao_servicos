@@ -76,6 +76,7 @@ CURATED_FIELDS = {
     'Billing': [
         ('number',                  'Cobrança > Número'),
         ('get_status_display',      'Cobrança > Status'),
+        ('origem',                  'Cobrança > Origem (ex: OS #1001)'),
         ('total_amount',            'Cobrança > Valor Bruto'),
         ('get_remaining_balance',   'Cobrança > Saldo Devedor'),
         ('get_total_paid',          'Cobrança > Total Pago'),
@@ -94,6 +95,7 @@ CURATED_FIELDS = {
         ('get_total_paid',              'Parcela > Total Pago'),
         ('get_remaining_balance',       'Parcela > Saldo Restante'),
         ('billing.number',              'Cobrança > Número'),
+        ('billing.origem',              'Cobrança > Origem (ex: OS #1001)'),
         ('billing.service_order.number','OS > Número'),
         ('billing.client.display_name', 'Cliente > Nome Completo'),
         ('billing.client.phones.first.phone', 'Cliente > Telefone / WhatsApp'),

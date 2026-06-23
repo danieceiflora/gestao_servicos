@@ -262,7 +262,7 @@
 
 
             {% if td.is_exec_type and td.is_concluido %}
-            <!-- ── EXECUÇÃO/GARANTIA CONCLUÍDA: itens + fotos + pagamento ── -->
+            <!-- ── EXECUÇÃO/GARANTIA CONCLUÍDA: itens + fotos ── -->
 
             {% if td.items %}
             <div class="divide-y divide-slate-50">
@@ -313,8 +313,11 @@
             </div>
             {% endif %}
 
+            {% endif %}
+            <!-- fim CONCLUIDO -->
+
             {% if td.show_payment %}
-            <!-- Seção de Pagamento por Etapa -->
+            <!-- ── PAGAMENTO: exibido sempre que houver cobrança, independente do status ── -->
             <div class="border-t border-slate-200 {% if not td.is_paid %}bg-amber-50{% endif %}">
                 <div class="px-5 py-4 border-b {% if td.is_paid %}border-slate-100{% else %}border-amber-100{% endif %} flex items-center gap-3">
                     <div class="h-8 w-8 flex items-center justify-center rounded-lg flex-none
@@ -455,9 +458,6 @@
             </div>
             {% endif %}
             <!-- fim show_payment -->
-
-            {% endif %}
-            <!-- fim CONCLUIDO -->
 
         </div>
     </details>

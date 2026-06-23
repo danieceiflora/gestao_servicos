@@ -70,34 +70,48 @@
                         </div>
                         <!-- Modo: campo dinâmico -->
                         <div class="slot-field-ui">
-                            <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
-                                <input type="hidden" name="var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
-                                <div class="relative">
-                                    <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
-                                    <input type="text"
-                                           class="sel-search w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-slate-900 transition-all"
-                                           placeholder="Buscar campo..."
-                                           autocomplete="off">
-                                </div>
-                                <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 hidden">
-                                    <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50 border-b border-slate-100"
-                                         data-value="" data-label="">
-                                        Selecione um campo...
-                                    </div>
-                                    {% for group_name, group_fields in suggested_fields_grouped %}
-                                    <div class="sel-group">
-                                        <div class="sel-group-header sticky top-0 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5">
-                                            <span>{{ group_name }}</span>
-                                        </div>
-                                        {% for path, full_label, field_label in group_fields %}
-                                        <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center justify-between gap-2"
-                                             data-value="{{ path }}" data-label="{{ full_label }}">
-                                            <span class="text-slate-800 font-medium">{{ field_label }}</span>
-                                            <span class="shrink-0 text-[10px] text-slate-400 font-mono truncate max-w-[40%]">{{ path }}</span>
-                                        </div>
+                            <div class="flex gap-2 items-start">
+                                <div class="flex-none w-36">
+                                    <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">Origem</label>
+                                    <select class="origin-select w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-slate-900 transition-all bg-white">
+                                        <option value="">Todas</option>
+                                        {% for group_name, group_fields in suggested_fields_grouped %}
+                                        <option value="{{ group_name }}">{{ group_name }}</option>
                                         {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">Campo</label>
+                                    <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
+                                        <input type="hidden" name="var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
+                                        <div class="relative">
+                                            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
+                                            <input type="text"
+                                                   class="sel-search w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-slate-900 transition-all"
+                                                   placeholder="Buscar campo..."
+                                                   autocomplete="off">
+                                        </div>
+                                        <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 hidden">
+                                            <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50 border-b border-slate-100"
+                                                 data-value="" data-label="">
+                                                Selecione um campo...
+                                            </div>
+                                            {% for group_name, group_fields in suggested_fields_grouped %}
+                                            <div class="sel-group" data-group="{{ group_name }}">
+                                                <div class="sel-group-header sticky top-0 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5">
+                                                    <span>{{ group_name }}</span>
+                                                </div>
+                                                {% for path, full_label, field_label in group_fields %}
+                                                <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center justify-between gap-2"
+                                                     data-value="{{ path }}" data-label="{{ full_label }}">
+                                                    <span class="text-slate-800 font-medium">{{ field_label }}</span>
+                                                    <span class="shrink-0 text-[10px] text-slate-400 font-mono truncate max-w-[40%]">{{ path }}</span>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                            {% endfor %}
+                                        </div>
                                     </div>
-                                    {% endfor %}
                                 </div>
                             </div>
                         </div>
@@ -150,34 +164,48 @@
                         </div>
                         <!-- Modo: campo dinâmico -->
                         <div class="slot-field-ui">
-                            <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
-                                <input type="hidden" name="btn_var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
-                                <div class="relative">
-                                    <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
-                                    <input type="text"
-                                           class="sel-search w-full rounded-lg border border-violet-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-violet-500 transition-all"
-                                           placeholder="Buscar campo para URL..."
-                                           autocomplete="off">
-                                </div>
-                                <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 hidden">
-                                    <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50 border-b border-slate-100"
-                                         data-value="" data-label="">
-                                        Selecione um campo...
-                                    </div>
-                                    {% for group_name, group_fields in suggested_fields_grouped %}
-                                    <div class="sel-group">
-                                        <div class="sel-group-header sticky top-0 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100">
-                                            {{ group_name }}
-                                        </div>
-                                        {% for path, full_label, field_label in group_fields %}
-                                        <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-violet-50 flex items-center justify-between gap-2"
-                                             data-value="{{ path }}" data-label="{{ full_label }}">
-                                            <span class="text-slate-800 font-medium">{{ field_label }}</span>
-                                            <span class="shrink-0 text-[10px] text-slate-400 font-mono truncate max-w-[40%]">{{ path }}</span>
-                                        </div>
+                            <div class="flex gap-2 items-start">
+                                <div class="flex-none w-36">
+                                    <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">Origem</label>
+                                    <select class="origin-select w-full rounded-lg border border-violet-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-violet-500 transition-all bg-white">
+                                        <option value="">Todas</option>
+                                        {% for group_name, group_fields in suggested_fields_grouped %}
+                                        <option value="{{ group_name }}">{{ group_name }}</option>
                                         {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">Campo</label>
+                                    <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
+                                        <input type="hidden" name="btn_var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
+                                        <div class="relative">
+                                            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
+                                            <input type="text"
+                                                   class="sel-search w-full rounded-lg border border-violet-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-violet-500 transition-all"
+                                                   placeholder="Buscar campo para URL..."
+                                                   autocomplete="off">
+                                        </div>
+                                        <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 hidden">
+                                            <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50 border-b border-slate-100"
+                                                 data-value="" data-label="">
+                                                Selecione um campo...
+                                            </div>
+                                            {% for group_name, group_fields in suggested_fields_grouped %}
+                                            <div class="sel-group" data-group="{{ group_name }}">
+                                                <div class="sel-group-header sticky top-0 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100">
+                                                    {{ group_name }}
+                                                </div>
+                                                {% for path, full_label, field_label in group_fields %}
+                                                <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-violet-50 flex items-center justify-between gap-2"
+                                                     data-value="{{ path }}" data-label="{{ full_label }}">
+                                                    <span class="text-slate-800 font-medium">{{ field_label }}</span>
+                                                    <span class="shrink-0 text-[10px] text-slate-400 font-mono truncate max-w-[40%]">{{ path }}</span>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                            {% endfor %}
+                                        </div>
                                     </div>
-                                    {% endfor %}
                                 </div>
                             </div>
                         </div>
@@ -263,30 +291,60 @@
             const dropdown = container.querySelector('.sel-dropdown');
             const hiddenValue = container.querySelector('.sel-hidden-value');
             const allOpts = container.querySelectorAll('.sel-opt');
+            const originSelect = container.closest('.slot-field-ui') && container.closest('.slot-field-ui').querySelector('.origin-select');
 
-            // Restaura label do valor salvo (ignora prefixo static:)
+            // Restaura label e origem do valor salvo
             const savedVal = hiddenValue.value;
             if (savedVal && !savedVal.startsWith('static:')) {
                 const match = [...allOpts].find(o => o.dataset.value === savedVal);
-                if (match) searchInput.value = match.dataset.label.split(' > ').pop();
+                if (match) {
+                    searchInput.value = match.dataset.label.split(' > ').pop();
+                    // Pré-seleciona a origem correta
+                    if (originSelect) {
+                        const group = match.closest('.sel-group');
+                        if (group) originSelect.value = group.dataset.group || '';
+                    }
+                }
+            }
+
+            function getActiveOrigin() {
+                return originSelect ? originSelect.value : '';
             }
 
             function filterOpts(query) {
                 const q = query.toLowerCase();
-                allOpts.forEach(function(opt) {
-                    const label = (opt.dataset.label || '').toLowerCase();
-                    const val = (opt.dataset.value || '').toLowerCase();
-                    opt.classList.toggle('hidden', !!q && !label.includes(q) && !val.includes(q));
-                });
+                const origin = getActiveOrigin();
                 dropdown.querySelectorAll('.sel-group').forEach(function(group) {
+                    const groupName = group.dataset.group || '';
+                    const originMatch = !origin || groupName === origin;
+                    if (!originMatch) {
+                        group.classList.add('hidden');
+                        return;
+                    }
+                    group.classList.remove('hidden');
+                    group.querySelectorAll('.sel-opt').forEach(function(opt) {
+                        const label = (opt.dataset.label || '').toLowerCase();
+                        const val = (opt.dataset.value || '').toLowerCase();
+                        opt.classList.toggle('hidden', !!q && !label.includes(q) && !val.includes(q));
+                    });
                     const hasVisible = group.querySelector('.sel-opt:not(.hidden)');
-                    group.classList.toggle('hidden', !hasVisible && !!q);
+                    group.classList.toggle('hidden', !hasVisible);
+                });
+            }
+
+            if (originSelect) {
+                originSelect.addEventListener('change', function() {
+                    hiddenValue.value = '';
+                    searchInput.value = '';
+                    dropdown.classList.remove('hidden');
+                    filterOpts('');
+                    searchInput.focus();
                 });
             }
 
             searchInput.addEventListener('focus', function() {
                 dropdown.classList.remove('hidden');
-                filterOpts('');
+                filterOpts(this.value);
             });
             searchInput.addEventListener('input', function() {
                 dropdown.classList.remove('hidden');

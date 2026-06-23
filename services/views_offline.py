@@ -151,7 +151,24 @@ def api_tecnico_bootstrap(request):
         # Coletar itens de checklist vinculados aos serviços das OSs ou templates ativos
         checklist_items = ServiceChecklistItem.objects.filter(is_active=True)
 
-        # Respostas de Check-list (Estava faltando!)
+        # Cria proativamente TaskChecklistResponse para tarefas com serviços que têm checklist.
+        # Sem isso, o app offline mostra "Sem checklist" enquanto ninguém abrir a tarefa no painel web.
+        _items_com_servico = task_items.filter(service__isnull=False).select_related(
+            'service__checklist_template'
+        )
+        _seen_pairs = set()
+        for _ti in _items_com_servico:
+            _svc = _ti.service
+            _cl_items = list(_svc.checklist_items.filter(is_active=True))
+            if _svc.checklist_template:
+                _cl_items.extend(list(_svc.checklist_template.items.filter(is_active=True)))
+            for _cl_item in _cl_items:
+                _key = (str(_ti.task_id), _cl_item.id)
+                if _key not in _seen_pairs:
+                    TaskChecklistResponse.objects.get_or_create(task_id=_ti.task_id, item=_cl_item)
+                    _seen_pairs.add(_key)
+
+        # Respostas de Check-list — inclui as recém-criadas acima
         responses = TaskChecklistResponse.objects.filter(task__in=tasks_qs)
 
         # Ocorrências

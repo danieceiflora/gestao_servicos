@@ -131,7 +131,7 @@
                         </td>
                         {% if user.is_manager %}
                         <td class="px-6 py-4 font-bold text-slate-900">
-                            R$ {{ order.total_value|floatformat:2 }}
+                            R$ {{ order.total_value_net|floatformat:2 }}
                         </td>
                         {% endif %}
                         <td class="px-6 py-4 text-right">
@@ -198,7 +198,7 @@
             <!-- Card Actions Footer -->
             <div class="flex items-center justify-between pt-3 border-t border-slate-100 gap-2">
                 {% if user.is_manager %}
-                <div class="text-sm font-bold text-slate-900">R$ {{ order.total_value|floatformat:2 }}</div>
+                <div class="text-sm font-bold text-slate-900">R$ {{ order.total_value_net|floatformat:2 }}</div>
                 {% else %}
                 <div class="flex-1"></div>
                 {% endif %}
