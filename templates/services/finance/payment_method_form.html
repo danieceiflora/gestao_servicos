@@ -51,6 +51,14 @@
                     {% if form.tarifa_porcentagem.errors %}<p class="text-xs text-rose-500">{{ form.tarifa_porcentagem.errors.0 }}</p>{% endif %}
                 </div>
 
+                <!-- Tarifa Mínima -->
+                <div class="space-y-1.5">
+                    <label class="text-sm font-semibold text-slate-700">Tarifa Mínima (R$)</label>
+                    {{ form.tarifa_minima }}
+                    {% if form.tarifa_minima.errors %}<p class="text-xs text-rose-500">{{ form.tarifa_minima.errors.0 }}</p>{% endif %}
+                    <p class="text-[10px] text-slate-400">Se a % resultar em valor menor, este mínimo é aplicado. Use 0 para desativar.</p>
+                </div>
+
                 <!-- Tarifa Fixa -->
                 <div class="space-y-1.5">
                     <label class="text-sm font-semibold text-slate-700">Tarifa Fixa por Venda (R$)</label>

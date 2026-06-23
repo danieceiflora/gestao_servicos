@@ -887,6 +887,7 @@ class PaymentMethod(models.Model):
     descricao = models.CharField(max_length=100, verbose_name="Descrição")
     tipo_provedor = models.CharField(max_length=20, choices=ProviderType.choices, verbose_name="Tipo de Provedor")
     tarifa_porcentagem = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Tarifa (%)")
+    tarifa_minima = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Tarifa Mínima (R$)", help_text="Se a tarifa percentual resultar em valor menor que este, aplica este mínimo.")
     tarifa_fixa = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Tarifa Fixa (R$)")
     prazo_recebimento = models.IntegerField(default=0, verbose_name="Prazo de Recebimento (dias)")
     codigo_sefaz = models.CharField(max_length=2, verbose_name="Código SEFAZ")

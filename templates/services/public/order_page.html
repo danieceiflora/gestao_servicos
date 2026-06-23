@@ -171,7 +171,7 @@
                 <div class="px-5 py-3 flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
                         <p class="text-sm text-slate-800 font-medium leading-snug">{{ item.description }}</p>
-                        <p class="text-xs text-slate-400 mt-0.5">{{ item.quantity|floatformat:"-2" }} × R$ {{ item.unit_price|floatformat:"2" }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Qtd: {{ item.quantity|floatformat:"-2" }}</p>
                     </div>
                     <p class="text-sm font-bold text-slate-900 shrink-0">R$ {{ item.total_price|floatformat:"2" }}</p>
                 </div>
@@ -270,7 +270,7 @@
                 <div class="px-5 py-3 flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
                         <p class="text-sm text-slate-800 font-medium leading-snug">{{ item.description }}</p>
-                        <p class="text-xs text-slate-400 mt-0.5">{{ item.quantity|floatformat:"-2" }} × R$ {{ item.unit_price|floatformat:"2" }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5">Qtd: {{ item.quantity|floatformat:"-2" }}</p>
                     </div>
                     <p class="text-sm font-bold text-slate-900 shrink-0">R$ {{ item.total_price|floatformat:"2" }}</p>
                 </div>
