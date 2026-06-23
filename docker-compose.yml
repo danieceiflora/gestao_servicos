@@ -20,6 +20,8 @@ services:
     volumes:
       - ./media:/app/media
       - static_volume:/app/staticfiles
+    env_file:
+      - .env
     environment:
       - DEBUG=False
       - ALLOWED_HOSTS=*
@@ -37,6 +39,8 @@ services:
     entrypoint: ["/bin/sh", "-c", "until python manage.py migrate --check 2>/dev/null; do echo 'Aguardando migrations...'; sleep 5; done && python manage.py process_media_queue"]
     volumes:
       - ./media:/app/media
+    env_file:
+      - .env
     environment:
       - DEBUG=False
       - ALLOWED_HOSTS=*
