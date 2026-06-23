@@ -161,6 +161,7 @@ urlpatterns = [
     path('itens/<int:item_id>/atualizar/', views.order_item_update, name='order_item_update'),
     path('ordens/<uuid:order_id>/pagamentos/adicionar/', views.order_payment_add, name='order_payment_add'),
     path('ordens/<uuid:order_id>/desconto/', views.order_discount_update, name='order_discount_update'),
+    path('etapas/<uuid:task_id>/desconto/', views.task_discount_update, name='task_discount_update'),
     path('ordens/<uuid:order_id>/observacao/', views.order_observation_update, name='order_observation_update'),
     
     # Push Notifications

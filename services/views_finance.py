@@ -1113,7 +1113,7 @@ def sale_return_cancel(request, return_id):
 # --- CRIAÇÃO DE COBRANÇA COM PARCELAMENTO LIVRE ---
 
 def _billing_create_context(order, task, payment_methods, due_days):
-    suggested_value = task.billing_value if task else order.balance_due
+    suggested_value = task.billing_value_net if task else order.balance_due
     today = timezone.now().date()
     return {
         'order': order,

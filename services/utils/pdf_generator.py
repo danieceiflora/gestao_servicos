@@ -549,7 +549,12 @@ class BudgetPDFGenerator(BasePDFGenerator):
         from decimal import Decimal
         elements = []
         gross_total = self.service_order.total_value or Decimal('0')
-        discount = self.service_order.discount or Decimal('0')
+
+        billable_types = ['EXECUCAO', 'GARANTIA', 'RETORNO']
+        billable_tasks = list(self.service_order.tasks.filter(task_type__in=billable_types))
+        task_discount = sum((t.discount or Decimal('0')) for t in billable_tasks)
+        discount = task_discount if task_discount > 0 else (self.service_order.discount or Decimal('0'))
+
         net_total = gross_total - discount
 
         total_paid = sum(
@@ -711,9 +716,15 @@ class CompletionPDFGenerator(BasePDFGenerator):
         return elements
 
     def _get_summary(self):
+        from decimal import Decimal
         elements = []
-        gross_total = self.service_order.total_value or 0
-        discount = self.service_order.discount or 0
+        gross_total = self.service_order.total_value or Decimal('0')
+
+        billable_types = ['EXECUCAO', 'GARANTIA', 'RETORNO']
+        billable_tasks = list(self.service_order.tasks.filter(task_type__in=billable_types))
+        task_discount = sum((t.discount or Decimal('0')) for t in billable_tasks)
+        discount = task_discount if task_discount > 0 else (self.service_order.discount or Decimal('0'))
+
         net_total = gross_total - discount
 
         summary_data = [

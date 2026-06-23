@@ -3761,10 +3761,24 @@
       }
     }
   }
+  .group-hover\:text-slate-500 {
+    &:is(:where(.group):hover *) {
+      @media (hover: hover) {
+        color: var(--color-slate-500);
+      }
+    }
+  }
   .group-hover\:text-slate-600 {
     &:is(:where(.group):hover *) {
       @media (hover: hover) {
         color: var(--color-slate-600);
+      }
+    }
+  }
+  .group-hover\:text-slate-800 {
+    &:is(:where(.group):hover *) {
+      @media (hover: hover) {
+        color: var(--color-slate-800);
       }
     }
   }

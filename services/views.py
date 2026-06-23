@@ -841,6 +841,8 @@ def service_order_detail(request, order_id):
         for b in order.billings.filter(task__isnull=False).select_related('task')
     }
 
+    total_task_discount = sum((t.discount or 0) for t in billable_tasks)
+
     return render(request, 'services/orders/order_detail.html', {
         'order': order,
         'tasks': tasks,
@@ -852,6 +854,7 @@ def service_order_detail(request, order_id):
         'billing': billing,
         'billable_tasks': billable_tasks,
         'task_billings': task_billings,
+        'total_task_discount': total_task_discount,
         'payment_methods': PaymentMethod.objects.filter(ativo=True).order_by('descricao'),
         'default_due_date': default_due_date,
     })
@@ -1795,6 +1798,48 @@ def order_discount_update(request, order_id):
         'form': form,
         'title': 'Aplicar Desconto'
     })
+
+
+@login_required
+@permission_required('services.change_serviceordertask', raise_exception=True)
+def task_discount_update(request, task_id):
+    from decimal import Decimal, InvalidOperation
+    task = get_object_or_404(ServiceOrderTask, id=task_id)
+    order = task.service_order
+
+    if request.method == 'POST':
+        raw = request.POST.get('discount', '0').strip().replace(',', '.')
+        try:
+            discount = Decimal(raw)
+        except InvalidOperation:
+            discount = Decimal('0')
+
+        discount = max(discount, Decimal('0'))
+        discount = min(discount, task.billing_value)
+
+        task.discount = discount
+        task.save(update_fields=['discount'])
+
+        # Propaga para Billing e Installment se já existirem
+        billing = task.billings.first()
+        if billing:
+            billing.discount = discount
+            billing.save(update_fields=['discount'])
+            installment = billing.installments.order_by('installment_number').first()
+            if installment and installment.status == 'PENDENTE':
+                net = max(task.billing_value - discount, Decimal('0'))
+                installment.amount = net
+                installment.save(update_fields=['amount'])
+
+        messages.success(request, 'Desconto da etapa atualizado com sucesso!')
+        return redirect('service_order_detail', order_id=order.id)
+
+    return render(request, 'services/orders/task_discount_form.html', {
+        'task': task,
+        'order': order,
+        'title': f'Desconto — {task.get_task_type_display()}',
+    })
+
 
 @login_required
 @permission_required('services.delete_servicemedia', raise_exception=True)

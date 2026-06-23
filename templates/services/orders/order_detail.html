@@ -898,14 +898,28 @@
                         </div>
                         <span class="text-sm font-bold text-slate-900 tabular-nums">R$ <span data-order-total-value>{{ order.total_value|floatformat:2 }}</span></span>
                     </div>
-                    {% if order.discount > 0 %}
-                    <div class="flex items-center justify-between py-3 border-b border-slate-50">
-                        <div>
-                            <p class="text-sm font-medium text-slate-700">Desconto Aplicado</p>
-                            <p class="text-xs text-slate-400"><a href="{% url 'order_discount_update' order.id %}" class="text-blue-600 hover:underline">Alterar</a></p>
+                    {% if billable_tasks %}
+                        {# Modo por etapa: mostra soma dos descontos de cada etapa #}
+                        {% if total_task_discount > 0 %}
+                        <div class="flex items-center justify-between py-3 border-b border-slate-50">
+                            <div>
+                                <p class="text-sm font-medium text-slate-700">Descontos</p>
+                                <p class="text-xs text-slate-400">Soma dos descontos por etapa</p>
+                            </div>
+                            <span class="text-sm font-bold text-red-600 tabular-nums">- R$ {{ total_task_discount|floatformat:2 }}</span>
                         </div>
-                        <span class="text-sm font-bold text-red-600 tabular-nums">- R$ {{ order.discount|floatformat:2 }}</span>
-                    </div>
+                        {% endif %}
+                    {% else %}
+                        {# Modo OS-level (legado): desconto global #}
+                        {% if order.discount > 0 %}
+                        <div class="flex items-center justify-between py-3 border-b border-slate-50">
+                            <div>
+                                <p class="text-sm font-medium text-slate-700">Desconto Aplicado</p>
+                                <p class="text-xs text-slate-400"><a href="{% url 'order_discount_update' order.id %}" class="text-blue-600 hover:underline">Alterar</a></p>
+                            </div>
+                            <span class="text-sm font-bold text-red-600 tabular-nums">- R$ {{ order.discount|floatformat:2 }}</span>
+                        </div>
+                        {% endif %}
                     {% endif %}
                     <div class="flex items-center justify-between py-3 border-b border-slate-50">
                         <div>
@@ -923,7 +937,7 @@
                             R$ <span data-order-balance-due>{{ order.balance_due|floatformat:2 }}</span>
                         </span>
                     </div>
-                    {% if not order.discount > 0 %}
+                    {% if not billable_tasks and not order.discount > 0 %}
                     <div class="pt-4">
                         <a href="{% url 'order_discount_update' order.id %}" class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors">
                             <i data-lucide="percent" class="h-3.5 w-3.5"></i>Aplicar desconto
@@ -956,8 +970,26 @@
                         {% endif %}
                     </div>
                     <div class="px-4 py-3">
-                        <p class="text-xs text-slate-500 mb-0.5">{{ task.scheduled_at|date:"d/m/Y" }}{% if task.finished_at %} · Concluído {{ task.finished_at|date:"d/m/Y" }}{% endif %}</p>
-                        <p class="text-lg font-black text-slate-900 tabular-nums">R$ {{ task.billing_value|floatformat:2 }}</p>
+                        <p class="text-xs text-slate-500 mb-1">{{ task.scheduled_at|date:"d/m/Y" }}{% if task.finished_at %} · Concluído {{ task.finished_at|date:"d/m/Y" }}{% endif %}</p>
+                        {% if task.discount > 0 %}
+                        <div class="space-y-0.5">
+                            <p class="text-sm text-slate-400 tabular-nums line-through">R$ {{ task.billing_value|floatformat:2 }}</p>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-medium text-red-500">- R$ {{ task.discount|floatformat:2 }}</span>
+                                <a href="{% url 'task_discount_update' task.id %}" class="text-[10px] text-blue-500 hover:underline">alterar</a>
+                            </div>
+                            <p class="text-lg font-black text-slate-900 tabular-nums">R$ {{ task.billing_value_net|floatformat:2 }}</p>
+                        </div>
+                        {% else %}
+                        <div class="flex items-center gap-3">
+                            <p class="text-lg font-black text-slate-900 tabular-nums">R$ {{ task.billing_value|floatformat:2 }}</p>
+                            {% if not task_billing %}
+                            <a href="{% url 'task_discount_update' task.id %}" class="text-[10px] text-slate-400 hover:text-slate-700 transition-colors flex items-center gap-0.5">
+                                <i data-lucide="percent" class="h-3 w-3"></i>desconto
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
                     <div class="px-4 pb-4">
                         {% if task_billing %}
@@ -1011,8 +1043,8 @@
                 {% endif %}
                 {% endif %}
 
-                {# Atalho desconto #}
-                {% if billing or billable_tasks %}
+                {# Atalho desconto — apenas no modo legado (OS-level billing) #}
+                {% if billing and not billable_tasks %}
                 <a href="{% url 'order_discount_update' order.id %}" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
                     <i data-lucide="percent" class="h-4 w-4 text-slate-400"></i>Aplicar / Editar Desconto
                 </a>

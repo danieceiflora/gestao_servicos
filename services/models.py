@@ -1399,6 +1399,7 @@ class ServiceOrderTask(models.Model):
     
     # Valor e Aprovação
     value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Valor da Etapa (R$)")
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto (R$)")
     requires_client_approval = models.BooleanField(default=False, verbose_name="Requer Aprovação do Cliente?")
     is_approved = models.BooleanField(default=False, verbose_name="Aprovado pelo Cliente?")
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, null=True, blank=True, verbose_name="Método de Pagamento Preferencial")
@@ -1501,11 +1502,16 @@ class ServiceOrderTask(models.Model):
 
     @property
     def billing_value(self):
-        """Valor a cobrar: soma dos itens da etapa onde cobrar_cliente=True."""
+        """Valor bruto: soma dos itens da etapa onde cobrar_cliente=True."""
         result = self.items.filter(cobrar_cliente=True).aggregate(
             total=Sum(F('quantity') * F('unit_price'))
         )['total']
         return quantize_money(result or Decimal('0'))
+
+    @property
+    def billing_value_net(self):
+        """Valor a cobrar após desconto da etapa."""
+        return quantize_money(max(self.billing_value - (self.discount or Decimal('0')), Decimal('0')))
 
     @property
     def team_display(self):

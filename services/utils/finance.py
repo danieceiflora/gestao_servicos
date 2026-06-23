@@ -12,8 +12,8 @@ def _get_due_date():
 def create_billing_for_task(task):
     """
     Gera um Billing vinculado a uma etapa concluída (EXECUCAO, GARANTIA ou RETORNO).
-    Valor = soma dos itens com cobrar_cliente=True. Impede duplicata por etapa.
-    Retorna None se o valor for zero.
+    Aplica task.discount como desconto da cobrança.
+    Impede duplicata por etapa. Retorna None se o valor bruto for zero.
     """
     if task.billings.exists():
         return task.billings.first()
@@ -22,12 +22,15 @@ def create_billing_for_task(task):
     if not value:
         return None
 
+    discount = task.discount or Decimal('0')
+    net_value = max(value - discount, Decimal('0'))
+
     billing = Billing.objects.create(
         client=task.service_order.client_property.client,
         service_order=task.service_order,
         task=task,
         total_amount=value,
-        discount=Decimal('0'),
+        discount=discount,
         status=Billing.Status.PENDENTE
     )
 
@@ -35,7 +38,7 @@ def create_billing_for_task(task):
         billing=billing,
         installment_number=1,
         due_date=_get_due_date(),
-        amount=value,
+        amount=net_value,
         status=Installment.Status.PENDENTE
     )
 
