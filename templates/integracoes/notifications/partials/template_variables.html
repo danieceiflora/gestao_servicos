@@ -49,47 +49,61 @@
     </script>
     {% endif %}
 
-    <!-- Mapeamento de Variáveis -->
+    <!-- Mapeamento de Variáveis do Corpo -->
     {% if vars_count %}
     <div class="space-y-4">
         <label class="text-sm font-bold text-slate-700">Mapeamento de Variáveis do Corpo</label>
         <div class="grid gap-3">
             {% for i in vars_count %}
-            <div class="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+            <div class="flex items-start gap-3 p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
                 <div class="flex-none h-8 w-8 flex items-center justify-center rounded-lg bg-slate-900 text-white text-xs font-bold">
                     {{ i }}
                 </div>
                 <div class="flex-grow min-w-0">
                     {% with current_path=existing_vars|get_item:i %}
                     <input type="hidden" name="var_index[]" value="{{ i }}">
-                    <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
-                        <input type="hidden" name="var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
-                        <div class="relative">
-                            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
-                            <input type="text"
-                                   class="sel-search w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-slate-900 transition-all"
-                                   placeholder="Buscar campo..."
-                                   autocomplete="off">
+                    <div class="var-slot-inner space-y-2">
+                        <!-- Toggle de modo -->
+                        <div class="flex rounded-lg border border-slate-200 w-fit overflow-hidden text-[11px] font-semibold">
+                            <button type="button" class="slot-mode-btn px-3 py-1 transition-colors" data-mode="field">Campo</button>
+                            <button type="button" class="slot-mode-btn px-3 py-1 transition-colors" data-mode="static">Texto fixo</button>
                         </div>
-                        <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 hidden">
-                            <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50 border-b border-slate-100"
-                                 data-value="" data-label="">
-                                Selecione um campo...
-                            </div>
-                            {% for group_name, group_fields in suggested_fields_grouped %}
-                            <div class="sel-group">
-                                <div class="sel-group-header sticky top-0 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5">
-                                    <span>{{ group_name }}</span>
+                        <!-- Modo: campo dinâmico -->
+                        <div class="slot-field-ui">
+                            <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
+                                <input type="hidden" name="var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
+                                <div class="relative">
+                                    <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
+                                    <input type="text"
+                                           class="sel-search w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-slate-900 transition-all"
+                                           placeholder="Buscar campo..."
+                                           autocomplete="off">
                                 </div>
-                                {% for path, full_label, field_label in group_fields %}
-                                <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center justify-between gap-2"
-                                     data-value="{{ path }}" data-label="{{ full_label }}">
-                                    <span class="text-slate-800 font-medium">{{ field_label }}</span>
-                                    <span class="shrink-0 text-[10px] text-slate-400 font-mono truncate max-w-[40%]">{{ path }}</span>
+                                <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 hidden">
+                                    <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50 border-b border-slate-100"
+                                         data-value="" data-label="">
+                                        Selecione um campo...
+                                    </div>
+                                    {% for group_name, group_fields in suggested_fields_grouped %}
+                                    <div class="sel-group">
+                                        <div class="sel-group-header sticky top-0 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100 flex items-center gap-1.5">
+                                            <span>{{ group_name }}</span>
+                                        </div>
+                                        {% for path, full_label, field_label in group_fields %}
+                                        <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 flex items-center justify-between gap-2"
+                                             data-value="{{ path }}" data-label="{{ full_label }}">
+                                            <span class="text-slate-800 font-medium">{{ field_label }}</span>
+                                            <span class="shrink-0 text-[10px] text-slate-400 font-mono truncate max-w-[40%]">{{ path }}</span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endfor %}
                                 </div>
-                                {% endfor %}
                             </div>
-                            {% endfor %}
+                        </div>
+                        <!-- Modo: texto fixo -->
+                        <div class="slot-static-ui hidden">
+                            <input type="text" class="static-text-input w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:border-slate-900 transition-colors" placeholder="Digite o texto que será enviado...">
                         </div>
                     </div>
                     {% endwith %}
@@ -105,6 +119,7 @@
     </div>
     {% endif %}
 
+    <!-- Mapeamento de Variáveis de Botão -->
     {% if button_vars %}
     <div class="space-y-4 pt-2 border-t border-slate-100">
         <div class="flex items-center gap-2">
@@ -125,36 +140,50 @@
                         <span class="text-xs font-semibold text-slate-700">{{ btn.btn_text }}</span>
                         <span class="text-[10px] font-mono text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded truncate max-w-[200px]">{{ btn.url_template }}</span>
                     </div>
-                    <p class="text-[11px] text-slate-400">Selecione o campo que vai preencher o sufixo dinâmico da URL deste botão.</p>
+                    <p class="text-[11px] text-slate-400">Selecione o campo ou informe o sufixo fixo para a URL deste botão.</p>
                     <input type="hidden" name="btn_var_index[]" value="{{ btn.btn_index }}">
-                    <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
-                        <input type="hidden" name="btn_var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
-                        <div class="relative">
-                            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
-                            <input type="text"
-                                   class="sel-search w-full rounded-lg border border-violet-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-violet-500 transition-all"
-                                   placeholder="Buscar campo para URL..."
-                                   autocomplete="off">
+                    <div class="var-slot-inner space-y-2">
+                        <!-- Toggle de modo -->
+                        <div class="flex rounded-lg border border-violet-200 w-fit overflow-hidden text-[11px] font-semibold">
+                            <button type="button" class="slot-mode-btn px-3 py-1 transition-colors" data-mode="field">Campo</button>
+                            <button type="button" class="slot-mode-btn px-3 py-1 transition-colors" data-mode="static">Texto fixo</button>
                         </div>
-                        <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 hidden">
-                            <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50 border-b border-slate-100"
-                                 data-value="" data-label="">
-                                Selecione um campo...
-                            </div>
-                            {% for group_name, group_fields in suggested_fields_grouped %}
-                            <div class="sel-group">
-                                <div class="sel-group-header sticky top-0 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100">
-                                    {{ group_name }}
+                        <!-- Modo: campo dinâmico -->
+                        <div class="slot-field-ui">
+                            <div class="searchable-select relative" data-current="{{ current_path|default:'' }}">
+                                <input type="hidden" name="btn_var_path[]" value="{{ current_path|default:'' }}" class="sel-hidden-value">
+                                <div class="relative">
+                                    <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"></i>
+                                    <input type="text"
+                                           class="sel-search w-full rounded-lg border border-violet-200 pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-violet-500 transition-all"
+                                           placeholder="Buscar campo para URL..."
+                                           autocomplete="off">
                                 </div>
-                                {% for path, full_label, field_label in group_fields %}
-                                <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-violet-50 flex items-center justify-between gap-2"
-                                     data-value="{{ path }}" data-label="{{ full_label }}">
-                                    <span class="text-slate-800 font-medium">{{ field_label }}</span>
-                                    <span class="shrink-0 text-[10px] text-slate-400 font-mono truncate max-w-[40%]">{{ path }}</span>
+                                <div class="sel-dropdown absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 hidden">
+                                    <div class="sel-opt px-3 py-2 text-sm cursor-pointer text-slate-400 hover:bg-slate-50 border-b border-slate-100"
+                                         data-value="" data-label="">
+                                        Selecione um campo...
+                                    </div>
+                                    {% for group_name, group_fields in suggested_fields_grouped %}
+                                    <div class="sel-group">
+                                        <div class="sel-group-header sticky top-0 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100">
+                                            {{ group_name }}
+                                        </div>
+                                        {% for path, full_label, field_label in group_fields %}
+                                        <div class="sel-opt px-3 py-2 text-sm cursor-pointer hover:bg-violet-50 flex items-center justify-between gap-2"
+                                             data-value="{{ path }}" data-label="{{ full_label }}">
+                                            <span class="text-slate-800 font-medium">{{ field_label }}</span>
+                                            <span class="shrink-0 text-[10px] text-slate-400 font-mono truncate max-w-[40%]">{{ path }}</span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endfor %}
                                 </div>
-                                {% endfor %}
                             </div>
-                            {% endfor %}
+                        </div>
+                        <!-- Modo: texto fixo -->
+                        <div class="slot-static-ui hidden">
+                            <input type="text" class="static-text-input w-full rounded-lg border border-violet-200 px-3 py-2 text-sm focus:outline-none focus:border-violet-500 transition-colors" placeholder="Digite o sufixo fixo da URL...">
                         </div>
                     </div>
                 </div>
@@ -170,6 +199,64 @@
 <script>
     if (typeof lucide !== 'undefined') { lucide.createIcons(); }
 
+    function initVarSlots(root) {
+        root.querySelectorAll('.var-slot-inner').forEach(function(slot) {
+            if (slot.dataset.vsInit) return;
+            slot.dataset.vsInit = '1';
+
+            var fieldUI = slot.querySelector('.slot-field-ui');
+            var staticUI = slot.querySelector('.slot-static-ui');
+            var staticInput = slot.querySelector('.static-text-input');
+            var hiddenValue = slot.querySelector('.sel-hidden-value');
+            var modeBtns = slot.querySelectorAll('.slot-mode-btn');
+
+            function applyToggleStyle(activeMode) {
+                modeBtns.forEach(function(btn) {
+                    var isActive = btn.dataset.mode === activeMode;
+                    btn.classList.toggle('bg-slate-900', isActive);
+                    btn.classList.toggle('text-white', isActive);
+                    btn.classList.toggle('text-slate-500', !isActive);
+                    btn.classList.toggle('bg-white', !isActive);
+                });
+            }
+
+            function setMode(mode) {
+                if (mode === 'static') {
+                    fieldUI.classList.add('hidden');
+                    staticUI.classList.remove('hidden');
+                    applyToggleStyle('static');
+                    hiddenValue.value = staticInput.value ? 'static:' + staticInput.value : '';
+                } else {
+                    fieldUI.classList.remove('hidden');
+                    staticUI.classList.add('hidden');
+                    applyToggleStyle('field');
+                    if (hiddenValue.value.startsWith('static:')) {
+                        hiddenValue.value = '';
+                        var searchInput = fieldUI.querySelector('.sel-search');
+                        if (searchInput) searchInput.value = '';
+                    }
+                }
+            }
+
+            // Restaura modo a partir do valor salvo
+            var savedVal = hiddenValue ? hiddenValue.value : '';
+            if (savedVal.startsWith('static:')) {
+                staticInput.value = savedVal.slice(7);
+                setMode('static');
+            } else {
+                setMode('field');
+            }
+
+            modeBtns.forEach(function(btn) {
+                btn.addEventListener('click', function() { setMode(this.dataset.mode); });
+            });
+
+            staticInput.addEventListener('input', function() {
+                hiddenValue.value = this.value ? 'static:' + this.value : '';
+            });
+        });
+    }
+
     function initSearchableSelects(root) {
         root.querySelectorAll('.searchable-select').forEach(function(container) {
             const searchInput = container.querySelector('.sel-search');
@@ -177,9 +264,9 @@
             const hiddenValue = container.querySelector('.sel-hidden-value');
             const allOpts = container.querySelectorAll('.sel-opt');
 
-            // Restaura label do valor salvo
+            // Restaura label do valor salvo (ignora prefixo static:)
             const savedVal = hiddenValue.value;
-            if (savedVal) {
+            if (savedVal && !savedVal.startsWith('static:')) {
                 const match = [...allOpts].find(o => o.dataset.value === savedVal);
                 if (match) searchInput.value = match.dataset.label.split(' > ').pop();
             }
@@ -191,7 +278,6 @@
                     const val = (opt.dataset.value || '').toLowerCase();
                     opt.classList.toggle('hidden', !!q && !label.includes(q) && !val.includes(q));
                 });
-                // Oculta grupos que ficaram sem itens visíveis
                 dropdown.querySelectorAll('.sel-group').forEach(function(group) {
                     const hasVisible = group.querySelector('.sel-opt:not(.hidden)');
                     group.classList.toggle('hidden', !hasVisible && !!q);
@@ -218,7 +304,6 @@
                 opt.addEventListener('mousedown', function(e) {
                     e.preventDefault();
                     hiddenValue.value = this.dataset.value;
-                    // Mostra só a parte "Campo" do label "Grupo > Campo"
                     const label = this.dataset.label || '';
                     searchInput.value = label.includes(' > ') ? label.split(' > ').pop() : label;
                     dropdown.classList.add('hidden');
@@ -232,8 +317,12 @@
         });
     }
 
-    initSearchableSelects(document.currentScript.closest('.space-y-4') || document);
+    var _initRoot = document.currentScript.closest('.space-y-4') || document;
+    initVarSlots(_initRoot);
+    initSearchableSelects(_initRoot);
+
     document.body.addEventListener('htmx:afterSwap', function(evt) {
+        initVarSlots(evt.detail.target);
         initSearchableSelects(evt.detail.target);
         if (typeof lucide !== 'undefined') lucide.createIcons();
     });

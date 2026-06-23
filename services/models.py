@@ -1236,9 +1236,13 @@ class ServiceOrder(models.Model):
         return f"OS #{numero_visual} - {self.client_property.client.name}"
 
     @property
+    def public_page_path(self):
+        return f"os/{self.public_token}/"
+
+    @property
     def public_page_url(self):
-        from django.urls import reverse
-        return reverse('public_os_page', kwargs={'token': self.public_token})
+        from django.conf import settings
+        return f"{settings.SITE_URL.rstrip('/')}/os/{self.public_token}/"
 
     @property
     def total_value(self):

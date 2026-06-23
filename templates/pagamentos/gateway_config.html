@@ -178,64 +178,6 @@
         </div>
       </div>
 
-      <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Ambiente</label>
-          <select name="environment"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-            {% for val, label in config.Environment.choices %}
-            <option value="{{ val }}" {% if config.environment == val %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      </div>
-
-      {% if config.wallet_id %}
-      <div class="px-5 py-4 space-y-2">
-        <div>
-          <p class="text-xs text-slate-500 mb-1">Wallet ID (subconta)</p>
-          <p class="font-mono text-sm text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 select-all">{{ config.wallet_id }}</p>
-        </div>
-        <div class="flex items-center gap-2 text-xs">
-          {% if config.subaccount_api_key %}
-          <span class="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md">
-            <i data-lucide="key-round" class="h-3 w-3"></i> API Key da subconta capturada — cobranças no nome do cliente
-          </span>
-          {% else %}
-          <span class="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
-            <i data-lucide="key-round" class="h-3 w-3"></i> API Key da subconta não encontrada — cobranças sairão no nome da plataforma
-          </span>
-          {% endif %}
-        </div>
-      </div>
-      {% endif %}
-    </div>
-
-    <!-- Bloco 3: Webhook -->
-    <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 mt-4">
-      <div class="px-5 py-4">
-        <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
-          <i data-lucide="webhook" class="h-4 w-4 text-slate-400"></i>
-          Autenticação do Webhook
-        </h2>
-      </div>
-      <div class="px-5 py-4 space-y-3">
-        <p class="text-xs text-slate-500">
-          Ao cadastrar o webhook no painel do Asaas, defina um <strong>Access Token</strong> e cole-o aqui.
-          O sistema irá rejeitar (HTTP 401) qualquer notificação que não apresente este token no header
-          <code class="bg-slate-100 px-1 py-0.5 rounded text-[11px]">asaas-access-token</code>.
-        </p>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Token de Autenticação</label>
-          <input type="text" name="webhook_token" value="{{ config.webhook_token }}"
-                 placeholder="Cole aqui o token configurado no Asaas"
-                 autocomplete="off"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
-          <p class="text-[11px] text-slate-400 mt-1">
-            Deixe em branco para desabilitar a validação (não recomendado em produção).
-          </p>
-        </div>
-      </div>
     </div>
 
     <!-- Ações -->
@@ -262,26 +204,6 @@
       {% endif %}
     </div>
   </form>
-
-  <!-- Informações de Webhook -->
-  <div class="bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 space-y-2">
-    <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
-      <i data-lucide="webhook" class="h-4 w-4 text-slate-400"></i>
-      Webhook URL
-    </h3>
-    <p class="text-xs text-slate-500">Cadastre esta URL no painel do Asaas para receber confirmações automáticas de pagamento:</p>
-    <p class="font-mono text-xs text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-2 select-all break-all">
-      {{ request.scheme }}://{{ request.get_host }}{% url 'pagamentos:asaas_webhook' %}
-    </p>
-    <p class="text-xs text-slate-400">Eventos: <code>PAYMENT_RECEIVED</code>, <code>PAYMENT_CONFIRMED</code>, <code>PAYMENT_OVERDUE</code></p>
-  </div>
-
-  {% if config.status_detail %}
-  <details class="bg-slate-50 border border-slate-200 rounded-xl">
-    <summary class="px-5 py-3 text-xs font-medium text-slate-600 cursor-pointer">Detalhes da última resposta do Asaas</summary>
-    <pre class="px-5 pb-4 text-xs text-slate-500 overflow-auto max-h-48">{{ config.status_detail }}</pre>
-  </details>
-  {% endif %}
 
 </div>
 

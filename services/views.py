@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
@@ -2074,80 +2075,116 @@ def uppy_upload(request):
 def public_os_page(request, token):
     from integracoes.models import SystemConfig
     from pagamentos.models import GatewayConfig, GatewayCharge
+
     order = get_object_or_404(ServiceOrder, public_token=token)
     config = SystemConfig.objects.first()
 
-    exec_task = order.tasks.filter(
-        task_type=ServiceOrderTask.TaskType.EXECUCAO
-    ).order_by('-scheduled_at').first()
-
-    budget_task = order.tasks.filter(
-        task_type=ServiceOrderTask.TaskType.ORCAMENTO
-    ).order_by('-scheduled_at').first()
-
-    # Itens do orçamento
-    budget_items = list(
-        budget_task.items.filter(cobrar_cliente=True).select_related('product', 'service')
-        if budget_task else []
-    )
-    budget_total = sum(i.total_price for i in budget_items)
-
-    # Itens e fotos da execução
-    exec_items = list(
-        exec_task.items.filter(cobrar_cliente=True).select_related('product', 'service')
-        if exec_task else []
-    )
-    exec_photos = list(exec_task.medias.all() if exec_task else [])
-    exec_total = sum(i.total_price for i in exec_items)
-
-    # Cobrança e parcela
-    billing = order.billings.order_by('-created_at').first()
-    installment = billing.installments.order_by('installment_number').first() if billing else None
-    active_charge = None
-    if installment:
-        active_charge = installment.gateway_charges.filter(
-            status=GatewayCharge.Status.PENDING
-        ).order_by('-created_at').first()
-
-    # Capacidade do gateway
     gateway_config = GatewayConfig.load()
     pix_available = gateway_config.can_generate_charges and gateway_config.pix_enabled
     boleto_available = gateway_config.can_generate_charges and gateway_config.boleto_enabled
 
-    # CPF do cliente
     client = order.client_property.client
     has_cpf = bool(client.document)
 
-    # Preferência de pagamento registrada pelo cliente (na confirmação de visita)
-    payment_pref = exec_task.payment_method if exec_task else None
+    EXEC_TYPES = [ServiceOrderTask.TaskType.EXECUCAO, ServiceOrderTask.TaskType.GARANTIA]
 
-    # Status da OS para controle de seções
-    paid_statuses = {
-        ServiceOrder.Status.FINALIZADO,
-        ServiceOrder.Status.CONCLUIDA,
-        ServiceOrder.Status.AGUARDANDO_PAGAMENTO,
-        ServiceOrder.Status.PAGAMENTO_PARCIAL,
-    }
-    show_payment_section = order.status in paid_statuses
+    # Primeira etapa de execução ainda não aprovada pelo cliente (para botão de aprovação do orçamento)
+    unapproved_exec = order.tasks.filter(
+        task_type=ServiceOrderTask.TaskType.EXECUCAO,
+        is_approved=False,
+    ).order_by('created_at').first()
+
+    tasks_data = []
+    for task in order.tasks.order_by('created_at').prefetch_related(
+        'items__product', 'items__service', 'medias',
+        'team_members__professional', 'team_members__role',
+    ):
+        is_exec_type = task.task_type in EXEC_TYPES
+        is_orcamento = task.task_type == ServiceOrderTask.TaskType.ORCAMENTO
+        is_concluido = task.status == ServiceOrderTask.TaskStatus.CONCLUIDO
+        is_active = task.status in [
+            ServiceOrderTask.TaskStatus.AGENDADO,
+            ServiceOrderTask.TaskStatus.EM_ANDAMENTO,
+        ]
+        is_cancelled = task.status in [
+            ServiceOrderTask.TaskStatus.CANCELADO,
+            ServiceOrderTask.TaskStatus.NAO_EXECUTADO,
+        ]
+
+        items = list(task.items.filter(cobrar_cliente=True).select_related('product', 'service'))
+        total = sum(i.total_price for i in items)
+        photos = list(task.medias.all()) if (is_exec_type and is_concluido) else []
+
+        billing = None
+        installment = None
+        active_charge = None
+        is_paid = False
+        billing_value = None
+
+        if is_exec_type and is_concluido:
+            billing_value = task.billing_value
+            billing = task.billings.first()
+            if billing:
+                installment = billing.installments.order_by('installment_number').first()
+                if installment:
+                    active_charge = installment.gateway_charges.filter(
+                        status__in=[
+                            GatewayCharge.Status.PENDING,
+                            GatewayCharge.Status.RECEIVED,
+                            GatewayCharge.Status.CONFIRMED,
+                        ]
+                    ).order_by('-created_at').first()
+                is_paid = billing.get_remaining_balance() <= 0
+
+        show_approval = is_orcamento and is_concluido and unapproved_exec is not None
+        show_payment = (
+            is_exec_type
+            and is_concluido
+            and (billing is not None or (billing_value and billing_value > 0))
+        )
+
+        needs_action = (
+            (is_active and is_exec_type)
+            or show_approval
+            or (show_payment and not is_paid)
+        )
+
+        tasks_data.append({
+            'task': task,
+            'is_exec_type': is_exec_type,
+            'is_orcamento': is_orcamento,
+            'is_concluido': is_concluido,
+            'is_active': is_active,
+            'is_cancelled': is_cancelled,
+            'items': items,
+            'total': total,
+            'photos': photos,
+            'billing': billing,
+            'installment': installment,
+            'active_charge': active_charge,
+            'is_paid': is_paid,
+            'billing_value': billing_value,
+            'show_approval': show_approval,
+            'unapproved_exec': unapproved_exec if show_approval else None,
+            'show_payment': show_payment,
+            'needs_action': needs_action,
+            'payment_pref': task.payment_method if is_exec_type else None,
+        })
+
+    has_exec_report = order.tasks.filter(
+        task_type__in=EXEC_TYPES,
+        status=ServiceOrderTask.TaskStatus.CONCLUIDO,
+    ).exists()
 
     return render(request, 'services/public/order_page.html', {
         'order': order,
         'config': config,
-        'exec_task': exec_task,
-        'budget_task': budget_task,
-        'budget_items': budget_items,
-        'budget_total': budget_total,
-        'exec_items': exec_items,
-        'exec_photos': exec_photos,
-        'exec_total': exec_total,
-        'billing': billing,
-        'installment': installment,
-        'active_charge': active_charge,
+        'tasks_data': tasks_data,
         'pix_available': pix_available,
         'boleto_available': boleto_available,
         'has_cpf': has_cpf,
-        'payment_pref': payment_pref,
-        'show_payment_section': show_payment_section,
+        'has_exec_report': has_exec_report,
+        'payment_processor_name': settings.PAYMENT_PROCESSOR_NAME,
     })
 
 
@@ -2156,14 +2193,16 @@ def public_os_approve_budget(request, token):
         return HttpResponse(status=405)
     order = get_object_or_404(ServiceOrder, public_token=token)
     exec_task = order.tasks.filter(
-        task_type=ServiceOrderTask.TaskType.EXECUCAO
-    ).order_by('-scheduled_at').first()
-    if exec_task and not exec_task.is_approved:
+        task_type=ServiceOrderTask.TaskType.EXECUCAO,
+        is_approved=False,
+    ).order_by('created_at').first()
+    if exec_task:
         exec_task.is_approved = True
         exec_task.save(update_fields=['is_approved'])
+    budget_task_pk = request.POST.get('budget_task_id')
+    budget_task = order.tasks.filter(pk=budget_task_pk).first() if budget_task_pk else None
     return render(request, 'services/public/partials/budget_approved.html', {
-        'order': order,
-        'exec_task': exec_task,
+        'budget_task': budget_task,
     })
 
 
@@ -2172,20 +2211,24 @@ def public_os_generate_charge(request, token):
         return HttpResponse(status=405)
 
     from pagamentos.models import GatewayConfig, GatewayCharge
-    from pagamentos.gateways.asaas import AsaasGateway, ChargeData
-    from services.utils.finance import create_billing_for_os
-    from decimal import Decimal
-    from django.conf import settings
+    from pagamentos.gateways.asaas import AsaasGateway
+    from pagamentos.gateways.base import ChargeData
+    from services.utils.finance import create_billing_for_task
 
     order = get_object_or_404(ServiceOrder, public_token=token)
     method = request.POST.get('method', 'PIX').upper()
     cpf_input = request.POST.get('cpf', '').strip()
+    task_id = request.POST.get('task_id', '').strip()
 
     def _error(msg):
         return render(request, 'services/public/partials/charge_result.html', {'error': msg})
 
     if method not in ('PIX', 'BOLETO'):
         return _error('Método de pagamento inválido.')
+
+    task = order.tasks.filter(pk=task_id).first() if task_id else None
+    if not task:
+        return _error('Etapa não encontrada.')
 
     gateway_config = GatewayConfig.load()
     if not gateway_config.can_generate_charges:
@@ -2195,28 +2238,21 @@ def public_os_generate_charge(request, token):
     if method == 'BOLETO' and not gateway_config.boleto_enabled:
         return _error('Boleto não está disponível no momento.')
 
-    # Garante billing/installment
-    billing = order.billings.order_by('-created_at').first()
+    billing = create_billing_for_task(task)
     if not billing:
-        billing = create_billing_for_os(order)
-    if not billing:
-        return _error('Não foi possível criar a cobrança. Valor da OS é zero.')
+        return _error('Não foi possível criar a cobrança. Valor da etapa é zero.')
 
     installment = billing.installments.order_by('installment_number').first()
     if not installment:
         return _error('Parcela não encontrada.')
 
-    # Verifica se já existe cobrança ativa
     existing = installment.gateway_charges.filter(
         status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
                     GatewayCharge.Status.CONFIRMED]
     ).first()
     if existing:
-        return render(request, 'services/public/partials/charge_result.html', {
-            'charge': existing,
-        })
+        return render(request, 'services/public/partials/charge_result.html', {'charge': existing})
 
-    # Resolve CPF: usa o do cliente ou o informado na hora
     client = order.client_property.client
     client_doc = client.document or cpf_input
     client_doc = ''.join(filter(str.isdigit, client_doc))
@@ -2224,57 +2260,43 @@ def public_os_generate_charge(request, token):
         return render(request, 'services/public/partials/charge_result.html', {
             'need_cpf': True,
             'method': method,
+            'task_id': task_id,
+            'generate_url': request.path,
         })
 
     client_email = client.emails.values_list('email', flat=True).first() or ''
 
     try:
-        if method == 'PIX':
-            pct = Decimal(getattr(settings, 'PLATFORM_PIX_SPLIT_PERCENT', '0.008'))
-            minimum = Decimal(getattr(settings, 'PLATFORM_PIX_SPLIT_MINIMUM', '2.50'))
-            split_amount = max(installment.amount * pct, minimum)
-        else:
-            split_amount = Decimal(getattr(settings, 'PLATFORM_BOLETO_SPLIT_FIXED', '2.50'))
-
         gw = AsaasGateway()
         charge_data = ChargeData(
             customer_name=client.name,
             customer_document=client_doc,
             customer_email=client_email,
-            description=f'OS #{order.number}',
+            description=f'OS #{order.number} — Etapa {task.pk}',
             amount=installment.amount,
             due_date=installment.due_date,
             method=method,
             external_reference=str(installment.pk),
         )
-        result = gw.create_charge(charge_data, split_amount=split_amount, gateway_config=gateway_config)
+        result = gw.create_charge(charge_data, wallet_id=gateway_config.wallet_id)
 
         charge = GatewayCharge.objects.create(
             installment=installment,
             config=gateway_config,
-            gateway='ASAAS',
-            external_id=result['id'],
+            external_id=result.external_id,
             method=method,
-            status=GatewayCharge.Status.PENDING,
-            amount=installment.amount,
-            due_date=installment.due_date,
+            status=result.status,
+            amount=result.amount,
+            due_date=result.due_date,
+            pix_qrcode=result.pix_qrcode,
+            pix_copy_paste=result.pix_copy_paste,
+            pix_expiration_date=result.pix_expiration_date,
+            boleto_url=result.boleto_url,
+            boleto_barcode=result.boleto_barcode,
+            invoice_url=result.invoice_url,
         )
 
-        if method == 'PIX':
-            pix_data = gw.get_pix_qrcode(result['id'])
-            charge.pix_qrcode = pix_data.get('encodedImage', '')
-            charge.pix_copy_paste = pix_data.get('payload', '')
-            charge.invoice_url = result.get('invoiceUrl', '')
-            charge.save(update_fields=['pix_qrcode', 'pix_copy_paste', 'invoice_url'])
-        else:
-            charge.boleto_url = result.get('bankSlipUrl', '')
-            charge.boleto_barcode = result.get('nossoNumero', '')
-            charge.invoice_url = result.get('invoiceUrl', '')
-            charge.save(update_fields=['boleto_url', 'boleto_barcode', 'invoice_url'])
-
-        return render(request, 'services/public/partials/charge_result.html', {
-            'charge': charge,
-        })
+        return render(request, 'services/public/partials/charge_result.html', {'charge': charge})
 
     except Exception as exc:
         logger.exception('Erro ao gerar cobrança na página pública da OS #%s', order.number)

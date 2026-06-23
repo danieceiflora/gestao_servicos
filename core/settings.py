@@ -22,6 +22,7 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes', 'on')
 ALLOWED_HOSTS = ['*']
 
 SITE_URL = os.environ.get('SITE_URL', 'https://osonline.douradoscalhas.com.br')
+PAYMENT_PROCESSOR_NAME = os.environ.get('PAYMENT_PROCESSOR_NAME', '')
 
 CSRF_TRUSTED_ORIGINS = [
     'http://osonline.douradoscalhas.com.br',

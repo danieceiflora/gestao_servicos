@@ -27,7 +27,8 @@ CURATED_FIELDS = {
         ('total_value',                                         'OS > Valor Total'),
         ('created_at',                                          'OS > Data de Criação'),
         ('finished_at',                                         'OS > Data de Conclusão'),
-        ('public_token',                                        'OS > Token da Página Pública (sufixo URL)'),
+        ('public_token',                                        'OS > Token da Página Pública (UUID puro)'),
+        ('public_page_path',                                    'OS > Caminho da Página Pública (os/token/)'),
         ('public_page_url',                                     'OS > Link da Página Pública (URL completa)'),
         ('client_property.client.display_name',                 'Cliente > Nome Completo'),
         ('client_property.client.phones.first.phone',           'Cliente > Telefone / WhatsApp'),
@@ -53,6 +54,9 @@ CURATED_FIELDS = {
         ('service_order.get_status_display',                    'OS > Status'),
         ('service_order.total_value',                           'OS > Valor Total'),
         ('service_order.description',                           'OS > Descrição'),
+        ('service_order.public_token',                          'OS > Token da Página Pública (UUID puro)'),
+        ('service_order.public_page_path',                      'OS > Caminho da Página Pública (os/token/)'),
+        ('service_order.public_page_url',                       'OS > Link da Página Pública (URL completa)'),
         ('service_order.client_property.client.display_name',   'Cliente > Nome Completo'),
         ('service_order.client_property.client.phones.first.phone', 'Cliente > Telefone / WhatsApp'),
         ('service_order.client_property.full_address',          'Imóvel > Endereço Completo'),
@@ -75,9 +79,12 @@ CURATED_FIELDS = {
         ('total_amount',            'Cobrança > Valor Bruto'),
         ('get_remaining_balance',   'Cobrança > Saldo Devedor'),
         ('get_total_paid',          'Cobrança > Total Pago'),
-        ('service_order.number',    'OS > Número'),
-        ('client.display_name',     'Cliente > Nome Completo'),
-        ('client.phones.first.phone', 'Cliente > Telefone / WhatsApp'),
+        ('service_order.number',         'OS > Número'),
+        ('service_order.public_token',    'OS > Token da Página Pública (UUID puro)'),
+        ('service_order.public_page_path','OS > Caminho da Página Pública (os/token/)'),
+        ('service_order.public_page_url', 'OS > Link da Página Pública (URL completa)'),
+        ('client.display_name',          'Cliente > Nome Completo'),
+        ('client.phones.first.phone',    'Cliente > Telefone / WhatsApp'),
     ],
     'Installment': [
         ('installment_number',          'Parcela > Número'),
@@ -149,6 +156,9 @@ def resolve_field_path(instance, path):
     """
     if not path or path == 'self':
         return instance
+
+    if path.startswith('static:'):
+        return path[len('static:'):]
 
     if path.startswith('__config__.'):
         from integracoes.models import SystemConfig

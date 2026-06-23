@@ -782,17 +782,23 @@ def ajax_get_template_details(request):
         groups_dict.setdefault(group, []).append((path, label, field_label))
     suggested_fields_grouped = list(groups_dict.items())
 
-    # Detectar botões com URL dinâmica (ex: https://site.com/pagar/{{1}})
+    # Detectar botões com URL dinâmica.
+    # A Meta API pode retornar o {{1}} no campo 'url' OU apenas como 'example';
+    # ambas as formas indicam um parâmetro dinâmico no sufixo da URL.
     buttons_comp = next((c for c in template.get('components', []) if c['type'] == 'BUTTONS'), None)
     button_vars = []
     if buttons_comp:
+        logger.debug('Botões do template %s: %s', template_name, buttons_comp.get('buttons', []))
         for btn_idx, btn in enumerate(buttons_comp.get('buttons', [])):
-            if btn.get('type') == 'URL' and '{{1}}' in btn.get('url', ''):
-                button_vars.append({
-                    'btn_index': btn_idx,
-                    'btn_text': btn.get('text', f'Botão {btn_idx + 1}'),
-                    'url_template': btn.get('url', ''),
-                })
+            if btn.get('type') == 'URL':
+                url = btn.get('url', '')
+                has_dynamic = '{{1}}' in url or bool(btn.get('example'))
+                if has_dynamic:
+                    button_vars.append({
+                        'btn_index': btn_idx,
+                        'btn_text': btn.get('text', f'Botão {btn_idx + 1}'),
+                        'url_template': url,
+                    })
 
     # Carrega mapeamentos existentes
     config_id = request.GET.get('config_id')
