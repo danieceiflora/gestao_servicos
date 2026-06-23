@@ -127,7 +127,7 @@ def _handle_refresh_status(request, config: GatewayConfig):
         return
     try:
         gw = _get_gateway()
-        result = gw.get_subaccount_status(config.wallet_id)
+        result = gw.get_subaccount_status(config.wallet_id, subaccount_api_key=config.subaccount_api_key)
         config.status = result.status
         config.status_detail = result.detail
         config.save()

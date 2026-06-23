@@ -133,10 +133,19 @@ class AsaasGateway(BasePaymentGateway):
             api_key=result.get('apiKey', ''),
         )
 
-    def get_subaccount_status(self, wallet_id: str) -> SubaccountResult:
-        result = self._get(f'accounts/{wallet_id}')
+    def get_subaccount_status(self, wallet_id: str, subaccount_api_key: str = '') -> SubaccountResult:
+        if subaccount_api_key:
+            # Autentica como a própria subconta — retorna status real e não depende do account id
+            result = self._get('myAccount', api_key=subaccount_api_key)
+        else:
+            # Fallback: lista subcontas da master e filtra pelo walletId
+            data = self._get('accounts', params={'limit': 100})
+            result = next(
+                (a for a in data.get('data', []) if a.get('walletId') == wallet_id),
+                {}
+            )
         return SubaccountResult(
-            wallet_id=wallet_id,
+            wallet_id=result.get('walletId', wallet_id),
             status=result.get('status', 'UNKNOWN'),
             detail=str(result),
         )
