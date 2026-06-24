@@ -2500,3 +2500,137 @@ def payment_attachment_delete(request, pk):
         return installment_payment_modal(request, installment_pk)
     return redirect('expense_list')
 
+
+# ── PÁGINA PÚBLICA DE PAGAMENTO ──────────────────────────────────────────────
+
+def public_billing_page(request, token):
+    from integracoes.models import SystemConfig
+    from pagamentos.models import GatewayConfig, GatewayCharge
+    from django.conf import settings
+    from django.urls import reverse
+
+    billing = get_object_or_404(Billing, public_token=token)
+    config = SystemConfig.objects.first()
+    gateway_config = GatewayConfig.load()
+
+    pix_available = gateway_config.can_generate_charges and gateway_config.pix_enabled
+    boleto_available = gateway_config.can_generate_charges and gateway_config.boleto_enabled
+    has_cpf = bool(billing.client.document)
+
+    installments_data = []
+    for inst in billing.installments.order_by('installment_number'):
+        active_charge = inst.gateway_charges.filter(
+            status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
+                        GatewayCharge.Status.CONFIRMED]
+        ).order_by('-created_at').first()
+        is_paid = inst.status == Installment.Status.PAGO
+        installments_data.append({
+            'installment': inst,
+            'active_charge': active_charge,
+            'is_paid': is_paid,
+        })
+
+    os_url = None
+    if billing.service_order:
+        os_url = reverse('public_os_page', args=[billing.service_order.public_token])
+
+    return render(request, 'services/public/billing_page.html', {
+        'billing': billing,
+        'installments_data': installments_data,
+        'config': config,
+        'pix_available': pix_available,
+        'boleto_available': boleto_available,
+        'has_cpf': has_cpf,
+        'os_url': os_url,
+        'payment_processor_name': getattr(settings, 'PAYMENT_PROCESSOR_NAME', ''),
+    })
+
+
+def public_billing_generate_charge(request, token):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    from pagamentos.models import GatewayConfig, GatewayCharge
+    from pagamentos.gateways.asaas import AsaasGateway
+    from pagamentos.gateways.base import ChargeData
+
+    billing = get_object_or_404(Billing, public_token=token)
+    method = request.POST.get('method', 'PIX').upper()
+    cpf_input = request.POST.get('cpf', '').strip()
+    # installment_id from initial button; task_id from charge_result partial retry
+    installment_id = request.POST.get('installment_id') or request.POST.get('task_id', '')
+
+    def _error(msg):
+        return render(request, 'services/public/partials/charge_result.html', {'error': msg})
+
+    if method not in ('PIX', 'BOLETO'):
+        return _error('Método de pagamento inválido.')
+
+    try:
+        installment = billing.installments.get(pk=installment_id)
+    except (Installment.DoesNotExist, ValueError, TypeError):
+        return _error('Parcela não encontrada.')
+
+    gateway_config = GatewayConfig.load()
+    if not gateway_config.can_generate_charges:
+        return _error('Pagamento online não disponível no momento.')
+    if method == 'PIX' and not gateway_config.pix_enabled:
+        return _error('PIX não está disponível no momento.')
+    if method == 'BOLETO' and not gateway_config.boleto_enabled:
+        return _error('Boleto não está disponível no momento.')
+
+    existing = installment.gateway_charges.filter(
+        status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
+                    GatewayCharge.Status.CONFIRMED]
+    ).first()
+    if existing:
+        return render(request, 'services/public/partials/charge_result.html', {'charge': existing})
+
+    client = billing.client
+    client_doc = client.document or cpf_input
+    client_doc = ''.join(filter(str.isdigit, client_doc))
+    if not client_doc:
+        return render(request, 'services/public/partials/charge_result.html', {
+            'need_cpf': True,
+            'method': method,
+            'task_id': str(installment.pk),  # partial usa task_id como identificador DOM
+            'generate_url': request.path,
+        })
+
+    client_email = client.emails.values_list('email', flat=True).first() or ''
+
+    try:
+        gw = AsaasGateway()
+        charge_data = ChargeData(
+            customer_name=client.name,
+            customer_document=client_doc,
+            customer_email=client_email,
+            description=billing.origem,
+            amount=installment.amount,
+            due_date=installment.due_date,
+            method=method,
+            external_reference=str(installment.pk),
+        )
+        result = gw.create_charge(charge_data, wallet_id=gateway_config.wallet_id)
+
+        charge = GatewayCharge.objects.create(
+            installment=installment,
+            config=gateway_config,
+            external_id=result.external_id,
+            method=method,
+            status=result.status,
+            amount=result.amount,
+            due_date=result.due_date,
+            pix_qrcode=result.pix_qrcode,
+            pix_copy_paste=result.pix_copy_paste,
+            pix_expiration_date=result.pix_expiration_date,
+            boleto_url=result.boleto_url,
+            boleto_barcode=result.boleto_barcode,
+            invoice_url=result.invoice_url,
+        )
+        return render(request, 'services/public/partials/charge_result.html', {'charge': charge})
+
+    except Exception as exc:
+        logger.exception('Erro ao gerar cobrança pública para billing #%s', billing.number)
+        return _error(f'Não foi possível gerar a cobrança: {exc}')
+

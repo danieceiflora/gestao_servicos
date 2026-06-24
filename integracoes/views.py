@@ -482,9 +482,21 @@ class MetaCloudAPI:
             return {"data": []}
         url = f"{self.base_url}/{self.waba_id}/message_templates"
         headers = {"Authorization": f"Bearer {self.token}"}
+        params = {
+            "fields": "name,components,language,status,category,last_updated_time,modified_time",
+            "limit": 200,
+        }
         try:
-            response = requests.get(url, headers=headers, timeout=10)
-            return response.json()
+            all_templates = []
+            next_url = url
+            next_params = params
+            while next_url:
+                response = requests.get(next_url, headers=headers, params=next_params, timeout=10)
+                data = response.json()
+                all_templates.extend(data.get("data", []))
+                next_url = data.get("paging", {}).get("next")
+                next_params = None  # URL "next" já inclui os params
+            return {"data": all_templates}
         except Exception as e:
             logger.error(f"Error fetching templates: {e}")
             return {"error": str(e), "data": []}
@@ -620,8 +632,33 @@ from .utils import get_mappable_fields
 @login_required
 @user_passes_test(lambda u: u.is_staff)
 def notification_config_list(request):
-    configs = NotificationConfig.objects.all()
-    return render(request, 'integracoes/notifications/config_list.html', {'configs': configs})
+    configs = NotificationConfig.objects.all().order_by('-updated_at')
+    status_labels = {
+        # ServiceOrder
+        'ORCAMENTO_AGENDADO': 'Orçamento Agendado',
+        'ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO': 'Orçamento Realizado',
+        'APROVADO_AGUARDANDO_AGENDAMENTO': 'Aprovado / Ag. Agendamento',
+        'AGUARDANDO_EXECUCAO': 'Aguardando Execução',
+        'CONCLUIDA': 'Concluída',
+        'GARANTIA': 'Garantia',
+        'CANCELADO': 'Cancelado',
+        # ServiceOrderTask
+        'AGENDADO': 'Agendado',
+        'EM_ANDAMENTO': 'Em Andamento',
+        'CONCLUIDO': 'Concluído',
+        'NAO_EXECUTADO': 'Não Executado',
+        # Billing / Installment / Sale
+        'PENDENTE': 'Pendente',
+        'PARCIAL': 'Parcialmente Pago',
+        'PAGO': 'Pago',
+        'ATRASADO': 'Atrasado',
+        'ATIVO': 'Ativo',
+        'INATIVO': 'Inativo',
+    }
+    return render(request, 'integracoes/notifications/config_list.html', {
+        'configs': configs,
+        'status_labels': status_labels,
+    })
 
 @login_required
 @user_passes_test(lambda u: u.is_staff)
@@ -743,6 +780,20 @@ def notification_config_delete(request, pk):
     return redirect('integracoes:notification_config_list')
 
 @login_required
+@user_passes_test(lambda u: u.is_staff)
+def ajax_sync_meta_templates(request):
+    """Pinga a Meta API para verificar conexão e retorna timestamp da sincronização."""
+    from django.utils import timezone
+    config_obj = SystemConfig.load()
+    api = MetaCloudAPI(config_obj.meta_waba_id, config_obj.meta_access_token)
+    result = api.get_templates()
+    if 'error' in result:
+        return JsonResponse({'ok': False, 'error': result['error']})
+    count = len(result.get('data', []))
+    ts = timezone.now().isoformat()
+    return JsonResponse({'ok': True, 'count': count, 'ts': ts})
+
+@login_required
 def ajax_get_template_details(request):
     """Retorna o corpo do template e campos de variáveis via AJAX/HTMX."""
     template_name = request.GET.get('template_name')
@@ -752,9 +803,14 @@ def ajax_get_template_details(request):
     api = MetaCloudAPI(config_obj.meta_waba_id, config_obj.meta_access_token)
     templates = api.get_templates().get('data', [])
     
-    template = next((t for t in templates if t['name'] == template_name), None)
+    # Coleta todas as entradas com esse nome (pode haver versões antigas com status diferente)
+    matching = [t for t in templates if t['name'] == template_name]
+    # Prefere APPROVED; se não houver, pega qualquer outra (PENDING_DELETION, PAUSED, etc.)
+    template = next((t for t in matching if t.get('status') == 'APPROVED'), None)
     if not template:
-        # Tenta buscar por ID se o nome falhar
+        template = matching[0] if matching else None
+    if not template:
+        # Fallback: tenta buscar por ID
         template = next((t for t in templates if t.get('id') == template_name), None)
         
     if not template:
@@ -893,21 +949,38 @@ def whatsapp_template_list(request):
         })
 
     api = MetaCloudAPI(config.meta_waba_id, config.meta_access_token)
-    
+
     # Sincronização automática ao carregar a página
     result = api.get_templates()
     templates = result.get('data', [])
     error = result.get('error')
-    
+
     if error:
         messages.error(request, f"Erro ao sincronizar templates com a Meta: {error}")
-    else:
-        # Opcional: Logar sucesso de sincronização silenciosamente ou com mensagem
-        pass
+
+    # Converte string ISO 8601 de última edição para datetime
+    from django.utils.dateparse import parse_datetime
+    for t in templates:
+        ts = t.get('last_updated_time') or t.get('modified_time')
+        dt_val = None
+        if ts:
+            try:
+                # Meta retorna formato "2026-06-24T15:09:41+0000" — normaliza para "+00:00"
+                ts_norm = str(ts)
+                if len(ts_norm) > 5 and ts_norm[-5] in ('+', '-') and ':' not in ts_norm[-5:]:
+                    ts_norm = ts_norm[:-2] + ':' + ts_norm[-2:]
+                dt_val = parse_datetime(ts_norm)
+            except Exception:
+                pass
+        t['last_updated_dt'] = dt_val
+
+    from django.utils import timezone as dj_timezone
+    last_sync = dj_timezone.now()
 
     return render(request, 'integracoes/whatsapp_template_list.html', {
         'templates': templates,
-        'config': config
+        'config': config,
+        'last_sync': last_sync,
     })
 
 @login_required

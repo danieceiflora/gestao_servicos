@@ -2119,21 +2119,13 @@ def uppy_upload(request):
 
 def public_os_page(request, token):
     from integracoes.models import SystemConfig
-    from pagamentos.models import GatewayConfig, GatewayCharge
+    from django.urls import reverse
 
     order = get_object_or_404(ServiceOrder, public_token=token)
     config = SystemConfig.objects.first()
 
-    gateway_config = GatewayConfig.load()
-    pix_available = gateway_config.can_generate_charges and gateway_config.pix_enabled
-    boleto_available = gateway_config.can_generate_charges and gateway_config.boleto_enabled
-
-    client = order.client_property.client
-    has_cpf = bool(client.document)
-
     EXEC_TYPES = [ServiceOrderTask.TaskType.EXECUCAO, ServiceOrderTask.TaskType.GARANTIA]
 
-    # Primeira etapa de execução ainda não aprovada pelo cliente (para botão de aprovação do orçamento)
     unapproved_exec = order.tasks.filter(
         task_type=ServiceOrderTask.TaskType.EXECUCAO,
         is_approved=False,
@@ -2161,36 +2153,23 @@ def public_os_page(request, token):
         photos = list(task.medias.all()) if (is_exec_type and is_concluido) else []
 
         billing = None
-        installment = None
-        active_charge = None
-        is_paid = False
+        billing_url = None
         billing_value = None
+        is_paid = False
 
         if is_exec_type:
             billing_value = task.billing_value
             billing = task.billings.first()
             if billing:
-                installment = billing.installments.order_by('installment_number').first()
-                if installment:
-                    active_charge = installment.gateway_charges.filter(
-                        status__in=[
-                            GatewayCharge.Status.PENDING,
-                            GatewayCharge.Status.RECEIVED,
-                            GatewayCharge.Status.CONFIRMED,
-                        ]
-                    ).order_by('-created_at').first()
+                billing_url = reverse('public_billing_page', args=[billing.public_token])
                 is_paid = billing.get_remaining_balance() <= 0
 
         show_approval = is_orcamento and is_concluido and unapproved_exec is not None
-        show_payment = (
-            is_exec_type
-            and billing is not None
-        )
 
         needs_action = (
             (is_active and is_exec_type)
             or show_approval
-            or (show_payment and not is_paid)
+            or (billing_url is not None and not is_paid)
         )
 
         tasks_data.append({
@@ -2203,16 +2182,12 @@ def public_os_page(request, token):
             'items': items,
             'total': total,
             'photos': photos,
-            'billing': billing,
-            'installment': installment,
-            'active_charge': active_charge,
-            'is_paid': is_paid,
+            'billing_url': billing_url,
             'billing_value': billing_value,
+            'is_paid': is_paid,
             'show_approval': show_approval,
             'unapproved_exec': unapproved_exec if show_approval else None,
-            'show_payment': show_payment,
             'needs_action': needs_action,
-            'payment_pref': task.payment_method if is_exec_type else None,
         })
 
     has_exec_report = order.tasks.filter(
@@ -2224,11 +2199,7 @@ def public_os_page(request, token):
         'order': order,
         'config': config,
         'tasks_data': tasks_data,
-        'pix_available': pix_available,
-        'boleto_available': boleto_available,
-        'has_cpf': has_cpf,
         'has_exec_report': has_exec_report,
-        'payment_processor_name': settings.PAYMENT_PROCESSOR_NAME,
     })
 
 

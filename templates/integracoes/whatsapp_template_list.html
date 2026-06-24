@@ -10,17 +10,24 @@
             <h1 class="text-2xl font-bold text-slate-900 tracking-tight">WhatsApp Templates</h1>
             <p class="text-slate-500 text-sm">Modelos de mensagem aprovados na Meta</p>
         </div>
-        <div class="flex items-center gap-2">
-            <a href="{% url 'integracoes:whatsapp_template_create' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold shadow-lg shadow-blue-500/20 active:scale-95">
-                <i data-lucide="plus" class="h-4 w-4"></i>
-                Novo Template
-            </a>
-            <form method="get" action="." class="inline">
-                <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all font-semibold shadow-sm active:scale-95">
-                    <i data-lucide="refresh-cw" class="h-4 w-4"></i>
-                    Sincronizar Agora
-                </button>
-            </form>
+        <div class="flex flex-col items-end gap-1">
+            <div class="flex items-center gap-2">
+                <a href="{% url 'integracoes:whatsapp_template_create' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold shadow-lg shadow-blue-500/20 active:scale-95">
+                    <i data-lucide="plus" class="h-4 w-4"></i>
+                    Novo Template
+                </a>
+                <form method="get" action=".">
+                    <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all font-semibold shadow-sm active:scale-95">
+                        <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                        Sincronizar Agora
+                    </button>
+                </form>
+            </div>
+            {% if last_sync %}
+            <span class="text-[10px] text-slate-400">
+                Última sync: {{ last_sync|date:"d/m/Y" }} às {{ last_sync|date:"H:i" }}
+            </span>
+            {% endif %}
         </div>
     </div>
 
@@ -38,7 +45,7 @@
         </a>
     </div>
     {% else %}
-    
+
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
@@ -61,32 +68,54 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 text-sm text-slate-600">
-                            {{ template.category }}
+                            {% with cat=template.category %}
+                            {% if cat == 'MARKETING' %}Marketing
+                            {% elif cat == 'UTILITY' %}Utilitário
+                            {% elif cat == 'AUTHENTICATION' %}Autenticação
+                            {% else %}{{ cat }}{% endif %}
+                            {% endwith %}
                         </td>
                         <td class="px-6 py-4">
-                            {% if template.status == 'APPROVED' %}
+                            {% with st=template.status %}
+                            {% if st == 'APPROVED' %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
-                                Aprovado
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>Aprovado
                             </span>
-                            {% elif template.status == 'PENDENTE' %}
+                            {% elif st == 'PENDING' or st == 'PENDING_REVIEW' %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>
-                                Pendente
+                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>Pendente
                             </span>
-                            {% elif template.status == 'REJECTED' %}
+                            {% elif st == 'REJECTED' %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
-                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>
-                                Rejeitado
+                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>Rejeitado
+                            </span>
+                            {% elif st == 'PAUSED' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-700">
+                                <span class="w-1.5 h-1.5 rounded-full bg-orange-400 mr-1.5"></span>Pausado
+                            </span>
+                            {% elif st == 'PENDING_DELETION' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5"></span>Ag. Exclusão
+                            </span>
+                            {% elif st == 'IN_APPEAL' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                                <span class="w-1.5 h-1.5 rounded-full bg-purple-400 mr-1.5"></span>Em Recurso
+                            </span>
+                            {% elif st == 'DISABLED' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-300 mr-1.5"></span>Desabilitado
                             </span>
                             {% else %}
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
-                                {{ template.status }}
+                                {{ st }}
                             </span>
                             {% endif %}
+                            {% endwith %}
                         </td>
                         <td class="px-6 py-4 text-sm text-slate-500">
-                            {{ template.last_updated_time|default:"-" }}
+                            {% if template.last_updated_dt %}
+                            {{ template.last_updated_dt|date:"d/m/Y" }} às {{ template.last_updated_dt|date:"H:i" }}
+                            {% else %}-{% endif %}
                         </td>
                         <td class="px-6 py-4 text-right">
                             <div class="flex items-center justify-end gap-2" onclick="event.stopPropagation()">
@@ -119,101 +148,4 @@
     </div>
     {% endif %}
 </div>
-
-<!-- Template Details Modal -->
-<div id="template-modal" class="hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4">
-    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-            <div class="flex items-center gap-2">
-                <i data-lucide="message-square" class="h-5 w-5 text-blue-600"></i>
-                <h3 id="modal-title" class="font-bold text-slate-900">Detalhes do Template</h3>
-            </div>
-            <button onclick="closeTemplateModal()" class="p-2 hover:bg-slate-200 rounded-lg transition-colors">
-                <i data-lucide="x" class="h-5 w-5 text-slate-500"></i>
-            </button>
-        </div>
-        
-        <div class="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-            <div class="grid grid-cols-2 gap-4">
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Categoria</label>
-                    <p id="modal-category" class="text-sm font-semibold text-slate-900">-</p>
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Idioma</label>
-                    <p id="modal-language" class="text-sm font-semibold text-slate-900">-</p>
-                </div>
-            </div>
-
-            <div class="space-y-2">
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Preview / Status</label>
-                <div id="modal-status-badge"></div>
-            </div>
-
-            <div class="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-4 text-center py-12">
-                <i data-lucide="external-link" class="h-12 w-12 text-slate-300 mx-auto"></i>
-                <div class="space-y-1">
-                    <p class="text-slate-900 font-bold">Gerenciar na Meta</p>
-                    <p class="text-xs text-slate-500">A edição completa de componentes de templates deve ser feita no Gerenciador de WhatsApp da Meta para garantir compatibilidade com as políticas.</p>
-                </div>
-                <a href="https://business.facebook.com/wa/manage/templates/" target="_blank" class="inline-flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 transition-colors">
-                    Abrir Gerenciador de Templates
-                    <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                </a>
-            </div>
-        </div>
-
-        <div class="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-4">
-            <div class="flex items-center gap-2">
-                <button onclick="closeTemplateModal()" class="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-900">Fechar</button>
-                <form id="delete-form" method="post" action="">
-                    {% csrf_token %}
-                    <button type="submit" class="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg font-bold hover:bg-red-50 transition-colors text-sm">Excluir</button>
-                </form>
-            </div>
-            <a id="modal-edit-btn" href="#" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors text-sm flex items-center gap-2">
-                <i data-lucide="edit-3" class="h-4 w-4"></i>
-                Editar Conteúdo
-            </a>
-        </div>
-    </div>
-</div>
-
-<script>
-    function openTemplateDetails(id, name, category, status, language) {
-        document.getElementById('modal-title').textContent = name;
-        document.getElementById('modal-category').textContent = category;
-        document.getElementById('modal-language').textContent = language;
-        
-        const badgeContainer = document.getElementById('modal-status-badge');
-        let badgeHtml = '';
-        if (status === 'APPROVED') {
-            badgeHtml = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">Aprovado</span>';
-        } else if (status === 'PENDENTE') {
-            badgeHtml = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Pendente</span>';
-        } else {
-            badgeHtml = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">${status}</span>`;
-        }
-        badgeContainer.innerHTML = badgeHtml;
-
-        // Update actions
-        const deleteForm = document.getElementById('delete-form');
-        deleteForm.action = `/integracoes/whatsapp/templates/${name}/delete/`;
-
-        const editBtn = document.getElementById('modal-edit-btn');
-        editBtn.href = `/integracoes/whatsapp/templates/${id}/edit/`;
-
-        const modal = document.getElementById('template-modal');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeTemplateModal() {
-        const modal = document.getElementById('template-modal');
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        document.body.style.overflow = '';
-    }
-</script>
 {% endblock %}

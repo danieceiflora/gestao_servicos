@@ -20,6 +20,7 @@ urlpatterns = [
     path('notificacoes/<int:pk>/excluir/', views.notification_config_delete, name='notification_config_delete'),
     
     # HTMX Endpoints para Dinamismo
+    path('notificacoes/ajax/sync-templates/', views.ajax_sync_meta_templates, name='ajax_sync_meta_templates'),
     path('notificacoes/ajax/detalhes-modelo/', views.ajax_get_template_details, name='ajax_get_template_details'),
     path('notificacoes/ajax/campos-modelo/', views.ajax_get_model_fields, name='ajax_get_model_fields'),
     path('notificacoes/ajax/status-modelo/', views.ajax_get_status_choices, name='ajax_get_status_choices'),

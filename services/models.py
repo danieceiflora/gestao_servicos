@@ -772,6 +772,7 @@ class Billing(models.Model):
         CANCELADO = 'CANCELADO', 'Cancelado'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    public_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     number = models.PositiveIntegerField(unique=True, null=True, blank=True, verbose_name="Número da Cobrança")
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='billings', verbose_name="Cliente")
     
@@ -793,6 +794,14 @@ class Billing(models.Model):
             max_number = Billing.objects.aggregate(Max('number'))['number__max']
             self.number = (max_number or 5000) + 1
         super().save(*args, **kwargs)
+
+    @property
+    def public_page_path(self):
+        return f"pagar/{self.public_token}/"
+
+    @property
+    def public_page_url(self):
+        return f"{settings.SITE_URL.rstrip('/')}/pagar/{self.public_token}/"
 
     @property
     def origem(self):

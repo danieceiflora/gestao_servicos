@@ -2,62 +2,208 @@
 
 {% block content %}
 <div class="space-y-6">
-    <div class="flex items-center justify-between">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Notificações Automáticas</h1>
-            <p class="text-sm text-slate-500">Configure disparos automáticos de WhatsApp baseados em eventos do sistema.</p>
+            <p class="text-sm text-slate-500">Disparos automáticos de WhatsApp baseados em eventos do sistema.</p>
         </div>
-        <a href="{% url 'integracoes:notification_config_create' %}" class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors gap-2">
-            <i data-lucide="plus" class="h-4 w-4"></i>
-            Nova Regra
-        </a>
+        <div class="flex items-center gap-2">
+            <!-- Sincronizar templates da Meta -->
+            <div class="flex flex-col items-end gap-1">
+                <button id="btn-sync-templates" onclick="syncTemplates()"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm">
+                    <i data-lucide="refresh-cw" id="sync-icon" class="h-4 w-4"></i>
+                    Sincronizar Templates
+                </button>
+                <div class="flex flex-col items-end gap-0.5 pr-0.5">
+                    <span id="last-sync-label" class="text-[10px] text-slate-400 hidden">
+                        Última sync: <span id="last-sync-time"></span>
+                    </span>
+                    <span id="sync-msg" class="text-[10px] text-emerald-600 hidden"></span>
+                </div>
+            </div>
+            <a href="{% url 'integracoes:notification_config_create' %}"
+               class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors shadow-sm">
+                <i data-lucide="plus" class="h-4 w-4"></i>
+                Nova Regra
+            </a>
+        </div>
     </div>
 
-    <div class="grid gap-4">
+    <!-- Lista -->
+    <div class="grid gap-3">
         {% for config in configs %}
-        <div class="group relative flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 transition-all">
-            <div class="flex items-center gap-4">
-                <div class="h-10 w-10 rounded-full {% if config.is_active %}bg-green-50 text-green-600{% else %}bg-slate-50 text-slate-400{% endif %} flex items-center justify-center">
-                    <i data-lucide="message-square" class="h-5 w-5"></i>
+        <div class="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
+
+            <!-- Ícone + Info principal -->
+            <div class="flex items-start gap-4 flex-1 min-w-0">
+                <div class="mt-0.5 h-10 w-10 rounded-xl flex-none flex items-center justify-center
+                    {% if config.is_active %}bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200{% else %}bg-slate-100 text-slate-400{% endif %}">
+                    <i data-lucide="{% if config.is_active %}bell{% else %}bell-off{% endif %}" class="h-5 w-5"></i>
                 </div>
-                <div>
-                    <h3 class="font-bold text-slate-900 leading-tight">{{ config.name }}</h3>
-                    <div class="flex items-center gap-2 mt-1">
-                        <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                            {{ config.get_model_name_display }}
+                <div class="flex-1 min-w-0 space-y-1.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h3 class="font-bold text-slate-900 leading-tight truncate">{{ config.name }}</h3>
+                        {% if config.is_active %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                            Ativo
                         </span>
-                        <span class="text-slate-300">•</span>
-                        <span class="text-[11px] text-slate-500">
-                            {{ config.get_event_type_display }}
-                            {% if config.to_status %}
-                                → <span class="font-medium text-slate-700">{{ config.to_status }}</span>
-                            {% endif %}
+                        {% else %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
+                            <span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                            Inativo
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Gatilho -->
+                    <div class="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-500">
+                        <span class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{{ config.get_model_name_display }}</span>
+                        <i data-lucide="arrow-right" class="h-3 w-3 text-slate-300 shrink-0"></i>
+                        <span>{{ config.get_event_type_display }}</span>
+                        {% if config.event_type == 'MUDANCA_STATUS' and config.to_status %}
+                        <i data-lucide="arrow-right" class="h-3 w-3 text-slate-300 shrink-0"></i>
+                        {% if config.from_status %}{% with fs=config.from_status %}
+                        <span class="text-slate-400">
+                            {% if fs == 'ORCAMENTO_AGENDADO' %}Orçamento Agendado
+                            {% elif fs == 'ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO' %}Orçamento Realizado
+                            {% elif fs == 'APROVADO_AGUARDANDO_AGENDAMENTO' %}Aprovado / Ag. Agendamento
+                            {% elif fs == 'AGUARDANDO_EXECUCAO' %}Aguardando Execução
+                            {% elif fs == 'CONCLUIDA' %}Concluída
+                            {% elif fs == 'GARANTIA' %}Garantia
+                            {% elif fs == 'CANCELADO' %}Cancelado
+                            {% elif fs == 'AGENDADO' %}Agendado
+                            {% elif fs == 'EM_ANDAMENTO' %}Em Andamento
+                            {% elif fs == 'CONCLUIDO' %}Concluído
+                            {% elif fs == 'NAO_EXECUTADO' %}Não Executado
+                            {% elif fs == 'PENDENTE' %}Pendente
+                            {% elif fs == 'PARCIAL' %}Parcialmente Pago
+                            {% elif fs == 'PAGO' %}Pago
+                            {% elif fs == 'ATRASADO' %}Atrasado
+                            {% else %}{{ fs }}{% endif %}
+                        </span>
+                        <i data-lucide="chevron-right" class="h-3 w-3 text-slate-300 shrink-0"></i>
+                        {% endwith %}{% endif %}
+                        <span class="font-semibold text-slate-700 px-1.5 py-0.5 bg-blue-50 rounded border border-blue-100">
+                            {% with s=config.to_status %}
+                            {% if s == 'ORCAMENTO_AGENDADO' %}Orçamento Agendado
+                            {% elif s == 'ORCAMENTO_REALIZADO_AGUARDANDO_ENVIO' %}Orçamento Realizado
+                            {% elif s == 'APROVADO_AGUARDANDO_AGENDAMENTO' %}Aprovado / Ag. Agendamento
+                            {% elif s == 'AGUARDANDO_EXECUCAO' %}Aguardando Execução
+                            {% elif s == 'CONCLUIDA' %}Concluída
+                            {% elif s == 'GARANTIA' %}Garantia
+                            {% elif s == 'CANCELADO' %}Cancelado
+                            {% elif s == 'AGENDADO' %}Agendado
+                            {% elif s == 'EM_ANDAMENTO' %}Em Andamento
+                            {% elif s == 'CONCLUIDO' %}Concluído
+                            {% elif s == 'NAO_EXECUTADO' %}Não Executado
+                            {% elif s == 'PENDENTE' %}Pendente
+                            {% elif s == 'PARCIAL' %}Parcialmente Pago
+                            {% elif s == 'PAGO' %}Pago
+                            {% elif s == 'ATRASADO' %}Atrasado
+                            {% else %}{{ s }}{% endif %}
+                            {% endwith %}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Template + Última edição -->
+                    <div class="flex items-center gap-3 flex-wrap">
+                        {% if config.template_name %}
+                        <span class="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                            <i data-lucide="message-square-text" class="h-3 w-3"></i>
+                            {{ config.template_name }}
+                        </span>
+                        {% endif %}
+                        <span class="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                            <i data-lucide="clock" class="h-3 w-3"></i>
+                            Editado em {{ config.updated_at|date:"d/m/Y" }} às {{ config.updated_at|date:"H:i" }}
                         </span>
                     </div>
                 </div>
             </div>
-            
-            <div class="flex items-center gap-2">
-                <a href="{% url 'integracoes:notification_config_edit' config.pk %}" class="p-2 text-slate-400 hover:text-slate-900 transition-colors">
-                    <i data-lucide="edit-3" class="h-4 w-4"></i>
+
+            <!-- Ações -->
+            <div class="flex items-center gap-1 shrink-0 self-end sm:self-auto">
+                <a href="{% url 'integracoes:notification_config_edit' config.pk %}"
+                   class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                   title="Editar">
+                    <i data-lucide="edit-3" class="h-3.5 w-3.5"></i>
+                    Editar
                 </a>
-                <form action="{% url 'integracoes:notification_config_delete' config.pk %}" method="post" class="inline" onsubmit="return confirm('Tem certeza?')">
+                <form action="{% url 'integracoes:notification_config_delete' config.pk %}" method="post" class="inline"
+                      onsubmit="return confirm('Excluir a regra "{{ config.name }}"? Esta ação não pode ser desfeita.')">
                     {% csrf_token %}
-                    <button type="submit" class="p-2 text-slate-400 hover:text-red-600 transition-colors">
-                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                    <button type="submit"
+                            class="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
+                            title="Excluir">
+                        <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
                     </button>
                 </form>
             </div>
         </div>
         {% empty %}
-        <div class="text-center py-12 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-            <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-4">
-                <i data-lucide="bell-off" class="h-6 w-6"></i>
+        <div class="text-center py-16 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+            <div class="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-4">
+                <i data-lucide="bell-off" class="h-7 w-7"></i>
             </div>
-            <h3 class="text-sm font-medium text-slate-900">Nenhuma regra configurada</h3>
-            <p class="text-xs text-slate-500 mt-1">Crie sua primeira automação para começar.</p>
+            <h3 class="text-sm font-bold text-slate-900">Nenhuma regra configurada</h3>
+            <p class="text-xs text-slate-500 mt-1 mb-5">Configure um disparo automático de WhatsApp para eventos do sistema.</p>
+            <a href="{% url 'integracoes:notification_config_create' %}"
+               class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+                <i data-lucide="plus" class="h-4 w-4"></i>
+                Criar Primeira Regra
+            </a>
         </div>
         {% endfor %}
     </div>
 </div>
+
+<script>
+    var NOTIF_SYNC_KEY = 'notif_templates_last_sync';
+
+    function renderSyncTime() {
+        var raw = localStorage.getItem(NOTIF_SYNC_KEY);
+        var label = document.getElementById('last-sync-label');
+        var timeEl = document.getElementById('last-sync-time');
+        if (!label || !timeEl) return;
+        if (raw) {
+            var d = new Date(raw);
+            var dateStr = d.toLocaleDateString('pt-BR');
+            var timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            timeEl.textContent = dateStr + ' às ' + timeStr;
+            label.classList.remove('hidden');
+        }
+    }
+
+    function syncTemplates() {
+        var icon = document.getElementById('sync-icon');
+        var btn = document.getElementById('btn-sync-templates');
+        if (icon) icon.classList.add('animate-spin');
+        if (btn) btn.disabled = true;
+
+        fetch("{% url 'integracoes:ajax_sync_meta_templates' %}", { method: 'GET', headers: {'X-Requested-With': 'XMLHttpRequest'} })
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                localStorage.setItem(NOTIF_SYNC_KEY, new Date().toISOString());
+                renderSyncTime();
+                if (data.ok && data.count !== undefined) {
+                    var msg = document.getElementById('sync-msg');
+                    if (msg) { msg.textContent = data.count + ' template(s) encontrado(s)'; msg.classList.remove('hidden'); setTimeout(function(){ msg.classList.add('hidden'); }, 4000); }
+                }
+            })
+            .catch(function(err) {
+                console.error('Erro ao sincronizar:', err);
+            })
+            .finally(function() {
+                if (icon) icon.classList.remove('animate-spin');
+                if (btn) btn.disabled = false;
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', renderSyncTime);
+</script>
 {% endblock %}
