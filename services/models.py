@@ -1200,6 +1200,7 @@ class ServiceOrder(models.Model):
     client_budget_response = models.TextField(null=True, blank=True, verbose_name="Resposta do Cliente ao Orçamento")
     client_budget_responded_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente respondeu o orçamento em")
     client_budget_approved_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente aprovou o orçamento em")
+    budget_sent_at = models.DateTimeField(null=True, blank=True, verbose_name="Orçamento enviado em")
     
     # Controle de Cobrança e Recibo
     pix_sent_at = models.DateTimeField(null=True, blank=True, verbose_name="Cobrança/PIX enviada em")
@@ -1303,7 +1304,7 @@ class ServiceOrder(models.Model):
 
     @property
     def balance_due(self):
-        return quantize_money(self.total_value - self.total_paid - quantize_money(self.discount))
+        return quantize_money(self.total_value_net - self.total_paid)
 
     def update_status(self):
         """Lógica centralizada de atualização de status da OS — apenas estado operacional do trabalho."""

@@ -1966,63 +1966,66 @@ def service_order_send_budget(request, order_id):
     phone_e164 = format_phone_e164(client_phone.phone)
     
     try:
-        # 1. Gerar PDF
+        # 1. Gerar PDF (sempre — pode ser usado como anexo pelo template ou fallback)
         generator = BudgetPDFGenerator(order)
         pdf_content = generator.generate()
         filename = f"Orcamento_OS_{order.number}.pdf"
-        
-        # 2. Integração Chatwoot
-        cw = ChatwootClient()
-        
-        # Buscar ou criar contato
-        contact = cw.search_contact(phone_e164)
-        if not contact:
-            contact = cw.create_contact(client_name, phone_e164)
-            
-        if not contact:
-            raise Exception("Não foi possível localizar ou criar o contato no Chatwoot.")
-            
-        # Buscar ou criar conversa
-        conversation = cw.get_or_create_conversation(contact['id'])
-        if not conversation:
-            raise Exception("Não foi possível criar a conversa no Chatwoot.")
-            
-        conversation_id = conversation['id']
-        
-        # 3. Enviar PDF e Template
         attachment = (filename, pdf_content, 'application/pdf')
-        
-        response = None
-        if cw.config.chatwoot_budget_template:
-            # Preparar variáveis para o corpo do template:
-            # Variável 1: Número da OS, Variável 2: Valor (apenas o número, pois R$ já está no template)
-            if order.estimated_value:
-                # Formata como 1.580,00
-                value_display = f"{order.estimated_value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-            else:
-                value_display = "0,00"
-            
-            variables = [str(order.number), value_display]
-            
-            # Deixamos o content como None para o ChatwootClient buscar o texto real do template
-            response = cw.send_template(
-                conversation_id=conversation_id,
-                template_name=cw.config.chatwoot_budget_template,
-                variables=variables,
-                attachment=attachment,
-                content=None 
-            )
-            success_msg = f"Orçamento enviado com sucesso para {client_name} via WhatsApp (Template)!"
+
+        # 2. Tentar disparar via ManualMessageConfig (template configurável)
+        from integracoes.utils import dispatch_manual_message
+        sent = dispatch_manual_message(
+            trigger='ENVIO_ORCAMENTO',
+            instance=order,
+            phone=phone_e164,
+            contact_name=client_name,
+            extra_attachment=attachment,
+        )
+
+        if sent:
+            success_msg = f"Orçamento enviado para {client_name} via WhatsApp!"
+            response = True  # sinaliza que houve envio para atualizar status da OS
+            conversation_id = None
         else:
-            # Fallback para mensagem simples com anexo
-            response = cw.send_message(conversation_id, "Segue o orçamento solicitado em anexo.", attachments=[attachment])
-            success_msg = f"Orçamento enviado com sucesso para {client_name} via WhatsApp!"
+            # Fallback legado: template fixo em SystemConfig ou mensagem simples
+            cw = ChatwootClient()
+            contact = cw.search_contact(phone_e164) or cw.create_contact(client_name, phone_e164)
+            if not contact:
+                raise Exception("Não foi possível localizar ou criar o contato no Chatwoot.")
+            conversation = cw.get_or_create_conversation(contact['id'])
+            if not conversation:
+                raise Exception("Não foi possível criar a conversa no Chatwoot.")
+            conversation_id = conversation['id']
+
+            response = None
+            if cw.config.chatwoot_budget_template:
+                if order.estimated_value:
+                    value_display = f"{order.estimated_value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                else:
+                    value_display = "0,00"
+                variables = [str(order.number), value_display]
+                response = cw.send_template(
+                    conversation_id=conversation_id,
+                    template_name=cw.config.chatwoot_budget_template,
+                    variables=variables,
+                    attachment=attachment,
+                    content=None,
+                )
+                success_msg = f"Orçamento enviado para {client_name} via WhatsApp (Template legado)!"
+            else:
+                response = cw.send_message(conversation_id, "Segue o orçamento solicitado em anexo.", attachments=[attachment])
+                success_msg = f"Orçamento enviado para {client_name} via WhatsApp!"
             
         if response:
-            message_id, tracked_conversation_id = cw.extract_message_tracking(response)
+            if response is True:
+                # Enviado via ManualMessageConfig — sem tracking de mensagem individual
+                message_id, tracked_conversation_id = None, None
+            else:
+                message_id, tracked_conversation_id = cw.extract_message_tracking(response)
             order.chatwoot_budget_message_id = message_id
-            order.chatwoot_budget_conversation_id = tracked_conversation_id or str(conversation_id)
+            order.chatwoot_budget_conversation_id = tracked_conversation_id or (str(conversation_id) if conversation_id else '')
             order.status = ServiceOrder.Status.AGUARDANDO_APROVACAO
+            order.budget_sent_at = django.utils.timezone.now()
             order.client_budget_response = None
             order.client_budget_responded_at = None
             order.client_budget_approved_at = None
@@ -2030,42 +2033,44 @@ def service_order_send_budget(request, order_id):
                 'chatwoot_budget_message_id',
                 'chatwoot_budget_conversation_id',
                 'status',
+                'budget_sent_at',
                 'client_budget_response',
                 'client_budget_responded_at',
                 'client_budget_approved_at',
                 'updated_at',
             ])
 
-            budget_sent_label = cw.get_label_by_title("Orçamento-Enviado") or cw.create_label("Orçamento-Enviado")
-            if budget_sent_label:
-                conversation_ids = []
-                for cid in (
-                    tracked_conversation_id,
-                    response.get('conversation_id') if isinstance(response, dict) else None,
-                    order.chatwoot_budget_conversation_id,
-                    str(conversation_id),
-                ):
-                    normalized_cid = str(cid).strip() if cid not in (None, '') else ''
-                    if normalized_cid and normalized_cid not in conversation_ids:
-                        conversation_ids.append(normalized_cid)
+            if response is not True:
+                budget_sent_label = cw.get_label_by_title("Orçamento-Enviado") or cw.create_label("Orçamento-Enviado")
+                if budget_sent_label:
+                    conversation_ids = []
+                    for cid in (
+                        tracked_conversation_id,
+                        response.get('conversation_id') if isinstance(response, dict) else None,
+                        order.chatwoot_budget_conversation_id,
+                        str(conversation_id) if conversation_id else None,
+                    ):
+                        normalized_cid = str(cid).strip() if cid not in (None, '') else ''
+                        if normalized_cid and normalized_cid not in conversation_ids:
+                            conversation_ids.append(normalized_cid)
 
-                assigned_labels = None
-                for cid in conversation_ids:
-                    assigned_labels = cw.assign_label_to_conversation(
-                        cid,
-                        budget_sent_label.get("title", "Orçamento-Enviado")
-                    )
-                    if assigned_labels:
-                        break
+                    assigned_labels = None
+                    for cid in conversation_ids:
+                        assigned_labels = cw.assign_label_to_conversation(
+                            cid,
+                            budget_sent_label.get("title", "Orçamento-Enviado")
+                        )
+                        if assigned_labels:
+                            break
 
-                if not assigned_labels:
-                    logger.warning(
-                        "Orçamento enviado, mas falhou ao atribuir etiqueta no Chatwoot. os=%s conversation_ids=%s",
-                        order.number,
-                        conversation_ids
-                    )
-            else:
-                logger.warning("Orçamento enviado, mas não foi possível criar/localizar etiqueta Orçamento-Enviado. os=%s", order.number)
+                    if not assigned_labels:
+                        logger.warning(
+                            "Orçamento enviado, mas falhou ao atribuir etiqueta no Chatwoot. os=%s conversation_ids=%s",
+                            order.number,
+                            conversation_ids
+                        )
+                else:
+                    logger.warning("Orçamento enviado, mas não foi possível criar/localizar etiqueta Orçamento-Enviado. os=%s", order.number)
 
             messages.success(request, success_msg)
         else:

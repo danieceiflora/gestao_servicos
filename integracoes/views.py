@@ -781,6 +781,75 @@ def notification_config_delete(request, pk):
 
 @login_required
 @user_passes_test(lambda u: u.is_staff)
+def manual_message_config_list(request):
+    from .models import ManualMessageConfig
+    TRIGGER_META = {
+        'ENVIO_ORCAMENTO': {
+            'label': 'Envio de Orçamento',
+            'description': 'Disparada ao clicar em "Enviar Orçamento" na OS.',
+            'model_name': 'ServiceOrder',
+        },
+    }
+    items = []
+    for trigger, meta in TRIGGER_META.items():
+        config = ManualMessageConfig.objects.filter(trigger=trigger).first()
+        items.append({'trigger': trigger, 'meta': meta, 'config': config})
+    return render(request, 'integracoes/manual_message/config_list.html', {'items': items})
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def manual_message_config_edit(request, trigger):
+    from .models import ManualMessageConfig, ManualMessageVariable
+
+    TRIGGER_MODEL = {
+        'ENVIO_ORCAMENTO': 'ServiceOrder',
+    }
+    TRIGGER_LABELS = dict(ManualMessageConfig.TRIGGER_CHOICES)
+    if trigger not in TRIGGER_LABELS:
+        raise Http404
+
+    model_name = TRIGGER_MODEL[trigger]
+    config, _ = ManualMessageConfig.objects.get_or_create(trigger=trigger)
+
+    config_obj = SystemConfig.load()
+    api = MetaCloudAPI(config_obj.meta_waba_id, config_obj.meta_access_token)
+    templates = api.get_templates().get('data', [])
+
+    if request.method == 'POST':
+        config.template_name = request.POST.get('template_name', '').strip()
+        config.header_media_type = request.POST.get('header_media_type', 'NONE')
+        config.is_active = 'is_active' in request.POST
+        if request.FILES.get('static_media_file'):
+            config.static_media_file = request.FILES['static_media_file']
+        config.save()
+
+        config.variables.all().delete()
+        indices = request.POST.getlist('var_index[]')
+        paths = request.POST.getlist('var_path[]')
+        for i, path in zip(indices, paths):
+            if path:
+                ManualMessageVariable.objects.create(config=config, index=int(i), field_path=path, component='BODY')
+        btn_indices = request.POST.getlist('btn_var_index[]')
+        btn_paths = request.POST.getlist('btn_var_path[]')
+        for i, path in zip(btn_indices, btn_paths):
+            if path:
+                ManualMessageVariable.objects.create(config=config, index=int(i), field_path=path, component='BUTTON')
+
+        messages.success(request, f'Mensagem "{TRIGGER_LABELS[trigger]}" configurada.')
+        return redirect('integracoes:manual_message_config_list')
+
+    return render(request, 'integracoes/manual_message/config_form.html', {
+        'config': config,
+        'trigger': trigger,
+        'trigger_label': TRIGGER_LABELS[trigger],
+        'model_name': model_name,
+        'templates': templates,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
 def ajax_sync_meta_templates(request):
     """Pinga a Meta API para verificar conexão e retorna timestamp da sincronização."""
     from django.utils import timezone
@@ -860,9 +929,11 @@ def ajax_get_template_details(request):
     config_id = request.GET.get('config_id')
     step_id = request.GET.get('step_id')
     reminder_id = request.GET.get('reminder_id')
+    manual_config_id = request.GET.get('manual_config_id')
     existing_vars = {}
     existing_btn_vars = {}
     config = None
+    header_media_choices = NotificationConfig.HEADER_MEDIA_CHOICES
     if config_id and config_id.isdigit():
         config = NotificationConfig.objects.filter(id=config_id).first()
         existing_vars = {v.index: v.field_path for v in NotificationVariable.objects.filter(config_id=config_id, component='BODY')}
@@ -873,6 +944,13 @@ def ajax_get_template_details(request):
     elif reminder_id and reminder_id.isdigit():
         existing_vars = {v.index: v.field_path for v in ScheduledReminderVariable.objects.filter(reminder_id=reminder_id, component='BODY')}
         existing_btn_vars = {v.index: v.field_path for v in ScheduledReminderVariable.objects.filter(reminder_id=reminder_id, component='BUTTON')}
+    elif manual_config_id and manual_config_id.isdigit():
+        from .models import ManualMessageConfig, ManualMessageVariable
+        config = ManualMessageConfig.objects.filter(id=manual_config_id).first()
+        existing_vars = {v.index: v.field_path for v in ManualMessageVariable.objects.filter(config_id=manual_config_id, component='BODY')}
+        existing_btn_vars = {v.index: v.field_path for v in ManualMessageVariable.objects.filter(config_id=manual_config_id, component='BUTTON')}
+        if config:
+            header_media_choices = config.HEADER_MEDIA_CHOICES
 
     return render(request, 'integracoes/notifications/partials/template_variables.html', {
         'body_text': body_text,
@@ -885,7 +963,7 @@ def ajax_get_template_details(request):
         'existing_btn_vars': existing_btn_vars,
         'button_vars': button_vars,
         'config': config,
-        'header_media_choices': NotificationConfig.HEADER_MEDIA_CHOICES
+        'header_media_choices': header_media_choices,
     })
 
 @login_required

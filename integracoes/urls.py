@@ -37,6 +37,10 @@ urlpatterns = [
     # Régua de Cobrança — Simulação
     path('regua-cobranca/<int:pk>/simular/', views.collection_sequence_simulate, name='collection_sequence_simulate'),
 
+    # Mensagens Manuais (templates configuráveis para ações do usuário)
+    path('mensagens-manuais/', views.manual_message_config_list, name='manual_message_config_list'),
+    path('mensagens-manuais/<str:trigger>/configurar/', views.manual_message_config_edit, name='manual_message_config_edit'),
+
     # Lembretes Agendados (envio único)
     path('lembretes/', views.scheduled_reminder_list, name='scheduled_reminder_list'),
     path('lembretes/criar/', views.scheduled_reminder_create, name='scheduled_reminder_create'),

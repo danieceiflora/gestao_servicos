@@ -362,3 +362,71 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
                         ])
         except Exception as e:
             logger.exception(f"Erro ao disparar notificação dinâmica '{config.name}': {e}")
+
+
+def dispatch_manual_message(trigger: str, instance, phone: str, contact_name: str = 'Cliente', extra_attachment=None):
+    """
+    Dispara o template WhatsApp configurado para um gatilho manual (ex: ENVIO_ORCAMENTO).
+    Retorna True se enviado com sucesso, False caso não haja config ativa ou ocorra erro.
+    O chamador é responsável por fornecer phone e contact_name resolvidos.
+    """
+    from .models import ManualMessageConfig
+
+    config = ManualMessageConfig.objects.filter(trigger=trigger, is_active=True).first()
+    if not config or not config.template_name:
+        return False
+
+    variables = []
+    for var in config.variables.filter(component='BODY').order_by('index'):
+        val = resolve_field_path(instance, var.field_path)
+        if hasattr(val, 'strftime'):
+            val = val.strftime('%d/%m/%Y %H:%M')
+        variables.append(str(val) if val is not None else '')
+
+    btn_url_params = {}
+    for var in config.variables.filter(component='BUTTON').order_by('index'):
+        val = resolve_field_path(instance, var.field_path)
+        btn_url_params[var.index] = str(val) if val is not None else ''
+
+    attachment = extra_attachment
+    if config.header_media_type == 'BUDGET_PDF' and not attachment:
+        try:
+            from services.utils.pdf_generator import BudgetPDFGenerator
+            gen = BudgetPDFGenerator(instance)
+            pdf = gen.generate()
+            attachment = (f'Orcamento_{getattr(instance, "number", "OS")}.pdf', pdf, 'application/pdf')
+        except Exception:
+            logger.warning(f'dispatch_manual_message: não foi possível gerar PDF para {instance}')
+    elif config.header_media_type == 'STATIC_PDF' and config.static_media_file:
+        try:
+            attachment = (config.static_media_file.name.split('/')[-1], config.static_media_file.read(), 'application/pdf')
+        except Exception:
+            logger.warning(f'dispatch_manual_message: não foi possível ler arquivo estático')
+
+    try:
+        cw = ChatwootClient()
+        contact = cw.search_contact(phone) or cw.create_contact(contact_name, phone)
+        if not contact:
+            logger.error(f'dispatch_manual_message: contato não encontrado/criado para {phone}')
+            return False
+        conversation = cw.get_or_create_conversation(contact['id'])
+        if not conversation:
+            logger.error(f'dispatch_manual_message: conversa não criada')
+            return False
+
+        btn_data = None
+        if btn_url_params:
+            btn_data = [{'type': 'url', 'parameter': btn_url_params[k]} for k in sorted(btn_url_params)]
+
+        cw.send_template(
+            conversation_id=conversation['id'],
+            template_name=config.template_name,
+            variables=variables,
+            attachment=attachment,
+            button_data=btn_data,
+        )
+        logger.info(f'dispatch_manual_message: {trigger} → {phone}')
+        return True
+    except Exception as e:
+        logger.exception(f'dispatch_manual_message erro ({trigger}): {e}')
+        return False

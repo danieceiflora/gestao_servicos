@@ -400,3 +400,57 @@ class ScheduledReminderLog(models.Model):
 
     def __str__(self):
         return f'Lembrete #{self.reminder_id} → Parcela #{self.installment_id} ({self.status})'
+
+
+# ── MENSAGENS MANUAIS ────────────────────────────────────────────────────────
+
+class ManualMessageConfig(models.Model):
+    """Configura o template WhatsApp disparado por ações manuais (ex: Enviar Orçamento)."""
+
+    TRIGGER_CHOICES = [
+        ('ENVIO_ORCAMENTO', 'Envio de Orçamento'),
+    ]
+
+    HEADER_MEDIA_CHOICES = [
+        ('NONE',       'Sem mídia'),
+        ('BUDGET_PDF', 'PDF do Orçamento (gerado dinamicamente)'),
+        ('STATIC_PDF', 'PDF Estático (upload)'),
+    ]
+
+    trigger = models.CharField('Gatilho', max_length=50, choices=TRIGGER_CHOICES, unique=True)
+    template_name = models.CharField('Template WhatsApp (Meta)', max_length=100)
+    header_media_type = models.CharField(
+        'Mídia do Cabeçalho', max_length=20,
+        choices=HEADER_MEDIA_CHOICES, default='NONE',
+    )
+    static_media_file = models.FileField(
+        'Arquivo Estático', upload_to='manual_messages/static/',
+        blank=True, null=True,
+    )
+    is_active = models.BooleanField('Ativo', default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Mensagem Manual'
+        verbose_name_plural = 'Mensagens Manuais'
+
+    def __str__(self):
+        return f'{self.get_trigger_display()} → {self.template_name}'
+
+
+class ManualMessageVariable(models.Model):
+    class Component(models.TextChoices):
+        BODY   = 'BODY',   'Corpo'
+        BUTTON = 'BUTTON', 'Botão'
+
+    config     = models.ForeignKey(ManualMessageConfig, on_delete=models.CASCADE, related_name='variables')
+    index      = models.PositiveIntegerField('Índice')
+    field_path = models.CharField('Caminho do Campo', max_length=255)
+    component  = models.CharField('Componente', max_length=10, choices=Component.choices, default=Component.BODY)
+
+    class Meta:
+        verbose_name = 'Variável de Mensagem Manual'
+        verbose_name_plural = 'Variáveis de Mensagens Manuais'
+        unique_together = ('config', 'component', 'index')
+        ordering = ['component', 'index']
