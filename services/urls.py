@@ -9,6 +9,8 @@ from . import views_maintenance
 from . import views_bi
 
 urlpatterns = [
+    path('cadastro/', views.public_client_registration, name='public_client_registration'),
+    path('cadastro/verificar/', views.public_client_check_document, name='public_client_check_document'),
     path('confirmar/<uuid:token>/', views.task_public_confirmation, name='task_public_confirmation'),
     path('os/<uuid:token>/', views.public_os_page, name='public_os_page'),
     path('os/<uuid:token>/aprovar-orcamento/', views.public_os_approve_budget, name='public_os_approve_budget'),

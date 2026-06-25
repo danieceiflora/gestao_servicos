@@ -2429,3 +2429,85 @@ def task_public_confirmation(request, token):
         'payment_methods': payment_methods,
     })
 
+
+# ---------------------------------------------------------------------------
+# AUTO-CADASTRO DE CLIENTE (público, sem login)
+# ---------------------------------------------------------------------------
+
+def public_client_registration(request):
+    from .forms import ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet
+    config = SystemConfig.objects.first()
+
+    if request.method == 'POST':
+        client_form = ClientForm(request.POST)
+        phone_formset = PhoneFormSet(request.POST, prefix='phones')
+        email_formset = EmailFormSet(request.POST, prefix='emails')
+        property_formset = PropertyFormSet(request.POST, prefix='properties')
+
+        if (client_form.is_valid() and phone_formset.is_valid()
+                and email_formset.is_valid() and property_formset.is_valid()):
+            client = client_form.save()
+            phone_formset.instance = client
+            phone_formset.save()
+            email_formset.instance = client
+            email_formset.save()
+            property_formset.instance = client
+            property_formset.save()
+            return render(request, 'services/public/client_registration_success.html', {
+                'config': config,
+                'client': client,
+            })
+
+        return render(request, 'services/public/client_registration.html', {
+            'config': config,
+            'client_form': client_form,
+            'phone_formset': phone_formset,
+            'email_formset': email_formset,
+            'property_formset': property_formset,
+            'show_form': True,
+        })
+
+    return render(request, 'services/public/client_registration.html', {'config': config})
+
+
+def public_client_check_document(request):
+    from .forms import ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    config = SystemConfig.objects.first()
+    doc = request.POST.get('document', '').strip()
+    doc_digits = ''.join(filter(str.isdigit, doc))
+
+    if len(doc_digits) == 11:
+        client_type = 'PF'
+        exists = Client.objects.filter(cpf=doc_digits).exists()
+    elif len(doc_digits) == 14:
+        client_type = 'PJ'
+        exists = Client.objects.filter(cnpj=doc_digits).exists()
+    else:
+        return render(request, 'services/public/partials/client_reg_invalid_doc.html', {'config': config})
+
+    if exists:
+        return render(request, 'services/public/partials/client_reg_exists.html', {'config': config})
+
+    initial = {'client_type': client_type}
+    if client_type == 'PF':
+        initial['cpf'] = doc_digits
+    else:
+        initial['cnpj'] = doc_digits
+
+    client_form = ClientForm(initial=initial)
+    phone_formset = PhoneFormSet(prefix='phones')
+    email_formset = EmailFormSet(prefix='emails')
+    property_formset = PropertyFormSet(prefix='properties')
+
+    return render(request, 'services/public/partials/client_reg_form.html', {
+        'config': config,
+        'client_form': client_form,
+        'phone_formset': phone_formset,
+        'email_formset': email_formset,
+        'property_formset': property_formset,
+        'client_type': client_type,
+    })
+
