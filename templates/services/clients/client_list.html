@@ -11,12 +11,26 @@
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Clientes</h2>
             <p class="text-sm text-slate-500">Gerencie sua base de clientes e seus imóveis.</p>
         </div>
+        <div class="hidden md:flex items-center gap-2">
+            <!-- Convidar para Cadastro -->
+            <div class="inline-flex items-center">
+                <button type="button" onclick="openInviteModal()"
+                        class="inline-flex h-9 items-center justify-center gap-1.5 rounded-l-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100">
+                    <i data-lucide="send" class="h-3.5 w-3.5"></i>Convidar para Cadastro
+                </button>
+                <a href="{% url 'integracoes:manual_message_config_edit' trigger='CONVITE_CADASTRO' %}"
+                   title="Configurar mensagem de convite"
+                   class="inline-flex h-9 w-9 items-center justify-center rounded-r-md border border-l-0 border-emerald-200 bg-emerald-50 text-emerald-500 shadow-sm transition-colors hover:bg-emerald-100 hover:text-emerald-700">
+                    <i data-lucide="settings" class="h-3.5 w-3.5"></i>
+                </a>
+            </div>
+            {% if perms.services.add_client %}
+            <a href="{% url 'client_create' %}" class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+                <i data-lucide="plus" class="h-4 w-4"></i>Novo Cliente
+            </a>
+            {% endif %}
+        </div>
         {% if perms.services.add_client %}
-        <a href="{% url 'client_create' %}" class="hidden md:inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
-            <i data-lucide="plus" class="h-4 w-4"></i>
-            Novo Cliente
-        </a>
-        <!-- Floating Action Button for Mobile -->
         <a href="{% url 'client_create' %}" class="md:hidden fixed right-6 bottom-28 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl active:scale-90 transition-transform">
             <i data-lucide="plus" class="h-6 w-6"></i>
         </a>
@@ -213,4 +227,132 @@
 
 {% block extra_js %}
 {% include 'services/components/gps_modal.html' %}
+
+<!-- Modal: Convidar para Cadastro -->
+<div id="invite-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeInviteModal()"></div>
+    <div class="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <div class="flex items-center gap-2">
+                <div class="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                    <i data-lucide="send" class="h-4 w-4 text-emerald-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">Convidar para Cadastro</h3>
+                    <p class="text-[11px] text-slate-400">Envia o link de cadastro via WhatsApp</p>
+                </div>
+            </div>
+            <button onclick="closeInviteModal()" class="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+                <i data-lucide="x" class="h-4 w-4"></i>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-5 space-y-4">
+            <div id="invite-feedback" class="hidden rounded-lg px-3 py-2 text-sm font-medium"></div>
+
+            <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Nome</label>
+                <input type="text" id="invite-name" placeholder="Nome do contato"
+                       class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all">
+            </div>
+            <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide">WhatsApp *</label>
+                <input type="tel" id="invite-phone" placeholder="(00) 00000-0000"
+                       class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all">
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
+            <button onclick="closeInviteModal()"
+                    class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
+                Cancelar
+            </button>
+            <button onclick="submitInvite()" id="invite-submit-btn"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition-colors shadow-sm">
+                <i data-lucide="send" class="h-3.5 w-3.5"></i>
+                Enviar Convite
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openInviteModal() {
+    const modal = document.getElementById('invite-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('invite-name').focus();
+    document.getElementById('invite-feedback').classList.add('hidden');
+    document.getElementById('invite-phone').value = '';
+    document.getElementById('invite-name').value = '';
+}
+
+function closeInviteModal() {
+    const modal = document.getElementById('invite-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+// Máscara de telefone
+document.getElementById('invite-phone').addEventListener('input', function () {
+    let v = this.value.replace(/\D/g, '');
+    this.value = v.length <= 10
+        ? v.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2').substring(0, 14)
+        : v.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2').substring(0, 15);
+});
+
+function submitInvite() {
+    const name  = document.getElementById('invite-name').value.trim();
+    const phone = document.getElementById('invite-phone').value.trim();
+    const feedback = document.getElementById('invite-feedback');
+    const btn = document.getElementById('invite-submit-btn');
+
+    if (!phone) {
+        showInviteFeedback('Informe o número de WhatsApp.', 'error');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>Enviando...';
+
+    fetch('{% url "send_registration_invite" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}',
+        },
+        body: new URLSearchParams({ contact_name: name, phone: phone }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            showInviteFeedback(data.message, 'success');
+            setTimeout(closeInviteModal, 2000);
+        } else {
+            showInviteFeedback(data.error, 'error');
+        }
+    })
+    .catch(() => showInviteFeedback('Erro de conexão. Tente novamente.', 'error'))
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="send" class="h-3.5 w-3.5"></i>Enviar Convite';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+}
+
+function showInviteFeedback(msg, type) {
+    const el = document.getElementById('invite-feedback');
+    el.textContent = msg;
+    el.className = type === 'success'
+        ? 'rounded-lg px-3 py-2 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200'
+        : 'rounded-lg px-3 py-2 text-sm font-medium bg-red-50 text-red-700 border border-red-200';
+    el.classList.remove('hidden');
+}
+
+// Fechar com ESC
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeInviteModal(); });
+</script>
 {% endblock %}

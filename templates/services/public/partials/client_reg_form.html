@@ -301,14 +301,41 @@
         </div>
     </div>
 
+    <!-- ── CONSENTIMENTO LGPD ── -->
+    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
+        <div class="flex items-start gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400 mt-0.5 flex-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <p class="text-xs text-slate-500 leading-relaxed">
+                Seus dados pessoais são coletados e tratados conforme a
+                <strong class="text-slate-700">Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018)</strong>,
+                sendo utilizados exclusivamente para a prestação dos serviços solicitados.
+                Você pode solicitar a correção ou exclusão dos seus dados a qualquer momento
+                entrando em contato conosco.
+            </p>
+        </div>
+        <label class="flex items-start gap-3 cursor-pointer group">
+            <input type="checkbox" name="lgpd_consent" id="lgpd_consent" required
+                   class="mt-0.5 h-4 w-4 flex-none rounded border-slate-300 text-slate-900 cursor-pointer">
+            <span class="text-xs text-slate-700 leading-relaxed group-hover:text-slate-900 transition-colors">
+                Li e aceito os termos acima. <strong>Autorizo o armazenamento e tratamento dos meus dados</strong>
+                para fins de prestação de serviços, e estou ciente do meu direito de solicitar a exclusão a qualquer momento.
+                <span class="text-red-500 font-bold">*</span>
+            </span>
+        </label>
+        <p id="lgpd-error" class="hidden text-xs text-red-600 font-medium pl-7">
+            É necessário aceitar os termos para prosseguir.
+        </p>
+    </div>
+
     <!-- ── BOTÃO SUBMIT ── -->
     <div class="pt-2">
-        <button type="submit"
-                class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3.5 text-sm font-semibold text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10">
+        <button type="submit" id="reg-submit-btn"
+                class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3.5 text-sm font-semibold text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10 disabled:opacity-50 disabled:cursor-not-allowed">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
             Finalizar Cadastro
         </button>
-        <p class="text-center text-xs text-slate-400 mt-3">Seus dados são protegidos e usados apenas para prestação de serviços.</p>
     </div>
 </form>
 
@@ -486,6 +513,20 @@ function regExtractCoords(input) {
         status.className = 'location-status text-[10px] font-bold text-red-600';
     }
 }
+
+// Validação LGPD antes do submit
+document.getElementById('public-reg-form').addEventListener('submit', function (e) {
+    const cb = document.getElementById('lgpd_consent');
+    const err = document.getElementById('lgpd-error');
+    if (!cb.checked) {
+        e.preventDefault();
+        err.classList.remove('hidden');
+        cb.closest('label').previousElementSibling && null;
+        cb.closest('.bg-slate-50').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+        err.classList.add('hidden');
+    }
+});
 
 // Auto-inicializar se injetado via HTMX (o evento htmx:afterSwap chama initRegistrationForm)
 // ou se carregado diretamente (DOMContentLoaded no template pai chama initRegistrationForm)

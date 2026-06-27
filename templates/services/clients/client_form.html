@@ -302,6 +302,41 @@
             </div>
         </section>
 
+        {% if client %}
+        <!-- Card de auditoria — somente leitura, visível apenas na edição -->
+        <section class="rounded-xl border border-slate-200 bg-slate-50 px-6 py-4">
+            <div class="flex flex-wrap gap-x-8 gap-y-3 text-sm">
+                <div class="flex items-center gap-2 text-slate-500">
+                    <i data-lucide="calendar-plus" class="h-4 w-4 text-slate-400 flex-none"></i>
+                    <span>Criado em
+                        <span class="font-semibold text-slate-700">{{ client.created_at|date:"d/m/Y" }}</span>
+                        às <span class="font-semibold text-slate-700">{{ client.created_at|date:"H:i" }}</span>
+                    </span>
+                </div>
+                <div class="flex items-center gap-2 text-slate-500">
+                    <i data-lucide="calendar-check" class="h-4 w-4 text-slate-400 flex-none"></i>
+                    <span>Atualizado em
+                        <span class="font-semibold text-slate-700">{{ client.updated_at|date:"d/m/Y" }}</span>
+                        às <span class="font-semibold text-slate-700">{{ client.updated_at|date:"H:i" }}</span>
+                    </span>
+                </div>
+                <div class="flex items-center gap-2 text-slate-500">
+                    {% if client.registration_source == 'PUBLIC' %}
+                        <i data-lucide="globe" class="h-4 w-4 text-blue-400 flex-none"></i>
+                        <span>Origem: <span class="font-semibold text-blue-600">Página pública</span></span>
+                    {% else %}
+                        <i data-lucide="user-check" class="h-4 w-4 text-slate-400 flex-none"></i>
+                        <span>Origem:
+                            <span class="font-semibold text-slate-700">
+                                {% if client.registered_by %}{{ client.registered_by.get_full_name|default:client.registered_by.username }}{% else %}Sistema{% endif %}
+                            </span>
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
         <div class="flex flex-col md:flex-row items-center justify-end gap-4 pt-6 border-t border-slate-200 pb-32 md:pb-6">
             <a href="{% url 'client_list' %}" class="w-full md:w-auto text-center px-6 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50">Cancelar</a>
             <button type="submit" class="w-full md:w-auto px-10 py-2.5 rounded-lg bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 shadow-lg shadow-slate-200">Finalizar Cadastro</button>

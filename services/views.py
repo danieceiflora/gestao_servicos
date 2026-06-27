@@ -226,14 +226,18 @@ def client_create(request):
         property_formset = PropertyFormSet(request.POST, prefix='properties')
 
         if form.is_valid() and phone_formset.is_valid() and email_formset.is_valid() and property_formset.is_valid():
-            client = form.save()
+            client = form.save(commit=False)
+            client.registration_source = Client.RegistrationSource.ADMIN
+            client.registered_by = request.user
+            client.save()
+            form.save_m2m()
             phone_formset.instance = client
             phone_formset.save()
             email_formset.instance = client
             email_formset.save()
             property_formset.instance = client
             property_formset.save()
-            
+
             if request.GET.get('popup'):
                 return render(request, 'services/components/popup_success.html', {
                     'object': client,
@@ -288,7 +292,8 @@ def client_edit(request, client_id):
         'phone_formset': phone_formset,
         'email_formset': email_formset,
         'property_formset': property_formset,
-        'title': f'Editar: {client.name}'
+        'title': f'Editar: {client.name}',
+        'client': client,
     })
 
 @login_required
@@ -2434,6 +2439,39 @@ def task_public_confirmation(request, token):
 # AUTO-CADASTRO DE CLIENTE (público, sem login)
 # ---------------------------------------------------------------------------
 
+@login_required
+@require_POST
+def send_registration_invite(request):
+    from types import SimpleNamespace
+    from integracoes.utils import dispatch_manual_message
+    from django.conf import settings as django_settings
+
+    contact_name = request.POST.get('contact_name', '').strip() or 'Cliente'
+    phone_raw = request.POST.get('phone', '').strip()
+    phone_e164 = format_phone_e164(phone_raw)
+
+    if not phone_e164:
+        return JsonResponse({'ok': False, 'error': 'Telefone inválido. Informe DDD + número.'})
+
+    site_url = getattr(django_settings, 'SITE_URL', request.build_absolute_uri('/').rstrip('/'))
+    instance = SimpleNamespace(
+        contact_name=contact_name,
+        registration_url=f"{site_url}/cadastro/",
+        registration_path='/cadastro/',
+    )
+
+    sent = dispatch_manual_message(
+        trigger='CONVITE_CADASTRO',
+        instance=instance,
+        phone=phone_e164,
+        contact_name=contact_name,
+    )
+
+    if sent:
+        return JsonResponse({'ok': True, 'message': f'Convite enviado para {contact_name} via WhatsApp!'})
+    return JsonResponse({'ok': False, 'error': 'Nenhum template configurado para convite de cadastro. Configure em Integrações > Mensagens Manuais.'})
+
+
 def public_client_registration(request):
     from .forms import ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet
     config = SystemConfig.objects.first()
@@ -2446,7 +2484,10 @@ def public_client_registration(request):
 
         if (client_form.is_valid() and phone_formset.is_valid()
                 and email_formset.is_valid() and property_formset.is_valid()):
-            client = client_form.save()
+            client = client_form.save(commit=False)
+            client.registration_source = Client.RegistrationSource.PUBLIC
+            client.save()
+            client_form.save_m2m()
             phone_formset.instance = client
             phone_formset.save()
             email_formset.instance = client

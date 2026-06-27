@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.db.models import Sum, F
 from django.contrib.auth.models import AbstractUser
@@ -146,6 +147,24 @@ class BusinessEntityBase(models.Model):
 
 class Client(BusinessEntityBase):
     credit_limit = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Limite de Crédito (R$)")
+
+    class RegistrationSource(models.TextChoices):
+        ADMIN  = 'ADMIN',  'Usuário do sistema'
+        PUBLIC = 'PUBLIC', 'Página pública'
+
+    registration_source = models.CharField(
+        max_length=10,
+        choices=RegistrationSource.choices,
+        default=RegistrationSource.ADMIN,
+        verbose_name="Origem do cadastro",
+    )
+    registered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='clients_registered',
+        verbose_name="Cadastrado por",
+    )
 
     def __str__(self):
         doc = self.document or "Sem documento"

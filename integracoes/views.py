@@ -787,6 +787,10 @@ def manual_message_config_list(request):
         'ENVIO_ORCAMENTO': {
             'label': 'Envio de Orçamento',
             'description': 'Disparada ao clicar em "Enviar Orçamento" na OS.',
+        },
+        'CONVITE_CADASTRO': {
+            'label': 'Convite para Cadastro',
+            'description': 'Disparada ao clicar em "Convidar para Cadastro" na lista de clientes.',
             'model_name': 'ServiceOrder',
         },
     }
@@ -803,7 +807,8 @@ def manual_message_config_edit(request, trigger):
     from .models import ManualMessageConfig, ManualMessageVariable
 
     TRIGGER_MODEL = {
-        'ENVIO_ORCAMENTO': 'ServiceOrder',
+        'ENVIO_ORCAMENTO':  'ServiceOrder',
+        'CONVITE_CADASTRO': 'Convite',
     }
     TRIGGER_LABELS = dict(ManualMessageConfig.TRIGGER_CHOICES)
     if trigger not in TRIGGER_LABELS:

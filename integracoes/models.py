@@ -408,7 +408,8 @@ class ManualMessageConfig(models.Model):
     """Configura o template WhatsApp disparado por ações manuais (ex: Enviar Orçamento)."""
 
     TRIGGER_CHOICES = [
-        ('ENVIO_ORCAMENTO', 'Envio de Orçamento'),
+        ('ENVIO_ORCAMENTO',  'Envio de Orçamento'),
+        ('CONVITE_CADASTRO', 'Convite para Cadastro'),
     ]
 
     HEADER_MEDIA_CHOICES = [

@@ -119,6 +119,11 @@ CURATED_FIELDS = {
         ('amount_paid',                 'Parcela > Valor Pago'),
         ('amount_remaining',            'Parcela > Saldo Restante'),
     ],
+    'Convite': [
+        ('contact_name',        'Convite > Nome do Convidado'),
+        ('registration_url',    'Convite > Link de Cadastro (URL completa)'),
+        ('registration_path',   'Convite > Caminho de Cadastro (/cadastro/)'),
+    ],
 }
 
 # Adiciona campos globais a todos os modelos
