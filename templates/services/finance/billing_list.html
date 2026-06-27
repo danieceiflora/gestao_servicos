@@ -9,16 +9,36 @@
             <h1 class="text-2xl font-black text-slate-900 tracking-tighter">Contas a Receber</h1>
             <p class="text-sm text-slate-500 font-medium">Gestão centralizada de cobranças e parcelas</p>
         </div>
-        
+
         <div class="flex items-center gap-2">
             <div class="bg-white border border-slate-200 rounded-lg p-1 flex gap-1 shadow-sm">
-                <a href="?status=" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if not request.GET.status %}bg-slate-900 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Todos</a>
-                <a href="?status=PENDENTE" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PENDENTE' %}bg-amber-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pendentes</a>
-                <a href="?status=PARCIAL" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PARCIAL' %}bg-blue-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Parciais</a>
-                <a href="?status=PAGO" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if request.GET.status == 'PAGO' %}bg-emerald-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pagos</a>
+                <a href="?status={% if q %}status=&q={{ q }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if not status_filter %}bg-slate-900 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Todos</a>
+                <a href="?status=PENDENTE{% if q %}&q={{ q }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if status_filter == 'PENDENTE' %}bg-amber-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pendentes</a>
+                <a href="?status=PARCIAL{% if q %}&q={{ q }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if status_filter == 'PARCIAL' %}bg-blue-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Parciais</a>
+                <a href="?status=PAGO{% if q %}&q={{ q }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if status_filter == 'PAGO' %}bg-emerald-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pagos</a>
             </div>
         </div>
     </div>
+
+    <!-- Busca -->
+    <form method="get" class="flex gap-2">
+        {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+        <div class="relative flex-1 max-w-sm">
+            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none"></i>
+            <input type="search" name="q" value="{{ q }}" placeholder="Buscar por cliente ou nº da cobrança…"
+                   class="w-full pl-9 pr-4 py-2.5 text-sm font-medium bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-slate-400 transition-colors shadow-sm">
+        </div>
+        <button type="submit"
+                class="px-4 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-sm">
+            Buscar
+        </button>
+        {% if q %}
+        <a href="?status={{ status_filter }}"
+           class="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-900 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors">
+            Limpar
+        </a>
+        {% endif %}
+    </form>
 
     <!-- Tabela de Cobranças -->
     <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">

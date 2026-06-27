@@ -900,6 +900,10 @@ class Installment(models.Model):
             return charge.boleto_barcode or ''
         return ''
 
+    @property
+    def manual_actual_payments(self):
+        return self.actual_payments.filter(is_gateway_auto=False)
+
     class Meta:
         verbose_name = "Parcela"
         verbose_name_plural = "Parcelas"
@@ -942,6 +946,8 @@ class SalePayment(models.Model):
     valor_liquido = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Líquido")
     data_pagamento = models.DateTimeField(default=timezone.now, verbose_name="Data do Pagamento")
     data_previsao = models.DateField(verbose_name="Previsão de Recebimento")
+    is_gateway_auto = models.BooleanField(default=False, verbose_name="Baixa Automática (Gateway)",
+                                          help_text='True quando gerado automaticamente pelo webhook do gateway')
 
     class Meta:
         verbose_name = "Pagamento da Venda/OS"

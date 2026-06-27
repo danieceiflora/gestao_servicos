@@ -158,36 +158,28 @@
                                 <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-700">Quitada</span>
                                 <p class="text-[9px] text-slate-400 font-medium">em {{ inst.paid_at|date:"d/m/Y H:i" }}</p>
 
-                                {# Origem do recebimento: gateway digital ou baixa manual — Lacuna 1 #}
-                                {% with paid_via_gateway=inst.gateway_charges.all manual_payments=inst.actual_payments.all %}
-                                {% if manual_payments %}
-                                    {# Baixa manual: mostrar método(s) utilizado(s) #}
-                                    <div class="flex flex-col items-end gap-0.5 mt-0.5">
-                                        {% for pay in manual_payments %}
-                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[9px] font-black uppercase text-slate-600">
-                                            <i data-lucide="pencil-line" class="h-2.5 w-2.5"></i>
-                                            Manual · {{ pay.metodo_pagamento.descricao }}
-                                        </span>
-                                        {% endfor %}
-                                    </div>
-                                {% else %}
-                                    {# Sem baixa manual: verificar se foi via gateway #}
-                                    {% for charge in paid_via_gateway %}
-                                        {% if charge.is_paid %}
-                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg
-                                            {% if charge.method == 'PIX' %}bg-emerald-50 border border-emerald-200 text-emerald-700
-                                            {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}
-                                            text-[9px] font-black uppercase">
-                                            {% if charge.method == 'PIX' %}
-                                                <i data-lucide="zap" class="h-2.5 w-2.5"></i> Gateway · PIX
-                                            {% else %}
-                                                <i data-lucide="file-text" class="h-2.5 w-2.5"></i> Gateway · Boleto
-                                            {% endif %}
-                                        </span>
+                                {# Origem do recebimento: gateway digital ou baixa manual #}
+                                {# Gateway tem prioridade — baixas automáticas (is_gateway_auto) não aparecem como Manual #}
+                                {% for charge in inst.gateway_charges.all %}
+                                    {% if charge.is_paid %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg
+                                        {% if charge.method == 'PIX' %}bg-emerald-50 border border-emerald-200 text-emerald-700
+                                        {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}
+                                        text-[9px] font-black uppercase">
+                                        {% if charge.method == 'PIX' %}
+                                            <i data-lucide="zap" class="h-2.5 w-2.5"></i> Gateway · PIX
+                                        {% else %}
+                                            <i data-lucide="file-text" class="h-2.5 w-2.5"></i> Gateway · Boleto
                                         {% endif %}
-                                    {% endfor %}
-                                {% endif %}
-                                {% endwith %}
+                                    </span>
+                                    {% endif %}
+                                {% endfor %}
+                                {% for pay in inst.manual_actual_payments %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[9px] font-black uppercase text-slate-600">
+                                    <i data-lucide="pencil-line" class="h-2.5 w-2.5"></i>
+                                    Manual · {{ pay.metodo_pagamento.descricao }}
+                                </span>
+                                {% endfor %}
                             </div>
                         {% elif inst.status == 'CANCELADO' %}
                             <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-400">Cancelada</span>
@@ -325,14 +317,14 @@
                 </div>
                 {% endif %}
 
-                <!-- Histórico de recebimentos manuais — badge "Manual" para distinção visual (Lacuna 5) -->
-                {% if inst.actual_payments.all %}
+                <!-- Histórico de recebimentos manuais (exclui baixas automáticas do gateway) -->
+                {% if inst.manual_actual_payments %}
                 <div class="border-t border-slate-100 px-6 py-4 space-y-2">
                     <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                         <i data-lucide="pencil-line" class="h-3 w-3"></i>
                         Baixas Manuais
                     </p>
-                    {% for pay in inst.actual_payments.all %}
+                    {% for pay in inst.manual_actual_payments %}
                     <div class="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 last:border-0">
                         <div class="flex items-center gap-3 flex-wrap">
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[9px] font-black uppercase text-slate-600">

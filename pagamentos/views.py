@@ -338,6 +338,7 @@ def _auto_baixa_installment(charge: GatewayCharge):
             valor_liquido=valor_liquido,
             data_pagamento=timezone.now(),
             data_previsao=timezone.now().date(),
+            is_gateway_auto=True,
         )
     else:
         logger.warning('_auto_baixa_installment: nenhum PaymentMethod ativo encontrado; '

@@ -150,7 +150,9 @@ TIME_ZONE = 'America/Sao_Paulo'
 
 USE_I18N = True
 
-USE_TZ = False
+# Em produção (DEBUG=False), salva horário local (America/Sao_Paulo) direto no banco.
+# Em desenvolvimento (DEBUG=True), mantém o padrão Django (UTC no banco).
+USE_TZ = DEBUG
 
 
 # Static files (CSS, JavaScript, Images)

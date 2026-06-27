@@ -1232,15 +1232,26 @@ def billing_create_for_task(request, task_id):
 @user_passes_test(is_manager)
 def billing_list(request):
     """Lista de todas as cobranças (Contas a Receber)."""
-    billings = Billing.objects.all().select_related('client', 'sale', 'service_order')
-    
-    # Filtros simples
-    status = request.GET.get('status')
+    from django.db.models import Q
+    billings = Billing.objects.all().select_related('client', 'sale', 'service_order').order_by('-created_at')
+
+    status = request.GET.get('status', '').strip()
     if status:
         billings = billings.filter(status=status)
-        
+
+    q = request.GET.get('q', '').strip()
+    if q:
+        q_filter = Q(client__name__icontains=q)
+        try:
+            q_filter |= Q(number=int(q))
+        except ValueError:
+            pass
+        billings = billings.filter(q_filter)
+
     context = {
         'billings': billings,
+        'q': q,
+        'status_filter': status,
         'title': 'Contas a Receber',
         'active_menu': 'finance'
     }
