@@ -163,6 +163,8 @@ class GatewayCharge(models.Model):
     # Página de fatura hospedada pelo Asaas (PIX e Boleto) — permite ao cliente
     # copiar o código/linha digitável e baixar o PDF sem precisarmos hospedar nada
     invoice_url = models.URLField('URL da Fatura (Asaas)', blank=True)
+    invoice_number = models.CharField('Número da Fatura (Asaas)', max_length=50, blank=True,
+                                      help_text='Número visível no extrato do recebedor ao receber split')
 
     # Confirmação de pagamento
     paid_at = models.DateTimeField('Pago em', null=True, blank=True)

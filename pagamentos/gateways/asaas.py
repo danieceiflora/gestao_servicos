@@ -187,6 +187,7 @@ class AsaasGateway(BasePaymentGateway):
             amount=Decimal(str(result['value'])),
             due_date=data.due_date,
             invoice_url=result.get('invoiceUrl', ''),
+            invoice_number=str(result.get('invoiceNumber', '') or ''),
         )
 
         if billing_type == 'PIX':

@@ -2627,6 +2627,7 @@ def public_billing_generate_charge(request, token):
             boleto_url=result.boleto_url,
             boleto_barcode=result.boleto_barcode,
             invoice_url=result.invoice_url,
+            invoice_number=result.invoice_number,
         )
         return render(request, 'services/public/partials/charge_result.html', {'charge': charge})
 

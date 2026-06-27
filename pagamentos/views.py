@@ -210,6 +210,7 @@ def installment_create_charge(request, installment_pk):
             boleto_url=result.boleto_url,
             boleto_barcode=result.boleto_barcode,
             invoice_url=result.invoice_url,
+            invoice_number=result.invoice_number,
         )
         messages.success(request, f'{method} gerado com sucesso!')
     except Exception as e:

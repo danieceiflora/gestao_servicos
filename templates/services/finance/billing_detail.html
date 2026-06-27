@@ -33,28 +33,72 @@
                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cliente</p>
                 <p class="text-lg font-bold text-slate-800">{{ billing.client.display_name }}</p>
             </div>
+
+            {# Origem da cobrança: OS ou Venda — Lacuna 4 #}
+            {% if billing.service_order or billing.sale %}
+            <div class="flex flex-col gap-1">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Origem</p>
+                <div class="flex items-center gap-2">
+                    {% if billing.service_order %}
+                    <a href="{% url 'service_order_detail' order_id=billing.service_order.id %}"
+                       class="inline-flex items-center gap-1.5 text-sm font-bold text-slate-700 hover:text-slate-900 transition-colors group">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-violet-50 border border-violet-100 text-violet-700 text-[10px] font-black uppercase">
+                            <i data-lucide="wrench" class="h-3 w-3"></i> OS
+                        </span>
+                        #{{ billing.service_order.number }}
+                        <i data-lucide="arrow-up-right" class="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-700 transition-colors"></i>
+                    </a>
+                    {% elif billing.sale %}
+                    <a href="{% url 'sale_detail' number=billing.sale.number %}"
+                       class="inline-flex items-center gap-1.5 text-sm font-bold text-slate-700 hover:text-slate-900 transition-colors group">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-100 text-blue-700 text-[10px] font-black uppercase">
+                            <i data-lucide="shopping-cart" class="h-3 w-3"></i> Venda
+                        </span>
+                        #{{ billing.sale.number }}
+                        <i data-lucide="arrow-up-right" class="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-700 transition-colors"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
 
-        <div class="flex flex-col items-end justify-center text-right border-l border-slate-100 md:pl-8">
-            <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Valor Total</p>
-            <p class="text-5xl font-black text-slate-900 tracking-tighter">R$ {{ billing.total_amount|floatformat:2 }}</p>
-            {% if billing.discount > 0 %}
-                <p class="text-xs font-bold text-red-500 mt-1">Desconto Aplicado: R$ {{ billing.discount|floatformat:2 }}</p>
-            {% endif %}
+        <div class="flex flex-col items-end justify-center text-right border-l border-slate-100 md:pl-8 gap-3">
+            <div>
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Valor Total</p>
+                <p class="text-5xl font-black text-slate-900 tracking-tighter">R$ {{ billing.total_amount|floatformat:2 }}</p>
+                {% if billing.discount > 0 %}
+                    <p class="text-xs font-bold text-red-500 mt-1">Desconto Aplicado: R$ {{ billing.discount|floatformat:2 }}</p>
+                {% endif %}
+            </div>
 
             {% with balance=billing.get_remaining_balance %}
                 {% if balance > 0 %}
-                    <div class="mt-4 px-4 py-2 bg-red-50 border border-red-100 rounded-2xl text-right">
+                    <div class="px-4 py-2 bg-red-50 border border-red-100 rounded-2xl text-right">
                         <p class="text-[9px] font-black text-red-400 uppercase tracking-widest mb-0.5">Saldo Devedor Total</p>
                         <p class="text-xl font-black text-red-600 tracking-tighter">R$ {{ balance|floatformat:2 }}</p>
                     </div>
                 {% elif billing.status == 'PAGO' %}
-                    <div class="mt-4 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl text-right">
+                    <div class="px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl text-right">
                         <p class="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Status</p>
                         <p class="text-xl font-black text-emerald-600 tracking-tighter">RECEBIMENTO INTEGRAL</p>
                     </div>
                 {% endif %}
             {% endwith %}
+
+            {# Link público de pagamento — cópia rápida para enviar ao cliente #}
+            {% if billing.public_token and billing.status != 'PAGO' and billing.status != 'CANCELADO' %}
+            <div class="pt-1">
+                <button type="button"
+                        onclick="copyPublicLink()"
+                        data-url="/pagar/{{ billing.public_token }}/"
+                        class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 border border-slate-200 hover:border-slate-400 rounded-xl px-3 py-1.5 transition-all group"
+                        title="Copiar link de pagamento para enviar ao cliente">
+                    <i data-lucide="link" class="h-3 w-3"></i>
+                    <span id="copy-link-label">Copiar link de pagamento</span>
+                </button>
+            </div>
+            {% endif %}
         </div>
     </div>
 
@@ -70,16 +114,26 @@
                 <!-- Linha principal da parcela -->
                 <div class="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div class="flex items-center gap-6">
-                        <div class="w-12 h-12 rounded-xl {% if inst.status == 'PAGO' %}bg-emerald-500 text-white shadow-lg shadow-emerald-500/20{% else %}bg-slate-100 text-slate-400{% endif %} flex items-center justify-center font-black text-lg">
+                        {# Badge numérico da parcela — verde=pago, vermelho=atrasada, cinza=demais #}
+                        <div class="w-12 h-12 rounded-xl flex-none flex items-center justify-center font-black text-lg
+                            {% if inst.status == 'PAGO' %}bg-emerald-500 text-white shadow-lg shadow-emerald-500/20
+                            {% elif inst.status == 'ATRASADO' %}bg-red-500 text-white shadow-lg shadow-red-500/20
+                            {% else %}bg-slate-100 text-slate-400{% endif %}">
                             {{ inst.installment_number }}
                         </div>
                         <div>
                             <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Vencimento</p>
-                            <p class="text-base font-bold text-slate-800">{{ inst.due_date|date:"d/m/Y" }}</p>
+                            <div class="flex items-center gap-2">
+                                <p class="text-base font-bold {% if inst.status == 'ATRASADO' %}text-red-700{% else %}text-slate-800{% endif %}">{{ inst.due_date|date:"d/m/Y" }}</p>
+                                {% if inst.status == 'ATRASADO' %}
+                                <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-red-100 text-red-700 border border-red-200">Atrasada</span>
+                                {% endif %}
+                            </div>
                         </div>
                         {% if inst.payment_method %}
                         <div>
-                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Forma Pagto</p>
+                            {# "Prevista" deixa claro que é a forma planejada, não a realizada — Lacuna 7 #}
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Forma Prevista</p>
                             <p class="text-sm font-bold text-slate-600">{{ inst.payment_method.descricao }}</p>
                         </div>
                         {% endif %}
@@ -100,9 +154,40 @@
                         </div>
 
                         {% if inst.status == 'PAGO' %}
-                            <div class="flex flex-col items-end">
+                            <div class="flex flex-col items-end gap-1">
                                 <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-700">Quitada</span>
-                                <p class="text-[9px] text-slate-400 font-medium mt-1">em {{ inst.paid_at|date:"d/m/Y H:i" }}</p>
+                                <p class="text-[9px] text-slate-400 font-medium">em {{ inst.paid_at|date:"d/m/Y H:i" }}</p>
+
+                                {# Origem do recebimento: gateway digital ou baixa manual — Lacuna 1 #}
+                                {% with paid_via_gateway=inst.gateway_charges.all manual_payments=inst.actual_payments.all %}
+                                {% if manual_payments %}
+                                    {# Baixa manual: mostrar método(s) utilizado(s) #}
+                                    <div class="flex flex-col items-end gap-0.5 mt-0.5">
+                                        {% for pay in manual_payments %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[9px] font-black uppercase text-slate-600">
+                                            <i data-lucide="pencil-line" class="h-2.5 w-2.5"></i>
+                                            Manual · {{ pay.metodo_pagamento.descricao }}
+                                        </span>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    {# Sem baixa manual: verificar se foi via gateway #}
+                                    {% for charge in paid_via_gateway %}
+                                        {% if charge.is_paid %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg
+                                            {% if charge.method == 'PIX' %}bg-emerald-50 border border-emerald-200 text-emerald-700
+                                            {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}
+                                            text-[9px] font-black uppercase">
+                                            {% if charge.method == 'PIX' %}
+                                                <i data-lucide="zap" class="h-2.5 w-2.5"></i> Gateway · PIX
+                                            {% else %}
+                                                <i data-lucide="file-text" class="h-2.5 w-2.5"></i> Gateway · Boleto
+                                            {% endif %}
+                                        </span>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                                {% endwith %}
                             </div>
                         {% elif inst.status == 'CANCELADO' %}
                             <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-400">Cancelada</span>
@@ -117,18 +202,20 @@
                 </div>
 
                 <!-- Seção Gateway de Pagamentos (PIX / Boleto) -->
-                {% if inst.status != 'PAGO' and inst.status != 'CANCELADO' %}
+                {# Exibe cobranças digitais pagas em modo leitura (rastreabilidade) ou ativas para ação #}
+                {% if inst.status != 'CANCELADO' %}
                 <div class="border-t border-slate-100 px-6 py-4 bg-slate-50/60">
                     <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                         <i data-lucide="credit-card" class="h-3 w-3"></i>
-                        Cobranças Digitais
+                        {% if inst.status == 'PAGO' %}Cobrança Digital (histórico){% else %}Cobranças Digitais{% endif %}
                     </p>
 
                     {% if inst.gateway_charges.all %}
-                    <!-- Cobranças existentes -->
-                    <div class="space-y-2 mb-3">
+                    <!-- Cobranças digitais: ativas ou pagas (rastreabilidade — Lacuna 2) -->
+                    <div class="space-y-2 {% if inst.status != 'PAGO' %}mb-3{% endif %}">
                         {% for charge in inst.gateway_charges.all %}
-                        <div class="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-4 py-2.5 text-xs">
+                        <div class="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-4 py-2.5 text-xs
+                            {% if charge.is_paid %}border-emerald-100 bg-emerald-50/30{% endif %}">
                             <div class="flex items-center gap-3">
                                 {% if charge.method == 'PIX' %}
                                 <span class="inline-flex items-center gap-1 font-bold text-emerald-700">
@@ -140,38 +227,48 @@
                                 </span>
                                 {% endif %}
                                 <span class="text-slate-400">Venc. {{ charge.due_date|date:"d/m/Y" }}</span>
-                                <span class="
-                                    px-2 py-0.5 rounded-full font-bold uppercase text-[9px]
+                                <span class="px-2 py-0.5 rounded-full font-bold uppercase text-[9px]
                                     {% if charge.is_paid %}bg-emerald-100 text-emerald-700
                                     {% elif charge.status == 'OVERDUE' %}bg-red-100 text-red-700
                                     {% elif charge.status == 'CANCELLED' %}bg-slate-100 text-slate-400
                                     {% else %}bg-amber-100 text-amber-700{% endif %}">
                                     {{ charge.get_status_display }}
                                 </span>
+                                {# Número da fatura Asaas — visível no extrato do recebedor #}
+                                {% if charge.invoice_number %}
+                                <span class="text-slate-400 font-mono text-[9px]">Fatura #{{ charge.invoice_number }}</span>
+                                {% endif %}
+                                {# Valor da cobrança gateway #}
+                                {% if charge.amount %}
+                                <span class="text-slate-500 font-bold">R$ {{ charge.amount|floatformat:2 }}</span>
+                                {% endif %}
                             </div>
                             <div class="flex items-center gap-2">
-                                {% if charge.method == 'PIX' and charge.pix_copy_paste and charge.is_active %}
-                                <button type="button"
-                                        data-pix-id="{{ charge.id }}"
-                                        data-pix-qr="{{ charge.pix_qrcode }}"
-                                        data-pix-copy="{{ charge.pix_copy_paste }}"
-                                        onclick="openPixFromBtn(this)"
-                                        class="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-bold transition-colors">
-                                    <i data-lucide="qr-code" class="h-3.5 w-3.5"></i> Ver QR Code
-                                </button>
-                                {% elif charge.method == 'BOLETO' and charge.is_active and charge.invoice_url %}
-                                <a href="{{ charge.invoice_url }}" target="_blank"
-                                   class="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold transition-colors">
-                                    <i data-lucide="external-link" class="h-3.5 w-3.5"></i> Abrir Boleto
-                                </a>
-                                {% elif charge.method == 'BOLETO' and charge.boleto_url and charge.is_active %}
-                                <a href="{{ charge.boleto_url }}" target="_blank"
-                                   class="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold transition-colors">
-                                    <i data-lucide="external-link" class="h-3.5 w-3.5"></i> Abrir Boleto
-                                </a>
+                                {# Ações somente para cobranças ativas (não pagas) #}
+                                {% if not charge.is_paid %}
+                                    {% if charge.method == 'PIX' and charge.pix_copy_paste and charge.is_active %}
+                                    <button type="button"
+                                            data-pix-id="{{ charge.id }}"
+                                            data-pix-qr="{{ charge.pix_qrcode }}"
+                                            data-pix-copy="{{ charge.pix_copy_paste }}"
+                                            onclick="openPixFromBtn(this)"
+                                            class="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-bold transition-colors">
+                                        <i data-lucide="qr-code" class="h-3.5 w-3.5"></i> Ver QR Code
+                                    </button>
+                                    {% elif charge.method == 'BOLETO' and charge.is_active and charge.invoice_url %}
+                                    <a href="{{ charge.invoice_url }}" target="_blank"
+                                       class="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold transition-colors">
+                                        <i data-lucide="external-link" class="h-3.5 w-3.5"></i> Abrir Boleto
+                                    </a>
+                                    {% elif charge.method == 'BOLETO' and charge.boleto_url and charge.is_active %}
+                                    <a href="{{ charge.boleto_url }}" target="_blank"
+                                       class="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold transition-colors">
+                                        <i data-lucide="external-link" class="h-3.5 w-3.5"></i> Abrir Boleto
+                                    </a>
+                                    {% endif %}
                                 {% endif %}
                                 <a href="{% url 'pagamentos:charge_detail' charge_pk=charge.pk %}"
-                                   class="text-slate-400 hover:text-slate-700 transition-colors" title="Detalhes">
+                                   class="text-slate-400 hover:text-slate-700 transition-colors" title="Ver detalhes da cobrança">
                                     <i data-lucide="arrow-right" class="h-3.5 w-3.5"></i>
                                 </a>
                             </div>
@@ -180,29 +277,32 @@
                     </div>
                     {% endif %}
 
-                    <!-- Botões para gerar nova cobrança (apenas se gateway habilitado e sem cobrança ativa) -->
+                    {# Botões de geração somente para parcelas não pagas — Lacuna 9 (anti-duplo-clique) #}
+                    {% if inst.status != 'PAGO' %}
                     {% with has_active=inst.gateway_charges.all %}
                     {% if gateway_config.can_generate_charges %}
-                        <div class="flex flex-wrap gap-2">
+                        <div class="flex flex-wrap gap-2 {% if inst.gateway_charges.all %}mt-3{% endif %}">
                             {% if gateway_config.is_sandbox %}
                             <span class="text-[10px] text-amber-600 font-medium px-1.5 py-0.5 bg-amber-50 rounded border border-amber-200">SANDBOX</span>
                             {% endif %}
                             {% if gateway_config.pix_enabled %}
-                            <form method="post" action="{% url 'pagamentos:installment_create_charge' installment_pk=inst.pk %}">
+                            <form method="post" action="{% url 'pagamentos:installment_create_charge' installment_pk=inst.pk %}"
+                                  onsubmit="disableSubmit(this, 'Gerando PIX...')">
                                 {% csrf_token %}
                                 <input type="hidden" name="method" value="PIX">
                                 <button type="submit"
-                                        class="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors">
+                                        class="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
                                     <i data-lucide="zap" class="h-3 w-3"></i> Gerar PIX
                                 </button>
                             </form>
                             {% endif %}
                             {% if gateway_config.boleto_enabled %}
-                            <form method="post" action="{% url 'pagamentos:installment_create_charge' installment_pk=inst.pk %}">
+                            <form method="post" action="{% url 'pagamentos:installment_create_charge' installment_pk=inst.pk %}"
+                                  onsubmit="disableSubmit(this, 'Gerando Boleto...')">
                                 {% csrf_token %}
                                 <input type="hidden" name="method" value="BOLETO">
                                 <button type="submit"
-                                        class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors">
+                                        class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
                                     <i data-lucide="file-text" class="h-3 w-3"></i> Gerar Boleto
                                 </button>
                             </form>
@@ -221,20 +321,27 @@
                         </span>
                     {% endif %}
                     {% endwith %}
+                    {% endif %}
                 </div>
                 {% endif %}
 
-                <!-- Histórico de recebimentos manuais -->
+                <!-- Histórico de recebimentos manuais — badge "Manual" para distinção visual (Lacuna 5) -->
                 {% if inst.actual_payments.all %}
                 <div class="border-t border-slate-100 px-6 py-4 space-y-2">
-                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Histórico de Recebimentos</p>
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                        <i data-lucide="pencil-line" class="h-3 w-3"></i>
+                        Baixas Manuais
+                    </p>
                     {% for pay in inst.actual_payments.all %}
-                    <div class="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
-                        <div class="flex items-center gap-3">
+                    <div class="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 last:border-0">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[9px] font-black uppercase text-slate-600">
+                                <i data-lucide="pencil-line" class="h-2.5 w-2.5"></i> Manual
+                            </span>
                             <span class="font-bold text-slate-700">{{ pay.metodo_pagamento.descricao }}</span>
                             <span class="text-slate-400 font-medium">{{ pay.data_pagamento|date:"d/m/Y H:i" }}</span>
                         </div>
-                        <span class="font-black text-slate-900">R$ {{ pay.valor_bruto|floatformat:2 }}</span>
+                        <span class="font-black text-slate-900 tabular-nums">R$ {{ pay.valor_bruto|floatformat:2 }}</span>
                     </div>
                     {% endfor %}
                 </div>
@@ -518,5 +625,43 @@
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') { closePayModal(); closePixModal(); }
     });
+
+    /* ---- Link público de pagamento ---- */
+    function copyPublicLink() {
+        const btn = document.querySelector('[data-url]');
+        if (!btn) return;
+        const path = btn.getAttribute('data-url');
+        const url = window.location.origin + path;
+        navigator.clipboard.writeText(url).then(() => {
+            const label = document.getElementById('copy-link-label');
+            if (label) {
+                label.textContent = 'Link copiado!';
+                setTimeout(() => { label.textContent = 'Copiar link de pagamento'; }, 2500);
+            }
+        }).catch(() => {
+            // fallback para navegadores sem clipboard API
+            const ta = document.createElement('textarea');
+            ta.value = url;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            const label = document.getElementById('copy-link-label');
+            if (label) {
+                label.textContent = 'Link copiado!';
+                setTimeout(() => { label.textContent = 'Copiar link de pagamento'; }, 2500);
+            }
+        });
+    }
+
+    /* ---- Anti-duplo-clique nos formulários de geração de cobrança ---- */
+    function disableSubmit(form, label) {
+        const btn = form.querySelector('button[type="submit"]');
+        if (!btn) return;
+        btn.disabled = true;
+        btn.textContent = label;
+    }
 </script>
 {% endblock %}

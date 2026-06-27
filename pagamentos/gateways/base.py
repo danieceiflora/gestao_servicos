@@ -56,6 +56,7 @@ class ChargeResult:
     boleto_barcode: str = ''
     boleto_bank_slip_url: str = ''
     invoice_url: str = ''
+    invoice_number: str = ''
 
 
 class BasePaymentGateway(ABC):
