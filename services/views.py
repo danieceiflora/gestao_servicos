@@ -335,12 +335,16 @@ def service_order_list(request):
     orders = get_orders_queryset(request).order_by('-created_at')
 
     if query:
-        orders = orders.filter(
+        q_filter = (
             Q(client_property__client__name__icontains=query) |
             Q(client_property__address__icontains=query) |
-            Q(client_property__number__icontains=query) |
-            Q(id__icontains=query)
-        ).distinct()
+            Q(client_property__number__icontains=query)
+        )
+        try:
+            q_filter |= Q(number=int(query))
+        except ValueError:
+            pass
+        orders = orders.filter(q_filter).distinct()
 
     if status_filter:
         orders = orders.filter(status=status_filter)
