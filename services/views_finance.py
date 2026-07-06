@@ -1113,8 +1113,11 @@ def sale_return_cancel(request, return_id):
 # --- CRIAÇÃO DE COBRANÇA COM PARCELAMENTO LIVRE ---
 
 def _billing_create_context(order, task, payment_methods, due_days):
+    from pagamentos.models import BillingChargeConfig
     suggested_value = task.billing_value_net if task else order.balance_due
     today = timezone.now().date()
+    charge_configs = BillingChargeConfig.objects.filter(is_active=True).order_by('name')
+    default_config = charge_configs.filter(is_default=True).first()
     return {
         'order': order,
         'task': task,
@@ -1124,6 +1127,8 @@ def _billing_create_context(order, task, payment_methods, due_days):
         'today_iso': today.strftime('%Y-%m-%d'),
         'title': f'Gerar Cobrança — OS #{order.number}',
         'active_menu': 'finance',
+        'charge_configs': charge_configs,
+        'default_config_id': default_config.pk if default_config else '',
     }
 
 
@@ -1158,10 +1163,22 @@ def _billing_create_post(request, order, task):
 
     total = sum(d['amount'] for d in installments_data)
 
+    from pagamentos.models import BillingChargeConfig
+    from pagamentos.views import auto_create_charges_for_billing
+
+    charge_config = None
+    config_id = request.POST.get('charge_config_id', '').strip()
+    if config_id:
+        try:
+            charge_config = BillingChargeConfig.objects.get(pk=int(config_id), is_active=True)
+        except (BillingChargeConfig.DoesNotExist, ValueError):
+            pass
+
     billing = Billing.objects.create(
         client=order.client_property.client,
         service_order=order,
         task=task,
+        charge_config=charge_config,
         total_amount=total,
         discount=Decimal('0'),
         status=Billing.Status.PENDENTE,
@@ -1176,6 +1193,12 @@ def _billing_create_post(request, order, task):
             payment_method_id=d['payment_method_id'],
             status=Installment.Status.PENDENTE,
         )
+
+    if charge_config and charge_config.auto_send_to_gateway:
+        try:
+            auto_create_charges_for_billing(billing)
+        except Exception:
+            logger.exception('Erro ao disparar cobranças automáticas para billing %s', billing.number)
 
     parcelas = len(installments_data)
     messages.success(request, f'Cobrança #{billing.number} gerada com {parcelas} parcela{"s" if parcelas > 1 else ""}.')

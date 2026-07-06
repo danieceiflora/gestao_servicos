@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 from services.models import Installment, User
 from .gateways.asaas import AsaasGateway
 from .gateways.base import ChargeData, SubaccountData
-from .models import GatewayCharge, GatewayConfig
+from .models import GatewayCharge, GatewayConfig, BillingChargeConfig
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +184,7 @@ def installment_create_charge(request, installment_pk):
 
     try:
         gw = _get_gateway()
+        billing_config = installment.billing.charge_config
         data = ChargeData(
             customer_name=client.name,
             customer_document=client_doc,
@@ -193,6 +194,7 @@ def installment_create_charge(request, installment_pk):
             due_date=installment.due_date,
             method=method,
             external_reference=str(installment.pk),
+            **(_charge_config_to_kwargs(billing_config) if billing_config else {}),
         )
         result = gw.create_charge(data, wallet_id=config.wallet_id)
 
@@ -348,3 +350,168 @@ def _auto_baixa_installment(charge: GatewayCharge):
     if not billing.installments.exclude(status=Inst.Status.PAGO).exists():
         billing.status = Billing.Status.PAGO
         billing.save(update_fields=['status'])
+
+
+# --- REGRAS DE COBRANÇA ---
+
+def _charge_config_to_kwargs(config: BillingChargeConfig) -> dict:
+    """Converte uma BillingChargeConfig nos kwargs extras de ChargeData."""
+    return {
+        'discount_type': config.discount_type if config.discount_type != 'NONE' else '',
+        'discount_value': config.discount_value,
+        'discount_due_days': config.discount_due_days,
+        'interest_monthly': config.interest_monthly,
+        'fine_type': config.fine_type if config.fine_type != 'NONE' else '',
+        'fine_value': config.fine_value,
+    }
+
+
+def auto_create_charges_for_billing(billing):
+    """Dispara cobranças no gateway para todas as parcelas pendentes de um billing.
+
+    Chamado após a criação do billing se charge_config.auto_send_to_gateway=True.
+    Silencia erros individualmente para não bloquear o fluxo do billing.
+    """
+    charge_config = billing.charge_config
+    if not charge_config or not charge_config.auto_send_to_gateway:
+        return
+
+    gw_config = GatewayConfig.load()
+    if not gw_config.can_generate_charges:
+        logger.warning('auto_create_charges_for_billing: gateway não habilitado para billing %s', billing.number)
+        return
+
+    method = charge_config.default_method
+    if method == 'PIX' and not gw_config.pix_enabled:
+        logger.warning('auto_create_charges_for_billing: PIX não habilitado, pulando billing %s', billing.number)
+        return
+    if method == 'BOLETO' and not gw_config.boleto_enabled:
+        logger.warning('auto_create_charges_for_billing: Boleto não habilitado, pulando billing %s', billing.number)
+        return
+
+    client = billing.client
+    client_doc = (client.document or '').strip()
+    if not client_doc:
+        logger.warning('auto_create_charges_for_billing: cliente sem documento, pulando billing %s', billing.number)
+        return
+
+    client_email = client.emails.values_list('email', flat=True).first() or ''
+    gw = _get_gateway()
+
+    for installment in billing.installments.filter(status='PENDENTE'):
+        if installment.gateway_charges.filter(
+            status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
+                        GatewayCharge.Status.CONFIRMED]
+        ).exists():
+            continue
+        try:
+            data = ChargeData(
+                customer_name=client.name,
+                customer_document=client_doc,
+                customer_email=client_email,
+                description=f'Parcela {installment.installment_number} — Cobrança #{billing.number}',
+                amount=installment.amount,
+                due_date=installment.due_date,
+                method=method,
+                external_reference=str(installment.pk),
+                **_charge_config_to_kwargs(charge_config),
+            )
+            result = gw.create_charge(data, wallet_id=gw_config.wallet_id)
+            GatewayCharge.objects.create(
+                installment=installment,
+                config=gw_config,
+                external_id=result.external_id,
+                method=method,
+                status=result.status,
+                amount=result.amount,
+                due_date=result.due_date,
+                pix_qrcode=result.pix_qrcode,
+                pix_copy_paste=result.pix_copy_paste,
+                pix_expiration_date=result.pix_expiration_date,
+                boleto_url=result.boleto_url,
+                boleto_barcode=result.boleto_barcode,
+                invoice_url=result.invoice_url,
+                invoice_number=result.invoice_number,
+            )
+        except Exception:
+            logger.exception('auto_create_charges_for_billing: erro ao criar cobrança para parcela %s', installment.pk)
+
+
+@login_required
+@user_passes_test(is_manager)
+def charge_config_list(request):
+    configs = BillingChargeConfig.objects.all()
+    return render(request, 'pagamentos/charge_config_list.html', {
+        'configs': configs,
+        'title': 'Regras de Cobrança',
+        'active_menu': 'integracoes',
+    })
+
+
+@login_required
+@user_passes_test(is_manager)
+def charge_config_create(request):
+    return _charge_config_form(request, instance=None)
+
+
+@login_required
+@user_passes_test(is_manager)
+def charge_config_edit(request, pk):
+    instance = get_object_or_404(BillingChargeConfig, pk=pk)
+    return _charge_config_form(request, instance=instance)
+
+
+def _charge_config_form(request, instance):
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        if not name:
+            messages.error(request, 'Informe um nome para a regra.')
+            return redirect('pagamentos:charge_config_list')
+
+        obj = instance or BillingChargeConfig()
+        obj.name = name
+        obj.default_method = request.POST.get('default_method', 'PIX')
+        obj.discount_type = request.POST.get('discount_type', 'NONE')
+        obj.discount_due_days = int(request.POST.get('discount_due_days', 0) or 0)
+        obj.interest_monthly = Decimal(request.POST.get('interest_monthly', '0').replace(',', '.') or '0')
+        obj.fine_type = request.POST.get('fine_type', 'NONE')
+        obj.auto_send_to_gateway = 'auto_send_to_gateway' in request.POST
+        obj.is_default = 'is_default' in request.POST
+        obj.is_active = 'is_active' in request.POST
+
+        raw_discount = request.POST.get('discount_value', '0').replace(',', '.')
+        raw_fine = request.POST.get('fine_value', '0').replace(',', '.')
+        try:
+            obj.discount_value = Decimal(raw_discount or '0')
+        except Exception:
+            obj.discount_value = Decimal('0')
+        try:
+            obj.fine_value = Decimal(raw_fine or '0')
+        except Exception:
+            obj.fine_value = Decimal('0')
+
+        obj.save()
+        action = 'atualizada' if instance else 'criada'
+        messages.success(request, f'Regra "{obj.name}" {action} com sucesso.')
+        return redirect('pagamentos:charge_config_list')
+
+    return render(request, 'pagamentos/charge_config_form.html', {
+        'instance': instance,
+        'discount_types': BillingChargeConfig.DiscountType.choices,
+        'fine_types': BillingChargeConfig.FineType.choices,
+        'method_choices': BillingChargeConfig.DefaultMethod.choices,
+        'title': ('Editar' if instance else 'Nova') + ' Regra de Cobrança',
+        'active_menu': 'integracoes',
+    })
+
+
+@login_required
+@user_passes_test(is_manager)
+@require_POST
+def charge_config_toggle(request, pk):
+    config = get_object_or_404(BillingChargeConfig, pk=pk)
+    config.is_active = not config.is_active
+    config.save(update_fields=['is_active', 'updated_at'])
+    state = 'ativada' if config.is_active else 'desativada'
+    messages.success(request, f'Regra "{config.name}" {state}.')
+    return redirect('pagamentos:charge_config_list')

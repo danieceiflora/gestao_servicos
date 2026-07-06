@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">{{ title }}</h1>
+      <p class="text-sm text-slate-500 mt-0.5">Defina como as cobranças geradas por esta regra serão configuradas no gateway</p>
+    </div>
+    <a href="{% url 'pagamentos:charge_config_list' %}"
+       class="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
+      ← Voltar
+    </a>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    {# Identificação #}
+    <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+      <div class="px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <i data-lucide="tag" class="h-4 w-4 text-slate-400"></i>
+          Identificação
+        </h2>
+      </div>
+      <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-medium text-slate-600 mb-1">Nome da Regra <span class="text-red-500">*</span></label>
+          <input type="text" name="name" value="{{ instance.name|default:'' }}" required
+                 placeholder="Ex: PIX com desconto 5%"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Método Padrão</label>
+          <select name="default_method"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            {% for val, label in method_choices %}
+            <option value="{{ val }}" {% if instance.default_method == val %}selected{% elif not instance and val == 'PIX' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    {# Desconto antecipado #}
+    <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 mt-4">
+      <div class="px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <i data-lucide="percent" class="h-4 w-4 text-emerald-500"></i>
+          Desconto por Antecipação
+        </h2>
+        <p class="text-xs text-slate-400 mt-0.5">Desconto concedido ao cliente caso pague antes do vencimento</p>
+      </div>
+      <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+          <select name="discount_type" id="discount_type"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            {% for val, label in discount_types %}
+            <option value="{{ val }}" {% if instance.discount_type == val %}selected{% elif not instance and val == 'NONE' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Valor</label>
+          <input type="text" inputmode="decimal" name="discount_value"
+                 value="{{ instance.discount_value|default:'0' }}"
+                 placeholder="0,00"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Prazo (dias antes do venc.)</label>
+          <input type="number" name="discount_due_days" min="0" max="365"
+                 value="{{ instance.discount_due_days|default:'0' }}"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+          <p class="text-[11px] text-slate-400 mt-1">0 = válido até o vencimento</p>
+        </div>
+      </div>
+    </div>
+
+    {# Juros e Multa #}
+    <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 mt-4">
+      <div class="px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <i data-lucide="trending-up" class="h-4 w-4 text-amber-500"></i>
+          Juros e Multa por Atraso
+        </h2>
+        <p class="text-xs text-slate-400 mt-0.5">Aplicados automaticamente pelo gateway após o vencimento</p>
+      </div>
+      <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Juros (% ao mês)</label>
+          <div class="flex items-center gap-2">
+            <input type="text" inputmode="decimal" name="interest_monthly"
+                   value="{{ instance.interest_monthly|default:'0' }}"
+                   placeholder="0,00"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+            <span class="text-xs text-slate-400 whitespace-nowrap">% a.m.</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">Ex: 1,00 = 1% ao mês (pro-rata diário)</p>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Multa por Atraso</label>
+          <div class="grid grid-cols-2 gap-2">
+            <select name="fine_type"
+                    class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+              {% for val, label in fine_types %}
+              <option value="{{ val }}" {% if instance.fine_type == val %}selected{% elif not instance and val == 'NONE' %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <input type="text" inputmode="decimal" name="fine_value"
+                   value="{{ instance.fine_value|default:'0' }}"
+                   placeholder="0,00"
+                   class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Comportamento #}
+    <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 mt-4">
+      <div class="px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <i data-lucide="settings-2" class="h-4 w-4 text-slate-400"></i>
+          Comportamento
+        </h2>
+      </div>
+      <div class="px-5 py-4 space-y-4">
+
+        <label class="flex items-start gap-3 cursor-pointer select-none">
+          <div class="relative mt-0.5">
+            <input type="checkbox" name="auto_send_to_gateway" id="auto_send"
+                   {% if instance.auto_send_to_gateway %}checked{% endif %}
+                   class="peer sr-only">
+            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <div>
+            <p class="text-sm font-medium text-slate-700">Gerar cobrança automaticamente</p>
+            <p class="text-xs text-slate-400">Dispara a cobrança no gateway (PIX/Boleto) assim que o billing for criado</p>
+          </div>
+        </label>
+
+        <label class="flex items-start gap-3 cursor-pointer select-none">
+          <div class="relative mt-0.5">
+            <input type="checkbox" name="is_default" id="is_default"
+                   {% if instance.is_default %}checked{% endif %}
+                   class="peer sr-only">
+            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-blue-500"></div>
+            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <div>
+            <p class="text-sm font-medium text-slate-700">Regra padrão</p>
+            <p class="text-xs text-slate-400">Pré-selecionada ao criar novos billings. Só pode haver uma regra padrão ativa.</p>
+          </div>
+        </label>
+
+        <label class="flex items-start gap-3 cursor-pointer select-none">
+          <div class="relative mt-0.5">
+            <input type="checkbox" name="is_active" id="is_active"
+                   {% if instance.is_active or not instance %}checked{% endif %}
+                   class="peer sr-only">
+            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-slate-700"></div>
+            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <div>
+            <p class="text-sm font-medium text-slate-700">Ativa</p>
+            <p class="text-xs text-slate-400">Regras inativas não aparecem nas opções de criação de billing</p>
+          </div>
+        </label>
+
+      </div>
+    </div>
+
+    {# Ações #}
+    <div class="flex items-center justify-between pt-2">
+      <a href="{% url 'pagamentos:charge_config_list' %}"
+         class="inline-flex h-10 items-center px-5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+        Cancelar
+      </a>
+      <button type="submit"
+              class="inline-flex h-10 items-center gap-2 px-6 rounded-lg bg-slate-900 text-sm font-semibold text-white hover:bg-slate-700 transition-colors shadow-sm">
+        <i data-lucide="save" class="h-4 w-4"></i>
+        Salvar Regra
+      </button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

@@ -40,6 +40,15 @@ class ChargeData:
     due_date: date
     method: str  # 'PIX' or 'BOLETO'
     external_reference: str
+    # Desconto por antecipação
+    discount_type: str = ''          # 'FIXED' | 'PERCENTAGE'
+    discount_value: Decimal = field(default_factory=lambda: Decimal('0'))
+    discount_due_days: int = 0
+    # Juros por atraso (% ao mês)
+    interest_monthly: Decimal = field(default_factory=lambda: Decimal('0'))
+    # Multa por atraso
+    fine_type: str = ''              # 'FIXED' | 'PERCENTAGE'
+    fine_value: Decimal = field(default_factory=lambda: Decimal('0'))
 
 
 @dataclass

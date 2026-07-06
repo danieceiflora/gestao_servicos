@@ -2,6 +2,76 @@ from django.db import models
 from decimal import Decimal
 
 
+class BillingChargeConfig(models.Model):
+    """Regra de cobrança via gateway: desconto antecipado, juros e multa por atraso."""
+
+    class DiscountType(models.TextChoices):
+        NONE = 'NONE', 'Sem desconto'
+        FIXED = 'FIXED', 'Valor fixo (R$)'
+        PERCENTAGE = 'PERCENTAGE', 'Percentual (%)'
+
+    class FineType(models.TextChoices):
+        NONE = 'NONE', 'Sem multa'
+        FIXED = 'FIXED', 'Valor fixo (R$)'
+        PERCENTAGE = 'PERCENTAGE', 'Percentual (%)'
+
+    class DefaultMethod(models.TextChoices):
+        PIX = 'PIX', 'PIX'
+        BOLETO = 'BOLETO', 'Boleto Bancário'
+
+    name = models.CharField('Nome da Regra', max_length=100)
+    default_method = models.CharField('Método Padrão', max_length=10,
+                                      choices=DefaultMethod.choices, default=DefaultMethod.PIX)
+
+    # Desconto por antecipação
+    discount_type = models.CharField('Tipo de Desconto', max_length=15,
+                                     choices=DiscountType.choices, default=DiscountType.NONE)
+    discount_value = models.DecimalField('Valor do Desconto', max_digits=10, decimal_places=2,
+                                         default=Decimal('0'))
+    discount_due_days = models.IntegerField(
+        'Prazo do Desconto (dias antes do vencimento)', default=0,
+        help_text='0 = desconto válido até o próprio vencimento'
+    )
+
+    # Juros por atraso
+    interest_monthly = models.DecimalField(
+        'Juros por Atraso (% a.m.)', max_digits=6, decimal_places=2, default=Decimal('0'),
+        help_text='Percentual ao mês cobrado em caso de atraso. Ex: 1.00 = 1%/mês'
+    )
+
+    # Multa por atraso
+    fine_type = models.CharField('Tipo de Multa', max_length=15,
+                                 choices=FineType.choices, default=FineType.NONE)
+    fine_value = models.DecimalField('Valor da Multa', max_digits=10, decimal_places=2,
+                                     default=Decimal('0'))
+
+    # Disparo automático
+    auto_send_to_gateway = models.BooleanField(
+        'Gerar cobrança automaticamente', default=False,
+        help_text='Se ativo, dispara a cobrança no gateway assim que o billing for criado'
+    )
+
+    is_default = models.BooleanField('Regra padrão', default=False,
+                                     help_text='Aplicada automaticamente ao criar novos billings')
+    is_active = models.BooleanField('Ativa', default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Regra de Cobrança'
+        verbose_name_plural = 'Regras de Cobrança'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if self.is_default:
+            BillingChargeConfig.objects.exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)
+
+
 class GatewayConfig(models.Model):
     """Singleton — configuração do gateway de pagamento para esta instância."""
 

@@ -172,6 +172,20 @@ class AsaasGateway(BasePaymentGateway):
             'externalReference': data.external_reference,
         }
 
+        if data.discount_type and data.discount_type != 'NONE' and data.discount_value > 0:
+            payload['discount'] = {
+                'value': float(round(data.discount_value, 2)),
+                'dueDateLimitDays': data.discount_due_days,
+                'type': data.discount_type,
+            }
+        if data.interest_monthly > 0:
+            payload['interest'] = {'value': float(round(data.interest_monthly, 2))}
+        if data.fine_type and data.fine_type != 'NONE' and data.fine_value > 0:
+            payload['fine'] = {
+                'value': float(round(data.fine_value, 2)),
+                'type': data.fine_type,
+            }
+
         if wallet_id:
             margin = self._platform_margin(data.amount, data.method)
             client_amount = max(data.amount - margin, Decimal('0'))

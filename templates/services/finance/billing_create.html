@@ -35,16 +35,62 @@
     <form method="post" id="billing-form">
         {% csrf_token %}
 
+        {# Regra de cobrança via gateway #}
+        {% if charge_configs %}
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-4">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">Regra de cobrança (gateway)</p>
+                <a href="{% url 'pagamentos:charge_config_list' %}" target="_blank"
+                   class="text-xs text-slate-400 hover:text-slate-700 transition-colors">Gerenciar regras</a>
+            </div>
+            <div class="px-5 py-4 space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Selecione uma regra (opcional)</label>
+                    <select name="charge_config_id" id="charge-config-select"
+                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <option value=""
+                                data-auto="0"
+                                data-method=""
+                                data-interest="0"
+                                data-discount-type="NONE"
+                                data-discount-value="0"
+                                data-discount-days="0"
+                                data-fine-type="NONE"
+                                data-fine-value="0">
+                            Sem regra — cobrança manual via gateway
+                        </option>
+                        {% for cfg in charge_configs %}
+                        <option value="{{ cfg.pk }}"
+                                data-auto="{{ cfg.auto_send_to_gateway|yesno:'1,0' }}"
+                                data-method="{{ cfg.default_method }}"
+                                data-interest="{{ cfg.interest_monthly }}"
+                                data-discount-type="{{ cfg.discount_type }}"
+                                data-discount-value="{{ cfg.discount_value }}"
+                                data-discount-days="{{ cfg.discount_due_days }}"
+                                data-fine-type="{{ cfg.fine_type }}"
+                                data-fine-value="{{ cfg.fine_value }}"
+                                {% if cfg.pk == default_config_id %}selected{% endif %}>
+                            {{ cfg.name }}{% if cfg.auto_send_to_gateway %} ⚡ auto{% endif %}{% if cfg.is_default %} ★{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {# Preview das regras da config selecionada #}
+                <div id="config-preview" class="hidden rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 flex flex-wrap gap-2"></div>
+            </div>
+        </div>
+        {% endif %}
+
         {# Configurações de geração #}
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-4">
             <div class="px-5 py-4 border-b border-slate-100">
                 <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">Gerar automaticamente</p>
             </div>
 
-            {# Linha 1: grid de 3 campos de configuração #}
+            {# Linha 1: vencimento / intervalo / juros #}
             <div class="px-5 pt-4 pb-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-                {# Campo: dias até o 1º vencimento #}
                 <div class="flex flex-col gap-1.5">
                     <label for="first-due-days" class="text-xs font-semibold text-slate-600">
                         1º vencimento (dias)
@@ -58,7 +104,6 @@
                     </div>
                 </div>
 
-                {# Campo: intervalo entre parcelas #}
                 <div class="flex flex-col gap-1.5">
                     <label for="interval-days" class="text-xs font-semibold text-slate-600">
                         Intervalo entre parcelas
@@ -71,7 +116,6 @@
                     </div>
                 </div>
 
-                {# Campo: juros por parcela #}
                 <div class="flex flex-col gap-1.5">
                     <label for="interest-rate" class="text-xs font-semibold text-slate-600">
                         Juros por parcela (% a.m.)
@@ -82,6 +126,48 @@
                             class="w-20 rounded-lg border border-slate-200 px-3 py-2 text-sm text-center font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
                         <span class="text-xs text-slate-400">%</span>
                     </div>
+                    <p id="interest-from-config" class="text-[11px] text-slate-400 hidden">Pré-preenchido pela regra</p>
+                </div>
+            </div>
+
+            {# Linha 2: desconto antecipado #}
+            <div class="px-5 pb-4 pt-1 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="flex flex-col gap-1.5">
+                    <label for="discount-type" class="text-xs font-semibold text-slate-600">
+                        Tipo de desconto
+                    </label>
+                    <select id="discount-type"
+                            class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent">
+                        <option value="NONE">Sem desconto</option>
+                        <option value="FIXED">Valor fixo (R$)</option>
+                        <option value="PERCENTAGE">Percentual (%)</option>
+                    </select>
+                    <p id="discount-from-config" class="text-[11px] text-slate-400 hidden">Pré-preenchido pela regra</p>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <label for="discount-value" class="text-xs font-semibold text-slate-600">
+                        Valor do desconto
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <input id="discount-value" type="text" inputmode="decimal" placeholder="0,00"
+                            value="0"
+                            class="w-24 rounded-lg border border-slate-200 px-3 py-2 text-sm text-center font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent">
+                        <span id="discount-unit" class="text-xs text-slate-400">R$</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <label for="discount-days" class="text-xs font-semibold text-slate-600">
+                        Válido até (dias antes do venc.)
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <input id="discount-days" type="number" min="0" max="365"
+                            value="0"
+                            class="w-20 rounded-lg border border-slate-200 px-3 py-2 text-sm text-center font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent">
+                        <span class="text-xs text-slate-400">dias</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400">0 = válido até o próprio vencimento</p>
                 </div>
             </div>
 
@@ -154,11 +240,11 @@
     </form>
 </div>
 
-{# Template de linha de parcela — 2 sub-linhas: base/desconto/juros/final + vencimento/método #}
+{# Template de linha de parcela #}
 <template id="row-template">
     <div class="installment-row px-5 py-4 space-y-3">
 
-        {# Cabeçalho da parcela: "Parcela N" + botão remover #}
+        {# Cabeçalho da parcela #}
         <div class="flex items-center justify-between">
             <span class="row-number text-xs font-bold text-slate-500 uppercase tracking-wide"></span>
             <button type="button" class="remove-row p-1.5 text-slate-300 hover:text-red-500 transition-colors rounded-md hover:bg-red-50">
@@ -166,30 +252,37 @@
             </button>
         </div>
 
-        {# Sub-linha 1: Valor base | Desconto | Juros | Valor final #}
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {# Sub-linha 1: Valor base | Desconto | Juros | Multa | Valor final #}
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
 
-            {# Valor base — read-only, exibido como texto #}
+            {# Valor base — read-only #}
             <div>
                 <label class="block text-xs font-semibold text-slate-400 mb-1">Valor base</label>
                 <p class="base-amount-label text-sm font-mono text-slate-400 px-3 py-2 bg-slate-50 rounded-lg border border-slate-100 min-h-[38px] flex items-center">—</p>
             </div>
 
-            {# Desconto — ring vermelho/rose para indicar redução #}
+            {# Desconto — reduz o valor final #}
             <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Desconto (R$)</label>
                 <input type="text" inputmode="decimal" placeholder="0,00"
                     class="row-discount w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent">
             </div>
 
-            {# Juros — ring âmbar para indicar acréscimo #}
+            {# Juros — acresce ao valor final #}
             <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Juros (R$)</label>
                 <input type="text" inputmode="decimal" placeholder="0,00"
                     class="row-interest w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent">
             </div>
 
-            {# Valor final — campo principal submetido, fundo esmeralda para destaque #}
+            {# Multa — acresce ao valor final #}
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Multa (R$)</label>
+                <input type="text" inputmode="decimal" placeholder="0,00"
+                    class="row-fine w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent">
+            </div>
+
+            {# Valor final — campo submetido #}
             <div>
                 <label class="block text-xs font-semibold text-emerald-700 mb-1">Valor final (R$)</label>
                 <input type="text" name="amount[]" inputmode="decimal" placeholder="0,00" required
@@ -199,13 +292,11 @@
 
         {# Sub-linha 2: Vencimento | Método de pagamento #}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
             <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Vencimento</label>
                 <input type="date" name="due_date[]" required
                     class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
             </div>
-
             <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Método de pagamento</label>
                 <select name="payment_method_id[]"
@@ -221,6 +312,14 @@
 </template>
 
 <script>
+// Escopo global do template — acessível pelos dois IIFEs
+function updateDiscountUnit() {
+    const sel = document.getElementById('discount-type');
+    const lbl = document.getElementById('discount-unit');
+    if (!sel || !lbl) return;
+    lbl.textContent = sel.value === 'PERCENTAGE' ? '%' : 'R$';
+}
+
 (function() {
     const refValue         = parseFloat('{{ suggested_value|unlocalize }}') || 0;
     const today            = '{{ today_iso }}';
@@ -235,6 +334,10 @@
     const firstDueLabel    = document.getElementById('first-due-label');
     const countSelect      = document.getElementById('installments-count');
     const generateBtn      = document.getElementById('generate-btn');
+    const discTypeSelect   = document.getElementById('discount-type');
+    const discValueInput   = document.getElementById('discount-value');
+    const discDaysInput    = document.getElementById('discount-days');
+    const discUnitLabel    = document.getElementById('discount-unit');
 
     function addDateDays(base, days) {
         const d = new Date(base + 'T12:00:00');
@@ -258,6 +361,22 @@
 
     function getInterestRate() {
         return Math.max(0, parseFloat(globalRateInput.value) || 0);
+    }
+
+    function getDiscountType() {
+        return discTypeSelect ? discTypeSelect.value : 'NONE';
+    }
+
+    function getDiscountValue() {
+        return Math.max(0, parseFloat((discValueInput ? discValueInput.value : '0').replace(',', '.')) || 0);
+    }
+
+    function calcDiscount(baseAmount) {
+        const type = getDiscountType();
+        const val  = getDiscountValue();
+        if (type === 'FIXED')      return Math.min(val, baseAmount);
+        if (type === 'PERCENTAGE') return Math.min(parseFloat((baseAmount * val / 100).toFixed(2)), baseAmount);
+        return 0;
     }
 
     function updateFirstDueLabel() {
@@ -311,12 +430,13 @@
         }
     }
 
-    function addRow(baseAmount, dueDate, methodId) {
+    function addRow(baseAmount, dueDate, methodId, preDiscount) {
         const clone     = rowTemplate.content.cloneNode(true);
         const row       = clone.querySelector('.installment-row');
         const baseLabel = row.querySelector('.base-amount-label');
         const discInput = row.querySelector('.row-discount');
         const intrInput = row.querySelector('.row-interest');
+        const fineInput = row.querySelector('.row-fine');
         const amtInput  = row.querySelector('.installment-amount');
         const dateInput = row.querySelector('input[type="date"]');
         const selMethod = row.querySelector('select');
@@ -324,34 +444,32 @@
 
         const hasBase = baseAmount !== undefined && baseAmount !== null;
 
-        // Persiste o valor base no dataset para recálculo posterior
         if (hasBase) {
             row.dataset.base = baseAmount;
             baseLabel.textContent = fmt(baseAmount);
-            amtInput.value = baseAmount.toFixed(2).replace('.', ',');
+            const disc = preDiscount !== undefined ? preDiscount : calcDiscount(baseAmount);
+            if (disc > 0) discInput.value = disc.toFixed(2).replace('.', ',');
+            const final = baseAmount - (disc || 0);
+            amtInput.value = final.toFixed(2).replace('.', ',');
         }
-        // Se baseAmount === 0 ou undefined: label fica "—", sem recálculo automático
 
         dateInput.value = dueDate || getFirstDate();
         if (methodId) selMethod.value = methodId;
 
         function recalcRow() {
             const base = parseFloat(row.dataset.base);
-            if (isNaN(base)) {
-                // Linha manual sem base: apenas propaga ao total
-                recalcSum();
-                return;
-            }
+            if (isNaN(base)) { recalcSum(); return; }
             const desconto = parseAmt(discInput.value);
             const juros    = parseAmt(intrInput.value);
-            const final    = base - desconto + juros;
+            const multa    = parseAmt(fineInput.value);
+            const final    = base - desconto + juros + multa;
             amtInput.value = final.toFixed(2).replace('.', ',');
             recalcSum();
         }
 
         discInput.addEventListener('input', recalcRow);
         intrInput.addEventListener('input', recalcRow);
-        // Edição direta do valor final apenas recalcula a soma (não afeta desconto/juros)
+        fineInput.addEventListener('input', recalcRow);
         amtInput.addEventListener('input', recalcSum);
 
         removeBtn.addEventListener('click', () => {
@@ -372,7 +490,6 @@
         const interval  = getInterval();
         const rate      = getInterestRate() / 100;
 
-        // Juros simples: total = valor × (1 + taxa × n)
         const totalWithInterest = n > 1 && rate > 0
             ? parseFloat((refValue * (1 + rate * n)).toFixed(2))
             : refValue;
@@ -392,17 +509,29 @@
         }
     }
 
-    // Listeners nos campos de configuração
     daysInput.addEventListener('input', updateFirstDueLabel);
-    intervalInput.addEventListener('input', () => {});
     globalRateInput.addEventListener('input', () => {
         if (getInterestRate() === 0) interestTotalLbl.classList.add('hidden');
+        const lbl = document.getElementById('interest-from-config');
+        if (lbl) lbl.classList.add('hidden');
     });
+    if (discTypeSelect) {
+        discTypeSelect.addEventListener('change', () => {
+            updateDiscountUnit();
+            const lbl = document.getElementById('discount-from-config');
+            if (lbl) lbl.classList.add('hidden');
+        });
+    }
+    if (discValueInput) {
+        discValueInput.addEventListener('input', () => {
+            const lbl = document.getElementById('discount-from-config');
+            if (lbl) lbl.classList.add('hidden');
+        });
+    }
 
-    // Botão gerar parcelas
+    updateDiscountUnit();
     generateBtn.addEventListener('click', applyGenerate);
 
-    // Adicionar linha manualmente (sem base definida)
     document.getElementById('add-row').addEventListener('click', () => {
         const rows = container.querySelectorAll('.installment-row');
         let nextDate = getFirstDate();
@@ -411,14 +540,110 @@
             if (lastDate) nextDate = addDateDays(lastDate, getInterval());
         }
         addRow(undefined, nextDate);
-        // Foca no campo de valor final da última linha
         const allAmounts = container.querySelectorAll('.installment-amount');
         allAmounts[allAmounts.length - 1].focus();
     });
 
-    // Init
     updateFirstDueLabel();
     addRow(refValue, getFirstDate());
+})();
+
+// Regra de cobrança — preview dinâmico e pré-preenchimento
+(function() {
+    const sel      = document.getElementById('charge-config-select');
+    const preview  = document.getElementById('config-preview');
+    const rateInp  = document.getElementById('interest-rate');
+    const rateHint = document.getElementById('interest-from-config');
+    if (!sel) return;
+
+    function fmtMoney(v) {
+        return 'R$ ' + parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function pill(text, colorClass) {
+        return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${colorClass}">${text}</span>`;
+    }
+
+    function updatePreview() {
+        const opt = sel.options[sel.selectedIndex];
+
+        if (!opt || !opt.value) {
+            if (preview) preview.classList.add('hidden');
+            if (rateInp) rateInp.value = '0';
+            if (rateHint) rateHint.classList.add('hidden');
+            // Limpa campos de desconto
+            const dType = document.getElementById('discount-type');
+            const dVal  = document.getElementById('discount-value');
+            const dDays = document.getElementById('discount-days');
+            const dHint = document.getElementById('discount-from-config');
+            if (dType) dType.value = 'NONE';
+            if (dVal)  dVal.value  = '0';
+            if (dDays) dDays.value = '0';
+            if (dHint) dHint.classList.add('hidden');
+            updateDiscountUnit();
+            return;
+        }
+
+        const isAuto       = opt.dataset.auto === '1';
+        const method       = opt.dataset.method || '';
+        const interest     = parseFloat(opt.dataset.interest || '0');
+        const discType     = opt.dataset.discountType || 'NONE';
+        const discValue    = parseFloat(opt.dataset.discountValue || '0');
+        const discDays     = parseInt(opt.dataset.discountDays || '0');
+        const fineType     = opt.dataset.fineType || 'NONE';
+        const fineValue    = parseFloat(opt.dataset.fineValue || '0');
+
+        // Pré-preenche juros por parcela
+        if (rateInp) {
+            rateInp.value = interest > 0 ? interest : '0';
+            if (rateHint) rateHint.classList.toggle('hidden', interest === 0);
+        }
+
+        // Pré-preenche campos de desconto
+        const dType = document.getElementById('discount-type');
+        const dVal  = document.getElementById('discount-value');
+        const dDays = document.getElementById('discount-days');
+        const dHint = document.getElementById('discount-from-config');
+        if (dType) dType.value = discType;
+        if (dVal)  dVal.value  = discValue > 0 ? discValue : '0';
+        if (dDays) dDays.value = discDays;
+        if (dHint) dHint.classList.toggle('hidden', discType === 'NONE' || discValue === 0);
+        updateDiscountUnit();
+
+        if (!preview) return;
+
+        const pills = [];
+
+        if (method) {
+            pills.push(pill(method, 'bg-slate-100 text-slate-700'));
+        }
+        if (isAuto) {
+            pills.push(pill('⚡ Geração automática', 'bg-emerald-100 text-emerald-700'));
+        }
+        if (discType !== 'NONE' && discValue > 0) {
+            const val  = discType === 'PERCENTAGE' ? `${discValue}%` : fmtMoney(discValue);
+            const days = discDays > 0 ? ` até ${discDays}d antes do venc.` : ' até o vencimento';
+            pills.push(pill(`Desconto ${val}${days}`, 'bg-emerald-50 text-emerald-700 border border-emerald-200'));
+        }
+        if (interest > 0) {
+            pills.push(pill(`Juros ${interest}% a.m. após venc.`, 'bg-amber-50 text-amber-700 border border-amber-200'));
+        }
+        if (fineType !== 'NONE' && fineValue > 0) {
+            const val = fineType === 'PERCENTAGE' ? `${fineValue}%` : fmtMoney(fineValue);
+            pills.push(pill(`Multa ${val} após venc.`, 'bg-red-50 text-red-600 border border-red-200'));
+        }
+
+        if (pills.length === 0) {
+            preview.classList.add('hidden');
+            return;
+        }
+
+        preview.innerHTML = pills.join('');
+        preview.classList.remove('hidden');
+    }
+
+    sel.addEventListener('change', updatePreview);
+    updatePreview();
 })();
 </script>
 {% endblock %}

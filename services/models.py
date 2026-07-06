@@ -798,7 +798,14 @@ class Billing(models.Model):
     sale = models.OneToOneField('Sale', on_delete=models.SET_NULL, null=True, blank=True, related_name='billing', verbose_name="Venda")
     service_order = models.ForeignKey('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='billings', verbose_name="Ordem de Serviço")
     task = models.ForeignKey('ServiceOrderTask', on_delete=models.SET_NULL, null=True, blank=True, related_name='billings', verbose_name="Etapa")
-    
+    charge_config = models.ForeignKey(
+        'pagamentos.BillingChargeConfig',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='billings',
+        verbose_name='Regra de Cobrança',
+    )
+
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Bruto")
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
     

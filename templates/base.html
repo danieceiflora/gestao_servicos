@@ -177,6 +177,10 @@
                             <i data-lucide="credit-card" class="h-4 w-4 text-emerald-500"></i>
                             Gateway de Pagamentos
                         </a>
+                        <a href="{% url 'pagamentos:charge_config_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="settings-2" class="h-4 w-4 text-slate-400"></i>
+                            Regras de Cobrança
+                        </a>
                         <!-- WhatsApp e Notificações -->
                         <p class="px-4 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Automações</p>
                         <a href="{% url 'integracoes:whatsapp_template_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
