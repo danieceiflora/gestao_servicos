@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # TODO: confirmar path real do endpoint "Criar Pix Recorrente" com o suporte/
 # doc autenticada da PushinPay antes de ir para produção.
-RECURRING_PATH = '/pix/cashIn/subscription'  # suposição baseada em doc pública e teste manual
+RECURRING_PATH = 'api/pix/cashIn/subscription'  # suposição baseada em doc pública e teste manual
 ##RECURRING_PATH = '/pix/cashIn/subscription'
 
 _TIMEOUT = (10, 30)
