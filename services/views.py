@@ -2277,8 +2277,8 @@ def public_os_generate_charge(request, token):
 
     existing = installment.gateway_charges.filter(
         status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
-                    GatewayCharge.Status.CONFIRMED]
-    ).first()
+                    GatewayCharge.Status.CONFIRMED, GatewayCharge.Status.OVERDUE]
+    ).order_by('-created_at').first()
     if existing:
         return render(request, 'services/public/partials/charge_result.html', {'charge': existing})
 
@@ -2295,13 +2295,17 @@ def public_os_generate_charge(request, token):
 
     client_email = client.emails.values_list('email', flat=True).first() or ''
 
+    from integracoes.models import SystemConfig
+    company = SystemConfig.load().company_name
+    description = f'OS #{order.number} — Etapa {task.pk} — {company}' if company else f'OS #{order.number} — Etapa {task.pk}'
+
     try:
         gw = AsaasGateway()
         charge_data = ChargeData(
             customer_name=client.name,
             customer_document=client_doc,
             customer_email=client_email,
-            description=f'OS #{order.number} — Etapa {task.pk}',
+            description=description,
             amount=installment.amount,
             due_date=installment.due_date,
             method=method,

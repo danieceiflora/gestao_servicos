@@ -2555,7 +2555,7 @@ def public_billing_page(request, token):
     for inst in billing.installments.order_by('installment_number'):
         active_charge = inst.gateway_charges.filter(
             status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
-                        GatewayCharge.Status.CONFIRMED]
+                        GatewayCharge.Status.CONFIRMED, GatewayCharge.Status.OVERDUE]
         ).order_by('-created_at').first()
         is_paid = inst.status == Installment.Status.PAGO
         installments_data.append({
@@ -2615,8 +2615,8 @@ def public_billing_generate_charge(request, token):
 
     existing = installment.gateway_charges.filter(
         status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
-                    GatewayCharge.Status.CONFIRMED]
-    ).first()
+                    GatewayCharge.Status.CONFIRMED, GatewayCharge.Status.OVERDUE]
+    ).order_by('-created_at').first()
     if existing:
         return render(request, 'services/public/partials/charge_result.html', {'charge': existing})
 
@@ -2633,13 +2633,17 @@ def public_billing_generate_charge(request, token):
 
     client_email = client.emails.values_list('email', flat=True).first() or ''
 
+    from integracoes.models import SystemConfig
+    company = SystemConfig.load().company_name
+    description = f'{billing.origem} — {company}' if company else billing.origem
+
     try:
         gw = AsaasGateway()
         charge_data = ChargeData(
             customer_name=client.name,
             customer_document=client_doc,
             customer_email=client_email,
-            description=billing.origem,
+            description=description,
             amount=installment.amount,
             due_date=installment.due_date,
             method=method,

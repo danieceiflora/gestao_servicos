@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from integracoes.models import SystemConfig
 from services.models import Installment, User
 from .gateways.asaas import AsaasGateway
 from .gateways.base import ChargeData, SubaccountData
@@ -25,6 +26,11 @@ def is_manager(user):
 
 def _get_gateway():
     return AsaasGateway()
+
+
+def _charge_description(base: str) -> str:
+    company = SystemConfig.load().company_name
+    return f'{base} — {company}' if company else base
 
 
 # --- CONFIGURAÇÃO ---
@@ -189,7 +195,7 @@ def installment_create_charge(request, installment_pk):
             customer_name=client.name,
             customer_document=client_doc,
             customer_email=client_email,
-            description=f'Parcela {installment.installment_number} — Cobrança #{installment.billing.number}',
+            description=_charge_description(f'Parcela {installment.installment_number} — Cobrança #{installment.billing.number}'),
             amount=installment.amount,
             due_date=installment.due_date,
             method=method,
@@ -409,7 +415,7 @@ def auto_create_charges_for_billing(billing):
                 customer_name=client.name,
                 customer_document=client_doc,
                 customer_email=client_email,
-                description=f'Parcela {installment.installment_number} — Cobrança #{billing.number}',
+                description=_charge_description(f'Parcela {installment.installment_number} — Cobrança #{billing.number}'),
                 amount=installment.amount,
                 due_date=installment.due_date,
                 method=method,

@@ -13,12 +13,26 @@ logger = logging.getLogger(__name__)
 SANDBOX_URL = 'https://api-sandbox.asaas.com/v3'
 PRODUCTION_URL = 'https://api.asaas.com/v3'
 
-# Margem retida pela plataforma por método de pagamento.
-# A tarifa do Asaas é absorvida pela conta master; o cliente paga apenas estes valores.
-# Cálculo sempre sobre o valor bruto da cobrança.
-PIX_PLATFORM_PERCENT = Decimal('0.008')   # 0,80% do valor total
-PIX_PLATFORM_MINIMUM = Decimal('2.50')    # mínimo R$ 2,50 (cobre custo Asaas de R$ 1,99)
-BOLETO_PLATFORM_FIXED = Decimal('2.50')   # R$ 2,50 fixo
+# Margem retida pela plataforma master, calculada sempre sobre o valor COM desconto
+# (pior cenário, assumindo que o desconto de antecipação será totalmente usado).
+#
+# PIX: regime híbrido —
+#   - valor com desconto < PIX_PERCENT_BREAKEVEN: taxa FIXA (MIN_SPLIT_MARGIN), via
+#     split fixedValue, para garantir o custo operacional mínimo (cobre a tarifa real
+#     do Asaas de ~R$1,99) em cobranças pequenas.
+#   - valor com desconto >= PIX_PERCENT_BREAKEVEN: split PERCENTUAL (PIX_PLATFORM_PERCENT),
+#     que escala automaticamente com o que o Asaas efetivamente receber.
+# BOLETO: sempre taxa fixa (BOLETO_PLATFORM_FIXED), via split fixedValue.
+PIX_PLATFORM_PERCENT = Decimal('0.008')   # 0,80% retido pela master (repassa 99,20% à subconta)
+BOLETO_PLATFORM_FIXED = Decimal('2.50')   # R$ 2,50 fixo retido pela master
+
+# Piso mínimo de margem, em R$, garantido via taxa fixa quando o valor com desconto
+# não é suficiente para que a porcentagem cubra o custo operacional.
+MIN_SPLIT_MARGIN = Decimal('2.50')
+
+# Ponto de equilíbrio: acima deste valor (com desconto), 0,80% já supera MIN_SPLIT_MARGIN,
+# então o percentual passa a ser usado no lugar da taxa fixa.
+PIX_PERCENT_BREAKEVEN = MIN_SPLIT_MARGIN / PIX_PLATFORM_PERCENT  # R$ 312,50
 
 STATUS_MAP = {
     'PENDING': 'PENDING',
@@ -86,11 +100,13 @@ class AsaasGateway(BasePaymentGateway):
         import re
         return re.sub(r'\D', '', doc or '')
 
-    def _platform_margin(self, amount: Decimal, method: str) -> Decimal:
-        """Margem retida pela plataforma, calculada sobre o valor bruto."""
-        if method == 'PIX':
-            return max(amount * PIX_PLATFORM_PERCENT, PIX_PLATFORM_MINIMUM)
-        return BOLETO_PLATFORM_FIXED
+    def _discount_amount(self, amount: Decimal, discount_type: str, discount_value: Decimal) -> Decimal:
+        """Maior desconto possível (pior cenário) para uma regra de desconto por antecipação."""
+        if not discount_type or discount_type == 'NONE' or discount_value <= 0:
+            return Decimal('0')
+        if discount_type == 'PERCENTAGE':
+            return (amount * discount_value / Decimal('100')).quantize(Decimal('0.01'))
+        return min(discount_value, amount)
 
     def _get_or_create_customer(self, name: str, document: str, email: str, api_key: str = None) -> str:
         doc_clean = self._clean_document(document)
@@ -153,11 +169,29 @@ class AsaasGateway(BasePaymentGateway):
     def create_charge(self, data: ChargeData, wallet_id: str = '') -> ChargeResult:
         """Gera cobrança pela conta master.
 
-        Se wallet_id for fornecido, configura split automático:
-        o cliente (subconta) recebe o valor total menos a margem da plataforma,
-        calculada sobre o valor bruto (PIX: 0,80% mín R$2,50 | Boleto: R$2,50 fixo).
-        A tarifa do Asaas é absorvida pela conta master.
+        Se wallet_id for fornecido, configura split com base no valor COM desconto
+        (pior cenário, assumindo que o desconto de antecipação será totalmente usado):
+
+        - PIX com valor-com-desconto >= PIX_PERCENT_BREAKEVEN: split percentual
+          (PIX_PLATFORM_PERCENT), que escala automaticamente com o que o Asaas
+          efetivamente receber — nunca excede o valor recebido.
+        - Caso contrário (PIX abaixo do breakeven, ou Boleto): split fixedValue,
+          calculado sobre o valor-com-desconto, garantindo MIN_SPLIT_MARGIN /
+          BOLETO_PLATFORM_FIXED de margem mesmo se o desconto for usado.
         """
+        split_kwargs = None
+        if wallet_id:
+            discount_amount = self._discount_amount(data.amount, data.discount_type, data.discount_value)
+            worst_case_value = data.amount - discount_amount
+
+            if data.method == 'PIX' and worst_case_value >= PIX_PERCENT_BREAKEVEN:
+                client_percent = (Decimal('1') - PIX_PLATFORM_PERCENT) * Decimal('100')
+                split_kwargs = {'percentualValue': float(round(client_percent, 2))}
+            else:
+                fixed_margin = MIN_SPLIT_MARGIN if data.method == 'PIX' else BOLETO_PLATFORM_FIXED
+                client_amount = max(worst_case_value - fixed_margin, Decimal('0'))
+                split_kwargs = {'fixedValue': float(round(client_amount, 2))}
+
         customer_id = self._get_or_create_customer(
             data.customer_name, data.customer_document, data.customer_email
         )
@@ -187,9 +221,7 @@ class AsaasGateway(BasePaymentGateway):
             }
 
         if wallet_id:
-            margin = self._platform_margin(data.amount, data.method)
-            client_amount = max(data.amount - margin, Decimal('0'))
-            payload['split'] = [{'walletId': wallet_id, 'fixedValue': float(round(client_amount, 2))}]
+            payload['split'] = [{'walletId': wallet_id, **split_kwargs}]
 
         result = self._post('payments', payload)
         charge_id = result['id']

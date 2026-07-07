@@ -363,22 +363,6 @@ function updateDiscountUnit() {
         return Math.max(0, parseFloat(globalRateInput.value) || 0);
     }
 
-    function getDiscountType() {
-        return discTypeSelect ? discTypeSelect.value : 'NONE';
-    }
-
-    function getDiscountValue() {
-        return Math.max(0, parseFloat((discValueInput ? discValueInput.value : '0').replace(',', '.')) || 0);
-    }
-
-    function calcDiscount(baseAmount) {
-        const type = getDiscountType();
-        const val  = getDiscountValue();
-        if (type === 'FIXED')      return Math.min(val, baseAmount);
-        if (type === 'PERCENTAGE') return Math.min(parseFloat((baseAmount * val / 100).toFixed(2)), baseAmount);
-        return 0;
-    }
-
     function updateFirstDueLabel() {
         firstDueLabel.textContent = fmtDateBR(getFirstDate());
     }
@@ -430,7 +414,7 @@ function updateDiscountUnit() {
         }
     }
 
-    function addRow(baseAmount, dueDate, methodId, preDiscount) {
+    function addRow(baseAmount, dueDate, methodId) {
         const clone     = rowTemplate.content.cloneNode(true);
         const row       = clone.querySelector('.installment-row');
         const baseLabel = row.querySelector('.base-amount-label');
@@ -447,10 +431,10 @@ function updateDiscountUnit() {
         if (hasBase) {
             row.dataset.base = baseAmount;
             baseLabel.textContent = fmt(baseAmount);
-            const disc = preDiscount !== undefined ? preDiscount : calcDiscount(baseAmount);
-            if (disc > 0) discInput.value = disc.toFixed(2).replace('.', ',');
-            const final = baseAmount - (disc || 0);
-            amtInput.value = final.toFixed(2).replace('.', ',');
+            // O desconto antecipado da regra de cobrança é aplicado pelo Asaas no momento do
+            // pagamento (não reduz o valor de face da parcela) — só o desconto manual abaixo
+            // (editado pelo usuário nesta linha) altera o "Valor final".
+            amtInput.value = baseAmount.toFixed(2).replace('.', ',');
         }
 
         dateInput.value = dueDate || getFirstDate();
