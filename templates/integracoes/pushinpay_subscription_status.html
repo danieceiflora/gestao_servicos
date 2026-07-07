@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">Faturamento da Conta</h1>
+      <p class="text-sm text-slate-500 mt-1">Assinatura da plataforma — mensalidade cobrada via Pix recorrente.</p>
+    </div>
+  </div>
+
+  <!-- Status card -->
+  <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+    <div class="flex items-center gap-3">
+      {% if subscription.status == 'ATIVA' %}
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+        <i data-lucide="check-circle" class="h-3.5 w-3.5"></i> Ativa
+      </span>
+      {% elif subscription.status == 'AGUARDANDO_PRIMEIRO_PAGAMENTO' %}
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+        <i data-lucide="clock" class="h-3.5 w-3.5"></i> Aguardando primeiro pagamento
+      </span>
+      {% elif subscription.status == 'ATRASADA' %}
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-700">
+        <i data-lucide="alert-triangle" class="h-3.5 w-3.5"></i> Atrasada
+      </span>
+      {% elif subscription.status == 'CANCELADA' %}
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">
+        <i data-lucide="x-circle" class="h-3.5 w-3.5"></i> Cancelada
+      </span>
+      {% else %}
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+        <i data-lucide="circle-dashed" class="h-3.5 w-3.5"></i> Não criada
+      </span>
+      {% endif %}
+
+      {% if subscription.value_cents %}
+      <span class="text-sm text-slate-500">Valor da mensalidade: <strong class="text-slate-900">R$ {{ subscription.value_reais }}</strong></span>
+      {% endif %}
+    </div>
+
+    {% if subscription.status_detail %}
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 flex gap-2">
+      <i data-lucide="info" class="h-4 w-4 flex-shrink-0 mt-0.5"></i>
+      <p>{{ subscription.status_detail }}</p>
+    </div>
+    {% endif %}
+
+    {% if subscription.status == 'NAO_CRIADA' or subscription.status == 'CANCELADA' %}
+    <form action="{% url 'integracoes:pushinpay_subscription_create' %}" method="post">
+      {% csrf_token %}
+      <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors">
+        <i data-lucide="qr-code" class="h-4 w-4"></i>
+        Criar Assinatura
+      </button>
+    </form>
+    {% endif %}
+
+    {% if subscription.status == 'AGUARDANDO_PRIMEIRO_PAGAMENTO' and subscription.qr_code %}
+    <div class="border-t border-slate-100 pt-4 space-y-3">
+      <p class="text-sm text-slate-600">Escaneie o QR Code abaixo para pagar o primeiro ciclo e autorizar a recorrência. Os ciclos seguintes serão debitados automaticamente.</p>
+      {% if subscription.qr_code_base64 %}
+      <img src="data:image/png;base64,{{ subscription.qr_code_base64 }}" alt="QR Code Pix" class="w-48 h-48 rounded-lg border border-slate-200">
+      {% endif %}
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Pix Copia e Cola</label>
+        <textarea readonly class="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg p-2" rows="3">{{ subscription.qr_code }}</textarea>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Histórico -->
+  <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-200">
+      <h2 class="text-sm font-semibold text-slate-700">Histórico de Eventos</h2>
+    </div>
+    {% if events %}
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 border-b border-slate-200">
+        <tr>
+          <th class="text-left px-4 py-3 font-semibold text-slate-700">Data</th>
+          <th class="text-left px-4 py-3 font-semibold text-slate-700">Evento</th>
+          <th class="text-left px-4 py-3 font-semibold text-slate-700">Status Mapeado</th>
+          <th class="text-left px-4 py-3 font-semibold text-slate-700">Observações</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for event in events %}
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="px-4 py-3 text-slate-600 whitespace-nowrap">{{ event.created_at|date:"d/m/Y H:i" }}</td>
+          <td class="px-4 py-3 font-medium text-slate-900">{{ event.raw_event|default:"—" }}</td>
+          <td class="px-4 py-3 text-slate-600">{{ event.get_mapped_status_display|default:"Não reconhecido" }}</td>
+          <td class="px-4 py-3 text-slate-500">{{ event.notes|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="px-4 py-6 text-sm text-slate-500">Nenhum evento registrado ainda.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

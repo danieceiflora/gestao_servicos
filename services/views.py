@@ -23,7 +23,7 @@ from .models import (
     ServiceOrderTask, ServicePayment, Occurrence, Product, Service, ServiceCategory,
     TaskChecklistResponse, StockMovement, PaymentMethod
 )
-from integracoes.models import SystemConfig
+from integracoes.models import SystemConfig, PushinPaySubscription
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
     ServiceOrderSchedulingForm, ServiceOrderForm, ServiceInspectionForm,
@@ -179,6 +179,13 @@ def home(request):
 
     layout_base = 'base.html' if request.user.is_manager else 'base_equipe.html'
 
+    subscription = PushinPaySubscription.objects.first()
+    subscription_status = subscription.status if subscription else PushinPaySubscription.Status.NAO_CRIADA
+    subscription_not_configured = subscription_status == PushinPaySubscription.Status.NAO_CRIADA
+    subscription_overdue = subscription_status in [
+        PushinPaySubscription.Status.ATRASADA, PushinPaySubscription.Status.CANCELADA,
+    ]
+
     return render(request, 'services/home.html', {
         'active_orders': active_orders,
         'pending_approval': pending_approval,
@@ -186,6 +193,8 @@ def home(request):
         'needs_scheduling': needs_scheduling,
         'recent_orders': recent_orders,
         'layout_base': layout_base,
+        'subscription_not_configured': subscription_not_configured,
+        'subscription_overdue': subscription_overdue,
     })
 
 # --- CLIENT VIEWS ---
@@ -788,6 +797,7 @@ def service_order_budget(request, order_id):
 @login_required
 @permission_required('services.view_serviceorder', raise_exception=True)
 def service_order_detail(request, order_id):
+    from .models import Billing
     order = get_object_or_404(get_orders_queryset(request), id=order_id)
     tasks = order.tasks.all().prefetch_related(
         'team_members__professional', 
@@ -847,7 +857,9 @@ def service_order_detail(request, order_id):
     ]
     task_billings = {
         b.task_id: b
-        for b in order.billings.filter(task__isnull=False).select_related('task')
+        for b in order.billings.filter(task__isnull=False)
+            .exclude(status=Billing.Status.CANCELADO)
+            .select_related('task').order_by('created_at')
     }
 
     total_task_discount = sum((t.discount or 0) for t in billable_tasks)

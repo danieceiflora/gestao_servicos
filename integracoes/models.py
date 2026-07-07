@@ -455,3 +455,81 @@ class ManualMessageVariable(models.Model):
         verbose_name_plural = 'Variáveis de Mensagens Manuais'
         unique_together = ('config', 'component', 'index')
         ordering = ['component', 'index']
+
+
+# --- ASSINATURA DA PLATAFORMA (PIX RECORRENTE / PUSHINPAY) ---
+
+class PushinPaySubscription(models.Model):
+    """
+    Estado atual da assinatura da plataforma (mensalidade devida ao fornecedor
+    do software), cobrada via Pix recorrente da PushinPay. Singleton (pk=1).
+    Valor e periodicidade não são configuráveis aqui — vêm de settings/.env.
+    """
+    class Status(models.TextChoices):
+        NAO_CRIADA = 'NAO_CRIADA', 'Não criada'
+        AGUARDANDO_PRIMEIRO_PAGAMENTO = 'AGUARDANDO_PRIMEIRO_PAGAMENTO', 'Aguardando primeiro pagamento'
+        ATIVA = 'ATIVA', 'Ativa'
+        ATRASADA = 'ATRASADA', 'Atrasada'
+        CANCELADA = 'CANCELADA', 'Cancelada'
+
+    subscription_id = models.CharField('ID da Assinatura (PushinPay)', max_length=100, blank=True)
+    first_charge_id = models.CharField('ID da Primeira Cobrança', max_length=100, blank=True)
+    status = models.CharField('Status', max_length=40, choices=Status.choices, default=Status.NAO_CRIADA)
+
+    qr_code = models.TextField('Pix Copia e Cola', blank=True)
+    qr_code_base64 = models.TextField('QR Code (base64)', blank=True)
+
+    # Snapshot dos parâmetros usados na criação (histórico continua correto
+    # mesmo que o .env mude depois).
+    value_cents = models.PositiveIntegerField('Valor (centavos)', default=0)
+    frequency = models.CharField('Periodicidade', max_length=50, blank=True)
+    retry_policy = models.PositiveIntegerField('Política de Retentativas', default=0)
+
+    last_event_at = models.DateTimeField('Último Evento em', null=True, blank=True)
+    status_detail = models.TextField('Observações', blank=True, help_text='Avisos, ex: evento de webhook não reconhecido — revisar manualmente')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Assinatura da Plataforma'
+        verbose_name_plural = 'Assinatura da Plataforma'
+
+    def __str__(self):
+        return f"Assinatura da Plataforma — {self.get_status_display()}"
+
+    @property
+    def value_reais(self):
+        return f'{self.value_cents / 100:.2f}'.replace('.', ',')
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class PushinPaySubscriptionEvent(models.Model):
+    """
+    Histórico append-only de eventos da assinatura (criação + cada webhook
+    recebido da PushinPay). Nunca editável pela UI/admin — ver admin.py.
+    """
+    subscription = models.ForeignKey(PushinPaySubscription, on_delete=models.CASCADE, related_name='events')
+    charge_id = models.CharField('ID da Cobrança', max_length=100, blank=True)
+    raw_event = models.CharField('Evento (bruto)', max_length=100, blank=True)
+    mapped_status = models.CharField('Status Mapeado', max_length=40, choices=PushinPaySubscription.Status.choices, blank=True)
+    payload = models.JSONField('Payload Bruto', default=dict, blank=True)
+    headers = models.JSONField('Cabeçalhos', blank=True, null=True)
+    notes = models.TextField('Observações', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Evento da Assinatura'
+        verbose_name_plural = 'Eventos da Assinatura'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.raw_event or 'evento'} — {self.created_at.strftime('%d/%m/%Y %H:%M')}"

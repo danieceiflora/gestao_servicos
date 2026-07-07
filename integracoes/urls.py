@@ -46,4 +46,9 @@ urlpatterns = [
     path('lembretes/criar/', views.scheduled_reminder_create, name='scheduled_reminder_create'),
     path('lembretes/<int:pk>/editar/', views.scheduled_reminder_edit, name='scheduled_reminder_edit'),
     path('lembretes/<int:pk>/excluir/', views.scheduled_reminder_delete, name='scheduled_reminder_delete'),
+
+    # Assinatura da Plataforma (Pix Recorrente / PushinPay)
+    path('faturamento/', views.pushinpay_subscription_status, name='pushinpay_subscription_status'),
+    path('faturamento/criar/', views.pushinpay_subscription_create, name='pushinpay_subscription_create'),
+    path('webhook/pushinpay/<str:token>/', views.pushinpay_webhook, name='pushinpay_webhook'),
 ]

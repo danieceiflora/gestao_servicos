@@ -1213,10 +1213,15 @@ def billing_create_for_os(request, order_id):
     order = get_object_or_404(ServiceOrder, pk=order_id)
     payment_methods = PaymentMethod.objects.filter(ativo=True).order_by('descricao')
 
+    url = reverse('service_order_detail', kwargs={'order_id': order.id}) + '#financeiro'
+    existing_billing = order.billings.filter(task__isnull=True).exclude(status=Billing.Status.CANCELADO).first()
+    if existing_billing:
+        messages.warning(request, f'Já existe a cobrança #{existing_billing.number} gerada para esta OS.')
+        return HttpResponseRedirect(url)
+
     if request.method == 'POST':
         billing = _billing_create_post(request, order, task=None)
         if billing:
-            url = reverse('service_order_detail', kwargs={'order_id': order.id}) + '#financeiro'
             return HttpResponseRedirect(url)
 
     from integracoes.models import SystemConfig as _SC
@@ -1235,10 +1240,15 @@ def billing_create_for_task(request, task_id):
     order = task.service_order
     payment_methods = PaymentMethod.objects.filter(ativo=True).order_by('descricao')
 
+    url = reverse('service_order_detail', kwargs={'order_id': order.id}) + '#financeiro'
+    existing_billing = task.billings.exclude(status=Billing.Status.CANCELADO).first()
+    if existing_billing:
+        messages.warning(request, f'Já existe a cobrança #{existing_billing.number} gerada para esta etapa.')
+        return HttpResponseRedirect(url)
+
     if request.method == 'POST':
         billing = _billing_create_post(request, order, task=task)
         if billing:
-            url = reverse('service_order_detail', kwargs={'order_id': order.id}) + '#financeiro'
             return HttpResponseRedirect(url)
 
     from integracoes.models import SystemConfig as _SC

@@ -8,13 +8,15 @@ import requests
 from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
-from .models import WebhookEvent, SystemConfig
+from .models import WebhookEvent, SystemConfig, PushinPaySubscription, PushinPaySubscriptionEvent
 from .chatwoot_client import ChatwootClient
+from .pushinpay_client import criar_pix_recorrente, parse_webhook_event, PushinPayError
 from services.models import ServiceOrder, ServiceOrderTask, Sale, Billing, Installment, ExpenseInstallment
 
 logger = logging.getLogger(__name__)
@@ -1726,3 +1728,115 @@ def scheduled_reminder_delete(request, pk):
         reminder.delete()
         messages.success(request, 'Lembrete removido.')
     return redirect('integracoes:scheduled_reminder_list')
+
+
+# --- ASSINATURA DA PLATAFORMA (PIX RECORRENTE / PUSHINPAY) ---
+
+@login_required
+@user_passes_test(lambda u: u.is_manager)
+def pushinpay_subscription_status(request):
+    subscription = PushinPaySubscription.load()
+    events = subscription.events.all()[:50]
+    return render(request, 'integracoes/pushinpay_subscription_status.html', {
+        'subscription': subscription,
+        'events': events,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_manager)
+def pushinpay_subscription_create(request):
+    if request.method != 'POST':
+        return redirect('integracoes:pushinpay_subscription_status')
+
+    subscription = PushinPaySubscription.load()
+    if subscription.status in [
+        PushinPaySubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO,
+        PushinPaySubscription.Status.ATIVA,
+        PushinPaySubscription.Status.ATRASADA,
+    ]:
+        messages.warning(request, 'Já existe uma assinatura em andamento.')
+        return redirect('integracoes:pushinpay_subscription_status')
+
+    token = getattr(settings, 'PUSHINPAY_WEBHOOK_TOKEN', '')
+    webhook_url = settings.SITE_URL.rstrip('/') + reverse('integracoes:pushinpay_webhook', args=[token])
+
+    try:
+        result = criar_pix_recorrente(webhook_url)
+    except PushinPayError as e:
+        logger.exception('Falha ao criar assinatura PushinPay')
+        messages.error(request, f'Não foi possível criar a assinatura: {e}')
+        return redirect('integracoes:pushinpay_subscription_status')
+
+    subscription.subscription_id = str(result.get('subscription_id') or '')
+    subscription.first_charge_id = str(result.get('id') or '')
+    subscription.qr_code = result.get('qr_code', '')
+    subscription.qr_code_base64 = result.get('qr_code_base64', '')
+    subscription.value_cents = getattr(settings, 'PUSHINPAY_SUBSCRIPTION_VALUE_CENTS', 0)
+    subscription.frequency = getattr(settings, 'PUSHINPAY_SUBSCRIPTION_FREQUENCY', '')
+    subscription.retry_policy = getattr(settings, 'PUSHINPAY_SUBSCRIPTION_RETRY_POLICY', 3)
+    subscription.status = PushinPaySubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO
+    subscription.last_event_at = timezone.now()
+    subscription.save()
+
+    PushinPaySubscriptionEvent.objects.create(
+        subscription=subscription,
+        charge_id=subscription.first_charge_id,
+        raw_event='created',
+        mapped_status=PushinPaySubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO,
+        payload=result,
+        notes='Assinatura criada — aguardando primeiro pagamento.',
+    )
+
+    messages.success(request, 'Assinatura criada! Escaneie o QR Code para autorizar a recorrência.')
+    return redirect('integracoes:pushinpay_subscription_status')
+
+
+@csrf_exempt
+@require_POST
+def pushinpay_webhook(request, token):
+    expected = getattr(settings, 'PUSHINPAY_WEBHOOK_TOKEN', '')
+    if not expected or not hmac.compare_digest(token, expected):
+        logger.warning('Webhook PushinPay: token inválido recebido na URL.')
+        return JsonResponse({'ok': False}, status=401)
+
+    subscription = PushinPaySubscription.load()
+
+    try:
+        payload = json.loads(request.body or b'{}')
+    except (ValueError, TypeError):
+        payload = {'_raw_body': request.body.decode('utf-8', errors='replace')}
+
+    # O evento é sempre persistido primeiro, mesmo que o parse abaixo falhe —
+    # histórico nunca pode se perder (ver plano de implementação).
+    event = PushinPaySubscriptionEvent.objects.create(
+        subscription=subscription,
+        payload=payload,
+        headers=dict(request.headers),
+    )
+
+    try:
+        parsed = parse_webhook_event(payload)
+        event.charge_id = parsed['charge_id']
+        event.raw_event = parsed['raw_event']
+        event.mapped_status = parsed['mapped_status']
+
+        if parsed['mapped_status']:
+            subscription.status = parsed['mapped_status']
+            subscription.last_event_at = timezone.now()
+            subscription.status_detail = ''
+        else:
+            event.notes = 'Evento não reconhecido — revisar manualmente.'
+            subscription.status_detail = (
+                f"Evento de webhook não reconhecido em {timezone.now():%d/%m/%Y %H:%M}: "
+                f"{parsed['raw_event']!r}. Revisar manualmente."
+            )
+
+        subscription.save()
+        event.save(update_fields=['charge_id', 'raw_event', 'mapped_status', 'notes'])
+    except Exception as e:
+        logger.exception('Erro ao processar webhook PushinPay')
+        event.notes = f'Erro ao processar: {e}'
+        event.save(update_fields=['notes'])
+
+    return JsonResponse({'ok': True})

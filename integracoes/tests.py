@@ -1,6 +1,9 @@
 import hashlib
 import hmac
+import json
+from unittest.mock import patch, Mock
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 from integracoes.views import (
     _build_budget_response_label,
@@ -8,7 +11,9 @@ from integracoes.views import (
     _is_chatwoot_outgoing_message,
     _resolve_order_status_from_budget_decision,
 )
-from services.models import ServiceOrder
+from integracoes.models import PushinPaySubscription, PushinPaySubscriptionEvent
+from integracoes.pushinpay_client import criar_pix_recorrente, PushinPayError
+from services.models import ServiceOrder, User
 
 
 @override_settings(WEBHOOK_SHARED_SECRET='test-shared-secret')
@@ -132,3 +137,95 @@ class ChatwootReplyFilterTests(TestCase):
             "content_attributes": {"template_name": "boas_vindas"},
         }
         self.assertFalse(_is_chatwoot_outgoing_message(payload))
+
+
+class PushinPaySubscriptionModelTests(TestCase):
+    def test_load_always_returns_pk_1(self):
+        obj = PushinPaySubscription.load()
+        self.assertEqual(obj.pk, 1)
+        self.assertEqual(PushinPaySubscription.objects.count(), 1)
+
+        obj2 = PushinPaySubscription.load()
+        self.assertEqual(obj2.pk, 1)
+        self.assertEqual(PushinPaySubscription.objects.count(), 1)
+
+    def test_default_status_is_nao_criada(self):
+        obj = PushinPaySubscription.load()
+        self.assertEqual(obj.status, PushinPaySubscription.Status.NAO_CRIADA)
+
+
+@override_settings(PUSHINPAY_WEBHOOK_TOKEN='test-token-123')
+class PushinPayWebhookViewTests(TestCase):
+    def setUp(self):
+        self.subscription = PushinPaySubscription.load()
+        self.subscription.status = PushinPaySubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO
+        self.subscription.save()
+
+    def _post(self, token, payload):
+        return self.client.post(
+            reverse('integracoes:pushinpay_webhook', args=[token]),
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+
+    def test_rejects_wrong_token(self):
+        response = self._post('wrong-token', {'status': 'paid', 'id': 'abc'})
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(PushinPaySubscriptionEvent.objects.count(), 0)
+
+    def test_paid_event_activates_subscription(self):
+        response = self._post('test-token-123', {'status': 'paid', 'id': 'charge-1'})
+        self.assertEqual(response.status_code, 200)
+
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.status, PushinPaySubscription.Status.ATIVA)
+
+        event = PushinPaySubscriptionEvent.objects.get()
+        self.assertEqual(event.mapped_status, PushinPaySubscription.Status.ATIVA)
+        self.assertEqual(event.charge_id, 'charge-1')
+
+    def test_unrecognized_event_persists_history_without_changing_status(self):
+        response = self._post('test-token-123', {'status': 'something_new', 'id': 'charge-2'})
+        self.assertEqual(response.status_code, 200)
+
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.status, PushinPaySubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO)
+
+        event = PushinPaySubscriptionEvent.objects.get()
+        self.assertEqual(event.mapped_status, '')
+        self.assertIn('não reconhecido', event.notes)
+
+    def test_malformed_body_still_persists_an_event(self):
+        response = self.client.post(
+            reverse('integracoes:pushinpay_webhook', args=['test-token-123']),
+            data=b'not-json',
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(PushinPaySubscriptionEvent.objects.count(), 1)
+
+
+class PushinPaySubscriptionStatusViewTests(TestCase):
+    def test_non_manager_is_redirected(self):
+        user = User.objects.create_user(username='colaborador', password='x', role=User.Roles.COLLABORATOR)
+        self.client.force_login(user)
+        response = self.client.get(reverse('integracoes:pushinpay_subscription_status'))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_manager_can_view(self):
+        user = User.objects.create_user(username='gestor', password='x', role=User.Roles.ADMIN)
+        self.client.force_login(user)
+        response = self.client.get(reverse('integracoes:pushinpay_subscription_status'))
+        self.assertEqual(response.status_code, 200)
+
+
+class PushinPayClientTests(TestCase):
+    @patch('integracoes.pushinpay_client.requests.post')
+    def test_raises_on_non_2xx(self, mock_post):
+        mock_response = Mock(ok=False, status_code=400, text='bad request')
+        mock_response.request.method = 'POST'
+        mock_response.url = 'https://api.pushinpay.com.br/api/pix/recurring'
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(PushinPayError):
+            criar_pix_recorrente('https://example.com/webhook/')

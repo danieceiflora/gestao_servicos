@@ -28,6 +28,42 @@
     </section>
     {% endif %}
 
+    {% if user.is_manager and subscription_not_configured %}
+    <section>
+        <a href="{% url 'integracoes:pushinpay_subscription_status' %}" class="block w-full rounded-xl border border-slate-200 bg-slate-50 p-4 transition-all hover:bg-slate-100/50">
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600">
+                    <i data-lucide="credit-card" class="h-5 w-5"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-sm font-semibold text-slate-900">Configure a assinatura da plataforma</h3>
+                    <p class="text-sm text-slate-700">Ainda não há uma assinatura ativa para a mensalidade do sistema.</p>
+                </div>
+                <div class="shrink-0 text-slate-500">
+                    <i data-lucide="chevron-right" class="h-5 w-5"></i>
+                </div>
+            </div>
+        </a>
+    </section>
+    {% elif user.is_manager and subscription_overdue %}
+    <section>
+        <a href="{% url 'integracoes:pushinpay_subscription_status' %}" class="block w-full rounded-xl border border-rose-200 bg-rose-50 p-4 transition-all hover:bg-rose-100/50">
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                    <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-sm font-semibold text-rose-900">Assinatura da plataforma atrasada</h3>
+                    <p class="text-sm text-rose-700">O pagamento da mensalidade do sistema não foi confirmado. Verifique o faturamento da conta.</p>
+                </div>
+                <div class="shrink-0 text-rose-500">
+                    <i data-lucide="chevron-right" class="h-5 w-5"></i>
+                </div>
+            </div>
+        </a>
+    </section>
+    {% endif %}
+
     <!-- Stats Section -->
     {% if user.is_manager %}
     <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">

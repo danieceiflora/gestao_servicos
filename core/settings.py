@@ -59,6 +59,16 @@ PLATFORM_PIX_SPLIT_MINIMUM = '2.50'    # mínimo R$ 2,50 (cobre o custo Asaas de
 # Boleto: taxa fixa por transação
 PLATFORM_BOLETO_SPLIT_FIXED = '2.50'   # R$ 2,50 fixo
 
+# --- ASSINATURA DA PLATAFORMA (PUSHINPAY PIX RECORRENTE) ---
+PUSHINPAY_API_TOKEN = os.environ.get('PUSHINPAY_API_TOKEN', '')
+PUSHINPAY_BASE_URL = os.environ.get('PUSHINPAY_BASE_URL', 'https://api.pushinpay.com.br')  # TODO: confirmar host real
+PUSHINPAY_WEBHOOK_TOKEN = os.environ.get('PUSHINPAY_WEBHOOK_TOKEN', '')
+PUSHINPAY_SUBSCRIPTION_VALUE_CENTS = int(os.environ.get('PUSHINPAY_SUBSCRIPTION_VALUE_CENTS', '0'))
+PUSHINPAY_SUBSCRIPTION_FREQUENCY = os.environ.get('PUSHINPAY_SUBSCRIPTION_FREQUENCY', '')
+PUSHINPAY_SUBSCRIPTION_RETRY_POLICY = int(os.environ.get('PUSHINPAY_SUBSCRIPTION_RETRY_POLICY', '3'))
+PUSHINPAY_SUBSCRIPTION_NAME = os.environ.get('PUSHINPAY_SUBSCRIPTION_NAME', 'Assinatura da Plataforma')
+PUSHINPAY_SUBSCRIPTION_COMMENT = os.environ.get('PUSHINPAY_SUBSCRIPTION_COMMENT', '')
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

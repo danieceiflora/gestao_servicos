@@ -4,6 +4,7 @@ from django.utils.html import format_html
 from .models import (
     WebhookEvent, SystemConfig, NotificationConfig, NotificationVariable,
     ScheduledReminder, ScheduledReminderVariable, ScheduledReminderLog,
+    PushinPaySubscription, PushinPaySubscriptionEvent,
 )
 
 class NotificationVariableInline(admin.TabularInline):
@@ -136,4 +137,63 @@ class ScheduledReminderLogAdmin(admin.ModelAdmin):
     readonly_fields = ['reminder', 'installment', 'phone', 'status', 'notes', 'sent_at']
 
     def has_add_permission(self, request):
+        return False
+
+
+# --- Assinatura da Plataforma (Pix Recorrente / PushinPay) ---
+
+@admin.register(PushinPaySubscription)
+class PushinPaySubscriptionAdmin(admin.ModelAdmin):
+    list_display = ['status', 'subscription_id', 'value_cents', 'last_event_at', 'updated_at']
+    readonly_fields = [
+        'subscription_id', 'first_charge_id', 'qr_code', 'qr_code_base64',
+        'value_cents', 'frequency', 'retry_policy', 'last_event_at',
+        'created_at', 'updated_at',
+    ]
+
+    def has_add_permission(self, request):
+        # Singleton — nunca criar um segundo registro pelo admin
+        if self.model.objects.exists():
+            return False
+        return super().has_add_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PushinPaySubscriptionEvent)
+class PushinPaySubscriptionEventAdmin(admin.ModelAdmin):
+    list_display = ['id', 'subscription', 'raw_event', 'mapped_status', 'charge_id', 'created_at']
+    list_filter = ['mapped_status', 'created_at']
+    search_fields = ['charge_id', 'raw_event']
+    readonly_fields = ['subscription', 'charge_id', 'raw_event', 'mapped_status', 'formatted_payload', 'formatted_headers', 'notes', 'created_at']
+    fields = ['subscription', 'charge_id', 'raw_event', 'mapped_status', 'formatted_payload', 'formatted_headers', 'notes', 'created_at']
+
+    def formatted_payload(self, obj):
+        if obj.payload:
+            try:
+                formatted = json.dumps(obj.payload, indent=2, sort_keys=True, ensure_ascii=False)
+                return format_html('<pre>{}</pre>', formatted)
+            except Exception:
+                return str(obj.payload)
+        return "-"
+    formatted_payload.short_description = 'Payload Formatado'
+
+    def formatted_headers(self, obj):
+        if obj.headers:
+            try:
+                formatted = json.dumps(obj.headers, indent=2, sort_keys=True, ensure_ascii=False)
+                return format_html('<pre>{}</pre>', formatted)
+            except Exception:
+                return str(obj.headers)
+        return "-"
+    formatted_headers.short_description = 'Cabeçalhos Formatados'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False

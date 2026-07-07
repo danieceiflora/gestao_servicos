@@ -204,9 +204,19 @@
                 {% endif %}
 
                 <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
-                    <div class="text-right hidden xl:block">
-                        <p class="text-xs font-bold text-slate-900 leading-none">{{ user.get_full_name|default:user.username }}</p>
-                        <p class="text-[10px] text-slate-500 uppercase tracking-tighter">{{ user.get_role_display }}</p>
+                    <div class="relative group">
+                        <div class="text-right hidden xl:block">
+                            <p class="text-xs font-bold text-slate-900 leading-none">{{ user.get_full_name|default:user.username }}</p>
+                            <p class="text-[10px] text-slate-500 uppercase tracking-tighter">{{ user.get_role_display }}</p>
+                        </div>
+                        {% if user.is_manager %}
+                        <div class="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
+                            <a href="{% url 'integracoes:pushinpay_subscription_status' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
+                                <i data-lucide="receipt" class="h-4 w-4 text-emerald-500"></i>
+                                Faturamento
+                            </a>
+                        </div>
+                        {% endif %}
                     </div>
                     <form action="{% url 'logout' %}" method="post" class="inline">
                         {% csrf_token %}
@@ -237,6 +247,11 @@
             </a>
             <a href="{% url 'integracoes:whatsapp_template_list' %}" class="p-1 text-slate-400 hover:text-slate-900" title="Templates WhatsApp">
                 <i data-lucide="message-square" class="h-4 w-4"></i>
+            </a>
+            {% endif %}
+            {% if user.is_manager %}
+            <a href="{% url 'integracoes:pushinpay_subscription_status' %}" class="p-1 text-slate-400 hover:text-slate-900" title="Faturamento">
+                <i data-lucide="receipt" class="h-4 w-4"></i>
             </a>
             {% endif %}
             <form action="{% url 'logout' %}" method="post" class="inline">
