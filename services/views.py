@@ -23,7 +23,7 @@ from .models import (
     ServiceOrderTask, ServicePayment, Occurrence, Product, Service, ServiceCategory,
     TaskChecklistResponse, StockMovement, PaymentMethod
 )
-from integracoes.models import SystemConfig, PushinPaySubscription
+from integracoes.models import SystemConfig, PlatformSubscription
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
     ServiceOrderSchedulingForm, ServiceOrderForm, ServiceInspectionForm,
@@ -179,11 +179,11 @@ def home(request):
 
     layout_base = 'base.html' if request.user.is_manager else 'base_equipe.html'
 
-    subscription = PushinPaySubscription.objects.first()
-    subscription_status = subscription.status if subscription else PushinPaySubscription.Status.NAO_CRIADA
-    subscription_not_configured = subscription_status == PushinPaySubscription.Status.NAO_CRIADA
+    subscription = PlatformSubscription.objects.first()
+    subscription_status = subscription.status if subscription else PlatformSubscription.Status.NAO_CRIADA
+    subscription_not_configured = subscription_status == PlatformSubscription.Status.NAO_CRIADA
     subscription_overdue = subscription_status in [
-        PushinPaySubscription.Status.ATRASADA, PushinPaySubscription.Status.CANCELADA,
+        PlatformSubscription.Status.ATRASADA, PlatformSubscription.Status.CANCELADA,
     ]
 
     return render(request, 'services/home.html', {

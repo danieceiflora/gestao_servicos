@@ -4,6 +4,7 @@ import hashlib
 import logging
 import re
 import unicodedata
+from decimal import Decimal
 import requests
 from django.conf import settings
 from django.http import JsonResponse
@@ -14,9 +15,9 @@ from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
-from .models import WebhookEvent, SystemConfig, PushinPaySubscription, PushinPaySubscriptionEvent
+from .models import WebhookEvent, SystemConfig, PlatformSubscription, PlatformSubscriptionEvent
 from .chatwoot_client import ChatwootClient
-from .pushinpay_client import criar_pix_recorrente, parse_webhook_event, PushinPayError
+from pagamentos.gateways.asaas import AsaasGateway
 from services.models import ServiceOrder, ServiceOrderTask, Sale, Billing, Installment, ExpenseInstallment
 
 logger = logging.getLogger(__name__)
@@ -1730,14 +1731,27 @@ def scheduled_reminder_delete(request, pk):
     return redirect('integracoes:scheduled_reminder_list')
 
 
-# --- ASSINATURA DA PLATAFORMA (PIX RECORRENTE / PUSHINPAY) ---
+# --- ASSINATURA DA PLATAFORMA (PIX RECORRENTE / ASAAS) ---
+
+# Mapeamento de status de cobrança do Asaas (ver AsaasGateway.STATUS_MAP) para
+# o status da assinatura da plataforma. PENDING é intencionalmente omitido —
+# só significa que uma nova cobrança do ciclo foi criada, não é um evento de
+# pagamento em si.
+_ASAAS_STATUS_TO_PLATFORM = {
+    'RECEIVED': PlatformSubscription.Status.ATIVA,
+    'CONFIRMED': PlatformSubscription.Status.ATIVA,
+    'OVERDUE': PlatformSubscription.Status.ATRASADA,
+    'CANCELLED': PlatformSubscription.Status.CANCELADA,
+    'REFUNDED': PlatformSubscription.Status.CANCELADA,
+}
+
 
 @login_required
 @user_passes_test(lambda u: u.is_manager)
-def pushinpay_subscription_status(request):
-    subscription = PushinPaySubscription.load()
+def platform_subscription_status(request):
+    subscription = PlatformSubscription.load()
     events = subscription.events.all()[:50]
-    return render(request, 'integracoes/pushinpay_subscription_status.html', {
+    return render(request, 'integracoes/platform_subscription_status.html', {
         'subscription': subscription,
         'events': events,
     })
@@ -1745,62 +1759,71 @@ def pushinpay_subscription_status(request):
 
 @login_required
 @user_passes_test(lambda u: u.is_manager)
-def pushinpay_subscription_create(request):
+def platform_subscription_create(request):
     if request.method != 'POST':
-        return redirect('integracoes:pushinpay_subscription_status')
+        return redirect('integracoes:platform_subscription_status')
 
-    subscription = PushinPaySubscription.load()
+    subscription = PlatformSubscription.load()
     if subscription.status in [
-        PushinPaySubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO,
-        PushinPaySubscription.Status.ATIVA,
-        PushinPaySubscription.Status.ATRASADA,
+        PlatformSubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO,
+        PlatformSubscription.Status.ATIVA,
+        PlatformSubscription.Status.ATRASADA,
     ]:
         messages.warning(request, 'Já existe uma assinatura em andamento.')
-        return redirect('integracoes:pushinpay_subscription_status')
+        return redirect('integracoes:platform_subscription_status')
 
-    token = getattr(settings, 'PUSHINPAY_WEBHOOK_TOKEN', '')
-    webhook_url = settings.SITE_URL.rstrip('/') + reverse('integracoes:pushinpay_webhook', args=[token])
+    config = SystemConfig.load()
+    value_cents = getattr(settings, 'PLATFORM_SUBSCRIPTION_VALUE_CENTS', 0)
+    cycle = getattr(settings, 'PLATFORM_SUBSCRIPTION_CYCLE', 'MONTHLY')
 
     try:
-        result = criar_pix_recorrente(webhook_url)
-    except PushinPayError as e:
-        logger.exception('Falha ao criar assinatura PushinPay')
+        gw = AsaasGateway()
+        result = gw.create_subscription(
+            customer_name=config.company_name,
+            customer_document=config.company_cnpj,
+            value=Decimal(value_cents) / 100,
+            cycle=cycle,
+            description=getattr(settings, 'PLATFORM_SUBSCRIPTION_DESCRIPTION', 'Assinatura da Plataforma'),
+        )
+    except Exception as e:
+        logger.exception('Falha ao criar assinatura Asaas')
         messages.error(request, f'Não foi possível criar a assinatura: {e}')
-        return redirect('integracoes:pushinpay_subscription_status')
+        return redirect('integracoes:platform_subscription_status')
 
-    subscription.subscription_id = str(result.get('subscription_id') or '')
-    subscription.first_charge_id = str(result.get('id') or '')
-    subscription.qr_code = result.get('qr_code', '')
-    subscription.qr_code_base64 = result.get('qr_code_base64', '')
-    subscription.value_cents = getattr(settings, 'PUSHINPAY_SUBSCRIPTION_VALUE_CENTS', 0)
-    subscription.frequency = getattr(settings, 'PUSHINPAY_SUBSCRIPTION_FREQUENCY', '')
-    subscription.retry_policy = getattr(settings, 'PUSHINPAY_SUBSCRIPTION_RETRY_POLICY', 3)
-    subscription.status = PushinPaySubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO
+    subscription.subscription_id = result['subscription_id']
+    subscription.first_charge_id = result['first_charge_id']
+    subscription.qr_code = result['qr_code']
+    subscription.qr_code_base64 = result['qr_code_base64']
+    subscription.value_cents = value_cents
+    subscription.cycle = cycle
+    subscription.status = PlatformSubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO
     subscription.last_event_at = timezone.now()
     subscription.save()
 
-    PushinPaySubscriptionEvent.objects.create(
+    PlatformSubscriptionEvent.objects.create(
         subscription=subscription,
         charge_id=subscription.first_charge_id,
         raw_event='created',
-        mapped_status=PushinPaySubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO,
+        mapped_status=PlatformSubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO,
         payload=result,
         notes='Assinatura criada — aguardando primeiro pagamento.',
     )
 
-    messages.success(request, 'Assinatura criada! Escaneie o QR Code para autorizar a recorrência.')
-    return redirect('integracoes:pushinpay_subscription_status')
+    messages.success(request, 'Assinatura criada! Escaneie o QR Code para pagar o primeiro ciclo.')
+    return redirect('integracoes:platform_subscription_status')
 
 
 @csrf_exempt
 @require_POST
-def pushinpay_webhook(request, token):
-    expected = getattr(settings, 'PUSHINPAY_WEBHOOK_TOKEN', '')
-    if not expected or not hmac.compare_digest(token, expected):
-        logger.warning('Webhook PushinPay: token inválido recebido na URL.')
-        return JsonResponse({'ok': False}, status=401)
+def platform_subscription_webhook(request):
+    expected = getattr(settings, 'ASAAS_MASTER_WEBHOOK_TOKEN', '')
+    if expected:
+        token_recebido = request.headers.get('asaas-access-token', '')
+        if not hmac.compare_digest(token_recebido, expected):
+            logger.warning('Webhook Asaas (assinatura): token inválido recebido.')
+            return JsonResponse({'ok': False}, status=401)
 
-    subscription = PushinPaySubscription.load()
+    subscription = PlatformSubscription.load()
 
     try:
         payload = json.loads(request.body or b'{}')
@@ -1809,33 +1832,37 @@ def pushinpay_webhook(request, token):
 
     # O evento é sempre persistido primeiro, mesmo que o parse abaixo falhe —
     # histórico nunca pode se perder (ver plano de implementação).
-    event = PushinPaySubscriptionEvent.objects.create(
+    event = PlatformSubscriptionEvent.objects.create(
         subscription=subscription,
         payload=payload,
         headers=dict(request.headers),
     )
 
     try:
-        parsed = parse_webhook_event(payload)
-        event.charge_id = parsed['charge_id']
-        event.raw_event = parsed['raw_event']
-        event.mapped_status = parsed['mapped_status']
+        gw = AsaasGateway()
+        normalized = gw.parse_webhook(payload)
+        event.charge_id = normalized.get('external_id', '')
+        event.raw_event = normalized.get('status', '')
 
-        if parsed['mapped_status']:
-            subscription.status = parsed['mapped_status']
+        mapped = _ASAAS_STATUS_TO_PLATFORM.get(normalized.get('status', ''))
+        if mapped:
+            event.mapped_status = mapped
+            subscription.status = mapped
             subscription.last_event_at = timezone.now()
             subscription.status_detail = ''
+        elif normalized.get('status') == 'PENDING':
+            event.notes = 'Nova cobrança do ciclo criada — aguardando pagamento.'
         else:
             event.notes = 'Evento não reconhecido — revisar manualmente.'
             subscription.status_detail = (
                 f"Evento de webhook não reconhecido em {timezone.now():%d/%m/%Y %H:%M}: "
-                f"{parsed['raw_event']!r}. Revisar manualmente."
+                f"{normalized.get('status')!r}. Revisar manualmente."
             )
 
         subscription.save()
         event.save(update_fields=['charge_id', 'raw_event', 'mapped_status', 'notes'])
     except Exception as e:
-        logger.exception('Erro ao processar webhook PushinPay')
+        logger.exception('Erro ao processar webhook Asaas (assinatura)')
         event.notes = f'Erro ao processar: {e}'
         event.save(update_fields=['notes'])
 

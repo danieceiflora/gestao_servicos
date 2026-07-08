@@ -30,7 +30,7 @@
 
     {% if user.is_manager and subscription_not_configured %}
     <section>
-        <a href="{% url 'integracoes:pushinpay_subscription_status' %}" class="block w-full rounded-xl border border-slate-200 bg-slate-50 p-4 transition-all hover:bg-slate-100/50">
+        <a href="{% url 'integracoes:platform_subscription_status' %}" class="block w-full rounded-xl border border-slate-200 bg-slate-50 p-4 transition-all hover:bg-slate-100/50">
             <div class="flex items-center gap-3">
                 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600">
                     <i data-lucide="credit-card" class="h-5 w-5"></i>
@@ -47,7 +47,7 @@
     </section>
     {% elif user.is_manager and subscription_overdue %}
     <section>
-        <a href="{% url 'integracoes:pushinpay_subscription_status' %}" class="block w-full rounded-xl border border-rose-200 bg-rose-50 p-4 transition-all hover:bg-rose-100/50">
+        <a href="{% url 'integracoes:platform_subscription_status' %}" class="block w-full rounded-xl border border-rose-200 bg-rose-50 p-4 transition-all hover:bg-rose-100/50">
             <div class="flex items-center gap-3">
                 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
                     <i data-lucide="alert-triangle" class="h-5 w-5"></i>

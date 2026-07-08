@@ -275,6 +275,56 @@ class AsaasGateway(BasePaymentGateway):
         result = self._delete(f'payments/{external_id}')
         return result.get('deleted', False)
 
+    def create_subscription(self, customer_name: str, customer_document: str, value: Decimal,
+                             cycle: str, description: str, external_reference: str = '') -> dict:
+        """
+        Cria uma assinatura Pix recorrente na conta master (sem split — quem
+        recebe é a própria plataforma, não uma subconta). Usada para a
+        mensalidade da plataforma, não para cobrança de clientes.
+
+        `cycle` segue o vocabulário do Asaas: WEEKLY, BIWEEKLY, MONTHLY,
+        QUARTERLY, SEMIANNUALLY, YEARLY.
+        """
+        customer_id = self._get_or_create_customer(customer_name, customer_document, '')
+
+        payload = {
+            'customer': customer_id,
+            'billingType': 'PIX',
+            'value': float(value),
+            'nextDueDate': dj_timezone.localdate().strftime('%Y-%m-%d'),
+            'cycle': cycle,
+            'description': description,
+            'externalReference': external_reference,
+        }
+        subscription = self._post('subscriptions', payload)
+        subscription_id = subscription['id']
+
+        result = {
+            'subscription_id': subscription_id,
+            'status': subscription.get('status', ''),
+            'first_charge_id': '',
+            'qr_code': '',
+            'qr_code_base64': '',
+        }
+
+        payments = self._get(f'subscriptions/{subscription_id}/payments')
+        first_payment = next(iter(payments.get('data', [])), None)
+        if first_payment:
+            charge_id = first_payment['id']
+            result['first_charge_id'] = charge_id
+            try:
+                pix = self._get(f'payments/{charge_id}/pixQrCode')
+                result['qr_code'] = pix.get('payload', '')
+                result['qr_code_base64'] = pix.get('encodedImage', '')
+            except Exception:
+                logger.warning(f'Não foi possível obter QR Code Pix para assinatura {subscription_id}')
+
+        return result
+
+    def cancel_subscription(self, subscription_id: str) -> bool:
+        result = self._delete(f'subscriptions/{subscription_id}')
+        return result.get('deleted', False)
+
     def parse_webhook(self, payload: dict) -> dict:
         event = payload.get('event', '')
         payment = payload.get('payment', {})
@@ -292,4 +342,5 @@ class AsaasGateway(BasePaymentGateway):
             'paid_value': payment.get('value'),
             'net_value': payment.get('netValue'),
             'payment_date': payment.get('paymentDate'),
+            'subscription_id': payment.get('subscription', ''),
         }

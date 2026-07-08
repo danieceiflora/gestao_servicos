@@ -457,12 +457,13 @@ class ManualMessageVariable(models.Model):
         ordering = ['component', 'index']
 
 
-# --- ASSINATURA DA PLATAFORMA (PIX RECORRENTE / PUSHINPAY) ---
+# --- ASSINATURA DA PLATAFORMA (PIX RECORRENTE / ASAAS) ---
 
-class PushinPaySubscription(models.Model):
+class PlatformSubscription(models.Model):
     """
     Estado atual da assinatura da plataforma (mensalidade devida ao fornecedor
-    do software), cobrada via Pix recorrente da PushinPay. Singleton (pk=1).
+    do software), cobrada via assinatura Pix recorrente do Asaas (conta
+    master, sem split). Singleton (pk=1).
     Valor e periodicidade não são configuráveis aqui — vêm de settings/.env.
     """
     class Status(models.TextChoices):
@@ -472,7 +473,7 @@ class PushinPaySubscription(models.Model):
         ATRASADA = 'ATRASADA', 'Atrasada'
         CANCELADA = 'CANCELADA', 'Cancelada'
 
-    subscription_id = models.CharField('ID da Assinatura (PushinPay)', max_length=100, blank=True)
+    subscription_id = models.CharField('ID da Assinatura (Asaas)', max_length=100, blank=True)
     first_charge_id = models.CharField('ID da Primeira Cobrança', max_length=100, blank=True)
     status = models.CharField('Status', max_length=40, choices=Status.choices, default=Status.NAO_CRIADA)
 
@@ -482,8 +483,7 @@ class PushinPaySubscription(models.Model):
     # Snapshot dos parâmetros usados na criação (histórico continua correto
     # mesmo que o .env mude depois).
     value_cents = models.PositiveIntegerField('Valor (centavos)', default=0)
-    frequency = models.CharField('Periodicidade', max_length=50, blank=True)
-    retry_policy = models.PositiveIntegerField('Política de Retentativas', default=0)
+    cycle = models.CharField('Periodicidade', max_length=20, blank=True, help_text='WEEKLY, BIWEEKLY, MONTHLY, QUARTERLY, SEMIANNUALLY ou YEARLY (vocabulário do Asaas)')
 
     last_event_at = models.DateTimeField('Último Evento em', null=True, blank=True)
     status_detail = models.TextField('Observações', blank=True, help_text='Avisos, ex: evento de webhook não reconhecido — revisar manualmente')
@@ -512,15 +512,15 @@ class PushinPaySubscription(models.Model):
         return obj
 
 
-class PushinPaySubscriptionEvent(models.Model):
+class PlatformSubscriptionEvent(models.Model):
     """
     Histórico append-only de eventos da assinatura (criação + cada webhook
-    recebido da PushinPay). Nunca editável pela UI/admin — ver admin.py.
+    recebido do Asaas). Nunca editável pela UI/admin — ver admin.py.
     """
-    subscription = models.ForeignKey(PushinPaySubscription, on_delete=models.CASCADE, related_name='events')
+    subscription = models.ForeignKey(PlatformSubscription, on_delete=models.CASCADE, related_name='events')
     charge_id = models.CharField('ID da Cobrança', max_length=100, blank=True)
     raw_event = models.CharField('Evento (bruto)', max_length=100, blank=True)
-    mapped_status = models.CharField('Status Mapeado', max_length=40, choices=PushinPaySubscription.Status.choices, blank=True)
+    mapped_status = models.CharField('Status Mapeado', max_length=40, choices=PlatformSubscription.Status.choices, blank=True)
     payload = models.JSONField('Payload Bruto', default=dict, blank=True)
     headers = models.JSONField('Cabeçalhos', blank=True, null=True)
     notes = models.TextField('Observações', blank=True)

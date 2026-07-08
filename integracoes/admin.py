@@ -4,7 +4,7 @@ from django.utils.html import format_html
 from .models import (
     WebhookEvent, SystemConfig, NotificationConfig, NotificationVariable,
     ScheduledReminder, ScheduledReminderVariable, ScheduledReminderLog,
-    PushinPaySubscription, PushinPaySubscriptionEvent,
+    PlatformSubscription, PlatformSubscriptionEvent,
 )
 
 class NotificationVariableInline(admin.TabularInline):
@@ -140,14 +140,14 @@ class ScheduledReminderLogAdmin(admin.ModelAdmin):
         return False
 
 
-# --- Assinatura da Plataforma (Pix Recorrente / PushinPay) ---
+# --- Assinatura da Plataforma (Pix Recorrente / Asaas) ---
 
-@admin.register(PushinPaySubscription)
-class PushinPaySubscriptionAdmin(admin.ModelAdmin):
+@admin.register(PlatformSubscription)
+class PlatformSubscriptionAdmin(admin.ModelAdmin):
     list_display = ['status', 'subscription_id', 'value_cents', 'last_event_at', 'updated_at']
     readonly_fields = [
         'subscription_id', 'first_charge_id', 'qr_code', 'qr_code_base64',
-        'value_cents', 'frequency', 'retry_policy', 'last_event_at',
+        'value_cents', 'cycle', 'last_event_at',
         'created_at', 'updated_at',
     ]
 
@@ -161,8 +161,8 @@ class PushinPaySubscriptionAdmin(admin.ModelAdmin):
         return False
 
 
-@admin.register(PushinPaySubscriptionEvent)
-class PushinPaySubscriptionEventAdmin(admin.ModelAdmin):
+@admin.register(PlatformSubscriptionEvent)
+class PlatformSubscriptionEventAdmin(admin.ModelAdmin):
     list_display = ['id', 'subscription', 'raw_event', 'mapped_status', 'charge_id', 'created_at']
     list_filter = ['mapped_status', 'created_at']
     search_fields = ['charge_id', 'raw_event']
