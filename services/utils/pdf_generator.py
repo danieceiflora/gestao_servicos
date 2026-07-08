@@ -6,6 +6,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, PageBreak
 from reportlab.lib.units import cm
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 from django.conf import settings
 from django.utils import timezone
 from integracoes.models import SystemConfig
@@ -171,6 +172,47 @@ class BasePDFGenerator:
             fontSize=10,
             textColor=colors.HexColor('#111827')
         ))
+        self.styles.add(ParagraphStyle(
+            name='WarrantyCompany',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            fontName='Helvetica-Bold',
+            textColor=colors.black,
+            alignment=TA_CENTER,
+            leading=12
+        ))
+        self.styles.add(ParagraphStyle(
+            name='WarrantyTitle',
+            parent=self.styles['Normal'],
+            fontSize=12,
+            fontName='Helvetica-Bold',
+            textColor=colors.black,
+            alignment=TA_CENTER,
+            leading=15
+        ))
+        self.styles.add(ParagraphStyle(
+            name='WarrantyHeading',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            fontName='Helvetica-Bold',
+            textColor=colors.black,
+            spaceBefore=10,
+            spaceAfter=4
+        ))
+        self.styles.add(ParagraphStyle(
+            name='WarrantyBody',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#1F2937'),
+            alignment=TA_JUSTIFY,
+            leading=12,
+            spaceAfter=4
+        ))
+        self.styles.add(ParagraphStyle(
+            name='WarrantyBullet',
+            parent=self.styles['WarrantyBody'],
+            leftIndent=12,
+        ))
 
     def _draw_footer(self, canvas, doc):
         canvas.saveState()
@@ -204,9 +246,9 @@ class BasePDFGenerator:
         ]))
         return table
 
-    def _get_header(self, doc_title="Orçamento"):
+    def _get_header(self, doc_title="Orçamento", show_validity=True):
         elements = []
-        
+
         # Coluna 1: Logo
         logo_file = getattr(self.config, 'company_logo', None)
         img = None
@@ -215,7 +257,7 @@ class BasePDFGenerator:
                 img = self._get_processed_image(logo_file, width=3.5*cm, height=2.5*cm)
             except Exception as e:
                 print(f"Erro ao processar logo: {e}")
-        
+
         logo_cell = img if img else Paragraph("LOGO", self.styles['CompanyTitle'])
 
         # Coluna 2: Detalhes da Empresa
@@ -233,9 +275,14 @@ class BasePDFGenerator:
         doc_info_data = [
             [Paragraph("Criado em:", self.styles['DocInfoLabel'])],
             [Paragraph(now.strftime('%d/%m/%Y'), self.styles['DocInfoValue'])],
-            [Spacer(1, 0.1*cm)],
-            [Paragraph("Válido até:", self.styles['DocInfoLabel'])],
-            [Paragraph((now + timezone.timedelta(days=7)).strftime('%d/%m/%Y'), self.styles['DocInfoValue'])],
+        ]
+        if show_validity:
+            doc_info_data += [
+                [Spacer(1, 0.1*cm)],
+                [Paragraph("Válido até:", self.styles['DocInfoLabel'])],
+                [Paragraph((now + timezone.timedelta(days=7)).strftime('%d/%m/%Y'), self.styles['DocInfoValue'])],
+            ]
+        doc_info_data += [
             [Spacer(1, 0.1*cm)],
             [Paragraph(f"{doc_title} nº:", self.styles['DocInfoLabel'])],
             [Paragraph(str(self.service_order.number), self.styles['DocInfoValue'])],
@@ -914,10 +961,114 @@ class CompletionPDFGenerator(BasePDFGenerator):
         elements.append(Paragraph("Este documento comprova a execução dos serviços e a verificação dos itens de controle.", self.styles['Normal']))
         return elements
 
+    def _get_warranty_terms(self):
+        """Página final com o Termo de Garantia de Serviços de Calhas e Rufos."""
+        elements = []
+        elements.append(PageBreak())
+
+        elements.append(Paragraph("DOURADOS CALHAS", self.styles['WarrantyCompany']))
+        elements.append(Paragraph(
+            "AVENIDA ARAGOIÂNIA (GO-040), Nº 97, QD 80 LT 23 SALA 2<br/>GARAVELO B. GOIÂNIA-GO",
+            self.styles['WarrantyCompany']
+        ))
+        elements.append(Spacer(1, 0.6*cm))
+        elements.append(Paragraph("TERMO DE GARANTIA DE SERVIÇOS DE CALHAS E RUFOS", self.styles['WarrantyTitle']))
+        elements.append(Spacer(1, 0.6*cm))
+
+        elements.append(Paragraph("1. PRAZO DE GARANTIA", self.styles['WarrantyHeading']))
+        elements.append(Paragraph(
+            "A Dourados Calhas estabelece as seguintes garantias para os serviços realizados:",
+            self.styles['WarrantyBody']
+        ))
+        elements.append(Paragraph(
+            "• Garantia sobre as chapas: De acordo com o Código de Defesa do Consumidor (Lei nº 8.078/1990), os "
+            "produtos e serviços duráveis possuem garantia legal de 90 (noventa) dias, porém a Dourados Calhas "
+            "oferece uma garantia contratual de 1 ano (trezentos e sessenta e cinco dias). Essa extensão da "
+            "garantia foi adotada para contemplar o período de estiagem, permitindo que o cliente tenha a "
+            "oportunidade de verificar o desempenho do sistema durante um ciclo completo de chuvas.",
+            self.styles['WarrantyBullet']
+        ))
+        elements.append(Paragraph(
+            "• Garantia sobre a vedação: A vedação assim como as chapas tem a garantia legal de 90 dias de "
+            "acordo com o CDC, entretanto, a Dourados Calhas possui garantia 1 ano (trezentos e sessenta e "
+            "cinco dias), permitindo que o cliente tenha a oportunidade de verificar o desempenho do sistema "
+            "durante um ciclo completo de chuvas.",
+            self.styles['WarrantyBullet']
+        ))
+
+        elements.append(Paragraph("2. COBERTURA DA GARANTIA", self.styles['WarrantyHeading']))
+        elements.append(Paragraph("Esta garantia cobre exclusivamente:", self.styles['WarrantyBody']))
+        elements.append(Paragraph("• Defeitos relacionados à execução do serviço.", self.styles['WarrantyBullet']))
+        elements.append(Paragraph("• Vazamentos ou falhas decorrentes de instalação inadequada.", self.styles['WarrantyBullet']))
+        elements.append(Paragraph("• A fixação e vedação de calhas e rufos realizadas pela Prestadora.", self.styles['WarrantyBullet']))
+
+        elements.append(Paragraph("3. EXCLUSÕES DA GARANTIA", self.styles['WarrantyHeading']))
+        elements.append(Paragraph("A garantia não cobre:", self.styles['WarrantyBody']))
+        elements.append(Paragraph(
+            "• Danos causados por falta de manutenção periódica, acúmulo de sujeira, folhas ou resíduos.",
+            self.styles['WarrantyBullet']
+        ))
+        elements.append(Paragraph(
+            "• Problemas decorrentes de alterações ou intervenções realizadas por terceiros como reformas, "
+            "perfurações ou modificações posteriores.",
+            self.styles['WarrantyBullet']
+        ))
+        elements.append(Paragraph(
+            "• Danos causados por fenômenos naturais severos, como ventos extremos, granizo, quedas de "
+            "árvores e/ou estruturas e desastres naturais.",
+            self.styles['WarrantyBullet']
+        ))
+        elements.append(Paragraph(
+            "• Oxidação causada por agentes químicos, cloro de aquecedores de piscinas, resíduos industriais "
+            "ou ambientes altamente corrosivos.",
+            self.styles['WarrantyBullet']
+        ))
+        elements.append(Paragraph(
+            "Obs.: Todos os termos de exclusão de garantia estão de acordo com a Lei nº 8.078/1990 (Art. 26, "
+            "inciso II; Art. 14, § 3º, inciso II; Art. 12, § 3º, inciso III) e a Lei nº 10.406/2002 (Art. 393).",
+            self.styles['WarrantyBody']
+        ))
+
+        elements.append(Paragraph("4. PROCEDIMENTO PARA ACIONAMENTO DA GARANTIA", self.styles['WarrantyHeading']))
+        elements.append(Paragraph("Para acionar a garantia, o cliente deve:", self.styles['WarrantyBody']))
+        elements.append(Paragraph(
+            "1. Entrar em contato com a Prestadora pelo telefone ou WhatsApp (62) 3224-0985.",
+            self.styles['WarrantyBullet']
+        ))
+        elements.append(Paragraph(
+            "2. Informar detalhes do problema e apresentar este Termo de Garantia.",
+            self.styles['WarrantyBullet']
+        ))
+        elements.append(Paragraph(
+            "3. Permitir acesso ao local para análise técnica do problema.",
+            self.styles['WarrantyBullet']
+        ))
+        elements.append(Paragraph(
+            "4. A Prestadora tem um prazo de 48 horas para verificar o problema após ser acionada, salvo em "
+            "situações excepcionais que impossibilitem o cumprimento deste prazo.",
+            self.styles['WarrantyBullet']
+        ))
+
+        elements.append(Paragraph("5. SOLUÇÕES OFERECIDAS", self.styles['WarrantyHeading']))
+        elements.append(Paragraph(
+            "Confirmado o defeito coberto pela garantia, a Prestadora se compromete a realizar os reparos "
+            "necessários sem custo adicional, dentro de um prazo de 6 dias.",
+            self.styles['WarrantyBody']
+        ))
+
+        elements.append(Paragraph("6. OBSERVAÇÕES FINAIS", self.styles['WarrantyHeading']))
+        elements.append(Paragraph(
+            "Este Termo de Garantia é complementar aos direitos previstos no Código de Defesa do Consumidor, "
+            "não os excluindo ou limitando.",
+            self.styles['WarrantyBody']
+        ))
+
+        return elements
+
     def generate(self):
         doc = SimpleDocTemplate(self.buffer, pagesize=A4, rightMargin=1.5*cm, leftMargin=1.5*cm, topMargin=1.5*cm, bottomMargin=1.5*cm)
         elements = []
-        elements.extend(self._get_header(doc_title=self.doc_title))
+        elements.extend(self._get_header(doc_title=self.doc_title, show_validity=False))
         elements.extend(self._get_client_info())
         elements.extend(self._get_completion_info())
         elements.extend(self._get_items_table())
@@ -927,6 +1078,7 @@ class CompletionPDFGenerator(BasePDFGenerator):
         elements.extend(self._get_general_media())
         elements.extend(self._get_signatures())
         elements.extend(self._get_footer())
+        elements.extend(self._get_warranty_terms())
         doc.build(elements, onFirstPage=self._draw_footer, onLaterPages=self._draw_footer)
         pdf = self.buffer.getvalue()
         self.buffer.close()
