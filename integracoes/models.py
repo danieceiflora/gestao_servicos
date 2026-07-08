@@ -1,6 +1,15 @@
 from django.db import models
 from django.utils import timezone
 
+
+def _local_today():
+    """timezone.localdate() explode com USE_TZ=False (naive datetime) — este
+    projeto usa USE_TZ = DEBUG, então isso acontece sempre que DEBUG=False
+    (produção). Calcular "hoje" assim funciona com USE_TZ ligado ou desligado."""
+    now = timezone.now()
+    return timezone.localtime(now).date() if timezone.is_aware(now) else now.date()
+
+
 class WebhookEvent(models.Model):
     STATUS_CHOICES = [
         ('pendente', 'Pendente'),
@@ -611,7 +620,7 @@ class PlatformInvoice(models.Model):
     @property
     def is_overdue(self):
         return (
-            self.due_date < timezone.localdate()
+            self.due_date < _local_today()
             and self.status not in [self.Status.PAGA, self.Status.CANCELADA]
         )
 
@@ -626,7 +635,7 @@ class PlatformInvoice(models.Model):
         from dateutil.relativedelta import relativedelta
         from django.conf import settings
 
-        today = timezone.localdate()
+        today = _local_today()
         first_due = today.replace(day=10) if today.day <= 10 else (today.replace(day=1) + relativedelta(months=1)).replace(day=10)
         value_cents = getattr(settings, 'PLATFORM_SUBSCRIPTION_VALUE_CENTS', 0)
 

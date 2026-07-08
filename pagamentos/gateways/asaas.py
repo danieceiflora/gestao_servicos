@@ -287,11 +287,17 @@ class AsaasGateway(BasePaymentGateway):
         """
         customer_id = self._get_or_create_customer(customer_name, customer_document, '')
 
+        # dj_timezone.localdate() explode com USE_TZ=False (naive datetime) —
+        # este projeto usa USE_TZ = DEBUG, então isso acontece sempre que
+        # DEBUG=False (produção). Calcular assim funciona nos dois modos.
+        _now = dj_timezone.now()
+        today = dj_timezone.localtime(_now).date() if dj_timezone.is_aware(_now) else _now.date()
+
         payload = {
             'customer': customer_id,
             'billingType': 'PIX',
             'value': float(value),
-            'nextDueDate': dj_timezone.localdate().strftime('%Y-%m-%d'),
+            'nextDueDate': today.strftime('%Y-%m-%d'),
             'cycle': cycle,
             'description': description,
             'externalReference': external_reference,

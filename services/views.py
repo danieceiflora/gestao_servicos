@@ -182,9 +182,14 @@ def home(request):
     # Faturamento da conta: fluxo ativo hoje é o de faturas manuais
     # (PlatformInvoice) — a assinatura recorrente (PlatformSubscription) fica
     # pausada até a conta Asaas completar 6 meses (exigência do Pix Automático).
+    # timezone.localdate() explode com USE_TZ=False (naive datetime) — este
+    # projeto usa USE_TZ = DEBUG, então isso acontece sempre que DEBUG=False
+    # (produção). Calcular "hoje" manualmente evita depender disso.
+    _now = django.utils.timezone.now()
+    _today = django.utils.timezone.localtime(_now).date() if django.utils.timezone.is_aware(_now) else _now.date()
     subscription_not_configured = not PlatformInvoice.objects.exists()
     subscription_overdue = PlatformInvoice.objects.filter(
-        due_date__lt=django.utils.timezone.localdate()
+        due_date__lt=_today
     ).exclude(status__in=[PlatformInvoice.Status.PAGA, PlatformInvoice.Status.CANCELADA]).exists()
 
     return render(request, 'services/home.html', {
