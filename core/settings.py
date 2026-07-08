@@ -264,3 +264,39 @@ WEBHOOK_SHARED_SECRET = os.environ.get('WEBHOOK_SHARED_SECRET', '')
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Logging — o handler 'console' padrão do Django só imprime com DEBUG=True
+# (filtro require_debug_true). Em produção (DEBUG=False), isso silenciava
+# todo erro 500 sem deixar rastro no log do container. Este LOGGING garante
+# que exceções não tratadas sempre apareçam via `docker logs`, com DEBUG
+# ligado ou não, sem expor nada a mais para o usuário final (a resposta HTTP
+# continua sendo o 500 genérico).
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+}
