@@ -1139,13 +1139,11 @@ def _charge_config_panel_context(payment_methods, due_days):
     from pagamentos.models import BillingChargeConfig
     today = timezone.now().date()
     charge_configs = BillingChargeConfig.objects.filter(is_active=True).order_by('name')
-    default_config = charge_configs.filter(is_default=True).first()
     return {
         'payment_methods': payment_methods,
         'default_due_days': due_days,
         'today_iso': today.strftime('%Y-%m-%d'),
         'charge_configs': charge_configs,
-        'default_config_id': default_config.pk if default_config else '',
     }
 
 

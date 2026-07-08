@@ -78,6 +78,22 @@
                     {{ form.ativo }}
                     <label for="{{ form.ativo.id_for_label }}" class="text-sm font-semibold text-slate-700">Método Ativo</label>
                 </div>
+
+                <!-- Integra com Gateway -->
+                <div class="md:col-span-2 pt-2 border-t border-slate-100 mt-2">
+                    <label for="{{ form.integra_gateway.id_for_label }}" class="flex items-start gap-3 cursor-pointer select-none pt-4">
+                        <div class="relative mt-0.5 shrink-0">
+                            {{ form.integra_gateway }}
+                            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+                            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-700">Integra com Gateway de Pagamento</p>
+                            <p class="text-xs text-slate-400">Marque apenas se este método for processado automaticamente pelo gateway (ex: Pix automático via Asaas). Não marque para Pix manual via chave/CNPJ ou outros recebimentos fora do gateway.</p>
+                        </div>
+                    </label>
+                    {% if form.integra_gateway.errors %}<p class="text-xs text-rose-500 mt-1">{{ form.integra_gateway.errors.0 }}</p>{% endif %}
+                </div>
             </div>
         </div>
 

@@ -36,22 +36,30 @@
                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Método de Pagamento (gateway) <span class="text-red-500">*</span></label>
-          <select name="default_payment_method_id" required
+          <label class="block text-xs font-medium text-slate-600 mb-1">Método de Pagamento <span class="text-red-500">*</span></label>
+          <select name="default_payment_method_id" id="default_payment_method_id" required
                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
             <option value="">Selecione...</option>
             {% for pm in payment_methods %}
-            <option value="{{ pm.pk }}" {% if instance.default_payment_method_id == pm.pk %}selected{% endif %}>
-              {{ pm.descricao }} ({{ pm.get_tipo_provedor_display }} — tarifa {{ pm.tarifa_porcentagem }}%)
+            <option value="{{ pm.pk }}" data-integra-gateway="{{ pm.integra_gateway|yesno:'1,0' }}"
+                    {% if instance.default_payment_method_id == pm.pk %}selected{% endif %}>
+              {{ pm.descricao }} ({{ pm.get_tipo_provedor_display }} — tarifa {{ pm.tarifa_porcentagem }}%){% if not pm.integra_gateway %} — não integra gateway{% endif %}
             </option>
             {% endfor %}
           </select>
           {% if not payment_methods %}
           <p class="text-[11px] text-red-500 mt-1">
-            Nenhum método de pagamento Pix/Boleto ativo cadastrado.
+            Nenhum método de pagamento ativo cadastrado.
             <a href="{% url 'payment_method_list' %}" class="underline" target="_blank">Cadastre um</a> antes de salvar a regra.
           </p>
           {% endif %}
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Prazo de Vencimento (dias) <span class="text-red-500">*</span></label>
+          <input type="number" name="due_days" min="0" max="365" required
+                 value="{{ instance.due_days|default:'1' }}"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+          <p class="text-[11px] text-slate-400 mt-1">Dias após a geração da cobrança até o vencimento da 1ª parcela.</p>
         </div>
       </div>
     </div>
@@ -156,7 +164,7 @@
       </div>
       <div class="px-5 py-4 space-y-4">
 
-        <label class="flex items-start gap-3 cursor-pointer select-none">
+        <label id="auto_send_row" class="flex items-start gap-3 cursor-pointer select-none">
           <div class="relative mt-0.5">
             <input type="checkbox" name="auto_send_to_gateway" id="auto_send"
                    {% if instance.auto_send_to_gateway %}checked{% endif %}
@@ -166,23 +174,13 @@
           </div>
           <div>
             <p class="text-sm font-medium text-slate-700">Gerar cobrança automaticamente</p>
-            <p class="text-xs text-slate-400">Dispara a cobrança no gateway (PIX/Boleto) assim que o billing for criado</p>
+            <p class="text-xs text-slate-400">Dispara a cobrança no gateway assim que o billing for criado.</p>
           </div>
         </label>
-
-        <label class="flex items-start gap-3 cursor-pointer select-none">
-          <div class="relative mt-0.5">
-            <input type="checkbox" name="is_default" id="is_default"
-                   {% if instance.is_default %}checked{% endif %}
-                   class="peer sr-only">
-            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-blue-500"></div>
-            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
-          </div>
-          <div>
-            <p class="text-sm font-medium text-slate-700">Regra padrão</p>
-            <p class="text-xs text-slate-400">Pré-selecionada ao criar novos billings. Só pode haver uma regra padrão ativa.</p>
-          </div>
-        </label>
+        <p id="auto_send_disabled_note" class="hidden text-xs text-slate-400 italic">
+          O método de pagamento selecionado não integra com o gateway — esta regra serve apenas como referência
+          (desconto/juros/multa acima não são aplicados automaticamente; registre o pagamento manualmente).
+        </p>
 
         <label class="flex items-start gap-3 cursor-pointer select-none">
           <div class="relative mt-0.5">
@@ -216,4 +214,31 @@
   </form>
 
 </div>
+
+<script>
+(function() {
+    const methodSelect = document.getElementById('default_payment_method_id');
+    const autoSendRow = document.getElementById('auto_send_row');
+    const autoSendCheckbox = document.getElementById('auto_send');
+    const disabledNote = document.getElementById('auto_send_disabled_note');
+    if (!methodSelect) return;
+
+    function updateAutoSendVisibility() {
+        const opt = methodSelect.options[methodSelect.selectedIndex];
+        const integraGateway = opt && opt.dataset.integraGateway === '1';
+
+        if (integraGateway) {
+            autoSendRow.classList.remove('hidden');
+            disabledNote.classList.add('hidden');
+        } else {
+            autoSendRow.classList.add('hidden');
+            disabledNote.classList.remove('hidden');
+            autoSendCheckbox.checked = false;
+        }
+    }
+
+    methodSelect.addEventListener('change', updateAutoSendVisibility);
+    updateAutoSendVisibility();
+})();
+</script>
 {% endblock %}

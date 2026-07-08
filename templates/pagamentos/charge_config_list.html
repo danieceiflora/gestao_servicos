@@ -43,16 +43,20 @@
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
           <span class="text-sm font-semibold text-slate-800">{{ cfg.name }}</span>
-          {% if cfg.is_default %}
-          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700">Padrão</span>
-          {% endif %}
           {% if not cfg.is_active %}
           <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-500">Inativa</span>
           {% endif %}
           {% if cfg.auto_send_to_gateway %}
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">
-            <i data-lucide="zap" class="h-3 w-3"></i> Auto
-          </span>
+            {% if cfg.default_payment_method.integra_gateway %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">
+              <i data-lucide="zap" class="h-3 w-3"></i> Auto
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700"
+                  title="Método não integra com o gateway — disparo automático não terá efeito">
+              <i data-lucide="alert-triangle" class="h-3 w-3"></i> Auto inválido
+            </span>
+            {% endif %}
           {% endif %}
         </div>
 
@@ -60,6 +64,10 @@
           <span class="flex items-center gap-1">
             <i data-lucide="credit-card" class="h-3 w-3"></i>
             {% if cfg.default_payment_method %}{{ cfg.default_payment_method.descricao }} ({{ cfg.default_payment_method.get_tipo_provedor_display }}){% else %}<span class="text-red-500 font-semibold">Sem método definido</span>{% endif %}
+          </span>
+          <span class="flex items-center gap-1">
+            <i data-lucide="calendar-clock" class="h-3 w-3"></i>
+            Vencimento: {{ cfg.due_days }}d após a geração
           </span>
           {% if cfg.discount_type != 'NONE' and cfg.discount_value > 0 %}
           <span class="flex items-center gap-1 text-emerald-600">

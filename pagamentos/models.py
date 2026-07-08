@@ -19,9 +19,16 @@ class BillingChargeConfig(models.Model):
     default_payment_method = models.ForeignKey(
         'services.PaymentMethod', on_delete=models.PROTECT,
         null=True, blank=True, related_name='charge_configs',
-        verbose_name='Método de Pagamento (gateway)',
-        help_text='Método usado para gerar a cobrança no gateway — deve ser do tipo Pix ou Boleto',
-        limit_choices_to={'tipo_provedor__in': ['PIX', 'BOLETO'], 'ativo': True},
+        verbose_name='Método de Pagamento',
+        help_text='Método de pagamento ao qual esta regra se aplica. Envio automático ao gateway '
+                   'só funciona para métodos do tipo Pix ou Boleto.',
+        limit_choices_to={'ativo': True},
+    )
+
+    # Vencimento
+    due_days = models.PositiveIntegerField(
+        'Prazo de Vencimento (dias)', default=1,
+        help_text='Dias após a geração da cobrança até o vencimento da 1ª parcela do boleto/pix.'
     )
 
     # Desconto por antecipação
@@ -57,8 +64,6 @@ class BillingChargeConfig(models.Model):
         help_text='Se ativo, dispara a cobrança no gateway assim que o billing for criado'
     )
 
-    is_default = models.BooleanField('Regra padrão', default=False,
-                                     help_text='Aplicada automaticamente ao criar novos billings')
     is_active = models.BooleanField('Ativa', default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -68,14 +73,16 @@ class BillingChargeConfig(models.Model):
         verbose_name = 'Regra de Cobrança'
         verbose_name_plural = 'Regras de Cobrança'
         ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['default_payment_method'],
+                condition=models.Q(is_active=True),
+                name='unique_active_config_per_payment_method',
+            ),
+        ]
 
     def __str__(self):
         return self.name
-
-    def save(self, *args, **kwargs):
-        if self.is_default:
-            BillingChargeConfig.objects.exclude(pk=self.pk).update(is_default=False)
-        super().save(*args, **kwargs)
 
 
 class GatewayConfig(models.Model):

@@ -936,6 +936,12 @@ class PaymentMethod(models.Model):
     prazo_recebimento = models.IntegerField(default=0, verbose_name="Prazo de Recebimento (dias)")
     codigo_sefaz = models.CharField(max_length=2, verbose_name="Código SEFAZ")
     ativo = models.BooleanField(default=True, verbose_name="Ativo")
+    integra_gateway = models.BooleanField(
+        default=False, verbose_name="Integra com Gateway de Pagamento",
+        help_text="Marque apenas se este método for de fato processado automaticamente pelo "
+                  "gateway (Asaas) — ex: Pix automático via Asaas. Não marque para Pix manual "
+                  "via chave/CNPJ ou outros recebimentos que não passam pelo gateway."
+    )
 
     class Meta:
         verbose_name = "Método de Pagamento"
@@ -1233,6 +1239,11 @@ class ServiceOrder(models.Model):
     client_budget_response = models.TextField(null=True, blank=True, verbose_name="Resposta do Cliente ao Orçamento")
     client_budget_responded_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente respondeu o orçamento em")
     client_budget_approved_at = models.DateTimeField(null=True, blank=True, verbose_name="Cliente aprovou o orçamento em")
+    client_payment_method = models.ForeignKey(
+        'PaymentMethod', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='client_orders', verbose_name="Método de Pagamento Escolhido pelo Cliente",
+        help_text="Preferência informada pelo cliente na aprovação do orçamento; usada como padrão para novas etapas faturáveis desta OS."
+    )
     budget_sent_at = models.DateTimeField(null=True, blank=True, verbose_name="Orçamento enviado em")
     
     # Controle de Cobrança e Recibo
@@ -1464,6 +1475,13 @@ class ServiceOrderTask(models.Model):
     requires_client_approval = models.BooleanField(default=False, verbose_name="Requer Aprovação do Cliente?")
     is_approved = models.BooleanField(default=False, verbose_name="Aprovado pelo Cliente?")
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, null=True, blank=True, verbose_name="Método de Pagamento Preferencial")
+    skip_auto_billing = models.BooleanField(
+        default=False,
+        verbose_name="Não gerar cobrança automática ao concluir",
+        help_text="Quando marcado, a conclusão desta etapa não dispara a geração automática de cobrança "
+                   "(mesmo com o faturamento automático ativo em Configurações Financeiras). "
+                   "Use quando o cliente pagará esta etapa parcelado — gere a cobrança manualmente depois."
+    )
 
     # Datas e Horários
     scheduled_at = models.DateTimeField(verbose_name="Agendado para")

@@ -3890,11 +3890,6 @@
       translate: var(--tw-translate-x) var(--tw-translate-y);
     }
   }
-  .peer-checked\:bg-blue-500 {
-    &:is(:where(.peer):checked ~ *) {
-      background-color: var(--color-blue-500);
-    }
-  }
   .peer-checked\:bg-emerald-500 {
     &:is(:where(.peer):checked ~ *) {
       background-color: var(--color-emerald-500);

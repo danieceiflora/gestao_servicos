@@ -695,7 +695,8 @@ class TaskScheduleForm(forms.ModelForm):
         fields = [
             'task_type', 'status', 'scheduled_at',
             'scheduled_end_at', 'started_at', 'finished_at', 'notes',
-            'value',
+            'value', 'skip_auto_billing',
+            'preferred_payment_method', 'preferred_installments',
             'send_whatsapp_confirmation', 'whatsapp_confirmation_status',
             'whatsapp_notification_sent_at', 'whatsapp_confirmation_received_at',
             'whatsapp_response_content'
@@ -737,10 +738,19 @@ class TaskScheduleForm(forms.ModelForm):
                 'placeholder': 'Deixe em branco para usar a soma dos itens',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
+            'preferred_payment_method': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
+            'preferred_installments': forms.NumberInput(attrs={
+                'min': '1',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
+            }),
             'whatsapp_confirmation_status': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'whatsapp_notification_sent_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'whatsapp_confirmation_received_at': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'whatsapp_response_content': forms.Textarea(attrs={'rows': 2, 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'skip_auto_billing': forms.CheckboxInput(attrs={'class': 'switch-checkbox peer sr-only'}),
+            'send_whatsapp_confirmation': forms.CheckboxInput(attrs={'class': 'switch-checkbox peer sr-only'}),
         }
         labels = {
             'task_type': 'Tipo de Etapa',
@@ -750,6 +760,9 @@ class TaskScheduleForm(forms.ModelForm):
             'started_at': 'Iniciado em (Execução)',
             'finished_at': 'Finalizado em (Execução)',
             'notes': 'Observações',
+            'skip_auto_billing': 'Não gerar cobrança automática ao concluir esta etapa',
+            'preferred_payment_method': 'Forma de Pagamento',
+            'preferred_installments': 'Parcelas',
             'send_whatsapp_confirmation': 'Enviar WhatsApp de Confirmação?',
             'whatsapp_confirmation_status': 'Status da Confirmação WhatsApp',
             'whatsapp_notification_sent_at': 'Notificação enviada em',
@@ -760,6 +773,8 @@ class TaskScheduleForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['whatsapp_confirmation_status'].choices = [('', 'Selecione...')] + ServiceOrderTask.WhatsAppConfirmationStatus.choices
+        self.fields['preferred_payment_method'].queryset = PaymentMethod.objects.filter(ativo=True).order_by('descricao')
+        self.fields['preferred_payment_method'].empty_label = 'Selecione...'
         if self.instance.pk:
             if self.instance.scheduled_at:
                 self.initial['scheduled_at'] = _safe_localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')
@@ -773,6 +788,17 @@ class TaskScheduleForm(forms.ModelForm):
                 self.initial['whatsapp_notification_sent_at'] = _safe_localtime(self.instance.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
             if self.instance.whatsapp_confirmation_received_at:
                 self.initial['whatsapp_confirmation_received_at'] = _safe_localtime(self.instance.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
+
+    def clean(self):
+        cleaned_data = super().clean()
+        billable_types = [
+            ServiceOrderTask.TaskType.EXECUCAO,
+            ServiceOrderTask.TaskType.GARANTIA,
+            ServiceOrderTask.TaskType.RETORNO,
+        ]
+        if cleaned_data.get('task_type') in billable_types and not cleaned_data.get('preferred_payment_method'):
+            self.add_error('preferred_payment_method', 'Selecione a forma de pagamento para esta etapa.')
+        return cleaned_data
 
 class ServicePaymentForm(forms.ModelForm):
     class Meta:
@@ -1058,7 +1084,8 @@ class PaymentMethodForm(forms.ModelForm):
         model = PaymentMethod
         fields = [
             'descricao', 'tipo_provedor', 'tarifa_porcentagem',
-            'tarifa_minima', 'tarifa_fixa', 'prazo_recebimento', 'codigo_sefaz', 'ativo'
+            'tarifa_minima', 'tarifa_fixa', 'prazo_recebimento', 'codigo_sefaz', 'ativo',
+            'integra_gateway',
         ]
         widgets = {
             'descricao': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: Cartão de Crédito Visa'}),
@@ -1069,6 +1096,7 @@ class PaymentMethodForm(forms.ModelForm):
             'prazo_recebimento': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'codigo_sefaz': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: 03'}),
             'ativo': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
+            'integra_gateway': forms.CheckboxInput(attrs={'class': 'switch-checkbox peer sr-only'}),
         }
 
 # --- EXPENSE FORMS ---

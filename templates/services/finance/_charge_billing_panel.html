@@ -2,7 +2,7 @@
 {% comment %}
 Partial reutilizável: regra de cobrança (gateway) + geração de parcelas com desconto/juros/multa.
 Usado por billing_create.html (OS/etapa) e sale_form.html (aba Financeiro da venda).
-Requer no contexto: charge_configs, default_config_id, payment_methods, default_due_days, today_iso.
+Requer no contexto: charge_configs, payment_methods, default_due_days, today_iso.
 Opcionalmente: suggested_value (valor de referência fixo; ignorado se window.getBillingRefValue existir).
 {% endcomment %}
 
@@ -25,6 +25,7 @@ Opcionalmente: suggested_value (valor de referência fixo; ignorado se window.ge
                         data-method-id=""
                         data-method-fee="0"
                         data-interest="0"
+                        data-due-days="{{ default_due_days }}"
                         data-discount-type="NONE"
                         data-discount-value="0"
                         data-discount-days="0"
@@ -40,14 +41,14 @@ Opcionalmente: suggested_value (valor de referência fixo; ignorado se window.ge
                         data-method-id="{{ cfg.default_payment_method_id|default:'' }}"
                         data-method-fee="{{ cfg.default_payment_method.tarifa_porcentagem|default:'0' }}"
                         data-interest="{{ cfg.interest_monthly }}"
+                        data-due-days="{{ cfg.due_days }}"
                         data-discount-type="{{ cfg.discount_type }}"
                         data-discount-value="{{ cfg.discount_value }}"
                         data-discount-days="{{ cfg.discount_due_days }}"
                         data-fine-type="{{ cfg.fine_type }}"
                         data-fine-value="{{ cfg.fine_value }}"
-                        data-discount-installments="{{ cfg.discount_applies_to_installments|yesno:'1,0' }}"
-                        {% if cfg.pk == default_config_id %}selected{% endif %}>
-                    {{ cfg.name }}{% if cfg.auto_send_to_gateway %} ⚡ auto{% endif %}{% if cfg.is_default %} ★{% endif %}
+                        data-discount-installments="{{ cfg.discount_applies_to_installments|yesno:'1,0' }}">
+                    {{ cfg.name }}{% if cfg.auto_send_to_gateway %} ⚡ auto ({{ cfg.due_days }}d){% endif %}
                 </option>
                 {% endfor %}
             </select>
@@ -551,11 +552,21 @@ function getConfigMethodId() {
         return `<div><span class="block text-slate-400 uppercase font-bold text-[10px] tracking-wide">${label}</span><span class="text-xs font-semibold ${colorClass}">${value}</span></div>`;
     }
 
+    // Pré-preenche "1º vencimento (dias)" com o due_days da regra selecionada
+    // (ou o padrão do sistema, quando "Sem regra"). Dispara 'input' para recalcular o label/data.
+    function applyDueDays(opt) {
+        const daysInput = document.getElementById('first-due-days');
+        if (!daysInput || !opt || opt.dataset.dueDays === undefined) return;
+        daysInput.value = opt.dataset.dueDays;
+        daysInput.dispatchEvent(new Event('input'));
+    }
+
     function updatePreview() {
         const opt = sel.options[sel.selectedIndex];
 
         if (!opt || !opt.value) {
             if (preview) preview.classList.add('hidden');
+            applyDueDays(opt);
             // Limpa campos de desconto
             const dType = document.getElementById('discount-type');
             const dVal  = document.getElementById('discount-value');
@@ -568,6 +579,8 @@ function getConfigMethodId() {
             updateDiscountUnit();
             return;
         }
+
+        applyDueDays(opt);
 
         const isAuto       = opt.dataset.auto === '1';
         const method       = opt.dataset.method || '';

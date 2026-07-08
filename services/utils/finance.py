@@ -4,10 +4,30 @@ from django.utils import timezone
 from ..models import Billing, Installment, SystemConfig
 
 
-def _get_due_date():
-    config = SystemConfig.load()
-    due_days = config.billing_default_due_days or 1
+def _get_due_date(charge_config=None):
+    """Data de vencimento da 1ª parcela: usa charge_config.due_days se informado,
+    caso contrário cai para SystemConfig.billing_default_due_days."""
+    if charge_config is not None:
+        due_days = charge_config.due_days
+    else:
+        config = SystemConfig.load()
+        due_days = config.billing_default_due_days or 1
     return timezone.now().date() + timezone.timedelta(days=due_days)
+
+
+def resolve_charge_config_for_payment_method(payment_method):
+    """Resolve a BillingChargeConfig ativa cujo default_payment_method seja exatamente
+    o método informado. Retorna None se não houver método ou nenhuma regra ativa o mira."""
+    from pagamentos.models import BillingChargeConfig
+
+    if not payment_method:
+        return None
+    return (
+        BillingChargeConfig.objects
+        .filter(default_payment_method=payment_method, is_active=True)
+        .order_by('-updated_at')
+        .first()
+    )
 
 
 def resolve_charge_config_from_post(request):
@@ -51,11 +71,14 @@ def parse_installments_from_post(request):
     return installments_data
 
 
-def create_billing_for_task(task):
+def create_billing_for_task(task, charge_config=None):
     """
     Gera um Billing vinculado a uma etapa concluída (EXECUCAO, GARANTIA ou RETORNO).
     Aplica task.discount como desconto da cobrança.
     Impede duplicata por etapa. Retorna None se o valor bruto for zero.
+
+    Se charge_config não for informado, resolve pela forma de pagamento preferida da etapa
+    (task.preferred_payment_method).
     """
     if task.billings.exists():
         return task.billings.first()
@@ -67,10 +90,14 @@ def create_billing_for_task(task):
     discount = task.discount or Decimal('0')
     net_value = max(value - discount, Decimal('0'))
 
+    if charge_config is None:
+        charge_config = resolve_charge_config_for_payment_method(task.preferred_payment_method)
+
     billing = Billing.objects.create(
         client=task.service_order.client_property.client,
         service_order=task.service_order,
         task=task,
+        charge_config=charge_config,
         total_amount=value,
         discount=discount,
         status=Billing.Status.PENDENTE
@@ -79,8 +106,9 @@ def create_billing_for_task(task):
     Installment.objects.create(
         billing=billing,
         installment_number=1,
-        due_date=_get_due_date(),
+        due_date=_get_due_date(charge_config),
         amount=net_value,
+        payment_method=task.preferred_payment_method,
         status=Installment.Status.PENDENTE
     )
 
@@ -152,7 +180,7 @@ def create_billing_for_sale(sale, installments_data=None, charge_config=None):
         Installment.objects.create(
             billing=billing,
             installment_number=1,
-            due_date=_get_due_date(),
+            due_date=_get_due_date(charge_config),
             amount=sale.total_amount - sale.discount,
             status=Installment.Status.PENDENTE
         )

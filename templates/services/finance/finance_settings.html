@@ -40,7 +40,11 @@
                         <p class="text-xs text-slate-400 mt-0.5">
                             Quando ativo, uma cobrança é criada automaticamente ao marcar uma etapa de
                             Execução, Garantia ou Retorno como concluída (desde que haja itens faturáveis).
-                            Desative para revisar manualmente antes de gerar a cobrança.
+                            A regra de desconto/juros/multa aplicada é escolhida pela forma de pagamento
+                            definida na própria etapa — cadastre uma
+                            <a href="{% url 'pagamentos:charge_config_list' %}" class="underline hover:text-slate-700" target="_blank">Regra de Cobrança</a>
+                            para cada método usado. Sem regra ativa pro método escolhido, a cobrança
+                            automática é pulada e deve ser gerada manualmente.
                         </p>
                     </div>
                 </label>

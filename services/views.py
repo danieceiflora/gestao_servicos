@@ -1088,7 +1088,8 @@ def task_add(request, order_id):
             messages.success(request, msg)
             return redirect('service_order_detail', order_id=order.id)
     else:
-        form = TaskScheduleForm()
+        initial = {'preferred_payment_method': order.client_payment_method_id} if order.client_payment_method_id else None
+        form = TaskScheduleForm(initial=initial)
         formset = ServiceOrderTeamFormSet()
 
     # Itens de orçamento candidatos ao clone — só relevantes na primeira EXECUCAO
@@ -2228,6 +2229,7 @@ def public_os_page(request, token):
         'config': config,
         'tasks_data': tasks_data,
         'has_exec_report': has_exec_report,
+        'payment_methods': PaymentMethod.objects.filter(ativo=True).order_by('descricao'),
     })
 
 
@@ -2239,9 +2241,22 @@ def public_os_approve_budget(request, token):
         task_type=ServiceOrderTask.TaskType.EXECUCAO,
         is_approved=False,
     ).order_by('created_at').first()
+
+    pm_id = request.POST.get('payment_method_id')
+    payment_method = PaymentMethod.objects.filter(pk=pm_id, ativo=True).first() if pm_id else None
+
     if exec_task:
         exec_task.is_approved = True
-        exec_task.save(update_fields=['is_approved'])
+        update_fields = ['is_approved']
+        if payment_method:
+            exec_task.preferred_payment_method = payment_method
+            update_fields.append('preferred_payment_method')
+        exec_task.save(update_fields=update_fields)
+
+    if payment_method:
+        order.client_payment_method = payment_method
+        order.save(update_fields=['client_payment_method'])
+
     budget_task_pk = request.POST.get('budget_task_id')
     budget_task = order.tasks.filter(pk=budget_task_pk).first() if budget_task_pk else None
     return render(request, 'services/public/partials/budget_approved.html', {

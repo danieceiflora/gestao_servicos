@@ -496,6 +496,12 @@ def auto_create_charges_for_billing(billing):
     if not payment_method or payment_method.tipo_provedor not in ('PIX', 'BOLETO'):
         logger.warning('auto_create_charges_for_billing: regra sem método Pix/Boleto definido, pulando billing %s', billing.number)
         return
+    if not payment_method.integra_gateway:
+        logger.warning(
+            'auto_create_charges_for_billing: método "%s" não integra com o gateway '
+            '(integra_gateway=False), pulando billing %s', payment_method.descricao, billing.number
+        )
+        return
     method = payment_method.tipo_provedor
     if method == 'PIX' and not gw_config.pix_enabled:
         logger.warning('auto_create_charges_for_billing: PIX não habilitado, pulando billing %s', billing.number)
@@ -589,11 +595,9 @@ def _charge_config_form(request, instance):
 
         method_id = request.POST.get('default_payment_method_id', '').strip()
         if not method_id:
-            messages.error(request, 'Selecione um método de pagamento (Pix ou Boleto) para a regra.')
+            messages.error(request, 'Selecione um método de pagamento para a regra.')
             return redirect('pagamentos:charge_config_list')
-        payment_method = PaymentMethod.objects.filter(
-            pk=method_id, tipo_provedor__in=['PIX', 'BOLETO'], ativo=True
-        ).first()
+        payment_method = PaymentMethod.objects.filter(pk=method_id, ativo=True).first()
         if not payment_method:
             messages.error(request, 'Método de pagamento inválido ou inativo.')
             return redirect('pagamentos:charge_config_list')
@@ -601,13 +605,17 @@ def _charge_config_form(request, instance):
         obj = instance or BillingChargeConfig()
         obj.name = name
         obj.default_payment_method = payment_method
+        obj.due_days = int(request.POST.get('due_days', 1) or 1)
         obj.discount_type = request.POST.get('discount_type', 'NONE')
         obj.discount_due_days = int(request.POST.get('discount_due_days', 0) or 0)
         obj.discount_applies_to_installments = 'discount_applies_to_installments' in request.POST
         obj.interest_monthly = Decimal(request.POST.get('interest_monthly', '0').replace(',', '.') or '0')
         obj.fine_type = request.POST.get('fine_type', 'NONE')
-        obj.auto_send_to_gateway = 'auto_send_to_gateway' in request.POST
-        obj.is_default = 'is_default' in request.POST
+        # Disparo automático só é possível para métodos de fato integrados ao gateway —
+        # ignora o valor do POST se o método não permitir, mesmo que alguém burle o JS do form.
+        obj.auto_send_to_gateway = (
+            'auto_send_to_gateway' in request.POST and payment_method.integra_gateway
+        )
         obj.is_active = 'is_active' in request.POST
 
         raw_discount = request.POST.get('discount_value', '0').replace(',', '.')
@@ -621,6 +629,18 @@ def _charge_config_form(request, instance):
         except Exception:
             obj.fine_value = Decimal('0')
 
+        if obj.is_active:
+            other_active = BillingChargeConfig.objects.filter(
+                default_payment_method=payment_method, is_active=True
+            ).exclude(pk=obj.pk)
+            if other_active.exists():
+                messages.error(
+                    request,
+                    f'Já existe a regra "{other_active.first().name}" ativa para '
+                    f'"{payment_method.descricao}". Desative-a antes de ativar esta.'
+                )
+                return redirect('pagamentos:charge_config_list')
+
         obj.save()
         action = 'atualizada' if instance else 'criada'
         messages.success(request, f'Regra "{obj.name}" {action} com sucesso.')
@@ -630,7 +650,7 @@ def _charge_config_form(request, instance):
         'instance': instance,
         'discount_types': BillingChargeConfig.DiscountType.choices,
         'fine_types': BillingChargeConfig.FineType.choices,
-        'payment_methods': PaymentMethod.objects.filter(tipo_provedor__in=['PIX', 'BOLETO'], ativo=True).order_by('descricao'),
+        'payment_methods': PaymentMethod.objects.filter(ativo=True).order_by('descricao'),
         'title': ('Editar' if instance else 'Nova') + ' Regra de Cobrança',
         'active_menu': 'integracoes',
     })

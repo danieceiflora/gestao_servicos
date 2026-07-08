@@ -158,6 +158,39 @@
                         <p class="text-sm font-medium text-red-500">{{ form.value.errors.0 }}</p>
                     {% endif %}
                 </div>
+                <div class="space-y-2">
+                    <label for="{{ form.skip_auto_billing.id_for_label }}" class="flex items-start gap-3 cursor-pointer select-none">
+                        <div class="relative mt-0.5 shrink-0">
+                            {{ form.skip_auto_billing }}
+                            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+                            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+                        </div>
+                        <span class="text-sm font-medium leading-none text-slate-700">
+                            {{ form.skip_auto_billing.label }}
+                        </span>
+                    </label>
+                    <p class="text-xs text-slate-400 italic">Marque se esta etapa será paga parcelada — a cobrança deverá ser gerada manualmente após a conclusão.</p>
+                    {% if form.skip_auto_billing.errors %}
+                        <p class="text-sm font-medium text-red-500">{{ form.skip_auto_billing.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium leading-none text-slate-700">Forma de Pagamento</label>
+                        {{ form.preferred_payment_method }}
+                        <p class="text-xs text-slate-400 italic">Usada para escolher a regra de cobrança na geração automática.</p>
+                        {% if form.preferred_payment_method.errors %}
+                            <p class="text-sm font-medium text-red-500">{{ form.preferred_payment_method.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium leading-none text-slate-700">Parcelas</label>
+                        {{ form.preferred_installments }}
+                        {% if form.preferred_installments.errors %}
+                            <p class="text-sm font-medium text-red-500">{{ form.preferred_installments.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -172,12 +205,16 @@
             </div>
             
             <div class="p-5 md:p-6 space-y-6">
-                <div class="flex items-center space-x-2">
-                    {{ form.send_whatsapp_confirmation }}
-                    <label for="{{ form.send_whatsapp_confirmation.id_for_label }}" class="text-sm font-medium leading-none text-slate-700">
+                <label for="{{ form.send_whatsapp_confirmation.id_for_label }}" class="flex items-start gap-3 cursor-pointer select-none">
+                    <div class="relative mt-0.5 shrink-0">
+                        {{ form.send_whatsapp_confirmation }}
+                        <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+                        <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+                    </div>
+                    <span class="text-sm font-medium leading-none text-slate-700">
                         {{ form.send_whatsapp_confirmation.label }}
-                    </label>
-                </div>
+                    </span>
+                </label>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-2">
@@ -484,8 +521,8 @@
             ta.classList.add("min-h-[80px]");
         });
 
-        // Checkboxes — exclui os de clone de orçamento, que já têm estilo próprio
-        const checkboxes = document.querySelectorAll("form input[type='checkbox']:not(.budget-item-checkbox)");
+        // Checkboxes — exclui os de clone de orçamento e os estilo switch, que já têm estilo próprio
+        const checkboxes = document.querySelectorAll("form input[type='checkbox']:not(.budget-item-checkbox):not(.switch-checkbox)");
         checkboxes.forEach(cb => {
             cb.classList.add(
                 "h-4", "w-4", "shrink-0", "rounded-sm", "border", "border-slate-200",
