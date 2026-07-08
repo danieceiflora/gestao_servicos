@@ -164,14 +164,6 @@
         </div>
     </div>
 
-    {% if messages %}
-    <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        {% for message in messages %}window.showToast("{{ message|escapejs }}", "{{ message.tags|escapejs }}");{% endfor %}
-    });
-    </script>
-    {% endif %}
-
     <form method="POST" id="sale-form" class="flex-1 flex flex-col min-h-0">
         {% csrf_token %}
         {{ formset.management_form }}
@@ -442,33 +434,8 @@
                             <i data-lucide="settings-2" class="w-4 h-4"></i> Configuração da Cobrança
                         </h3>
                     </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                        <div class="space-y-2">
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase">Condição (Parcelas)</label>
-                            {{ form.installment_count }}
-                        </div>
-                        <div class="space-y-2">
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase">Vencimento Inicial (Dias)</label>
-                            {{ form.due_days }}
-                        </div>
-                        <div class="space-y-2">
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase">Meio de Pagto Padrão</label>
-                            <select id="default-payment-method" class="prominent-select">
-                                <option value="">Selecione...</option>
-                                {% for pm in payment_methods %}
-                                <option value="{{ pm.id }}">{{ pm.descricao }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="flex items-end">
-                            <button type="button" onclick="generateInstallments()" class="w-full h-[46px] bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20">
-                                <i data-lucide="refresh-cw" class="w-4 h-4"></i> GERAR PARCELAS
-                            </button>
-                        </div>
-                    </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8 border-t border-slate-100">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <div class="space-y-2">
                             <div class="flex items-center gap-2">
                                 <label class="block text-[10px] font-bold text-slate-400 uppercase">Desconto Global</label>
@@ -491,54 +458,11 @@
                     </div>
                 </div>
 
-                <!-- Tabela de Parcelas -->
-                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                        <h3 class="text-xs font-black text-slate-900 uppercase tracking-widest">Parcelamento Projetado</h3>
-                        <span id="installment-sum-warning" class="text-[10px] font-bold text-red-500 hidden bg-red-50 px-3 py-1 rounded-full border border-red-100 flex items-center gap-1.5">
-                            <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Diferença: R$ 0,00
-                        </span>
-                    </div>
-                    
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                <th class="px-8 py-4">Parcela</th>
-                                <th class="px-4 py-4">Vencimento</th>
-                                <th class="px-4 py-4">Meio de Pagto</th>
-                                <th class="px-8 py-4 text-right">Valor</th>
-                            </tr>
-                        </thead>
-                        <tbody id="installments-table-body" class="divide-y divide-slate-50">
-                            <tr>
-                                <td colspan="4" class="px-8 py-12 text-center">
-                                    <div class="flex flex-col items-center gap-2 opacity-30">
-                                        <i data-lucide="calendar-days" class="w-8 h-8"></i>
-                                        <p class="text-[10px] font-bold uppercase">Nenhuma parcela gerada</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                        <tfoot>
-                            <tr class="bg-slate-900 text-white">
-                                <td colspan="3" class="px-8 py-5 text-right text-[10px] font-bold uppercase tracking-widest">Soma das Parcelas</td>
-                                <td class="px-8 py-5 text-right font-black text-xl" id="display-installments-total">R$ 0,00</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
+                <!-- Regra de cobrança (gateway) + parcelamento -->
+                <script>window.billingPanelSkipInitialRow = true;</script>
+                {% include 'services/finance/_charge_billing_panel.html' %}
 
-                <div class="bg-blue-50 border-2 border-blue-100 p-6 rounded-2xl flex items-start gap-4 shadow-sm">
-                    <div class="bg-blue-500 text-white p-2 rounded-lg">
-                        <i data-lucide="info" class="w-5 h-5"></i>
-                    </div>
-                    <div class="space-y-1">
-                        <h4 class="text-xs font-black text-blue-900 uppercase">Liberdade Financeira</h4>
-                        <p class="text-[11px] text-blue-800 font-medium leading-relaxed">
-                            Você pode alterar manualmente a data, o meio de pagamento ou o valor de qualquer parcela acima. O sistema validará se a soma total das parcelas corresponde ao total do pedido antes de permitir a finalização.
-                        </p>
-                    </div>
-                </div>
+               
             </div>
         </div>
 
@@ -998,6 +922,7 @@
     }
 
     let globalTotal = 0;
+    window.getBillingRefValue = () => globalTotal;
 
     function updateTotals() {
         let subtotal = 0;
@@ -1049,75 +974,7 @@
 
         noItemsMsg.classList.toggle('hidden', rows.length > 0);
         updateCommission();
-    }
-
-    // Geração de Parcelas
-    function generateInstallments() {
-        const count = parseInt(document.getElementById('id_installment_count').value);
-        const days = parseInt(document.getElementById('id_due_days').value);
-        const defaultMethod = document.getElementById('default-payment-method').value;
-        const tableBody = document.getElementById('installments-table-body');
-        
-        tableBody.innerHTML = '';
-        
-        const baseAmount = Math.floor((globalTotal / count) * 100) / 100;
-        const remainder = globalTotal - (baseAmount * count);
-        
-        const today = new Date();
-        
-        for (let i = 1; i <= count; i++) {
-            const dueDate = new Date(today);
-            dueDate.setDate(today.getDate() + days + ((i - 1) * 30));
-            const isoDate = dueDate.toISOString().split('T')[0];
-            
-            const amount = (i === 1) ? (baseAmount + remainder) : baseAmount;
-            
-            const row = document.createElement('tr');
-            row.className = "hover:bg-slate-50 transition-colors";
-            row.innerHTML = `
-                <td class="px-8 py-4 text-xs font-bold text-slate-500">${i}ª Parcela</td>
-                <td class="px-4 py-4">
-                    <div class="table-input-border w-40">
-                        <input type="date" name="installment_due_date[]" value="${isoDate}" class="text-xs font-bold text-slate-700">
-                    </div>
-                </td>
-                <td class="px-4 py-4">
-                    <div class="table-input-border w-full">
-                        <select name="installment_method_id[]" class="text-xs font-bold text-slate-700 p-1">
-                            <option value="">Selecione...</option>
-                            {% for pm in payment_methods %}
-                            <option value="{{ pm.id }}" ${'{{ pm.id }}' == defaultMethod ? 'selected' : ''}>{{ pm.descricao }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </td>
-                <td class="px-8 py-4 text-right">
-                    <div class="table-input-border w-32 ml-auto">
-                        <input type="number" step="0.01" name="installment_amount[]" value="${amount.toFixed(2)}" oninput="validateInstallmentSum()" class="text-right font-black text-slate-900">
-                    </div>
-                </td>
-            `;
-            tableBody.appendChild(row);
-        }
-        validateInstallmentSum();
-        lucide.createIcons();
-    }
-
-    function validateInstallmentSum() {
-        const amounts = Array.from(document.getElementsByName('installment_amount[]')).map(i => parseFloat(i.value) || 0);
-        const sum = amounts.reduce((a, b) => a + b, 0);
-        const diff = Math.abs(globalTotal - sum);
-        
-        document.getElementById('display-installments-total').textContent = `R$ ${sum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-        
-        const warning = document.getElementById('installment-sum-warning');
-        if (diff > 0.01) {
-            warning.innerHTML = `<i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Diferença: R$ ${(globalTotal - sum).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-            warning.classList.remove('hidden');
-        } else {
-            warning.classList.add('hidden');
-        }
-        lucide.createIcons();
+        if (window.billingPanel) window.billingPanel.recalcSum();
     }
 
     formsetContainer.addEventListener('input', (e) => {
@@ -1152,37 +1009,14 @@
 
         // Carregar parcelas iniciais se existirem (edição)
         {% if initial_installments %}
-        const tableBody = document.getElementById('installments-table-body');
-        tableBody.innerHTML = '';
         {% for inst in initial_installments %}
-        const row = document.createElement('tr');
-        row.className = "hover:bg-slate-50 transition-colors";
-        row.innerHTML = `
-            <td class="px-8 py-4 text-xs font-bold text-slate-500">{{ forloop.counter }}ª Parcela</td>
-            <td class="px-4 py-4">
-                <div class="table-input-border w-40">
-                    <input type="date" name="installment_due_date[]" value="{{ inst.due_date }}" class="text-xs font-bold text-slate-700" {% if is_detail and not can_edit %}disabled{% endif %}>
-                </div>
-            </td>
-            <td class="px-4 py-4">
-                <div class="table-input-border w-full">
-                    <select name="installment_method_id[]" class="text-xs font-bold text-slate-700 p-1" {% if is_detail and not can_edit %}disabled{% endif %}>
-                        <option value="">Selecione...</option>
-                        {% for pm in payment_methods %}
-                        <option value="{{ pm.id }}" {% if inst.method_id == pm.id %}selected{% endif %}>{{ pm.descricao }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </td>
-            <td class="px-8 py-4 text-right">
-                <div class="table-input-border w-32 ml-auto">
-                    <input type="number" step="0.01" name="installment_amount[]" value="{{ inst.amount|stringformat:'.2f' }}" oninput="validateInstallmentSum()" class="text-right font-black text-slate-900" {% if is_detail and not can_edit %}disabled{% endif %}>
-                </div>
-            </td>
-        `;
-        tableBody.appendChild(row);
+        (function() {
+            const row = window.billingPanel.addRow(undefined, '{{ inst.due_date }}', {{ inst.method_id|default:'null' }});
+            const amtInput = row.querySelector('.installment-amount');
+            amtInput.value = '{{ inst.amount|stringformat:".2f" }}'.replace('.', ',');
+        })();
         {% endfor %}
-        validateInstallmentSum();
+        window.billingPanel.recalcSum();
         {% endif %}
 
         // Bloquear campos se não puder editar
@@ -1211,13 +1045,17 @@
 
     // Antes de enviar
     document.getElementById('sale-form').addEventListener('submit', function(e) {
-        const amounts = Array.from(document.getElementsByName('installment_amount[]')).map(i => parseFloat(i.value) || 0);
+        const parseAmt = window.billingPanel ? window.billingPanel.parseAmt : (v => parseFloat(v) || 0);
+        const amounts = Array.from(document.getElementsByName('amount[]')).map(i => parseAmt(i.value));
         const sum = amounts.reduce((a, b) => a + b, 0);
-        
+        // Valor esperado = total do pedido + juros de parcelamento já aplicados às parcelas
+        // (o juros por parcela infla a soma de propósito, não é um erro de digitação).
+        const expected = window.billingPanel ? window.billingPanel.getExpectedTotal() : globalTotal;
+
         // Se gerou parcelas, valida a soma. Se não gerou, permite salvar sem cobrança.
         if (amounts.length > 0) {
-            if (Math.abs(globalTotal - sum) > 0.01) {
-                alert("A soma das parcelas deve ser igual ao total do pedido.");
+            if (Math.abs(expected - sum) > 0.01) {
+                alert("A soma das parcelas deve ser igual ao total do pedido (mais os juros de parcelamento, se aplicado).");
                 e.preventDefault();
                 switchTab('payment');
                 return;

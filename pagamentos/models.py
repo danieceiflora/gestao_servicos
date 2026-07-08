@@ -15,13 +15,14 @@ class BillingChargeConfig(models.Model):
         FIXED = 'FIXED', 'Valor fixo (R$)'
         PERCENTAGE = 'PERCENTAGE', 'Percentual (%)'
 
-    class DefaultMethod(models.TextChoices):
-        PIX = 'PIX', 'PIX'
-        BOLETO = 'BOLETO', 'Boleto Bancário'
-
     name = models.CharField('Nome da Regra', max_length=100)
-    default_method = models.CharField('Método Padrão', max_length=10,
-                                      choices=DefaultMethod.choices, default=DefaultMethod.PIX)
+    default_payment_method = models.ForeignKey(
+        'services.PaymentMethod', on_delete=models.PROTECT,
+        null=True, blank=True, related_name='charge_configs',
+        verbose_name='Método de Pagamento (gateway)',
+        help_text='Método usado para gerar a cobrança no gateway — deve ser do tipo Pix ou Boleto',
+        limit_choices_to={'tipo_provedor__in': ['PIX', 'BOLETO'], 'ativo': True},
+    )
 
     # Desconto por antecipação
     discount_type = models.CharField('Tipo de Desconto', max_length=15,
@@ -31,6 +32,11 @@ class BillingChargeConfig(models.Model):
     discount_due_days = models.IntegerField(
         'Prazo do Desconto (dias antes do vencimento)', default=0,
         help_text='0 = desconto válido até o próprio vencimento'
+    )
+    discount_applies_to_installments = models.BooleanField(
+        'Desconto vale para parcelamento', default=False,
+        help_text='Se desligado (padrão), o desconto por antecipação só é aplicado quando a '
+                  'cobrança for gerada à vista (1 parcela)'
     )
 
     # Juros por atraso

@@ -59,7 +59,7 @@
         <div class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
           <span class="flex items-center gap-1">
             <i data-lucide="credit-card" class="h-3 w-3"></i>
-            {{ cfg.get_default_method_display }}
+            {% if cfg.default_payment_method %}{{ cfg.default_payment_method.descricao }} ({{ cfg.default_payment_method.get_tipo_provedor_display }}){% else %}<span class="text-red-500 font-semibold">Sem método definido</span>{% endif %}
           </span>
           {% if cfg.discount_type != 'NONE' and cfg.discount_value > 0 %}
           <span class="flex items-center gap-1 text-emerald-600">
@@ -67,6 +67,7 @@
             Desconto:
             {% if cfg.discount_type == 'PERCENTAGE' %}{{ cfg.discount_value }}%{% else %}R$ {{ cfg.discount_value|floatformat:2 }}{% endif %}
             {% if cfg.discount_due_days > 0 %} (até {{ cfg.discount_due_days }}d antes){% endif %}
+            {% if cfg.discount_applies_to_installments %} · vale para parcelamento{% else %} · só à vista{% endif %}
           </span>
           {% endif %}
           {% if cfg.interest_monthly > 0 %}

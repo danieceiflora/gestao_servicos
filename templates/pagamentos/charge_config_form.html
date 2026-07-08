@@ -36,13 +36,22 @@
                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Método Padrão</label>
-          <select name="default_method"
+          <label class="block text-xs font-medium text-slate-600 mb-1">Método de Pagamento (gateway) <span class="text-red-500">*</span></label>
+          <select name="default_payment_method_id" required
                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-            {% for val, label in method_choices %}
-            <option value="{{ val }}" {% if instance.default_method == val %}selected{% elif not instance and val == 'PIX' %}selected{% endif %}>{{ label }}</option>
+            <option value="">Selecione...</option>
+            {% for pm in payment_methods %}
+            <option value="{{ pm.pk }}" {% if instance.default_payment_method_id == pm.pk %}selected{% endif %}>
+              {{ pm.descricao }} ({{ pm.get_tipo_provedor_display }} — tarifa {{ pm.tarifa_porcentagem }}%)
+            </option>
             {% endfor %}
           </select>
+          {% if not payment_methods %}
+          <p class="text-[11px] text-red-500 mt-1">
+            Nenhum método de pagamento Pix/Boleto ativo cadastrado.
+            <a href="{% url 'payment_method_list' %}" class="underline" target="_blank">Cadastre um</a> antes de salvar a regra.
+          </p>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -80,6 +89,21 @@
                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
           <p class="text-[11px] text-slate-400 mt-1">0 = válido até o vencimento</p>
         </div>
+      </div>
+      <div class="px-5 py-4">
+        <label class="flex items-start gap-3 cursor-pointer select-none">
+          <div class="relative mt-0.5">
+            <input type="checkbox" name="discount_applies_to_installments" id="discount_applies_to_installments"
+                   {% if instance.discount_applies_to_installments %}checked{% endif %}
+                   class="peer sr-only">
+            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <div>
+            <p class="text-sm font-medium text-slate-700">Desconto vale para parcelamento</p>
+            <p class="text-xs text-slate-400">Se desligado (padrão), o desconto por antecipação só é concedido quando a cobrança for gerada à vista (1 parcela)</p>
+          </div>
+        </label>
       </div>
     </div>
 

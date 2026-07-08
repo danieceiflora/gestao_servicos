@@ -9,7 +9,6 @@ from .models import (
     Sale, SaleItem, Supplier, PaymentMethod, Expense, ProductComposition, ExpenseInstallment,
     FinanceSettings, SaleSettings, ProductVariant
 )
-from integracoes.models import SystemConfig
 
 
 def _safe_localtime(value):
@@ -984,20 +983,6 @@ class ProductImportForm(forms.Form):
 # --- SALES (PDV) FORMS ---
 
 class SaleForm(forms.ModelForm):
-    installment_count = forms.ChoiceField(
-        label="Parcelas",
-        choices=[(str(i), f"{i}x") for i in range(1, 13)],
-        initial='1',
-        required=False,
-        widget=forms.Select(attrs={'class': 'prominent-select'})
-    )
-    due_days = forms.IntegerField(
-        label="Dias para Vencimento",
-        initial=1,
-        required=False,
-        widget=forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'min': 0})
-    )
-
     class Meta:
         model = Sale
         fields = [
@@ -1033,8 +1018,6 @@ class SaleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        config = SystemConfig.load()
-        self.fields['due_days'].initial = config.billing_default_due_days
         self.fields['discount'].required = False
         self.fields['surcharge'].required = False
         self.fields['commission_rate'].required = False

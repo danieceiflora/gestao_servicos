@@ -694,20 +694,21 @@ def sale_create(request):
                     sale.save()
 
                     if not is_draft:
-                        installment_dates = request.POST.getlist('installment_due_date[]')
-                        installment_amounts = request.POST.getlist('installment_amount[]')
-                        installment_methods = request.POST.getlist('installment_method_id[]')
-
-                        if installment_dates:
-                            installments_data = []
-                            for d, a, m in zip(installment_dates, installment_amounts, installment_methods):
-                                installments_data.append({
-                                    'due_date': d,
-                                    'amount': Decimal(a),
-                                    'payment_method_id': m if m else None
-                                })
-                            from .utils.finance import create_billing_for_sale
-                            create_billing_for_sale(sale, installments_data)
+                        from .utils.finance import (
+                            create_billing_for_sale,
+                            parse_installments_from_post,
+                            resolve_charge_config_from_post,
+                        )
+                        installments_data = parse_installments_from_post(request)
+                        if installments_data:
+                            charge_config = resolve_charge_config_from_post(request)
+                            billing = create_billing_for_sale(sale, installments_data, charge_config=charge_config)
+                            if charge_config and charge_config.auto_send_to_gateway:
+                                from pagamentos.views import auto_create_charges_for_billing
+                                try:
+                                    auto_create_charges_for_billing(billing)
+                                except Exception:
+                                    logger.exception('Erro ao disparar cobranças automáticas para billing %s', billing.number)
 
                     action = "salvo como rascunho" if is_draft else "realizada com sucesso"
                     messages.success(request, f"Venda #{sale.number} {action}!")
@@ -726,14 +727,17 @@ def sale_create(request):
         form = SaleForm()
         formset = SaleItemFormSet(queryset=SaleItem.objects.none())
     
+    from integracoes.models import SystemConfig as _SC
+    due_days = _SC.load().billing_default_due_days or 1
+
     context = {
         'form': form,
         'formset': formset,
         'title': 'Nova Venda (PDV)',
         'products': Product.objects.filter(is_active=True),
         'clients': Client.objects.all().order_by('name'),
-        'payment_methods': PaymentMethod.objects.filter(ativo=True)
     }
+    context.update(_charge_config_panel_context(PaymentMethod.objects.filter(ativo=True), due_days))
     return render(request, 'services/sale_form.html', context)
 
 @login_required
@@ -789,20 +793,21 @@ def sale_detail(request, number):
                     sale.save()
 
                     if not is_draft:
-                        installment_dates = request.POST.getlist('installment_due_date[]')
-                        installment_amounts = request.POST.getlist('installment_amount[]')
-                        installment_methods = request.POST.getlist('installment_method_id[]')
-
-                        if installment_dates:
-                            installments_data = []
-                            for d, a, m in zip(installment_dates, installment_amounts, installment_methods):
-                                installments_data.append({
-                                    'due_date': d,
-                                    'amount': Decimal(a),
-                                    'payment_method_id': m if m else None
-                                })
-                            from .utils.finance import create_billing_for_sale
-                            create_billing_for_sale(sale, installments_data)
+                        from .utils.finance import (
+                            create_billing_for_sale,
+                            parse_installments_from_post,
+                            resolve_charge_config_from_post,
+                        )
+                        installments_data = parse_installments_from_post(request)
+                        if installments_data:
+                            charge_config = resolve_charge_config_from_post(request)
+                            billing = create_billing_for_sale(sale, installments_data, charge_config=charge_config)
+                            if charge_config and charge_config.auto_send_to_gateway:
+                                from pagamentos.views import auto_create_charges_for_billing
+                                try:
+                                    auto_create_charges_for_billing(billing)
+                                except Exception:
+                                    logger.exception('Erro ao disparar cobranças automáticas para billing %s', billing.number)
 
                     messages.success(request, f"Venda #{sale.number} atualizada com sucesso!")
                     return redirect('sale_detail', number=sale.number)
@@ -830,6 +835,9 @@ def sale_detail(request, number):
                 'method_id': inst.payment_method_id
             })
 
+    from integracoes.models import SystemConfig as _SC
+    due_days = _SC.load().billing_default_due_days or 1
+
     context = {
         'sale': sale,
         'form': form,
@@ -839,10 +847,10 @@ def sale_detail(request, number):
         'title': f'Venda #{sale.number}',
         'products': Product.objects.filter(is_active=True),
         'clients': Client.objects.all().order_by('name'),
-        'payment_methods': PaymentMethod.objects.filter(ativo=True),
         'initial_installments': initial_installments,
         'returns': sale.returns.all().prefetch_related('items__sale_item__product') if hasattr(sale, 'returns') else [],
     }
+    context.update(_charge_config_panel_context(PaymentMethod.objects.filter(ativo=True), due_days))
     return render(request, 'services/sale_form.html', context)
 
 @login_required
@@ -1113,50 +1121,38 @@ def sale_return_cancel(request, return_id):
 
 # --- CRIAÇÃO DE COBRANÇA COM PARCELAMENTO LIVRE ---
 
-def _billing_create_context(order, task, payment_methods, due_days):
+def _charge_config_panel_context(payment_methods, due_days):
+    """Contexto compartilhado pelo partial _charge_billing_panel.html (usado por OS e Vendas)."""
     from pagamentos.models import BillingChargeConfig
-    suggested_value = task.billing_value_net if task else order.balance_due
     today = timezone.now().date()
     charge_configs = BillingChargeConfig.objects.filter(is_active=True).order_by('name')
     default_config = charge_configs.filter(is_default=True).first()
     return {
-        'order': order,
-        'task': task,
-        'suggested_value': suggested_value,
         'payment_methods': payment_methods,
         'default_due_days': due_days,
         'today_iso': today.strftime('%Y-%m-%d'),
-        'title': f'Gerar Cobrança — OS #{order.number}',
-        'active_menu': 'finance',
         'charge_configs': charge_configs,
         'default_config_id': default_config.pk if default_config else '',
     }
 
 
-def _billing_create_post(request, order, task):
-    from datetime import date as date_type
-    amounts = request.POST.getlist('amount[]')
-    due_dates = request.POST.getlist('due_date[]')
-    methods = request.POST.getlist('payment_method_id[]')
+def _billing_create_context(order, task, payment_methods, due_days):
+    suggested_value = task.billing_value_net if task else order.balance_due
+    ctx = _charge_config_panel_context(payment_methods, due_days)
+    ctx.update({
+        'order': order,
+        'task': task,
+        'suggested_value': suggested_value,
+        'title': f'Gerar Cobrança — OS #{order.number}',
+        'active_menu': 'finance',
+    })
+    return ctx
 
-    installments_data = []
-    for amt, dt, mid in zip(amounts, due_dates, methods):
-        amt = amt.strip().replace(',', '.')
-        dt = dt.strip()
-        if not amt or not dt:
-            continue
-        try:
-            amount = Decimal(amt)
-            due_date = date_type.fromisoformat(dt)
-        except (Exception,):
-            continue
-        pm_id = None
-        if mid and mid.strip():
-            try:
-                pm_id = int(mid.strip())
-            except ValueError:
-                pass
-        installments_data.append({'amount': amount, 'due_date': due_date, 'payment_method_id': pm_id})
+
+def _billing_create_post(request, order, task):
+    from .utils.finance import parse_installments_from_post, resolve_charge_config_from_post
+
+    installments_data = parse_installments_from_post(request)
 
     if not installments_data:
         messages.error(request, 'Adicione pelo menos uma parcela.')
@@ -1164,16 +1160,9 @@ def _billing_create_post(request, order, task):
 
     total = sum(d['amount'] for d in installments_data)
 
-    from pagamentos.models import BillingChargeConfig
     from pagamentos.views import auto_create_charges_for_billing
 
-    charge_config = None
-    config_id = request.POST.get('charge_config_id', '').strip()
-    if config_id:
-        try:
-            charge_config = BillingChargeConfig.objects.get(pk=int(config_id), is_active=True)
-        except (BillingChargeConfig.DoesNotExist, ValueError):
-            pass
+    charge_config = resolve_charge_config_from_post(request)
 
     billing = Billing.objects.create(
         client=order.client_property.client,

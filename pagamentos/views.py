@@ -13,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from integracoes.models import SystemConfig
-from services.models import Installment, User
+from services.models import Installment, PaymentMethod, User
 from .gateways.asaas import AsaasGateway
 from .gateways.base import ChargeData, SubaccountData
 from .models import GatewayCharge, GatewayConfig, BillingChargeConfig
@@ -192,6 +192,11 @@ def installment_create_charge(request, installment_pk):
     try:
         gw = _get_gateway()
         billing_config = installment.billing.charge_config
+        charge_kwargs = {}
+        if billing_config:
+            is_cash = installment.billing.installments.count() == 1
+            apply_discount = billing_config.discount_applies_to_installments or is_cash
+            charge_kwargs = _charge_config_to_kwargs(billing_config, apply_discount)
         data = ChargeData(
             customer_name=client.name,
             customer_document=client_doc,
@@ -201,7 +206,7 @@ def installment_create_charge(request, installment_pk):
             due_date=installment.due_date,
             method=method,
             external_reference=str(installment.pk),
-            **(_charge_config_to_kwargs(billing_config) if billing_config else {}),
+            **charge_kwargs,
         )
         result = gw.create_charge(data, wallet_id=config.wallet_id)
 
@@ -455,11 +460,16 @@ def _auto_baixa_installment(charge: GatewayCharge):
 
 # --- REGRAS DE COBRANÇA ---
 
-def _charge_config_to_kwargs(config: BillingChargeConfig) -> dict:
-    """Converte uma BillingChargeConfig nos kwargs extras de ChargeData."""
+def _charge_config_to_kwargs(config: BillingChargeConfig, apply_discount: bool) -> dict:
+    """Converte uma BillingChargeConfig nos kwargs extras de ChargeData.
+
+    apply_discount controla se o desconto por antecipação é enviado — regras com
+    discount_applies_to_installments=False só concedem desconto quando a cobrança
+    for à vista (billing com 1 única parcela).
+    """
     return {
-        'discount_type': config.discount_type if config.discount_type != 'NONE' else '',
-        'discount_value': config.discount_value,
+        'discount_type': config.discount_type if (apply_discount and config.discount_type != 'NONE') else '',
+        'discount_value': config.discount_value if apply_discount else Decimal('0'),
         'discount_due_days': config.discount_due_days,
         'interest_monthly': config.interest_monthly,
         'fine_type': config.fine_type if config.fine_type != 'NONE' else '',
@@ -482,7 +492,11 @@ def auto_create_charges_for_billing(billing):
         logger.warning('auto_create_charges_for_billing: gateway não habilitado para billing %s', billing.number)
         return
 
-    method = charge_config.default_method
+    payment_method = charge_config.default_payment_method
+    if not payment_method or payment_method.tipo_provedor not in ('PIX', 'BOLETO'):
+        logger.warning('auto_create_charges_for_billing: regra sem método Pix/Boleto definido, pulando billing %s', billing.number)
+        return
+    method = payment_method.tipo_provedor
     if method == 'PIX' and not gw_config.pix_enabled:
         logger.warning('auto_create_charges_for_billing: PIX não habilitado, pulando billing %s', billing.number)
         return
@@ -498,6 +512,10 @@ def auto_create_charges_for_billing(billing):
 
     client_email = client.emails.values_list('email', flat=True).first() or ''
     gw = _get_gateway()
+
+    is_cash = billing.installments.count() == 1
+    apply_discount = charge_config.discount_applies_to_installments or is_cash
+    charge_kwargs = _charge_config_to_kwargs(charge_config, apply_discount)
 
     for installment in billing.installments.filter(status='PENDENTE'):
         if installment.gateway_charges.filter(
@@ -515,7 +533,7 @@ def auto_create_charges_for_billing(billing):
                 due_date=installment.due_date,
                 method=method,
                 external_reference=str(installment.pk),
-                **_charge_config_to_kwargs(charge_config),
+                **charge_kwargs,
             )
             result = gw.create_charge(data, wallet_id=gw_config.wallet_id)
             GatewayCharge.objects.create(
@@ -569,11 +587,23 @@ def _charge_config_form(request, instance):
             messages.error(request, 'Informe um nome para a regra.')
             return redirect('pagamentos:charge_config_list')
 
+        method_id = request.POST.get('default_payment_method_id', '').strip()
+        if not method_id:
+            messages.error(request, 'Selecione um método de pagamento (Pix ou Boleto) para a regra.')
+            return redirect('pagamentos:charge_config_list')
+        payment_method = PaymentMethod.objects.filter(
+            pk=method_id, tipo_provedor__in=['PIX', 'BOLETO'], ativo=True
+        ).first()
+        if not payment_method:
+            messages.error(request, 'Método de pagamento inválido ou inativo.')
+            return redirect('pagamentos:charge_config_list')
+
         obj = instance or BillingChargeConfig()
         obj.name = name
-        obj.default_method = request.POST.get('default_method', 'PIX')
+        obj.default_payment_method = payment_method
         obj.discount_type = request.POST.get('discount_type', 'NONE')
         obj.discount_due_days = int(request.POST.get('discount_due_days', 0) or 0)
+        obj.discount_applies_to_installments = 'discount_applies_to_installments' in request.POST
         obj.interest_monthly = Decimal(request.POST.get('interest_monthly', '0').replace(',', '.') or '0')
         obj.fine_type = request.POST.get('fine_type', 'NONE')
         obj.auto_send_to_gateway = 'auto_send_to_gateway' in request.POST
@@ -600,7 +630,7 @@ def _charge_config_form(request, instance):
         'instance': instance,
         'discount_types': BillingChargeConfig.DiscountType.choices,
         'fine_types': BillingChargeConfig.FineType.choices,
-        'method_choices': BillingChargeConfig.DefaultMethod.choices,
+        'payment_methods': PaymentMethod.objects.filter(tipo_provedor__in=['PIX', 'BOLETO'], ativo=True).order_by('descricao'),
         'title': ('Editar' if instance else 'Nova') + ' Regra de Cobrança',
         'active_menu': 'integracoes',
     })
