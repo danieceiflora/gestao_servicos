@@ -939,6 +939,19 @@ def sale_duplicate(request, number):
 
 
 @login_required
+def sale_pdf(request, number):
+    sale = get_object_or_404(Sale, number=number)
+    from .utils.pdf_generator import SalePDFGenerator
+    generator = SalePDFGenerator(sale)
+    pdf_content = generator.generate()
+
+    response = HttpResponse(pdf_content, content_type='application/pdf')
+    filename = f"Venda_{sale.number}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
+
+
+@login_required
 @user_passes_test(is_manager)
 def api_product_stock(request, product_id):
     try:

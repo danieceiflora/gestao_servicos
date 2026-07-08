@@ -75,6 +75,7 @@ urlpatterns = [
     path('vendas/<int:number>/', views_finance.sale_detail, name='sale_detail'),
     path('vendas/<int:number>/cancelar/', views_finance.sale_cancel, name='sale_cancel'),
     path('vendas/<int:number>/duplicar/', views_finance.sale_duplicate, name='sale_duplicate'),
+    path('vendas/<int:number>/pdf/', views_finance.sale_pdf, name='sale_pdf'),
     path('vendas/<int:number>/devolucao/', views_finance.sale_return_create, name='sale_return_create'),
     path('api/produtos/<int:product_id>/estoque/', views_finance.api_product_stock, name='api_product_stock'),
     

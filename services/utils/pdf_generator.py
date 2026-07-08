@@ -950,7 +950,73 @@ class SalePDFGenerator(BasePDFGenerator):
             company_info += f" - CNPJ: {self.config.company_cnpj}"
         footer_text = f"{company_info} | Venda nº {self.sale.number} | Pág. {canvas.getPageNumber()}"
         canvas.drawRightString(A4[0]-1.5*cm, 0.8*cm, footer_text)
+
+        if self.sale.status == 'CANCELADO':
+            canvas.saveState()
+            canvas.setFont('Helvetica-Bold', 60)
+            canvas.setFillColor(colors.red, alpha=0.15)
+            canvas.translate(A4[0]/2, A4[1]/2)
+            canvas.rotate(45)
+            canvas.drawCentredString(0, 0, "CANCELADO")
+            canvas.restoreState()
+
         canvas.restoreState()
+
+    def _get_sale_header(self):
+        """Cabeçalho específico da venda: sem 'Válido até' (não se aplica a um pedido já fechado),
+        exibindo status atual no lugar."""
+        elements = []
+
+        logo_file = getattr(self.config, 'company_logo', None)
+        img = None
+        if logo_file:
+            try:
+                img = self._get_processed_image(logo_file, width=3.5*cm, height=2.5*cm)
+            except Exception as e:
+                print(f"Erro ao processar logo: {e}")
+        logo_cell = img if img else Paragraph("LOGO", self.styles['CompanyTitle'])
+
+        company_info = [
+            Paragraph(f"<b>{self.config.company_name}</b>", self.styles['CompanyDetail']),
+            Paragraph(f"CNPJ: {self.config.company_cnpj or '---'}", self.styles['CompanyDetail']),
+            Paragraph(self.config.company_address or "---", self.styles['CompanyDetail']),
+            Paragraph(f"Tel: {self.config.company_phone or '---'}", self.styles['CompanyDetail']),
+            Paragraph(self.config.company_website or "", self.styles['CompanyDetail']),
+        ]
+
+        now = timezone.now().astimezone(timezone.get_current_timezone())
+        doc_info_data = [
+            [Paragraph("Emitido em:", self.styles['DocInfoLabel'])],
+            [Paragraph(now.strftime('%d/%m/%Y'), self.styles['DocInfoValue'])],
+            [Spacer(1, 0.1*cm)],
+            [Paragraph("Pedido nº:", self.styles['DocInfoLabel'])],
+            [Paragraph(str(self.sale.number), self.styles['DocInfoValue'])],
+            [Spacer(1, 0.1*cm)],
+            [Paragraph("Status:", self.styles['DocInfoLabel'])],
+            [Paragraph(self.sale.get_status_display(), self.styles['DocInfoValue'])],
+        ]
+        doc_info_table = Table(doc_info_data, colWidths=[4*cm])
+        doc_info_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+            ('TOPPADDING', (0,0), (-1,-1), 1),
+        ]))
+
+        header_data = [[logo_cell, company_info, doc_info_table]]
+        header_table = Table(header_data, colWidths=[4.5*cm, 9.5*cm, 4*cm])
+        header_table.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, self.grid_color),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN', (0,0), (0,0), 'CENTER'),
+            ('ALIGN', (1,0), (1,0), 'CENTER'),
+            ('ALIGN', (2,0), (2,0), 'CENTER'),
+        ]))
+
+        elements.append(header_table)
+        elements.append(Spacer(1, 0.2*cm))
+        elements.append(self._section_title(self.doc_title))
+        elements.append(Spacer(1, 0.3*cm))
+        return elements
 
     def _get_sale_client_info(self):
         elements = []
@@ -1114,7 +1180,17 @@ class SalePDFGenerator(BasePDFGenerator):
             rows.append([Paragraph("Desconto", self.styles['SummaryLabel']), Paragraph(f"- {self._format_currency(discount)}", self.styles['SummaryValue'])])
         if surcharge:
             rows.append([Paragraph("Acréscimo", self.styles['SummaryLabel']), Paragraph(f"+ {self._format_currency(surcharge)}", self.styles['SummaryValue'])])
-        rows.append([Paragraph("Total Final", self.styles['TotalFinalLabel']), Paragraph(self._format_currency(total), self.styles['TotalFinalValue'])])
+
+        billing = getattr(self.sale, 'billing', None)
+        total_paid = billing.get_total_paid() if billing else 0
+
+        if total_paid > 0:
+            remaining = total - total_paid
+            rows.append([Paragraph("Total do Pedido", self.styles['SummaryLabel']), Paragraph(self._format_currency(total), self.styles['SummaryValue'])])
+            rows.append([Paragraph("Pagamentos Recebidos", self.styles['SummaryLabel']), Paragraph(f"- {self._format_currency(total_paid)}", self.styles['SummaryValue'])])
+            rows.append([Paragraph("Saldo Restante", self.styles['TotalFinalLabel']), Paragraph(self._format_currency(remaining), self.styles['TotalFinalValue'])])
+        else:
+            rows.append([Paragraph("Total Final", self.styles['TotalFinalLabel']), Paragraph(self._format_currency(total), self.styles['TotalFinalValue'])])
 
         summary_table = Table(rows, colWidths=[10*cm, 3.5*cm])
         summary_table.setStyle(TableStyle([
@@ -1152,7 +1228,7 @@ class SalePDFGenerator(BasePDFGenerator):
                     Paragraph(f"{inst.installment_number}ª", self.styles['TableItem']),
                     Paragraph(inst.due_date.strftime('%d/%m/%Y'), self.styles['TableItem']),
                     Paragraph(self._format_currency(inst.amount), self.styles['TableItem']),
-                    Paragraph(inst.payment_method or "---", self.styles['TableItem']),
+                    Paragraph(inst.payment_method.descricao if inst.payment_method else "---", self.styles['TableItem']),
                     Paragraph(inst.get_status_display(), self.styles['TableItem']),
                 ])
 
@@ -1186,16 +1262,39 @@ class SalePDFGenerator(BasePDFGenerator):
             elements.append(Spacer(1, 0.5*cm))
         return elements
 
+    def _get_acceptance_section(self):
+        elements = []
+        elements.append(Spacer(1, 0.8*cm))
+        elements.append(Paragraph(
+            "Confirmo o recebimento dos produtos/serviços descritos neste pedido, em conformidade com as "
+            "especificações e condições comerciais acordadas.",
+            self.styles['TableItem']
+        ))
+        elements.append(Spacer(1, 1.2*cm))
+
+        sig_data = [[
+            Paragraph("Data: ____ / ____ / ______", self.styles['SmallValue']),
+            Paragraph("Assinatura do Cliente: ________________________________", self.styles['SmallValue']),
+        ]]
+        sig_table = Table(sig_data, colWidths=[6*cm, 12*cm])
+        sig_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+            ('TOPPADDING', (0,0), (-1,-1), 0),
+        ]))
+        elements.append(sig_table)
+        return elements
+
     def generate(self):
         doc = SimpleDocTemplate(self.buffer, pagesize=A4, rightMargin=1.5*cm, leftMargin=1.5*cm, topMargin=1.5*cm, bottomMargin=1.5*cm)
         elements = []
-        elements.extend(self._get_header(doc_title=self.doc_title))
+        elements.extend(self._get_sale_header())
         elements.extend(self._get_sale_client_info())
         elements.extend(self._get_sale_info())
         elements.extend(self._get_items_table())
         elements.extend(self._get_summary())
         elements.extend(self._get_payment_conditions())
         elements.extend(self._get_sale_notes())
+        elements.extend(self._get_acceptance_section())
         doc.build(elements, onFirstPage=self._draw_footer, onLaterPages=self._draw_footer)
         pdf = self.buffer.getvalue()
         self.buffer.close()

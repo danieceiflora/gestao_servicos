@@ -215,6 +215,9 @@
             <button type="button" onclick="switchTab('returns')" id="btn-tab-returns" class="px-6 py-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 border-transparent text-slate-400" data-tab-btn>
                 <i data-lucide="rotate-ccw" class="w-4 h-4"></i> 4. Devoluções
             </button>
+            <button type="button" onclick="switchTab('report')" id="btn-tab-report" class="px-6 py-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 border-transparent text-slate-400" data-tab-btn>
+                <i data-lucide="printer" class="w-4 h-4"></i> 5. Relatório
+            </button>
             {% endif %}
         </div>
 
@@ -666,6 +669,22 @@
         </div>
         {% endif %}
 
+        <!-- ABA 5: RELATÓRIO (apenas em modo detalhe) -->
+        {% if is_detail %}
+        <div id="tab-report" class="hidden flex-1 flex flex-col min-h-0 bg-slate-100">
+            <div class="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white shrink-0">
+                <h3 class="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4"></i> Relatório da Venda (versão do cliente)
+                </h3>
+                <a href="{% url 'sale_pdf' number=sale.number %}" target="_blank"
+                   class="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors">
+                    <i data-lucide="download" class="w-4 h-4"></i> Abrir / Baixar PDF
+                </a>
+            </div>
+            <iframe id="report-iframe" data-src="{% url 'sale_pdf' number=sale.number %}" class="flex-1 w-full border-0"></iframe>
+        </div>
+        {% endif %}
+
         <div id="hidden-installments-container"></div>
     </form>
 </div>
@@ -756,7 +775,7 @@
 
     // Controle de Abas
     function switchTab(tab) {
-        document.querySelectorAll('#tab-items, #tab-payment, #tab-fiscal, #tab-returns').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('#tab-items, #tab-payment, #tab-fiscal, #tab-returns, #tab-report').forEach(el => el.classList.add('hidden'));
         document.querySelectorAll('[data-tab-btn]').forEach(el => {
             el.classList.remove('border-slate-900', 'text-slate-900', 'bg-slate-50/50');
             el.classList.add('border-transparent', 'text-slate-400');
@@ -770,6 +789,12 @@
 
         const activePanel = document.getElementById(`tab-${tab}`);
         if (activePanel) activePanel.classList.remove('hidden');
+
+        if (tab === 'report') {
+            const iframe = document.getElementById('report-iframe');
+            if (iframe && !iframe.src) iframe.src = iframe.dataset.src;
+        }
+
         lucide.createIcons();
     }
 
