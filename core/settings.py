@@ -59,13 +59,14 @@ PLATFORM_PIX_SPLIT_MINIMUM = '2.50'    # mínimo R$ 2,50 (cobre o custo Asaas de
 # Boleto: taxa fixa por transação
 PLATFORM_BOLETO_SPLIT_FIXED = '2.50'   # R$ 2,50 fixo
 
-# --- ASSINATURA DA PLATAFORMA (ASAAS PIX RECORRENTE, CONTA MASTER) ---
-# Reaproveita ASAAS_API_KEY / ASAAS_ENVIRONMENT já definidos acima — não precisa de token novo.
+# --- ASSINATURA/FATURAMENTO DA PLATAFORMA (ASAAS, CONTA MASTER) ---
+# Reaproveita ASAAS_API_KEY / ASAAS_ENVIRONMENT já definidos acima, e o mesmo
+# webhook já cadastrado no painel Asaas (pagamentos:asaas_webhook,
+# autenticado via GatewayConfig.webhook_token) — o Asaas só permite uma URL
+# de webhook por conta, então não há token/rota dedicados aqui.
 PLATFORM_SUBSCRIPTION_VALUE_CENTS = int(os.environ.get('PLATFORM_SUBSCRIPTION_VALUE_CENTS', '0'))
 PLATFORM_SUBSCRIPTION_CYCLE = os.environ.get('PLATFORM_SUBSCRIPTION_CYCLE', 'MONTHLY')  # WEEKLY, BIWEEKLY, MONTHLY, QUARTERLY, SEMIANNUALLY, YEARLY
 PLATFORM_SUBSCRIPTION_DESCRIPTION = os.environ.get('PLATFORM_SUBSCRIPTION_DESCRIPTION', 'Assinatura da Plataforma')
-# Token do webhook master do Asaas (distinto do GatewayConfig.webhook_token, que é por subconta)
-ASAAS_MASTER_WEBHOOK_TOKEN = os.environ.get('ASAAS_MASTER_WEBHOOK_TOKEN', '')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 class WebhookEvent(models.Model):
     STATUS_CHOICES = [
@@ -485,6 +486,8 @@ class PlatformSubscription(models.Model):
     value_cents = models.PositiveIntegerField('Valor (centavos)', default=0)
     cycle = models.CharField('Periodicidade', max_length=20, blank=True, help_text='WEEKLY, BIWEEKLY, MONTHLY, QUARTERLY, SEMIANNUALLY ou YEARLY (vocabulário do Asaas)')
 
+    next_due_date = models.DateField('Vencimento do Ciclo Atual', null=True, blank=True, help_text='Data de vencimento da cobrança do ciclo em aberto, conforme o Asaas')
+
     last_event_at = models.DateTimeField('Último Evento em', null=True, blank=True)
     status_detail = models.TextField('Observações', blank=True, help_text='Avisos, ex: evento de webhook não reconhecido — revisar manualmente')
 
@@ -501,6 +504,37 @@ class PlatformSubscription(models.Model):
     @property
     def value_reais(self):
         return f'{self.value_cents / 100:.2f}'.replace('.', ',')
+
+    # Intervalo aproximado de cada ciclo, no vocabulário do Asaas — usado só
+    # para projeção estimada dos próximos vencimentos (ver estimated_next_due_dates).
+    _CYCLE_STEPS = {
+        'WEEKLY': {'weeks': 1},
+        'BIWEEKLY': {'weeks': 2},
+        'MONTHLY': {'months': 1},
+        'QUARTERLY': {'months': 3},
+        'SEMIANNUALLY': {'months': 6},
+        'YEARLY': {'years': 1},
+    }
+
+    def estimated_next_due_dates(self, count=3):
+        """
+        Projeção estimada dos próximos vencimentos a partir de next_due_date,
+        somando o intervalo do ciclo repetidamente. É uma estimativa local —
+        o Asaas só cria a cobrança de cada ciclo pouco antes do vencimento
+        real, então as datas podem variar (ex: novas tentativas em atraso).
+        """
+        from dateutil.relativedelta import relativedelta
+
+        if not self.next_due_date or self.cycle not in self._CYCLE_STEPS:
+            return []
+
+        step = relativedelta(**self._CYCLE_STEPS[self.cycle])
+        dates = []
+        current = self.next_due_date
+        for _ in range(count):
+            current = current + step
+            dates.append(current)
+        return dates
 
     def save(self, *args, **kwargs):
         self.pk = 1
@@ -533,3 +567,70 @@ class PlatformSubscriptionEvent(models.Model):
 
     def __str__(self):
         return f"{self.raw_event or 'evento'} — {self.created_at.strftime('%d/%m/%Y %H:%M')}"
+
+
+# --- FATURAS MANUAIS DA PLATAFORMA (PONTE ATÉ OS 6 MESES DE CONTA ASAAS) ---
+# O Pix Automático do Asaas exige conta com 6+ meses (ver PlatformSubscription
+# acima, que fica pausado até lá). Enquanto isso, geramos 6 faturas com
+# vencimento fixo todo dia 10 e o Pix de cada uma é gerado sob demanda,
+# clicando em "Gerar Pix" — nunca automaticamente com antecedência (o Pix
+# expiraria antes do vencimento).
+
+class PlatformInvoice(models.Model):
+    class Status(models.TextChoices):
+        PENDENTE = 'PENDENTE', 'Pendente (Pix não gerado)'
+        AGUARDANDO_PAGAMENTO = 'AGUARDANDO_PAGAMENTO', 'Aguardando pagamento'
+        PAGA = 'PAGA', 'Paga'
+        ATRASADA = 'ATRASADA', 'Atrasada'
+        CANCELADA = 'CANCELADA', 'Cancelada'
+
+    due_date = models.DateField('Vencimento')
+    value_cents = models.PositiveIntegerField('Valor (centavos)')
+    status = models.CharField('Status', max_length=30, choices=Status.choices, default=Status.PENDENTE)
+
+    asaas_charge_id = models.CharField('ID da Cobrança (Asaas)', max_length=100, blank=True)
+    qr_code = models.TextField('Pix Copia e Cola', blank=True)
+    qr_code_base64 = models.TextField('QR Code (base64)', blank=True)
+    paid_at = models.DateTimeField('Pago em', null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Fatura da Plataforma'
+        verbose_name_plural = 'Faturas da Plataforma'
+        ordering = ['due_date']
+
+    def __str__(self):
+        return f"Fatura {self.due_date:%m/%Y} — {self.get_status_display()}"
+
+    @property
+    def value_reais(self):
+        return f'{self.value_cents / 100:.2f}'.replace('.', ',')
+
+    @property
+    def is_overdue(self):
+        return (
+            self.due_date < timezone.localdate()
+            and self.status not in [self.Status.PAGA, self.Status.CANCELADA]
+        )
+
+    @classmethod
+    def ensure_six_month_plan(cls):
+        """Cria as 6 faturas (vencimento dia 10) na primeira vez que alguém
+        acessa a tela de faturamento. Não recria nem estende o plano depois —
+        isso é só uma ponte até o Pix Automático ficar disponível."""
+        if cls.objects.exists():
+            return
+
+        from dateutil.relativedelta import relativedelta
+        from django.conf import settings
+
+        today = timezone.localdate()
+        first_due = today.replace(day=10) if today.day <= 10 else (today.replace(day=1) + relativedelta(months=1)).replace(day=10)
+        value_cents = getattr(settings, 'PLATFORM_SUBSCRIPTION_VALUE_CENTS', 0)
+
+        cls.objects.bulk_create([
+            cls(due_date=first_due + relativedelta(months=i), value_cents=value_cents)
+            for i in range(6)
+        ])

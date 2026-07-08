@@ -5,10 +5,6 @@ app_name = 'integracoes'
 
 urlpatterns = [
     # Webhooks
-    # Rota específica precisa vir antes de webhook/<str:provider>/, senão o
-    # padrão genérico abaixo captura "asaas-assinatura" como provider e
-    # nunca deixa a view específica ser alcançada.
-    path('webhook/asaas-assinatura/', views.platform_subscription_webhook, name='platform_subscription_webhook'),
     path('webhook/<str:provider>/', views.webhook_receiver, name='webhook_receiver'),
 
     # WhatsApp Templates (Meta)
@@ -51,7 +47,11 @@ urlpatterns = [
     path('lembretes/<int:pk>/editar/', views.scheduled_reminder_edit, name='scheduled_reminder_edit'),
     path('lembretes/<int:pk>/excluir/', views.scheduled_reminder_delete, name='scheduled_reminder_delete'),
 
-    # Assinatura da Plataforma (Pix Recorrente / Asaas, conta master)
-    path('faturamento/', views.platform_subscription_status, name='platform_subscription_status'),
-    path('faturamento/criar/', views.platform_subscription_create, name='platform_subscription_create'),
+    # Faturamento da Conta — faturas manuais (fluxo ativo até completar 6 meses de conta Asaas)
+    path('faturamento/', views.platform_invoice_list, name='platform_invoice_list'),
+    path('faturamento/<int:pk>/gerar-pix/', views.platform_invoice_generate_pix, name='platform_invoice_generate_pix'),
+
+    # Assinatura da Plataforma (Pix Recorrente / Asaas, conta master) — pausado, sem link no menu
+    path('faturamento/assinatura-recorrente/', views.platform_subscription_status, name='platform_subscription_status'),
+    path('faturamento/assinatura-recorrente/criar/', views.platform_subscription_create, name='platform_subscription_create'),
 ]

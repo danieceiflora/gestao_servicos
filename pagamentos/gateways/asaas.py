@@ -305,6 +305,7 @@ class AsaasGateway(BasePaymentGateway):
             'first_charge_id': '',
             'qr_code': '',
             'qr_code_base64': '',
+            'next_due_date': subscription.get('nextDueDate', ''),
         }
 
         payments = self._get(f'subscriptions/{subscription_id}/payments')
@@ -312,6 +313,8 @@ class AsaasGateway(BasePaymentGateway):
         if first_payment:
             charge_id = first_payment['id']
             result['first_charge_id'] = charge_id
+            if first_payment.get('dueDate'):
+                result['next_due_date'] = first_payment['dueDate']
             try:
                 pix = self._get(f'payments/{charge_id}/pixQrCode')
                 result['qr_code'] = pix.get('payload', '')
@@ -343,4 +346,5 @@ class AsaasGateway(BasePaymentGateway):
             'net_value': payment.get('netValue'),
             'payment_date': payment.get('paymentDate'),
             'subscription_id': payment.get('subscription', ''),
+            'due_date': payment.get('dueDate', ''),
         }

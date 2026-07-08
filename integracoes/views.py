@@ -4,20 +4,21 @@ import hashlib
 import logging
 import re
 import unicodedata
+from datetime import datetime
 from decimal import Decimal
 import requests
 from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
-from django.urls import reverse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
-from .models import WebhookEvent, SystemConfig, PlatformSubscription, PlatformSubscriptionEvent
+from .models import WebhookEvent, SystemConfig, PlatformSubscription, PlatformSubscriptionEvent, PlatformInvoice
 from .chatwoot_client import ChatwootClient
 from pagamentos.gateways.asaas import AsaasGateway
+from pagamentos.gateways.base import ChargeData
 from services.models import ServiceOrder, ServiceOrderTask, Sale, Billing, Installment, ExpenseInstallment
 
 logger = logging.getLogger(__name__)
@@ -1731,19 +1732,75 @@ def scheduled_reminder_delete(request, pk):
     return redirect('integracoes:scheduled_reminder_list')
 
 
-# --- ASSINATURA DA PLATAFORMA (PIX RECORRENTE / ASAAS) ---
+# --- FATURAS MANUAIS DA PLATAFORMA (fluxo ativo até completar 6 meses de conta) ---
 
-# Mapeamento de status de cobrança do Asaas (ver AsaasGateway.STATUS_MAP) para
-# o status da assinatura da plataforma. PENDING é intencionalmente omitido —
-# só significa que uma nova cobrança do ciclo foi criada, não é um evento de
-# pagamento em si.
-_ASAAS_STATUS_TO_PLATFORM = {
-    'RECEIVED': PlatformSubscription.Status.ATIVA,
-    'CONFIRMED': PlatformSubscription.Status.ATIVA,
-    'OVERDUE': PlatformSubscription.Status.ATRASADA,
-    'CANCELLED': PlatformSubscription.Status.CANCELADA,
-    'REFUNDED': PlatformSubscription.Status.CANCELADA,
-}
+@login_required
+@user_passes_test(lambda u: u.is_manager)
+def platform_invoice_list(request):
+    PlatformInvoice.ensure_six_month_plan()
+    invoices = PlatformInvoice.objects.all()
+    return render(request, 'integracoes/platform_invoice_list.html', {
+        'invoices': invoices,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_manager)
+def platform_invoice_generate_pix(request, pk):
+    if request.method != 'POST':
+        return redirect('integracoes:platform_invoice_list')
+
+    invoice = get_object_or_404(PlatformInvoice, pk=pk)
+    if invoice.asaas_charge_id:
+        messages.warning(request, 'O Pix desta fatura já foi gerado.')
+        return redirect('integracoes:platform_invoice_list')
+
+    config = SystemConfig.load()
+
+    try:
+        gw = AsaasGateway()
+        charge = gw.create_charge(ChargeData(
+            customer_name=config.company_name,
+            customer_document=config.company_cnpj,
+            customer_email='',
+            description=getattr(settings, 'PLATFORM_SUBSCRIPTION_DESCRIPTION', 'Assinatura da Plataforma'),
+            amount=Decimal(invoice.value_cents) / 100,
+            due_date=invoice.due_date,
+            method='PIX',
+            external_reference=f'platform-invoice-{invoice.pk}',
+        ))
+    except Exception as e:
+        logger.exception('Falha ao gerar Pix da fatura da plataforma')
+        messages.error(request, f'Não foi possível gerar o Pix: {e}')
+        return redirect('integracoes:platform_invoice_list')
+
+    invoice.asaas_charge_id = charge.external_id
+    invoice.qr_code = charge.pix_copy_paste
+    invoice.qr_code_base64 = charge.pix_qrcode
+    invoice.status = PlatformInvoice.Status.AGUARDANDO_PAGAMENTO
+    invoice.save()
+
+    messages.success(request, 'Pix gerado! Escaneie o QR Code para pagar esta fatura.')
+    return redirect('integracoes:platform_invoice_list')
+
+
+# --- ASSINATURA DA PLATAFORMA (PIX RECORRENTE / ASAAS) ---
+# Fica pausado até a conta Asaas completar 6 meses (exigência do Pix
+# Automático) — não está ligado no menu, mas o fluxo continua funcional.
+# O webhook de confirmação dos ciclos passa pela MESMA rota já configurada
+# no painel Asaas (pagamentos:asaas_webhook) — ver
+# pagamentos/views.py:_handle_platform_subscription_webhook. Não existe (e
+# não pode existir) uma rota de webhook dedicada aqui, porque o Asaas só
+# aceita uma URL de webhook cadastrada.
+
+
+def _parse_asaas_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return None
 
 
 @login_required
@@ -1776,6 +1833,10 @@ def platform_subscription_create(request):
     value_cents = getattr(settings, 'PLATFORM_SUBSCRIPTION_VALUE_CENTS', 0)
     cycle = getattr(settings, 'PLATFORM_SUBSCRIPTION_CYCLE', 'MONTHLY')
 
+    # Não passamos webhook_url aqui: no Asaas o webhook é configurado uma
+    # única vez no painel da conta (é o mesmo já usado por
+    # pagamentos:asaas_webhook), não por chamada de API — diferente da
+    # PushinPay, que exigia informar a URL a cada cobrança/assinatura.
     try:
         gw = AsaasGateway()
         result = gw.create_subscription(
@@ -1796,6 +1857,7 @@ def platform_subscription_create(request):
     subscription.qr_code_base64 = result['qr_code_base64']
     subscription.value_cents = value_cents
     subscription.cycle = cycle
+    subscription.next_due_date = _parse_asaas_date(result.get('next_due_date'))
     subscription.status = PlatformSubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO
     subscription.last_event_at = timezone.now()
     subscription.save()
@@ -1811,59 +1873,3 @@ def platform_subscription_create(request):
 
     messages.success(request, 'Assinatura criada! Escaneie o QR Code para pagar o primeiro ciclo.')
     return redirect('integracoes:platform_subscription_status')
-
-
-@csrf_exempt
-@require_POST
-def platform_subscription_webhook(request):
-    expected = getattr(settings, 'ASAAS_MASTER_WEBHOOK_TOKEN', '')
-    if expected:
-        token_recebido = request.headers.get('asaas-access-token', '')
-        if not hmac.compare_digest(token_recebido, expected):
-            logger.warning('Webhook Asaas (assinatura): token inválido recebido.')
-            return JsonResponse({'ok': False}, status=401)
-
-    subscription = PlatformSubscription.load()
-
-    try:
-        payload = json.loads(request.body or b'{}')
-    except (ValueError, TypeError):
-        payload = {'_raw_body': request.body.decode('utf-8', errors='replace')}
-
-    # O evento é sempre persistido primeiro, mesmo que o parse abaixo falhe —
-    # histórico nunca pode se perder (ver plano de implementação).
-    event = PlatformSubscriptionEvent.objects.create(
-        subscription=subscription,
-        payload=payload,
-        headers=dict(request.headers),
-    )
-
-    try:
-        gw = AsaasGateway()
-        normalized = gw.parse_webhook(payload)
-        event.charge_id = normalized.get('external_id', '')
-        event.raw_event = normalized.get('status', '')
-
-        mapped = _ASAAS_STATUS_TO_PLATFORM.get(normalized.get('status', ''))
-        if mapped:
-            event.mapped_status = mapped
-            subscription.status = mapped
-            subscription.last_event_at = timezone.now()
-            subscription.status_detail = ''
-        elif normalized.get('status') == 'PENDING':
-            event.notes = 'Nova cobrança do ciclo criada — aguardando pagamento.'
-        else:
-            event.notes = 'Evento não reconhecido — revisar manualmente.'
-            subscription.status_detail = (
-                f"Evento de webhook não reconhecido em {timezone.now():%d/%m/%Y %H:%M}: "
-                f"{normalized.get('status')!r}. Revisar manualmente."
-            )
-
-        subscription.save()
-        event.save(update_fields=['charge_id', 'raw_event', 'mapped_status', 'notes'])
-    except Exception as e:
-        logger.exception('Erro ao processar webhook Asaas (assinatura)')
-        event.notes = f'Erro ao processar: {e}'
-        event.save(update_fields=['notes'])
-
-    return JsonResponse({'ok': True})

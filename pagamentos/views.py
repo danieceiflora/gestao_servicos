@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 from decimal import Decimal
 
 from django.conf import settings
@@ -300,7 +301,15 @@ def asaas_webhook(request):
 
         charge = GatewayCharge.objects.filter(external_id=external_id).first()
         if not charge:
-            logger.warning(f'Webhook Asaas: cobrança não encontrada para ID {external_id}')
+            # Não é uma cobrança de cliente — pode ser uma fatura manual ou a
+            # assinatura recorrente da própria plataforma (mesmo webhook,
+            # centralizado, sem rota nova no Asaas — só existe uma URL
+            # cadastrada no painel).
+            handled = _handle_platform_invoice_webhook(external_id, normalized)
+            if not handled:
+                handled = _handle_platform_subscription_webhook(external_id, normalized, payload)
+            if not handled:
+                logger.warning(f'Webhook Asaas: cobrança não encontrada para ID {external_id}')
             return JsonResponse({'ok': True})
 
         charge.status = normalized['status']
@@ -318,6 +327,92 @@ def asaas_webhook(request):
         logger.exception(f'Erro ao processar webhook Asaas: {e}')
 
     return JsonResponse({'ok': True})
+
+
+def _handle_platform_invoice_webhook(external_id: str, normalized: dict) -> bool:
+    """Atualiza a fatura manual da plataforma (integracoes.PlatformInvoice)
+    correspondente a este pagamento Asaas, se houver. Retorna True se uma
+    fatura foi encontrada e tratada."""
+    from integracoes.models import PlatformInvoice
+
+    invoice = PlatformInvoice.objects.filter(asaas_charge_id=external_id).first()
+    if not invoice:
+        return False
+
+    status_map = {
+        'RECEIVED': PlatformInvoice.Status.PAGA,
+        'CONFIRMED': PlatformInvoice.Status.PAGA,
+        'OVERDUE': PlatformInvoice.Status.ATRASADA,
+        'CANCELLED': PlatformInvoice.Status.CANCELADA,
+        'REFUNDED': PlatformInvoice.Status.CANCELADA,
+    }
+    mapped = status_map.get(normalized.get('status', ''))
+    if not mapped:
+        return True
+
+    invoice.status = mapped
+    if mapped == PlatformInvoice.Status.PAGA and not invoice.paid_at:
+        invoice.paid_at = timezone.now()
+    invoice.save()
+    logger.info(f'Webhook Asaas processado (fatura da plataforma): {external_id} → {normalized["status"]}')
+    return True
+
+
+def _handle_platform_subscription_webhook(external_id: str, normalized: dict, payload: dict) -> bool:
+    """Atualiza a assinatura recorrente da plataforma
+    (integracoes.PlatformSubscription), se este evento pertencer a ela.
+
+    Roteado por subscription_id, não por external_id: diferente de uma
+    fatura avulsa, os charge ids dos ciclos futuros da assinatura não são
+    conhecidos com antecedência (o Asaas só cria a cobrança de cada ciclo
+    perto do vencimento)."""
+    from integracoes.models import PlatformSubscription, PlatformSubscriptionEvent
+
+    subscription_id = normalized.get('subscription_id') or ''
+    if not subscription_id:
+        return False
+
+    subscription = PlatformSubscription.objects.filter(subscription_id=subscription_id).first()
+    if not subscription:
+        return False
+
+    status_map = {
+        'RECEIVED': PlatformSubscription.Status.ATIVA,
+        'CONFIRMED': PlatformSubscription.Status.ATIVA,
+        'OVERDUE': PlatformSubscription.Status.ATRASADA,
+        'CANCELLED': PlatformSubscription.Status.CANCELADA,
+        'REFUNDED': PlatformSubscription.Status.CANCELADA,
+    }
+    mapped = status_map.get(normalized.get('status', ''))
+
+    # O evento é sempre persistido, mesmo quando o status não é reconhecido —
+    # histórico completo é obrigatório (ver plano de implementação original).
+    PlatformSubscriptionEvent.objects.create(
+        subscription=subscription,
+        charge_id=external_id,
+        raw_event=normalized.get('status', ''),
+        mapped_status=mapped or '',
+        payload=payload,
+        notes='' if mapped else 'Evento não reconhecido — revisar manualmente.',
+    )
+
+    due_date_str = normalized.get('due_date')
+    if due_date_str:
+        try:
+            subscription.next_due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            pass
+
+    if mapped:
+        subscription.status = mapped
+        subscription.last_event_at = timezone.now()
+        subscription.status_detail = ''
+    else:
+        subscription.status_detail = f"Evento de webhook não reconhecido: {normalized.get('status')!r}. Revisar manualmente."
+
+    subscription.save()
+    logger.info(f'Webhook Asaas processado (assinatura da plataforma): {external_id} → {normalized.get("status")}')
+    return True
 
 
 def _auto_baixa_installment(charge: GatewayCharge):

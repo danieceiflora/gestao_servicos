@@ -42,6 +42,19 @@
       {% endif %}
     </div>
 
+    {% if subscription.next_due_date %}
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-slate-600 border-t border-slate-100 pt-3">
+      <span>Vencimento do ciclo atual: <strong class="text-slate-900">{{ subscription.next_due_date|date:"d/m/Y" }}</strong></span>
+      {% with next_dates=subscription.estimated_next_due_dates %}
+      {% if next_dates %}
+      <span class="text-slate-400">
+        Próximos (estimados): {% for d in next_dates %}{{ d|date:"d/m/Y" }}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </span>
+      {% endif %}
+      {% endwith %}
+    </div>
+    {% endif %}
+
     {% if subscription.status_detail %}
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 flex gap-2">
       <i data-lucide="info" class="h-4 w-4 flex-shrink-0 mt-0.5"></i>
@@ -67,7 +80,11 @@
       {% endif %}
       <div>
         <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Pix Copia e Cola</label>
-        <textarea readonly class="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg p-2" rows="3">{{ subscription.qr_code }}</textarea>
+        <textarea id="pix-copia-cola" readonly class="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg p-2" rows="3">{{ subscription.qr_code }}</textarea>
+        <button type="button" onclick="copiarPixCopiaCola()" class="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors">
+          <i data-lucide="copy" class="h-4 w-4"></i>
+          Copiar código
+        </button>
       </div>
     </div>
     {% endif %}
@@ -104,4 +121,15 @@
     {% endif %}
   </div>
 </div>
+
+<script>
+function copiarPixCopiaCola() {
+  const texto = document.getElementById('pix-copia-cola').value;
+  navigator.clipboard.writeText(texto).then(function () {
+    if (window.showToast) window.showToast('Código Pix copiado!', 'success');
+  }).catch(function () {
+    if (window.showToast) window.showToast('Não foi possível copiar automaticamente. Selecione o texto manualmente.', 'error');
+  });
+}
+</script>
 {% endblock %}

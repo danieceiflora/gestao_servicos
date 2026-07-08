@@ -23,7 +23,7 @@ from .models import (
     ServiceOrderTask, ServicePayment, Occurrence, Product, Service, ServiceCategory,
     TaskChecklistResponse, StockMovement, PaymentMethod
 )
-from integracoes.models import SystemConfig, PlatformSubscription
+from integracoes.models import SystemConfig, PlatformInvoice
 from .forms import (
     ClientForm, PhoneFormSet, EmailFormSet, PropertyFormSet, PropertyForm,
     ServiceOrderSchedulingForm, ServiceOrderForm, ServiceInspectionForm,
@@ -179,12 +179,13 @@ def home(request):
 
     layout_base = 'base.html' if request.user.is_manager else 'base_equipe.html'
 
-    subscription = PlatformSubscription.objects.first()
-    subscription_status = subscription.status if subscription else PlatformSubscription.Status.NAO_CRIADA
-    subscription_not_configured = subscription_status == PlatformSubscription.Status.NAO_CRIADA
-    subscription_overdue = subscription_status in [
-        PlatformSubscription.Status.ATRASADA, PlatformSubscription.Status.CANCELADA,
-    ]
+    # Faturamento da conta: fluxo ativo hoje é o de faturas manuais
+    # (PlatformInvoice) — a assinatura recorrente (PlatformSubscription) fica
+    # pausada até a conta Asaas completar 6 meses (exigência do Pix Automático).
+    subscription_not_configured = not PlatformInvoice.objects.exists()
+    subscription_overdue = PlatformInvoice.objects.filter(
+        due_date__lt=django.utils.timezone.localdate()
+    ).exclude(status__in=[PlatformInvoice.Status.PAGA, PlatformInvoice.Status.CANCELADA]).exists()
 
     return render(request, 'services/home.html', {
         'active_orders': active_orders,

@@ -1,6 +1,8 @@
 import hashlib
 import hmac
 import json
+from decimal import Decimal
+from unittest.mock import patch
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -10,7 +12,7 @@ from integracoes.views import (
     _is_chatwoot_outgoing_message,
     _resolve_order_status_from_budget_decision,
 )
-from integracoes.models import PlatformSubscription, PlatformSubscriptionEvent
+from integracoes.models import PlatformSubscription, PlatformInvoice
 from services.models import ServiceOrder, User
 
 
@@ -151,67 +153,25 @@ class PlatformSubscriptionModelTests(TestCase):
         obj = PlatformSubscription.load()
         self.assertEqual(obj.status, PlatformSubscription.Status.NAO_CRIADA)
 
+    def test_estimated_next_due_dates_monthly(self):
+        import datetime as dt
+        obj = PlatformSubscription.load()
+        obj.cycle = 'MONTHLY'
+        obj.next_due_date = dt.date(2026, 8, 8)
+        obj.save()
 
-@override_settings(ASAAS_MASTER_WEBHOOK_TOKEN='test-token-123')
-class PlatformSubscriptionWebhookViewTests(TestCase):
-    def setUp(self):
-        self.subscription = PlatformSubscription.load()
-        self.subscription.status = PlatformSubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO
-        self.subscription.save()
+        dates = obj.estimated_next_due_dates(count=3)
+        self.assertEqual(dates, [dt.date(2026, 9, 8), dt.date(2026, 10, 8), dt.date(2026, 11, 8)])
 
-    def _post(self, token, event, payment_extra=None):
-        payload = {'event': event, 'payment': {'id': 'pay_1', **(payment_extra or {})}}
-        kwargs = {'HTTP_ASAAS_ACCESS_TOKEN': token} if token is not None else {}
-        return self.client.post(
-            reverse('integracoes:platform_subscription_webhook'),
-            data=json.dumps(payload),
-            content_type='application/json',
-            **kwargs,
-        )
+    def test_estimated_next_due_dates_empty_without_due_date(self):
+        obj = PlatformSubscription.load()
+        obj.cycle = 'MONTHLY'
+        self.assertEqual(obj.estimated_next_due_dates(), [])
 
-    def test_rejects_wrong_token(self):
-        response = self._post('wrong-token', 'PAYMENT_RECEIVED')
-        self.assertEqual(response.status_code, 401)
-        self.assertEqual(PlatformSubscriptionEvent.objects.count(), 0)
 
-    def test_paid_event_activates_subscription(self):
-        response = self._post('test-token-123', 'PAYMENT_RECEIVED')
-        self.assertEqual(response.status_code, 200)
-
-        self.subscription.refresh_from_db()
-        self.assertEqual(self.subscription.status, PlatformSubscription.Status.ATIVA)
-
-        event = PlatformSubscriptionEvent.objects.get()
-        self.assertEqual(event.mapped_status, PlatformSubscription.Status.ATIVA)
-        self.assertEqual(event.charge_id, 'pay_1')
-
-    def test_overdue_event_marks_subscription_atrasada(self):
-        response = self._post('test-token-123', 'PAYMENT_OVERDUE')
-        self.assertEqual(response.status_code, 200)
-
-        self.subscription.refresh_from_db()
-        self.assertEqual(self.subscription.status, PlatformSubscription.Status.ATRASADA)
-
-    def test_unrecognized_event_persists_history_without_changing_status(self):
-        response = self._post('test-token-123', 'PAYMENT_SOMETHING_NEW')
-        self.assertEqual(response.status_code, 200)
-
-        self.subscription.refresh_from_db()
-        self.assertEqual(self.subscription.status, PlatformSubscription.Status.AGUARDANDO_PRIMEIRO_PAGAMENTO)
-
-        event = PlatformSubscriptionEvent.objects.get()
-        self.assertEqual(event.mapped_status, '')
-        self.assertIn('não reconhecido', event.notes)
-
-    def test_malformed_body_still_persists_an_event(self):
-        response = self.client.post(
-            reverse('integracoes:platform_subscription_webhook'),
-            data=b'not-json',
-            content_type='application/json',
-            HTTP_ASAAS_ACCESS_TOKEN='test-token-123',
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(PlatformSubscriptionEvent.objects.count(), 1)
+# O webhook da assinatura recorrente não tem view/rota própria — é roteado
+# pela mesma pagamentos:asaas_webhook (única URL cadastrada no painel Asaas).
+# Ver AsaasWebhookPlatformSubscriptionRoutingTests em pagamentos/tests.py.
 
 
 class PlatformSubscriptionStatusViewTests(TestCase):
@@ -226,3 +186,93 @@ class PlatformSubscriptionStatusViewTests(TestCase):
         self.client.force_login(user)
         response = self.client.get(reverse('integracoes:platform_subscription_status'))
         self.assertEqual(response.status_code, 200)
+
+
+class PlatformInvoiceModelTests(TestCase):
+    @override_settings(PLATFORM_SUBSCRIPTION_VALUE_CENTS=9900)
+    def test_ensure_six_month_plan_creates_six_invoices_due_on_10th(self):
+        PlatformInvoice.ensure_six_month_plan()
+        invoices = list(PlatformInvoice.objects.order_by('due_date'))
+
+        self.assertEqual(len(invoices), 6)
+        for invoice in invoices:
+            self.assertEqual(invoice.due_date.day, 10)
+            self.assertEqual(invoice.value_cents, 9900)
+            self.assertEqual(invoice.status, PlatformInvoice.Status.PENDENTE)
+
+        months = [(inv.due_date.year, inv.due_date.month) for inv in invoices]
+        self.assertEqual(len(set(months)), 6)
+        for (y1, m1), (y2, m2) in zip(months, months[1:]):
+            self.assertEqual((y2 - y1) * 12 + (m2 - m1), 1)
+
+    def test_ensure_six_month_plan_is_idempotent(self):
+        PlatformInvoice.ensure_six_month_plan()
+        PlatformInvoice.ensure_six_month_plan()
+        self.assertEqual(PlatformInvoice.objects.count(), 6)
+
+    def test_is_overdue(self):
+        import datetime as dt
+        past = PlatformInvoice.objects.create(due_date=dt.date(2020, 1, 10), value_cents=9900)
+        future = PlatformInvoice.objects.create(due_date=dt.date(2099, 1, 10), value_cents=9900)
+        self.assertTrue(past.is_overdue)
+        self.assertFalse(future.is_overdue)
+
+        past.status = PlatformInvoice.Status.PAGA
+        self.assertFalse(past.is_overdue)
+
+
+class PlatformInvoiceListViewTests(TestCase):
+    def test_non_manager_is_redirected(self):
+        user = User.objects.create_user(username='colaborador2', password='x', role=User.Roles.COLLABORATOR)
+        self.client.force_login(user)
+        response = self.client.get(reverse('integracoes:platform_invoice_list'))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_manager_view_seeds_six_month_plan(self):
+        user = User.objects.create_user(username='gestor2', password='x', role=User.Roles.ADMIN)
+        self.client.force_login(user)
+
+        self.assertEqual(PlatformInvoice.objects.count(), 0)
+        response = self.client.get(reverse('integracoes:platform_invoice_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(PlatformInvoice.objects.count(), 6)
+
+
+class PlatformInvoiceGeneratePixViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='gestor3', password='x', role=User.Roles.ADMIN)
+        self.client.force_login(self.user)
+        import datetime as dt
+        self.invoice = PlatformInvoice.objects.create(due_date=dt.date(2026, 8, 10), value_cents=9900)
+
+    @patch('integracoes.views.AsaasGateway')
+    def test_generate_pix_updates_invoice(self, mock_gateway_cls):
+        from pagamentos.gateways.base import ChargeResult
+        mock_gateway = mock_gateway_cls.return_value
+        mock_gateway.create_charge.return_value = ChargeResult(
+            external_id='pay_abc',
+            status='PENDING',
+            method='PIX',
+            amount=Decimal('99.00'),
+            due_date=self.invoice.due_date,
+            pix_qrcode='base64img==',
+            pix_copy_paste='copia-e-cola-xyz',
+        )
+
+        response = self.client.post(reverse('integracoes:platform_invoice_generate_pix', args=[self.invoice.pk]))
+        self.assertEqual(response.status_code, 302)
+
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.asaas_charge_id, 'pay_abc')
+        self.assertEqual(self.invoice.qr_code, 'copia-e-cola-xyz')
+        self.assertEqual(self.invoice.qr_code_base64, 'base64img==')
+        self.assertEqual(self.invoice.status, PlatformInvoice.Status.AGUARDANDO_PAGAMENTO)
+
+    @patch('integracoes.views.AsaasGateway')
+    def test_generate_pix_blocked_if_already_generated(self, mock_gateway_cls):
+        self.invoice.asaas_charge_id = 'pay_existing'
+        self.invoice.save()
+
+        self.client.post(reverse('integracoes:platform_invoice_generate_pix', args=[self.invoice.pk]))
+
+        mock_gateway_cls.return_value.create_charge.assert_not_called()

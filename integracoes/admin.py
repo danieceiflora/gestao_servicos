@@ -4,7 +4,7 @@ from django.utils.html import format_html
 from .models import (
     WebhookEvent, SystemConfig, NotificationConfig, NotificationVariable,
     ScheduledReminder, ScheduledReminderVariable, ScheduledReminderLog,
-    PlatformSubscription, PlatformSubscriptionEvent,
+    PlatformSubscription, PlatformSubscriptionEvent, PlatformInvoice,
 )
 
 class NotificationVariableInline(admin.TabularInline):
@@ -193,6 +193,22 @@ class PlatformSubscriptionEventAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+# --- Faturas Manuais da Plataforma (ponte até os 6 meses de conta Asaas) ---
+
+@admin.register(PlatformInvoice)
+class PlatformInvoiceAdmin(admin.ModelAdmin):
+    list_display = ['due_date', 'value_cents', 'status', 'asaas_charge_id', 'paid_at']
+    list_filter = ['status']
+    readonly_fields = ['asaas_charge_id', 'qr_code', 'qr_code_base64', 'paid_at', 'created_at', 'updated_at']
+
+    def has_add_permission(self, request):
+        # As 6 faturas são criadas por ensure_six_month_plan(), não manualmente
         return False
 
     def has_delete_permission(self, request, obj=None):
