@@ -15,6 +15,7 @@ from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
+from core.tz_utils import local_today
 from .models import WebhookEvent, SystemConfig, PlatformSubscription, PlatformSubscriptionEvent, PlatformInvoice
 from .chatwoot_client import ChatwootClient
 from pagamentos.gateways.asaas import AsaasGateway
@@ -1493,7 +1494,7 @@ def collection_sequence_simulate(request, pk):
     from services.models import Installment
 
     sequence = get_object_or_404(CollectionSequence, pk=pk)
-    today = timezone.localdate()
+    today = local_today()
 
     max_due_date = today - timedelta(days=sequence.start_after_days_overdue)
     min_due_date = today - timedelta(days=sequence.stop_after_days_overdue)

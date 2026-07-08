@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.db import transaction
 from decimal import Decimal
+from core.tz_utils import local_today
 
 from .models import (
     User, Asset, AssetCategory, MaintenanceContract,
@@ -212,7 +213,7 @@ def contract_detail(request, pk):
             scheduled_date__year=int(year_filter),
         )
 
-    today = timezone.localdate()
+    today = local_today()
     expected_this_month = contract.calculate_expected_visits(today.month, today.year)
     commission_per_visit = contract.commission_per_visit(today.month, today.year)
 
@@ -369,7 +370,7 @@ MONTH_CHOICES = [
 @user_passes_test(is_manager)
 def closing_list(request):
     closings = MaintenanceMonthlyClosing.objects.prefetch_related('entries__technician').order_by('-year', '-month')
-    today = timezone.localdate()
+    today = local_today()
     return render(request, 'services/maintenance/closing_list.html', {
         'closings': closings,
         'month_choices': MONTH_CHOICES,

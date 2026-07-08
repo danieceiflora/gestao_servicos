@@ -8,6 +8,7 @@ from decimal import Decimal
 import json
 import calendar as _cal
 
+from core.tz_utils import safe_make_aware
 from .models import (
     ServiceOrder, ServiceOrderTask, ServiceOrderTeam, Professional,
     Occurrence, User, MaintenanceContract, MaintenanceVisit,
@@ -154,8 +155,8 @@ def bi_operacional(request):
     for y, m, _ in months_meta:
         _, last_day = _cal.monthrange(y, m)
         tz = timezone.get_current_timezone()
-        ms = timezone.make_aware(datetime(y, m, 1), tz)
-        me = timezone.make_aware(datetime(y, m, last_day, 23, 59, 59), tz)
+        ms = safe_make_aware(datetime(y, m, 1), tz)
+        me = safe_make_aware(datetime(y, m, last_day, 23, 59, 59), tz)
 
         created_count = ServiceOrder.objects.filter(created_at__gte=ms, created_at__lte=me).count()
         finished_count = ServiceOrder.objects.filter(
@@ -203,11 +204,11 @@ def bi_produtividade(request):
     year = int(request.GET.get('year', now.year))
 
     tz = timezone.get_current_timezone()
-    start_dt = timezone.make_aware(datetime(year, month, 1), tz)
+    start_dt = safe_make_aware(datetime(year, month, 1), tz)
     if month == 12:
-        end_dt = timezone.make_aware(datetime(year + 1, 1, 1), tz)
+        end_dt = safe_make_aware(datetime(year + 1, 1, 1), tz)
     else:
-        end_dt = timezone.make_aware(datetime(year, month + 1, 1), tz)
+        end_dt = safe_make_aware(datetime(year, month + 1, 1), tz)
 
     professionals = Professional.objects.filter(is_active=True).order_by('name')
 

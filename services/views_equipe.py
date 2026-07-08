@@ -9,6 +9,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .notifications import queue_push_notification
+from core.tz_utils import local_today
 from .models import (
     Service, ServiceOrder, ServiceOrderTask, ServiceMedia, Professional,
     Occurrence, Property, ServiceChecklistItem, TaskChecklistResponse,
@@ -26,7 +27,7 @@ def get_collaborator_tasks(user):
 
 @login_required
 def equipe_dashboard(request):
-    today = timezone.localdate()
+    today = local_today()
     now = timezone.now()
 
     tasks_qs = get_collaborator_tasks(request.user).select_related(

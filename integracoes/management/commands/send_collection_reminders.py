@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from core.tz_utils import local_today
 from integracoes.models import (
     CollectionSequence, CollectionStep,
     CollectionInstallmentState, CollectionLog,
@@ -24,7 +25,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
-        today = timezone.localdate()
+        today = local_today()
 
         if dry_run:
             self.stdout.write(self.style.WARNING('[DRY-RUN] Nenhuma mensagem será enviada.'))

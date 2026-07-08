@@ -6,6 +6,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from decimal import Decimal, ROUND_HALF_UP
 import uuid
+from core.tz_utils import local_today
 from .utils import fiscal_logic
 from integracoes.models import SystemConfig
 
@@ -2056,9 +2057,8 @@ class RecurrenceRule(models.Model):
 
     @property
     def next_due_date(self):
-        from django.utils import timezone
         from dateutil.relativedelta import relativedelta
-        today = timezone.localdate()
+        today = local_today()
         dates = self.get_due_dates_in_range(today, today + relativedelta(years=2))
         return dates[0] if dates else None
 
@@ -2179,7 +2179,7 @@ class ExpenseInstallment(models.Model):
             self.status = self.Status.PAGO
         elif paid > Decimal('0'):
             self.status = self.Status.PARCIAL
-        elif self.due_date < timezone.localdate():
+        elif self.due_date < local_today():
             self.status = self.Status.ATRASADO
         else:
             self.status = self.Status.PENDENTE

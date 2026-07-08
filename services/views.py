@@ -12,6 +12,7 @@ from datetime import timedelta, datetime
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import django.utils.timezone
 import logging
+from core.tz_utils import safe_make_aware
 from .notifications import queue_push_notification
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -402,8 +403,7 @@ def service_order_scheduling(request):
         try:
             # Parse da data/hora do formato ISO
             initial_scheduled_at = datetime.fromisoformat(scheduled_at_param.replace('Z', '+00:00'))
-            if django.utils.timezone.is_naive(initial_scheduled_at):
-                initial_scheduled_at = django.utils.timezone.make_aware(initial_scheduled_at)
+            initial_scheduled_at = safe_make_aware(initial_scheduled_at)
         except (ValueError, TypeError):
             initial_scheduled_at = None
 
@@ -411,8 +411,7 @@ def service_order_scheduling(request):
     if scheduled_end_at_param:
         try:
             initial_scheduled_end_at = datetime.fromisoformat(scheduled_end_at_param.replace('Z', '+00:00'))
-            if django.utils.timezone.is_naive(initial_scheduled_end_at):
-                initial_scheduled_end_at = django.utils.timezone.make_aware(initial_scheduled_end_at)
+            initial_scheduled_end_at = safe_make_aware(initial_scheduled_end_at)
         except (ValueError, TypeError):
             initial_scheduled_end_at = None
     
@@ -482,13 +481,12 @@ def service_order_scheduling(request):
                 scheduled_datetime = None
                 if scheduled_input:
                     try:
-                        scheduled_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(scheduled_input))
+                        scheduled_datetime = safe_make_aware(datetime.fromisoformat(scheduled_input))
                     except (ValueError, TypeError):
                         pass
                 elif task_index == 0:
                     scheduled_datetime = form.cleaned_data.get('scheduled_at')
-                    if scheduled_datetime and django.utils.timezone.is_naive(scheduled_datetime):
-                        scheduled_datetime = django.utils.timezone.make_aware(scheduled_datetime)
+                    scheduled_datetime = safe_make_aware(scheduled_datetime)
 
                 if task_type and scheduled_datetime:
                     # Tentar obter scheduled_end_at para validação
@@ -496,11 +494,11 @@ def service_order_scheduling(request):
                         scheduled_end_input = request.POST.get('scheduled_end_at')
                     else:
                         scheduled_end_input = request.POST.get(f'task_{task_index}_scheduled_end')
-                    
+
                     scheduled_end_datetime = None
                     if scheduled_end_input:
                         try:
-                            scheduled_end_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(scheduled_end_input))
+                            scheduled_end_datetime = safe_make_aware(datetime.fromisoformat(scheduled_end_input))
                         except (ValueError, TypeError):
                             pass
 
@@ -593,22 +591,20 @@ def service_order_scheduling(request):
 
                 scheduled_datetime = None
                 if scheduled_input:
-                    scheduled_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(scheduled_input))
+                    scheduled_datetime = safe_make_aware(datetime.fromisoformat(scheduled_input))
                 elif task_index == 0:
                     scheduled_datetime = form.cleaned_data.get('scheduled_at')
-                    if scheduled_datetime and django.utils.timezone.is_naive(scheduled_datetime):
-                        scheduled_datetime = django.utils.timezone.make_aware(scheduled_datetime)
+                    scheduled_datetime = safe_make_aware(scheduled_datetime)
 
                 scheduled_end_datetime = None
                 if scheduled_end_input:
-                    scheduled_end_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(scheduled_end_input))
+                    scheduled_end_datetime = safe_make_aware(datetime.fromisoformat(scheduled_end_input))
                 elif task_index == 0:
                     scheduled_end_datetime = form.cleaned_data.get('scheduled_end_at')
-                    if scheduled_end_datetime and django.utils.timezone.is_naive(scheduled_end_datetime):
-                        scheduled_end_datetime = django.utils.timezone.make_aware(scheduled_end_datetime)
+                    scheduled_end_datetime = safe_make_aware(scheduled_end_datetime)
 
-                start_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(start_date)) if start_date else None
-                end_datetime = django.utils.timezone.make_aware(datetime.fromisoformat(end_date)) if end_date else None
+                start_datetime = safe_make_aware(datetime.fromisoformat(start_date)) if start_date else None
+                end_datetime = safe_make_aware(datetime.fromisoformat(end_date)) if end_date else None
 
                 if task_type and scheduled_datetime:
                     task_value_str = request.POST.get(f'task_{task_index}_value', '').strip()

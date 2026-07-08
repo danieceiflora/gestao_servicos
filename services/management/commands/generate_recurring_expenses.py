@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
+from core.tz_utils import local_today
 from services.models import RecurrenceRule, ExpenseInstallment, FinanceSettings
 import logging
 
@@ -12,7 +13,7 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         settings_obj = FinanceSettings.objects.first()
         days_ahead = settings_obj.days_before_generation if settings_obj else 7
-        today = timezone.localdate()
+        today = local_today()
         target_date = today + timezone.timedelta(days=days_ahead)
 
         self.stdout.write(

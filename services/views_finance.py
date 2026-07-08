@@ -9,6 +9,7 @@ from decimal import Decimal
 from datetime import datetime, date
 import json
 import calendar as _cal
+from core.tz_utils import local_today, safe_make_aware
 from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory, SaleReturn, SaleReturnItem, ProductVariant, SaleSettings, ServiceOrder, Billing, Installment
 from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet, FinanceSettingsForm, SaleSettingsForm
 from .expense_engine import generate_expense_installments
@@ -98,11 +99,11 @@ def finance_dashboard(request):
     year = int(request.GET.get('year', now.year))
 
     tz = timezone.get_current_timezone()
-    start_of_month = timezone.make_aware(datetime(year, month, 1), tz)
+    start_of_month = safe_make_aware(datetime(year, month, 1), tz)
     if month == 12:
-        end_of_month = timezone.make_aware(datetime(year + 1, 1, 1), tz)
+        end_of_month = safe_make_aware(datetime(year + 1, 1, 1), tz)
     else:
-        end_of_month = timezone.make_aware(datetime(year, month + 1, 1), tz)
+        end_of_month = safe_make_aware(datetime(year, month + 1, 1), tz)
 
     try:
         from dateutil.relativedelta import relativedelta as _rdelta
@@ -124,8 +125,8 @@ def finance_dashboard(request):
         ms = date(my, mm, 1)
         me = date(my, mm, ld)
         tz_obj = timezone.get_current_timezone()
-        ms_dt = timezone.make_aware(datetime(my, mm, 1), tz_obj)
-        me_dt = timezone.make_aware(datetime(my, mm, ld, 23, 59, 59), tz_obj)
+        ms_dt = safe_make_aware(datetime(my, mm, 1), tz_obj)
+        me_dt = safe_make_aware(datetime(my, mm, ld, 23, 59, 59), tz_obj)
         label = f"{mm:02d}/{my}"
         bi_months_meta.append((my, mm, ms, me, ms_dt, me_dt, label))
 
@@ -228,11 +229,11 @@ def finance_commissions(request):
     professional_id = request.GET.get('professional')
 
     tz = timezone.get_current_timezone()
-    start_of_month = timezone.make_aware(datetime(year, month, 1), tz)
+    start_of_month = safe_make_aware(datetime(year, month, 1), tz)
     if month == 12:
-        end_of_month = timezone.make_aware(datetime(year + 1, 1, 1), tz)
+        end_of_month = safe_make_aware(datetime(year + 1, 1, 1), tz)
     else:
-        end_of_month = timezone.make_aware(datetime(year, month + 1, 1), tz)
+        end_of_month = safe_make_aware(datetime(year, month + 1, 1), tz)
 
     finance_settings, _ = FinanceSettings.objects.get_or_create(pk=1)
     commission_enabled = finance_settings.enable_commission
@@ -1381,7 +1382,7 @@ def installment_pay(request, pk):
             pay_date = timezone.now()
             if dt:
                 try:
-                    pay_date = timezone.make_aware(datetime.fromisoformat(dt))
+                    pay_date = safe_make_aware(datetime.fromisoformat(dt))
                 except ValueError:
                     pass
             
@@ -1536,7 +1537,7 @@ def expense_list(request):
     category_id = request.GET.get('category', '').strip()
 
     # Atualiza automaticamente parcelas vencidas e não pagas para status ATRASADO
-    today_auto = timezone.localdate()
+    today_auto = local_today()
     ExpenseInstallment.objects.filter(
         due_date__lt=today_auto,
         status__in=[ExpenseInstallment.Status.PENDENTE, ExpenseInstallment.Status.PARCIAL],
@@ -1577,7 +1578,7 @@ def expense_list(request):
             Q(expense__category_id=category_id) | Q(recurrence_rule__category_id=category_id)
         )
 
-    today = timezone.localdate()
+    today = local_today()
 
     # Totalizadores para o contexto (antes de paginar)
     overdue_qs = ExpenseInstallment.objects.filter(
@@ -1760,7 +1761,7 @@ def expense_installment_status_update(request, pk):
         if new_status in valid:
             installment.status = new_status
             if new_status == ExpenseInstallment.Status.PAGO and not installment.payment_date:
-                installment.payment_date = timezone.localdate()
+                installment.payment_date = local_today()
             installment.save()
             messages.success(request, f"Parcela marcada como {installment.get_status_display()}.")
     from django.utils.http import url_has_allowed_host_and_scheme
@@ -1785,7 +1786,7 @@ def installment_payment_modal(request, pk, _payment_just_added=False, _discount_
         'installment': installment,
         'bank_accounts': bank_accounts,
         'payment_method_choices': ExpenseInstallment.PaymentMethod.choices,
-        'today': timezone.localdate(),
+        'today': local_today(),
         'payment_just_added': _payment_just_added,
         'discount_just_applied': _discount_just_applied,
         'MEDIA_URL': '/media/',
@@ -1814,7 +1815,7 @@ def installment_payment_add(request, pk):
         try:
             payment_date = datetime.strptime(payment_date_str, '%Y-%m-%d').date()
         except (ValueError, TypeError):
-            payment_date = timezone.localdate()
+            payment_date = local_today()
 
         payment_method = request.POST.get('payment_method') or None
         bank_account_id = request.POST.get('bank_account') or None
@@ -2343,7 +2344,7 @@ def installment_apply_discount(request, pk):
     InstallmentPayment.objects.create(
         installment=installment,
         amount=amount,
-        payment_date=timezone.localdate(),
+        payment_date=local_today(),
         is_discount=True,
         discount_reason=discount_reason,
         created_by=request.user,
@@ -2364,7 +2365,7 @@ def expense_cashflow(request):
     from decimal import Decimal
     import calendar
 
-    today = timezone.localdate()
+    today = local_today()
     months_ahead = 3
 
     # Período de análise: mês atual + próximos 3 meses
