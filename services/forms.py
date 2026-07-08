@@ -11,6 +11,20 @@ from .models import (
 )
 from integracoes.models import SystemConfig
 
+
+def _safe_localtime(value):
+    """
+    django.utils.timezone.localtime() exige um datetime com timezone, mas em
+    produção (USE_TZ = DEBUG = False) os DateTimeField vêm naive — horário
+    local (America/Sao_Paulo) já salvo direto no banco, sem UTC. Nesse caso
+    não precisa (nem pode) converter; só em dev (USE_TZ=True) o valor vem
+    com timezone e precisa ser convertido para o horário local de exibição.
+    """
+    if value is None:
+        return None
+    return django.utils.timezone.localtime(value) if django.utils.timezone.is_aware(value) else value
+
+
 # --- UTILS FOR MULTIPLE UPLOAD ---
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -350,16 +364,16 @@ class ServiceOrderSchedulingForm(forms.ModelForm):
                 self.initial['is_approved'] = first_task.is_approved
                 self.initial['payment_method'] = first_task.payment_method or ''
                 if first_task.scheduled_at:
-                    self.initial['scheduled_at'] = django.utils.timezone.localtime(first_task.scheduled_at).strftime('%Y-%m-%dT%H:%M')
+                    self.initial['scheduled_at'] = _safe_localtime(first_task.scheduled_at).strftime('%Y-%m-%dT%H:%M')
                 if first_task.scheduled_end_at:
-                    self.initial['scheduled_end_at'] = django.utils.timezone.localtime(first_task.scheduled_end_at).strftime('%Y-%m-%dT%H:%M')
+                    self.initial['scheduled_end_at'] = _safe_localtime(first_task.scheduled_end_at).strftime('%Y-%m-%dT%H:%M')
                 
                 self.initial['send_whatsapp_confirmation'] = first_task.send_whatsapp_confirmation
                 self.initial['whatsapp_confirmation_status'] = first_task.whatsapp_confirmation_status or ''
                 if first_task.whatsapp_notification_sent_at:
-                    self.initial['whatsapp_notification_sent_at'] = django.utils.timezone.localtime(first_task.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
+                    self.initial['whatsapp_notification_sent_at'] = _safe_localtime(first_task.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
                 if first_task.whatsapp_confirmation_received_at:
-                    self.initial['whatsapp_confirmation_received_at'] = django.utils.timezone.localtime(first_task.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
+                    self.initial['whatsapp_confirmation_received_at'] = _safe_localtime(first_task.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
                 self.initial['whatsapp_response_content'] = first_task.whatsapp_response_content
         else:
             self.initial['is_approved'] = ''
@@ -427,13 +441,13 @@ class ServiceOrderTaskForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['whatsapp_confirmation_status'].choices = [('', 'Selecione...')] + ServiceOrderTask.WhatsAppConfirmationStatus.choices
         if self.instance.pk and self.instance.scheduled_at:
-            self.initial['scheduled_at'] = django.utils.timezone.localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')
+            self.initial['scheduled_at'] = _safe_localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')
         if self.instance.pk and self.instance.scheduled_end_at:
-            self.initial['scheduled_end_at'] = django.utils.timezone.localtime(self.instance.scheduled_end_at).strftime('%Y-%m-%dT%H:%M')
+            self.initial['scheduled_end_at'] = _safe_localtime(self.instance.scheduled_end_at).strftime('%Y-%m-%dT%H:%M')
         if self.instance.pk and self.instance.whatsapp_notification_sent_at:
-            self.initial['whatsapp_notification_sent_at'] = django.utils.timezone.localtime(self.instance.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
+            self.initial['whatsapp_notification_sent_at'] = _safe_localtime(self.instance.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
         if self.instance.pk and self.instance.whatsapp_confirmation_received_at:
-            self.initial['whatsapp_confirmation_received_at'] = django.utils.timezone.localtime(self.instance.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
+            self.initial['whatsapp_confirmation_received_at'] = _safe_localtime(self.instance.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
 
 # Equipe ligada à TASK
 ServiceOrderTeamFormSet = inlineformset_factory(
@@ -576,9 +590,9 @@ class ServiceInspectionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['whatsapp_confirmation_status'].choices = [('', 'Selecione...')] + ServiceOrderTask.WhatsAppConfirmationStatus.choices
         if self.instance.pk and self.instance.whatsapp_notification_sent_at:
-            self.initial['whatsapp_notification_sent_at'] = django.utils.timezone.localtime(self.instance.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
+            self.initial['whatsapp_notification_sent_at'] = _safe_localtime(self.instance.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
         if self.instance.pk and self.instance.whatsapp_confirmation_received_at:
-            self.initial['whatsapp_confirmation_received_at'] = django.utils.timezone.localtime(self.instance.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
+            self.initial['whatsapp_confirmation_received_at'] = _safe_localtime(self.instance.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
 
 
 class ServiceItemForm(forms.ModelForm):
@@ -749,17 +763,17 @@ class TaskScheduleForm(forms.ModelForm):
         self.fields['whatsapp_confirmation_status'].choices = [('', 'Selecione...')] + ServiceOrderTask.WhatsAppConfirmationStatus.choices
         if self.instance.pk:
             if self.instance.scheduled_at:
-                self.initial['scheduled_at'] = django.utils.timezone.localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')
+                self.initial['scheduled_at'] = _safe_localtime(self.instance.scheduled_at).strftime('%Y-%m-%dT%H:%M')
             if self.instance.scheduled_end_at:
-                self.initial['scheduled_end_at'] = django.utils.timezone.localtime(self.instance.scheduled_end_at).strftime('%Y-%m-%dT%H:%M')
+                self.initial['scheduled_end_at'] = _safe_localtime(self.instance.scheduled_end_at).strftime('%Y-%m-%dT%H:%M')
             if self.instance.started_at:
-                self.initial['started_at'] = django.utils.timezone.localtime(self.instance.started_at).strftime('%Y-%m-%dT%H:%M')
+                self.initial['started_at'] = _safe_localtime(self.instance.started_at).strftime('%Y-%m-%dT%H:%M')
             if self.instance.finished_at:
-                self.initial['finished_at'] = django.utils.timezone.localtime(self.instance.finished_at).strftime('%Y-%m-%dT%H:%M')
+                self.initial['finished_at'] = _safe_localtime(self.instance.finished_at).strftime('%Y-%m-%dT%H:%M')
             if self.instance.whatsapp_notification_sent_at:
-                self.initial['whatsapp_notification_sent_at'] = django.utils.timezone.localtime(self.instance.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
+                self.initial['whatsapp_notification_sent_at'] = _safe_localtime(self.instance.whatsapp_notification_sent_at).strftime('%Y-%m-%dT%H:%M')
             if self.instance.whatsapp_confirmation_received_at:
-                self.initial['whatsapp_confirmation_received_at'] = django.utils.timezone.localtime(self.instance.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
+                self.initial['whatsapp_confirmation_received_at'] = _safe_localtime(self.instance.whatsapp_confirmation_received_at).strftime('%Y-%m-%dT%H:%M')
 
 class ServicePaymentForm(forms.ModelForm):
     class Meta:
