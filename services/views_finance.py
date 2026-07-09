@@ -1267,7 +1267,12 @@ def billing_create_for_task(request, task_id):
 def billing_list(request):
     """Lista de todas as cobranças (Contas a Receber)."""
     from django.db.models import Q
-    billings = Billing.objects.all().select_related('client', 'sale', 'service_order').order_by('-created_at')
+    billings = (
+        Billing.objects.all()
+        .select_related('client', 'sale', 'service_order')
+        .prefetch_related('installments__payment_method')
+        .order_by('-created_at')
+    )
 
     status = request.GET.get('status', '').strip()
     if status:
@@ -2649,35 +2654,47 @@ def public_billing_generate_charge(request, token):
     description = f'{billing.origem} — {company}' if company else billing.origem
 
     try:
-        gw = AsaasGateway()
-        charge_data = ChargeData(
-            customer_name=client.name,
-            customer_document=client_doc,
-            customer_email=client_email,
-            description=description,
-            amount=installment.amount,
-            due_date=installment.due_date,
-            method=method,
-            external_reference=str(installment.pk),
-        )
-        result = gw.create_charge(charge_data, wallet_id=gateway_config.wallet_id)
+        with transaction.atomic():
+            # Trava a parcela e refaz a checagem dentro da transação — evita que o cliente
+            # (nesta página pública) e o staff (pelo admin) gerem 2 cobranças quase ao mesmo
+            # tempo para a mesma parcela.
+            locked_installment = Installment.objects.select_for_update().get(pk=installment.pk)
+            existing = locked_installment.gateway_charges.filter(
+                status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
+                            GatewayCharge.Status.CONFIRMED, GatewayCharge.Status.OVERDUE]
+            ).order_by('-created_at').first()
+            if existing:
+                return render(request, 'services/public/partials/charge_result.html', {'charge': existing})
 
-        charge = GatewayCharge.objects.create(
-            installment=installment,
-            config=gateway_config,
-            external_id=result.external_id,
-            method=method,
-            status=result.status,
-            amount=result.amount,
-            due_date=result.due_date,
-            pix_qrcode=result.pix_qrcode,
-            pix_copy_paste=result.pix_copy_paste,
-            pix_expiration_date=result.pix_expiration_date,
-            boleto_url=result.boleto_url,
-            boleto_barcode=result.boleto_barcode,
-            invoice_url=result.invoice_url,
-            invoice_number=result.invoice_number,
-        )
+            gw = AsaasGateway()
+            charge_data = ChargeData(
+                customer_name=client.name,
+                customer_document=client_doc,
+                customer_email=client_email,
+                description=description,
+                amount=installment.amount,
+                due_date=installment.due_date,
+                method=method,
+                external_reference=str(installment.pk),
+            )
+            result = gw.create_charge(charge_data, wallet_id=gateway_config.wallet_id)
+
+            charge = GatewayCharge.objects.create(
+                installment=installment,
+                config=gateway_config,
+                external_id=result.external_id,
+                method=method,
+                status=result.status,
+                amount=result.amount,
+                due_date=result.due_date,
+                pix_qrcode=result.pix_qrcode,
+                pix_copy_paste=result.pix_copy_paste,
+                pix_expiration_date=result.pix_expiration_date,
+                boleto_url=result.boleto_url,
+                boleto_barcode=result.boleto_barcode,
+                invoice_url=result.invoice_url,
+                invoice_number=result.invoice_number,
+            )
         return render(request, 'services/public/partials/charge_result.html', {'charge': charge})
 
     except Exception as exc:

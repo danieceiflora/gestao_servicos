@@ -347,7 +347,11 @@ class AsaasGateway(BasePaymentGateway):
         return {
             'event': event,
             'external_id': payment.get('id', ''),
-            'status': status_map.get(event, 'UNKNOWN'),
+            # None = evento que não altera o status da cobrança (ex: PAYMENT_CREATED,
+            # PAYMENT_UPDATED, PAYMENT_CHECKOUT_VIEWED...). O Asaas envia dezenas de eventos
+            # além dos 5 mapeados aqui — nunca sobrescrever o status da cobrança com um
+            # valor arbitrário para eventos que não reconhecemos.
+            'status': status_map.get(event),
             'paid_value': payment.get('value'),
             'net_value': payment.get('netValue'),
             'payment_date': payment.get('paymentDate'),

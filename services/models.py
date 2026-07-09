@@ -851,6 +851,25 @@ class Billing(models.Model):
     def get_remaining_balance(self):
         return (self.total_amount - self.discount) - self.get_total_paid()
 
+    @property
+    def next_installment(self):
+        """Parcela mais relevante para exibição: a próxima pendente por vencimento,
+        ou a última (se todas estiverem pagas/canceladas)."""
+        pendentes = [i for i in self.installments.all() if i.status in ('PENDENTE', 'PARCIAL', 'ATRASADO')]
+        if pendentes:
+            return min(pendentes, key=lambda i: i.due_date)
+        todas = list(self.installments.all())
+        return max(todas, key=lambda i: i.due_date) if todas else None
+
+    @property
+    def payment_methods_used(self):
+        """Métodos de pagamento distintos usados nas parcelas, na ordem em que aparecem."""
+        seen = []
+        for i in self.installments.all():
+            if i.payment_method_id and i.payment_method not in seen:
+                seen.append(i.payment_method)
+        return seen
+
     class Meta:
         verbose_name = "Cobrança"
         verbose_name_plural = "Cobranças"

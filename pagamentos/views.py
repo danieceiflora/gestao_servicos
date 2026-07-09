@@ -6,6 +6,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db import transaction
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -190,42 +191,55 @@ def installment_create_charge(request, installment_pk):
         return redirect('billing_detail', pk=installment.billing_id)
 
     try:
-        gw = _get_gateway()
-        billing_config = installment.billing.charge_config
-        charge_kwargs = {}
-        if billing_config:
-            is_cash = installment.billing.installments.count() == 1
-            apply_discount = billing_config.discount_applies_to_installments or is_cash
-            charge_kwargs = _charge_config_to_kwargs(billing_config, apply_discount)
-        data = ChargeData(
-            customer_name=client.name,
-            customer_document=client_doc,
-            customer_email=client_email,
-            description=_charge_description(f'Parcela {installment.installment_number} — Cobrança #{installment.billing.number}'),
-            amount=installment.amount,
-            due_date=installment.due_date,
-            method=method,
-            external_reference=str(installment.pk),
-            **charge_kwargs,
-        )
-        result = gw.create_charge(data, wallet_id=config.wallet_id)
+        with transaction.atomic():
+            # Trava a parcela e refaz a checagem de cobrança ativa dentro da transação —
+            # evita que duas requisições concorrentes (ex: staff pelo admin e cliente pela
+            # página pública, quase ao mesmo tempo) criem 2 cobranças duplicadas no gateway.
+            locked_installment = Installment.objects.select_for_update().get(pk=installment.pk)
+            existing = locked_installment.gateway_charges.filter(
+                status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
+                            GatewayCharge.Status.CONFIRMED]
+            ).first()
+            if existing:
+                messages.warning(request, f'Já existe uma cobrança {existing.get_method_display()} ativa para esta parcela.')
+                return redirect('billing_detail', pk=installment.billing_id)
 
-        GatewayCharge.objects.create(
-            installment=installment,
-            config=config,
-            external_id=result.external_id,
-            method=method,
-            status=result.status,
-            amount=result.amount,
-            due_date=result.due_date,
-            pix_qrcode=result.pix_qrcode,
-            pix_copy_paste=result.pix_copy_paste,
-            pix_expiration_date=result.pix_expiration_date,
-            boleto_url=result.boleto_url,
-            boleto_barcode=result.boleto_barcode,
-            invoice_url=result.invoice_url,
-            invoice_number=result.invoice_number,
-        )
+            gw = _get_gateway()
+            billing_config = installment.billing.charge_config
+            charge_kwargs = {}
+            if billing_config:
+                is_cash = installment.billing.installments.count() == 1
+                apply_discount = billing_config.discount_applies_to_installments or is_cash
+                charge_kwargs = _charge_config_to_kwargs(billing_config, apply_discount)
+            data = ChargeData(
+                customer_name=client.name,
+                customer_document=client_doc,
+                customer_email=client_email,
+                description=_charge_description(f'Parcela {installment.installment_number} — Cobrança #{installment.billing.number}'),
+                amount=installment.amount,
+                due_date=installment.due_date,
+                method=method,
+                external_reference=str(installment.pk),
+                **charge_kwargs,
+            )
+            result = gw.create_charge(data, wallet_id=config.wallet_id)
+
+            GatewayCharge.objects.create(
+                installment=installment,
+                config=config,
+                external_id=result.external_id,
+                method=method,
+                status=result.status,
+                amount=result.amount,
+                due_date=result.due_date,
+                pix_qrcode=result.pix_qrcode,
+                pix_copy_paste=result.pix_copy_paste,
+                pix_expiration_date=result.pix_expiration_date,
+                boleto_url=result.boleto_url,
+                boleto_barcode=result.boleto_barcode,
+                invoice_url=result.invoice_url,
+                invoice_number=result.invoice_number,
+            )
         messages.success(request, f'{method} gerado com sucesso!')
     except Exception as e:
         logger.exception('Erro ao criar cobrança no gateway')
@@ -315,6 +329,12 @@ def asaas_webhook(request):
                 handled = _handle_platform_subscription_webhook(external_id, normalized, payload)
             if not handled:
                 logger.warning(f'Webhook Asaas: cobrança não encontrada para ID {external_id}')
+            return JsonResponse({'ok': True})
+
+        if not normalized['status']:
+            # Evento que o sistema não mapeia para uma mudança de status (ex: PAYMENT_CREATED,
+            # PAYMENT_UPDATED, PAYMENT_CHECKOUT_VIEWED) — não sobrescreve o status da cobrança.
+            logger.info(f'Webhook Asaas ignorado (evento não mapeado): {external_id} → {normalized["event"]}')
             return JsonResponse({'ok': True})
 
         charge.status = normalized['status']
@@ -524,40 +544,46 @@ def auto_create_charges_for_billing(billing):
     charge_kwargs = _charge_config_to_kwargs(charge_config, apply_discount)
 
     for installment in billing.installments.filter(status='PENDENTE'):
-        if installment.gateway_charges.filter(
-            status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
-                        GatewayCharge.Status.CONFIRMED]
-        ).exists():
-            continue
         try:
-            data = ChargeData(
-                customer_name=client.name,
-                customer_document=client_doc,
-                customer_email=client_email,
-                description=_charge_description(f'Parcela {installment.installment_number} — Cobrança #{billing.number}'),
-                amount=installment.amount,
-                due_date=installment.due_date,
-                method=method,
-                external_reference=str(installment.pk),
-                **charge_kwargs,
-            )
-            result = gw.create_charge(data, wallet_id=gw_config.wallet_id)
-            GatewayCharge.objects.create(
-                installment=installment,
-                config=gw_config,
-                external_id=result.external_id,
-                method=method,
-                status=result.status,
-                amount=result.amount,
-                due_date=result.due_date,
-                pix_qrcode=result.pix_qrcode,
-                pix_copy_paste=result.pix_copy_paste,
-                pix_expiration_date=result.pix_expiration_date,
-                boleto_url=result.boleto_url,
-                boleto_barcode=result.boleto_barcode,
-                invoice_url=result.invoice_url,
-                invoice_number=result.invoice_number,
-            )
+            with transaction.atomic():
+                # Trava a parcela e refaz a checagem dentro da transação — evita duplicar a
+                # cobrança caso o staff gere manualmente (admin) quase ao mesmo tempo do disparo
+                # automático, ou caso este método seja chamado mais de uma vez para o mesmo billing.
+                locked_installment = Installment.objects.select_for_update().get(pk=installment.pk)
+                if locked_installment.gateway_charges.filter(
+                    status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
+                                GatewayCharge.Status.CONFIRMED]
+                ).exists():
+                    continue
+
+                data = ChargeData(
+                    customer_name=client.name,
+                    customer_document=client_doc,
+                    customer_email=client_email,
+                    description=_charge_description(f'Parcela {installment.installment_number} — Cobrança #{billing.number}'),
+                    amount=installment.amount,
+                    due_date=installment.due_date,
+                    method=method,
+                    external_reference=str(installment.pk),
+                    **charge_kwargs,
+                )
+                result = gw.create_charge(data, wallet_id=gw_config.wallet_id)
+                GatewayCharge.objects.create(
+                    installment=installment,
+                    config=gw_config,
+                    external_id=result.external_id,
+                    method=method,
+                    status=result.status,
+                    amount=result.amount,
+                    due_date=result.due_date,
+                    pix_qrcode=result.pix_qrcode,
+                    pix_copy_paste=result.pix_copy_paste,
+                    pix_expiration_date=result.pix_expiration_date,
+                    boleto_url=result.boleto_url,
+                    boleto_barcode=result.boleto_barcode,
+                    invoice_url=result.invoice_url,
+                    invoice_number=result.invoice_number,
+                )
         except Exception:
             logger.exception('auto_create_charges_for_billing: erro ao criar cobrança para parcela %s', installment.pk)
 

@@ -50,6 +50,8 @@
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cliente</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Origem</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vencimento</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Meio de Pagto</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Valor Total</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Saldo Devedor</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest"></th>
@@ -89,6 +91,29 @@
                                 <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide bg-slate-100 text-slate-500">{{ billing.get_status_display }}</span>
                             {% endif %}
                         </td>
+                        <td class="px-6 py-4">
+                            {% with next_inst=billing.next_installment %}
+                                {% if next_inst %}
+                                    <span class="text-sm font-bold text-slate-700">{{ next_inst.due_date|date:"d/m/Y" }}</span>
+                                    {% if next_inst.status == 'ATRASADO' %}
+                                        <p class="text-[9px] text-red-500 font-black uppercase tracking-wide">Atrasada</p>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-sm text-slate-300">—</span>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% with methods=billing.payment_methods_used %}
+                                {% if methods|length == 1 %}
+                                    <span class="text-xs font-bold text-slate-600">{{ methods.0.descricao }}</span>
+                                {% elif methods|length > 1 %}
+                                    <span class="text-xs font-bold text-slate-500" title="{% for m in methods %}{{ m.descricao }}{% if not forloop.last %}, {% endif %}{% endfor %}">Múltiplos</span>
+                                {% else %}
+                                    <span class="text-xs text-slate-300">—</span>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
                         <td class="px-6 py-4 text-right">
                             <span class="text-sm font-black text-slate-900 tracking-tighter">R$ {{ billing.total_amount|floatformat:2 }}</span>
                             {% if billing.discount > 0 %}
@@ -110,7 +135,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="px-6 py-20 text-center">
+                        <td colspan="9" class="px-6 py-20 text-center">
                             <div class="flex flex-col items-center gap-3">
                                 <div class="bg-slate-50 p-4 rounded-full">
                                     <i data-lucide="receipt" class="w-8 h-8 text-slate-300"></i>
