@@ -167,6 +167,22 @@ class ChatwootClient:
         # Por regra de negócio, sempre mantemos apenas a etiqueta mais recente.
         return self.assign_labels_to_conversation(conversation_id, [normalized_title])
 
+    def apply_conversation_tag(self, conversation_id, tag_title, mode='ADD'):
+        """Aplica uma tag à conversa após o envio de uma mensagem, criando-a se não existir.
+        mode='ADD' preserva as etiquetas já existentes na conversa; mode='REPLACE' as substitui."""
+        normalized_title = self.normalize_label_title(tag_title)
+        if not normalized_title or conversation_id in (None, ""):
+            return None
+
+        if not self.get_label_by_title(normalized_title):
+            self.create_label(tag_title)
+
+        if mode == 'REPLACE':
+            return self.assign_labels_to_conversation(conversation_id, [normalized_title])
+
+        existing_labels = self.list_conversation_labels(conversation_id)
+        return self.assign_labels_to_conversation(conversation_id, existing_labels + [normalized_title])
+
     def extract_message_tracking(self, response_payload):
         if not isinstance(response_payload, dict):
             return None, None

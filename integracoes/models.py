@@ -176,14 +176,34 @@ class NotificationConfig(models.Model):
     )
 
     phone_field_path = models.CharField(
-        'Caminho para o Cliente/Telefone', 
-        max_length=255, 
+        'Caminho para o Cliente/Telefone',
+        max_length=255,
         default='client_property.client',
-        blank=True, 
+        blank=True,
         null=True,
         help_text='Caminho para chegar no objeto Cliente ou campo de Telefone. Ex: client_property.client para OS.'
     )
-    
+
+    # Etiqueta no Chatwoot aplicada à conversa após o envio
+    CHATWOOT_TAG_MODE_CHOICES = [
+        ('ADD', 'Adicionar às existentes'),
+        ('REPLACE', 'Substituir existentes'),
+    ]
+    chatwoot_tag = models.CharField(
+        'Tag do Chatwoot',
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text='Etiqueta aplicada à conversa no Chatwoot ao enviar esta notificação. Criada automaticamente se não existir. Deixe em branco para não aplicar nenhuma tag.'
+    )
+    chatwoot_tag_mode = models.CharField(
+        'Modo da Tag',
+        max_length=10,
+        choices=CHATWOOT_TAG_MODE_CHOICES,
+        default='ADD',
+        help_text='Se a tag deve ser adicionada junto às etiquetas já existentes na conversa, ou substituir todas as etiquetas atuais.'
+    )
+
     is_active = models.BooleanField('Ativo', default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

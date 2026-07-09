@@ -30,6 +30,10 @@ class NotificationConfigAdmin(admin.ModelAdmin):
             'fields': ('template_name', 'phone_field_path'),
             'description': 'Configure qual template usar e como encontrar o telefone do cliente.'
         }),
+        ('Etiqueta no Chatwoot', {
+            'fields': ('chatwoot_tag', 'chatwoot_tag_mode'),
+            'description': 'Opcional: aplica uma etiqueta à conversa no Chatwoot após o envio da mensagem.'
+        }),
     )
 
 @admin.register(SystemConfig)

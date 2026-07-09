@@ -159,6 +159,30 @@
             </div>
         </div>
 
+        <!-- Bloco 5: Etiqueta no Chatwoot -->
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Etiqueta no Chatwoot (Opcional)</h2>
+            <p class="text-sm text-slate-500">Ao enviar esta notificação, aplica uma etiqueta à conversa no Chatwoot — criada automaticamente se ainda não existir.</p>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Tag</label>
+                    <input type="text" name="chatwoot_tag" value="{{ config.chatwoot_tag|default:'' }}" placeholder="Ex: orcamento-enviado"
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <p class="text-xs text-slate-400">Deixe em branco para não aplicar nenhuma tag.</p>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700">Comportamento</label>
+                    <select name="chatwoot_tag_mode"
+                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                        <option value="ADD" {% if config.chatwoot_tag_mode != 'REPLACE' %}selected{% endif %}>Adicionar às etiquetas existentes</option>
+                        <option value="REPLACE" {% if config.chatwoot_tag_mode == 'REPLACE' %}selected{% endif %}>Substituir etiquetas existentes</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div class="flex items-center justify-end gap-3 pt-4">
             <a href="{% url 'integracoes:notification_config_list' %}" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">Cancelar</a>
             <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-8 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10">

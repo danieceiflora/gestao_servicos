@@ -344,7 +344,7 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
                     btn_data = None
                     if btn_url_params:
                         btn_data = {'type': 'url_suffix', 'params': btn_url_params}
-                    client.send_template(
+                    response = client.send_template(
                         conversation_id=conv['id'],
                         template_name=config.template_name,
                         variables=variables,
@@ -352,6 +352,9 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
                         button_data=btn_data,
                     )
                     logger.info(f"Notificação dinâmica '{config.name}' enviada para {phone}")
+
+                    if response and config.chatwoot_tag:
+                        client.apply_conversation_tag(conv['id'], config.chatwoot_tag, config.chatwoot_tag_mode)
 
                     # Persiste o conversation_id na task para permitir atualização
                     # de etiqueta Chatwoot quando o cliente responder via página pública.

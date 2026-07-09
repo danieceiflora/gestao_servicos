@@ -684,14 +684,17 @@ def notification_config_create(request):
         phone_path = request.POST.get('phone_field_path')
         header_media_type = request.POST.get('header_media_type', 'NONE')
         static_media_file = request.FILES.get('static_media_file')
-        
+        chatwoot_tag = request.POST.get('chatwoot_tag')
+        chatwoot_tag_mode = request.POST.get('chatwoot_tag_mode', 'ADD')
+
         config = NotificationConfig.objects.create(
             name=name, model_name=model_name, event_type=event_type,
             from_status=from_status, to_status=to_status,
             template_name=template_name, recipient_type=recipient_type,
             fixed_phone=fixed_phone, phone_field_path=phone_path,
             header_media_type=header_media_type,
-            static_media_file=static_media_file
+            static_media_file=static_media_file,
+            chatwoot_tag=chatwoot_tag, chatwoot_tag_mode=chatwoot_tag_mode
         )
         
         # Salvar variáveis do corpo
@@ -736,8 +739,10 @@ def notification_config_edit(request, pk):
         config.recipient_type = request.POST.get('recipient_type')
         config.fixed_phone = request.POST.get('fixed_phone')
         config.phone_field_path = request.POST.get('phone_field_path')
+        config.chatwoot_tag = request.POST.get('chatwoot_tag')
+        config.chatwoot_tag_mode = request.POST.get('chatwoot_tag_mode', 'ADD')
         config.is_active = request.POST.get('is_active') == 'on'
-        
+
         header_media_type = request.POST.get('header_media_type')
         if header_media_type:
             config.header_media_type = header_media_type
