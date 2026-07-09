@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'storages',
     'pwa',
     'widget_tweaks',
+    'django_apscheduler',
     'services',
     'integracoes',
     'pagamentos',

@@ -12,7 +12,7 @@ Quando uma implementação for planejada e acordada com o usuário (via conversa
 - **Frontend:** Django Template Language (DTL) + Tailwind CSS + shadcn/ui patterns + HTMX
 - **Banco:** SQLite (desenvolvimento) / PostgreSQL (produção)
 - **App do técnico:** SPA offline-first com IndexedDB (Dexie.js) + Service Worker
-- **Tarefas assíncronas:** Management commands agendados via cron (ou Celery Beat se disponível)
+- **Tarefas assíncronas:** management commands rodados por um scheduler dedicado (`integracoes/management/commands/run_scheduler.py`, via APScheduler + `django-apscheduler`, jobstore no Postgres). Roda em container próprio (`scheduler` no `docker-compose.yml`, mesmo padrão do `media_worker`). Histórico de execuções visível em `/admin/django_apscheduler/`.
 
 ---
 

@@ -1555,6 +1555,38 @@ def collection_sequence_simulate(request, pk):
 
 @login_required
 @user_passes_test(lambda u: u.is_staff)
+@require_POST
+def collection_sequence_run_now(request):
+    """Dispara manualmente o comando send_collection_reminders e mostra o resultado via HTMX."""
+    from io import StringIO
+    from django.core.management import call_command
+
+    dry_run = request.POST.get('dry_run') == '1'
+
+    out = StringIO()
+    error = None
+    try:
+        call_command('send_collection_reminders', dry_run=dry_run, stdout=out, no_color=True)
+    except Exception as exc:
+        logger.exception('Falha ao executar send_collection_reminders manualmente')
+        error = str(exc)
+
+    recent_logs = (
+        CollectionLog.objects
+        .select_related('installment__billing__client', 'step__sequence')
+        .order_by('-sent_at')[:50]
+    )
+
+    return render(request, 'integracoes/collection/partials/run_now_result.html', {
+        'output': out.getvalue(),
+        'error': error,
+        'dry_run': dry_run,
+        'recent_logs': recent_logs,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
 def collection_sequence_delete(request, pk):
     sequence = get_object_or_404(CollectionSequence, pk=pk)
     if request.method == 'POST':
@@ -1657,6 +1689,38 @@ def scheduled_reminder_list(request):
     )
     return render(request, 'integracoes/collection/scheduled_reminder_list.html', {
         'reminders': reminders,
+        'recent_logs': recent_logs,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+@require_POST
+def scheduled_reminder_run_now(request):
+    """Dispara manualmente o comando send_scheduled_reminders e mostra o resultado via HTMX."""
+    from io import StringIO
+    from django.core.management import call_command
+
+    dry_run = request.POST.get('dry_run') == '1'
+
+    out = StringIO()
+    error = None
+    try:
+        call_command('send_scheduled_reminders', dry_run=dry_run, stdout=out, no_color=True)
+    except Exception as exc:
+        logger.exception('Falha ao executar send_scheduled_reminders manualmente')
+        error = str(exc)
+
+    recent_logs = (
+        ScheduledReminderLog.objects
+        .select_related('installment__billing__client', 'reminder')
+        .order_by('-sent_at')[:50]
+    )
+
+    return render(request, 'integracoes/collection/partials/scheduled_run_now_result.html', {
+        'output': out.getvalue(),
+        'error': error,
+        'dry_run': dry_run,
         'recent_logs': recent_logs,
     })
 

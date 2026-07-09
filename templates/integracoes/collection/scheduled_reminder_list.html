@@ -21,9 +21,49 @@
   <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
     <i data-lucide="info" class="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5"></i>
     <div class="text-sm text-blue-800 space-y-1">
-      <p><strong>Como funciona:</strong> O cron diário calcula a data-alvo (<code>hoje − offset_dias</code>) e envia para todas as parcelas com aquele vencimento que ainda não receberam o lembrete. O envio acontece <strong>uma única vez por parcela</strong>. Falhas são retentadas no dia seguinte.</p>
-      <p class="text-blue-600 font-mono text-xs">0 8 * * * python manage.py send_scheduled_reminders</p>
+      <p><strong>Como funciona:</strong> todos os dias às <strong>08:00</strong> o sistema calcula a data-alvo (<code>hoje − offset_dias</code>) e envia para todas as parcelas com aquele vencimento que ainda não receberam o lembrete. O envio acontece <strong>uma única vez por parcela</strong>. Falhas são retentadas no dia seguinte. O agendamento roda automaticamente via o serviço <code class="bg-white border border-blue-200 rounded px-1">scheduler</code> — não é necessário configurar cron manualmente.</p>
+      {% if user.is_superuser %}
+      <p class="text-xs text-blue-500">
+        Acompanhe horários e histórico de execuções em
+        <a href="/admin/django_apscheduler/djangojob/" class="underline hover:text-blue-700">Jobs Agendados</a>
+        e
+        <a href="/admin/django_apscheduler/djangojobexecution/" class="underline hover:text-blue-700">Execuções</a> no Admin.
+      </p>
+      {% endif %}
     </div>
+  </div>
+
+  <!-- Execução manual -->
+  <div class="p-5 bg-white border border-slate-200 rounded-2xl space-y-4 shadow-sm">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <div class="flex items-center gap-2 text-slate-700">
+          <i data-lucide="play-circle" class="h-4 w-4"></i>
+          <span class="text-sm font-bold">Executar lembretes agora</span>
+        </div>
+        <p class="text-xs text-slate-500 mt-1">Roda o comando <code class="bg-slate-100 border border-slate-200 rounded px-1">send_scheduled_reminders</code> imediatamente, para todos os lembretes ativos — sem esperar o horário agendado.</p>
+      </div>
+      <form hx-post="{% url 'integracoes:scheduled_reminder_run_now' %}"
+            hx-target="#run-now-panel"
+            hx-swap="innerHTML"
+            hx-indicator="#run-now-spinner"
+            class="flex items-center gap-3 flex-none">
+        {% csrf_token %}
+        <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+          <input type="checkbox" name="dry_run" value="1" class="rounded border-slate-300">
+          Simular (dry-run)
+        </label>
+        <button type="submit"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 transition-colors">
+          <i data-lucide="zap" class="h-3.5 w-3.5"></i>
+          Rodar agora
+          <span id="run-now-spinner" class="htmx-indicator">
+            <i data-lucide="loader-2" class="h-3.5 w-3.5 animate-spin"></i>
+          </span>
+        </button>
+      </form>
+    </div>
+    <div id="run-now-panel"></div>
   </div>
 
   <!-- Reminders table -->
@@ -111,49 +151,9 @@
   {% endif %}
 
   <!-- Recent logs -->
-  {% if recent_logs %}
-  <div>
-    <h2 class="text-base font-semibold text-slate-800 mb-3">Últimos Envios</h2>
-    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
-      <table class="w-full text-sm">
-        <thead class="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Lembrete</th>
-            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Cliente</th>
-            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Telefone</th>
-            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Enviado em</th>
-            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Status</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100">
-          {% for log in recent_logs %}
-          <tr class="hover:bg-slate-50">
-            <td class="px-4 py-2.5 font-medium text-slate-800">{{ log.reminder.name }}</td>
-            <td class="px-4 py-2.5 text-slate-600">
-              {% with client=log.installment.billing.client %}
-                {{ client.name|default:client.display_name|default:"—" }}
-              {% endwith %}
-            </td>
-            <td class="px-4 py-2.5 font-mono text-xs text-slate-500">{{ log.phone|default:"—" }}</td>
-            <td class="px-4 py-2.5 text-slate-500 text-xs">{{ log.sent_at|date:"d/m/Y H:i" }}</td>
-            <td class="px-4 py-2.5">
-              {% if log.status == 'SENT' %}
-              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                <i data-lucide="check" class="h-3 w-3"></i> Enviado
-              </span>
-              {% else %}
-              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700" title="{{ log.notes }}">
-                <i data-lucide="x" class="h-3 w-3"></i> Falhou
-              </span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  <div id="scheduled-recent-logs-section">
+    {% include 'integracoes/collection/partials/scheduled_recent_logs_table.html' %}
   </div>
-  {% endif %}
 
 </div>
 {% endblock %}

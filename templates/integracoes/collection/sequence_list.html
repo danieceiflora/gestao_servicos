@@ -172,68 +172,63 @@
     </div>
     {% endif %}
 
-    {# ===== Bloco cron ===== #}
+    {# ===== Execução manual ===== #}
+    <div class="p-5 bg-white border border-slate-200 rounded-2xl space-y-4 shadow-sm">
+        <div class="flex items-center justify-between flex-wrap gap-3">
+            <div>
+                <div class="flex items-center gap-2 text-slate-700">
+                    <i data-lucide="play-circle" class="h-4 w-4"></i>
+                    <span class="text-sm font-bold">Executar régua agora</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">Roda o comando <code class="bg-slate-100 border border-slate-200 rounded px-1">send_collection_reminders</code> imediatamente, para todas as réguas ativas — sem esperar o horário agendado.</p>
+            </div>
+            <form hx-post="{% url 'integracoes:collection_sequence_run_now' %}"
+                  hx-target="#run-now-panel"
+                  hx-swap="innerHTML"
+                  hx-indicator="#run-now-spinner"
+                  class="flex items-center gap-3 flex-none">
+                {% csrf_token %}
+                <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                    <input type="checkbox" name="dry_run" value="1" class="rounded border-slate-300">
+                    Simular (dry-run)
+                </label>
+                <button type="submit"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 transition-colors">
+                    <i data-lucide="zap" class="h-3.5 w-3.5"></i>
+                    Rodar agora
+                    <span id="run-now-spinner" class="htmx-indicator">
+                        <i data-lucide="loader-2" class="h-3.5 w-3.5 animate-spin"></i>
+                    </span>
+                </button>
+            </form>
+        </div>
+        <div id="run-now-panel"></div>
+    </div>
+
+    {# ===== Bloco agendamento automático ===== #}
     <div class="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
         <div class="flex items-center gap-2 text-slate-700">
-            <i data-lucide="terminal" class="h-4 w-4"></i>
-            <span class="text-sm font-bold">Como agendar o envio automático</span>
+            <i data-lucide="clock" class="h-4 w-4"></i>
+            <span class="text-sm font-bold">Agendamento automático</span>
         </div>
-        <p class="text-xs text-slate-500">Adicione a linha abaixo ao <strong>crontab</strong> do servidor para executar diariamente às 8h:</p>
-        <pre class="bg-slate-900 text-green-400 text-xs rounded-lg p-4 overflow-x-auto font-mono">0 8 * * * /caminho/para/venv/bin/python /caminho/para/manage.py send_collection_reminders</pre>
-        <p class="text-xs text-slate-400">Para testar sem enviar mensagens, adicione <code class="bg-white border border-slate-200 rounded px-1">--dry-run</code> ao final do comando.</p>
+        <p class="text-xs text-slate-500">
+            Esta régua já roda automaticamente todos os dias às <strong>08:05</strong>, via o serviço <code class="bg-white border border-slate-200 rounded px-1">scheduler</code> (APScheduler).
+            Não é necessário configurar cron manualmente.
+        </p>
+        {% if user.is_superuser %}
+        <p class="text-xs text-slate-400">
+            Acompanhe os horários e o histórico de execuções em
+            <a href="/admin/django_apscheduler/djangojob/" class="underline hover:text-slate-700">Jobs Agendados</a>
+            e
+            <a href="/admin/django_apscheduler/djangojobexecution/" class="underline hover:text-slate-700">Execuções</a> no Admin.
+        </p>
+        {% endif %}
     </div>
 
     {# ===== Tabela de últimos 50 logs ===== #}
-    {% if recent_logs %}
-    <div>
-        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Últimos 50 Envios</h2>
-        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="border-b border-slate-100 bg-slate-50">
-                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Parcela</th>
-                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Cliente</th>
-                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Sequência</th>
-                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Etapa</th>
-                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Status</th>
-                        <th class="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Enviado em</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-50">
-                    {% for log in recent_logs %}
-                    <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-mono text-xs text-slate-600">
-                            #{{ log.installment.billing.number|default:"—" }}
-                            <span class="text-slate-400">P{{ log.installment.installment_number }}</span>
-                        </td>
-                        <td class="px-4 py-3 text-slate-700 text-sm">
-                            {{ log.installment.billing.client.name|default:"—"|truncatechars:30 }}
-                        </td>
-                        <td class="px-4 py-3 text-slate-600 text-xs">
-                            {{ log.step.sequence.name|default:"—"|truncatechars:28 }}
-                        </td>
-                        <td class="px-4 py-3 text-xs text-slate-600">
-                            <span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-slate-900 text-white text-[10px] font-bold">{{ log.step.occurrence|default:"—" }}</span>
-                        </td>
-                        <td class="px-4 py-3">
-                            {% if log.status == 'SENT' %}
-                            <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
-                                <i data-lucide="check" class="h-3 w-3"></i> Enviado
-                            </span>
-                            {% else %}
-                            <span class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700" title="{{ log.notes }}">
-                                <i data-lucide="x" class="h-3 w-3"></i> Falhou
-                            </span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-xs text-slate-500">{{ log.sent_at|date:"d/m/Y H:i" }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+    <div id="recent-logs-section">
+        {% include 'integracoes/collection/partials/recent_logs_table.html' %}
     </div>
-    {% endif %}
 
 </div>
 {% endblock %}

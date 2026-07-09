@@ -1,0 +1,43 @@
+{% if recent_logs %}
+<div>
+    <h2 class="text-base font-semibold text-slate-800 mb-3">Últimos Envios</h2>
+    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                    <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Lembrete</th>
+                    <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Cliente</th>
+                    <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Telefone</th>
+                    <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Enviado em</th>
+                    <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for log in recent_logs %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-2.5 font-medium text-slate-800">{{ log.reminder.name }}</td>
+                    <td class="px-4 py-2.5 text-slate-600">
+                        {% with client=log.installment.billing.client %}
+                            {{ client.name|default:client.display_name|default:"—" }}
+                        {% endwith %}
+                    </td>
+                    <td class="px-4 py-2.5 font-mono text-xs text-slate-500">{{ log.phone|default:"—" }}</td>
+                    <td class="px-4 py-2.5 text-slate-500 text-xs">{{ log.sent_at|date:"d/m/Y H:i" }}</td>
+                    <td class="px-4 py-2.5">
+                        {% if log.status == 'SENT' %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                            <i data-lucide="check" class="h-3 w-3"></i> Enviado
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700" title="{{ log.notes }}">
+                            <i data-lucide="x" class="h-3 w-3"></i> Falhou
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}

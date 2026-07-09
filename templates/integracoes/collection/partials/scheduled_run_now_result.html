@@ -1,0 +1,17 @@
+<div class="rounded-xl border p-4 {% if error %}border-red-200 bg-red-50{% elif dry_run %}border-amber-200 bg-amber-50{% else %}border-emerald-200 bg-emerald-50{% endif %}">
+    <div class="flex items-center gap-2 mb-2 {% if error %}text-red-700{% elif dry_run %}text-amber-700{% else %}text-emerald-700{% endif %}">
+        <i data-lucide="{% if error %}alert-triangle{% else %}terminal{% endif %}" class="h-4 w-4"></i>
+        <span class="text-sm font-bold">
+            {% if error %}Erro ao executar{% elif dry_run %}Simulação concluída — nenhuma mensagem enviada{% else %}Execução concluída{% endif %}
+        </span>
+    </div>
+    <pre class="text-xs font-mono whitespace-pre-wrap text-slate-700 bg-white/70 rounded-lg p-3 border border-white max-h-64 overflow-y-auto">{{ output|default:"(sem saída)" }}{% if error %}
+
+Erro inesperado: {{ error }}{% endif %}</pre>
+</div>
+
+<div id="scheduled-recent-logs-section" hx-swap-oob="true">
+    {% include 'integracoes/collection/partials/scheduled_recent_logs_table.html' %}
+</div>
+
+<script>if (typeof lucide !== 'undefined') lucide.createIcons();</script>

@@ -27,6 +27,7 @@ urlpatterns = [
 
     # Régua de Cobrança — Sequências
     path('regua-cobranca/', views.collection_sequence_list, name='collection_sequence_list'),
+    path('regua-cobranca/executar-agora/', views.collection_sequence_run_now, name='collection_sequence_run_now'),
     path('regua-cobranca/criar/', views.collection_sequence_create, name='collection_sequence_create'),
     path('regua-cobranca/<int:pk>/editar/', views.collection_sequence_edit, name='collection_sequence_edit'),
     path('regua-cobranca/<int:pk>/excluir/', views.collection_sequence_delete, name='collection_sequence_delete'),
@@ -43,6 +44,7 @@ urlpatterns = [
 
     # Lembretes Agendados (envio único)
     path('lembretes/', views.scheduled_reminder_list, name='scheduled_reminder_list'),
+    path('lembretes/executar-agora/', views.scheduled_reminder_run_now, name='scheduled_reminder_run_now'),
     path('lembretes/criar/', views.scheduled_reminder_create, name='scheduled_reminder_create'),
     path('lembretes/<int:pk>/editar/', views.scheduled_reminder_edit, name='scheduled_reminder_edit'),
     path('lembretes/<int:pk>/excluir/', views.scheduled_reminder_delete, name='scheduled_reminder_delete'),
