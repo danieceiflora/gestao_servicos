@@ -57,7 +57,7 @@
                     <button type="button" class="js-dropdown-trigger inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-slate-50">
                         <i data-lucide="more-vertical" class="h-4 w-4 text-slate-500"></i>
                     </button>
-                    <div class="js-dropdown-menu hidden absolute right-0 top-full mt-1.5 w-56 rounded-md border border-slate-200 bg-white p-1 shadow-lg z-50">
+                    <div class="js-dropdown-menu hidden absolute left-0 top-full mt-1.5 w-56 max-w-[calc(100vw-2rem)] rounded-md border border-slate-200 bg-white p-1 shadow-lg z-50">
                         {% if perms.services.change_serviceorder %}
                         <a href="{% url 'service_order_edit' order.id %}" class="flex w-full items-center rounded-sm px-3 py-2 text-sm hover:bg-slate-50 transition-colors text-slate-700 gap-2">
                             <i data-lucide="edit" class="h-4 w-4 text-slate-400"></i> Editar OS

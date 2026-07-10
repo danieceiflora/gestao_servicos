@@ -1136,6 +1136,9 @@
   .max-w-\[320px\] {
     max-width: 320px;
   }
+  .max-w-\[calc\(100vw-2rem\)\] {
+    max-width: calc(100vw - 2rem);
+  }
   .max-w-full {
     max-width: 100%;
   }
