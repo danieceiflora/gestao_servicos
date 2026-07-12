@@ -47,6 +47,7 @@
             hx-target="#run-now-panel"
             hx-swap="innerHTML"
             hx-indicator="#run-now-spinner"
+            data-preserve-submit-button="true"
             class="flex items-center gap-3 flex-none">
         {% csrf_token %}
         <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
