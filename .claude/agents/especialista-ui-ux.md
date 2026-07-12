@@ -1,4 +1,4 @@
-;==1---
+---
 name: Especialista UI/UX Django
 description: Engenheiro Front-End Sênior especializado em Django Templates, TailwindCSS, JS Moderno e focado em excelência de UX/IHC.
 ---

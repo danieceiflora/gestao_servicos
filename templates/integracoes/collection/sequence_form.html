@@ -100,6 +100,27 @@
                     </div>
                 </div>
             </div>
+
+            <div class="pt-2 border-t border-slate-100 space-y-3">
+                <div>
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Intervalo de Vencimento (opcional)</h3>
+                    <p class="text-xs text-slate-500 mt-1">Restringe a régua a parcelas com vencimento dentro deste intervalo. Deixe em branco para considerar parcelas de qualquer vencimento.</p>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label for="id_date_range_start" class="text-sm font-bold text-slate-700">Vencimento a partir de</label>
+                        <input type="date" name="date_range_start" id="id_date_range_start"
+                               value="{{ sequence.date_range_start|date:'Y-m-d'|default:'' }}"
+                               class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    </div>
+                    <div class="space-y-2">
+                        <label for="id_date_range_end" class="text-sm font-bold text-slate-700">Vencimento até</label>
+                        <input type="date" name="date_range_end" id="id_date_range_end"
+                               value="{{ sequence.date_range_end|date:'Y-m-d'|default:'' }}"
+                               class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    </div>
+                </div>
+            </div>
         </div>
 
         {# Botões #}

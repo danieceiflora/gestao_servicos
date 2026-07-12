@@ -182,8 +182,11 @@
                         {{ composition_formset.management_form }}
                         <div id="composition-formset-container" class="space-y-3">
                             {% for cform in composition_formset %}
-                            <div class="composition-form-row flex flex-col bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group">
+                            <div class="composition-hidden-fields hidden">
                                 {{ cform.id }}
+                                {{ cform.DELETE }}
+                            </div>
+                            <div class="composition-form-row flex flex-col bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group">
                                 <div class="flex flex-col md:flex-row gap-4">
                                     <div class="flex-1 space-y-1">
                                         <label class="text-[10px] font-bold text-slate-400 uppercase">Componente</label>
@@ -213,16 +216,59 @@
 
                                     {% if composition_formset.can_delete %}
                                     <div class="flex items-end justify-end pb-1 ml-2">
-                                        <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-red-500 transition-colors">
-                                            {{ cform.DELETE }}
+                                        <button type="button" class="composition-delete-btn p-1.5 text-slate-300 hover:text-red-500 transition-colors" title="Remover componente">
                                             <i data-lucide="trash-2" class="h-4 w-4"></i>
-                                        </label>
+                                        </button>
                                     </div>
                                     {% endif %}
                                 </div>
                             </div>
                             {% endfor %}
                         </div>
+
+                        <template id="composition-empty-form-template">
+                            <div class="composition-hidden-fields hidden">
+                                {{ composition_formset.empty_form.id }}
+                                {{ composition_formset.empty_form.DELETE }}
+                            </div>
+                            <div class="composition-form-row flex flex-col bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group">
+                                <div class="flex flex-col md:flex-row gap-4">
+                                    <div class="flex-1 space-y-1">
+                                        <label class="text-[10px] font-bold text-slate-400 uppercase">Componente</label>
+                                        {{ composition_formset.empty_form.component }}
+                                    </div>
+                                    <div class="w-full md:w-32 space-y-1">
+                                        <label class="text-[10px] font-bold text-slate-400 uppercase">Quantidade</label>
+                                        {{ composition_formset.empty_form.quantity }}
+                                    </div>
+
+                                    {# Info Unitária #}
+                                    <div class="flex flex-row md:flex-col justify-between md:justify-end gap-4 md:gap-1 text-right min-w-[120px]">
+                                        <div class="md:hidden text-[10px] font-bold text-slate-400 uppercase">Valores Unit.</div>
+                                        <div class="flex flex-col">
+                                            <span class="text-[10px] text-slate-400 italic">Custo: R$ <span class="row-unit-cost font-mono">0,00</span></span>
+                                            <span class="text-[10px] text-slate-400 italic">Venda: R$ <span class="row-unit-sales font-mono">0,00</span></span>
+                                        </div>
+                                    </div>
+
+                                    {# Subtotal #}
+                                    <div class="flex flex-row md:flex-col justify-between md:justify-end gap-4 md:gap-1 text-right min-w-[100px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pt-0 md:pl-4">
+                                        <div class="text-[10px] font-bold text-slate-400 uppercase">Subtotal Custo</div>
+                                        <div class="text-sm font-bold text-slate-900 font-mono">
+                                            R$ <span class="row-subtotal-cost">0,00</span>
+                                        </div>
+                                    </div>
+
+                                    {% if composition_formset.can_delete %}
+                                    <div class="flex items-end justify-end pb-1 ml-2">
+                                        <button type="button" class="composition-delete-btn p-1.5 text-slate-300 hover:text-red-500 transition-colors" title="Remover componente">
+                                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </template>
 
                         <button type="button" onclick="addCompositionRow()" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/50 transition-all flex items-center justify-center gap-2 text-sm">
                             <i data-lucide="plus" class="h-4 w-4"></i>
@@ -641,14 +687,6 @@
         let totalVenda = 0;
 
         for (const row of rows) {
-            const deleteInput = row.querySelector('input[name$="-DELETE"]');
-            if (deleteInput && deleteInput.checked) {
-                row.classList.add('opacity-50');
-                continue;
-            } else {
-                row.classList.remove('opacity-50');
-            }
-
             const select = row.querySelector('select.component-select');
             const qtyInput = row.querySelector('input.quantity-input');
 
@@ -716,11 +754,9 @@
             let hasValidComponent = false;
 
             rows.forEach(row => {
-                const deleteInput = row.querySelector('input[name$="-DELETE"]');
-                const isDeleted = deleteInput ? deleteInput.checked : false;
                 const select = row.querySelector('select.component-select');
                 const qty = row.querySelector('input.quantity-input');
-                if (!isDeleted && select.value && parseFloat(qty.value) > 0) {
+                if (select.value && parseFloat(qty.value) > 0) {
                     hasValidComponent = true;
                 }
             });
@@ -757,6 +793,33 @@
         calculateCompositionTotals();
     }
 
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.composition-delete-btn');
+        if (!btn) return;
+
+        if (!confirm('Deseja realmente descartar este componente?')) return;
+
+        const row = btn.closest('.composition-form-row');
+        if (!row) return;
+
+        // Campos ocultos (id/DELETE) ficam num irmão anterior ao card,
+        // para sobreviver à remoção do card e permitir que o Django
+        // efetive a exclusão do componente já salvo no banco.
+        const hiddenFields = row.previousElementSibling;
+        const idInput = hiddenFields ? hiddenFields.querySelector('input[name$="-id"]') : null;
+        const isExisting = idInput && idInput.value;
+
+        if (isExisting) {
+            const deleteInput = hiddenFields.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) deleteInput.checked = true;
+        } else if (hiddenFields) {
+            hiddenFields.remove();
+        }
+
+        row.remove();
+        calculateCompositionTotals();
+    });
+
     function addVariantRow() {
         const container = document.getElementById('variant-formset-container');
         const totalForms = document.getElementById('id_variants-TOTAL_FORMS');
@@ -788,30 +851,18 @@
     function addCompositionRow() {
         const container = document.getElementById('composition-formset-container');
         const totalForms = document.getElementById('id_compositions-TOTAL_FORMS');
+        const templateEl = document.getElementById('composition-empty-form-template');
+        if (!container || !totalForms || !templateEl) return;
+
         const rowCount = parseInt(totalForms.value);
+        const fragment = templateEl.content.cloneNode(true);
 
-        const templateRow = container.querySelector('.composition-form-row');
-        if (!templateRow) return;
-
-        const template = templateRow.cloneNode(true);
-        template.classList.remove('opacity-50');
-
-        const regex = new RegExp(`compositions-(\\d|__prefix__)`, 'g');
-        template.innerHTML = template.innerHTML.replace(regex, `compositions-${rowCount}`);
-
-        template.querySelectorAll('input:not([type=hidden]), select').forEach(input => {
-            input.value = '';
-        });
-        template.querySelectorAll('.row-unit-cost, .row-unit-sales, .row-subtotal-cost').forEach(span => {
-            span.textContent = '0,00';
+        fragment.querySelectorAll('[name], [id]').forEach(el => {
+            if (el.name) el.name = el.name.replace('__prefix__', rowCount);
+            if (el.id) el.id = el.id.replace('__prefix__', rowCount);
         });
 
-        const deleteCheckbox = template.querySelector('input[type=checkbox][name$="-DELETE"]');
-        if (deleteCheckbox) {
-            deleteCheckbox.checked = false;
-        }
-
-        container.appendChild(template);
+        container.appendChild(fragment);
         totalForms.value = rowCount + 1;
 
         lucide.createIcons();

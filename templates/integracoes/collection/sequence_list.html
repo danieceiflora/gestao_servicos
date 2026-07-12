@@ -78,6 +78,14 @@
                     <i data-lucide="timer" class="h-3 w-3 text-slate-400"></i>
                     Mín. {{ sequence.min_interval_days }}d entre envios
                 </span>
+                {% if sequence.date_range_start or sequence.date_range_end %}
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600">
+                    <i data-lucide="calendar-range" class="h-3 w-3 text-slate-400"></i>
+                    Vencimento
+                    {% if sequence.date_range_start %}de {{ sequence.date_range_start|date:"d/m/Y" }}{% endif %}
+                    {% if sequence.date_range_end %}até {{ sequence.date_range_end|date:"d/m/Y" }}{% endif %}
+                </span>
+                {% endif %}
             </div>
 
             {# Pipeline visual inline de etapas #}
@@ -181,16 +189,18 @@
                     <span class="text-sm font-bold">Executar régua agora</span>
                 </div>
                 <p class="text-xs text-slate-500 mt-1">Roda o comando <code class="bg-slate-100 border border-slate-200 rounded px-1">send_collection_reminders</code> imediatamente, para todas as réguas ativas — sem esperar o horário agendado.</p>
+                <p class="text-xs text-slate-500 mt-1">Preenchendo o telefone de teste, as mensagens são enviadas para esse número (não para o cliente real) e nada é gravado no banco — pode rodar quantas vezes quiser sem afetar o disparo real depois.</p>
             </div>
             <form hx-post="{% url 'integracoes:collection_sequence_run_now' %}"
                   hx-target="#run-now-panel"
                   hx-swap="innerHTML"
                   hx-indicator="#run-now-spinner"
-                  class="flex items-center gap-3 flex-none">
+                  class="flex items-center gap-3 flex-none flex-wrap">
                 {% csrf_token %}
-                <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                    <input type="checkbox" name="dry_run" value="1" class="rounded border-slate-300">
-                    Simular (dry-run)
+                <label class="flex flex-col gap-0.5">
+                    <span class="text-[11px] font-medium text-slate-500">Telefone de teste (opcional)</span>
+                    <input type="tel" name="test_phone" placeholder="Ex: 5511999999999"
+                           class="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs w-44 focus:outline-none focus:ring-2 focus:ring-slate-400">
                 </label>
                 <button type="submit"
                         class="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 transition-colors">

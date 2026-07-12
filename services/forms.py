@@ -923,7 +923,7 @@ class ProductCompositionForm(forms.ModelForm):
 ProductCompositionFormSet = inlineformset_factory(
     Product, ProductComposition,
     form=ProductCompositionForm,
-    extra=1,
+    extra=0,
     can_delete=True,
     fk_name='parent'
 )

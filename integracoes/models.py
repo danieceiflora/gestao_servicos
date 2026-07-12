@@ -264,6 +264,15 @@ class CollectionSequence(models.Model):
         'Intervalo mínimo (dias)', default=5,
         help_text='Intervalo mínimo entre cobranças para saúde da conta Meta'
     )
+    date_range_start = models.DateField(
+        'Início do Intervalo de Vencimento', null=True, blank=True,
+        help_text='Se preenchido, a régua só considera parcelas com vencimento a partir desta data.'
+    )
+    date_range_end = models.DateField(
+        'Fim do Intervalo de Vencimento', null=True, blank=True,
+        help_text='Se preenchido, a régua só considera parcelas com vencimento até esta data. '
+                   'Se ambos os campos ficarem em branco, considera parcelas de qualquer vencimento.'
+    )
     is_active = models.BooleanField('Ativo', default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

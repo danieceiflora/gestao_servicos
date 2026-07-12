@@ -686,6 +686,7 @@
         {% endif %}
 
         <div id="hidden-installments-container"></div>
+        <div id="deleted-items-container" class="hidden"></div>
     </form>
 </div>
 
@@ -940,9 +941,20 @@
 
     function removeItem(button) {
         const row = button.closest('.item-row');
+        const idInput = row.querySelector('input[name$="-id"]');
         const deleteInput = row.querySelector('input[name$="-DELETE"]');
-        if (deleteInput) { deleteInput.checked = true; row.classList.add('hidden'); } 
-        else { row.remove(); }
+        const isExisting = idInput && idInput.value;
+
+        if (isExisting && deleteInput) {
+            deleteInput.checked = true;
+            // Move id/DELETE para fora da linha antes de remover, para o Django
+            // efetivar a exclusão real do item já salvo no banco.
+            const preservedContainer = document.getElementById('deleted-items-container');
+            preservedContainer.appendChild(idInput);
+            preservedContainer.appendChild(deleteInput);
+        }
+
+        row.remove();
         updateTotals();
     }
 

@@ -20,15 +20,21 @@ class Command(BaseCommand):
     help = 'Envia lembretes de cobrança conforme as réguas configuradas. Rodar diariamente via cron.'
 
     def add_arguments(self, parser):
-        parser.add_argument('--dry-run', action='store_true',
-                            help='Simula o envio sem despachar mensagens ou gravar logs.')
+        parser.add_argument('--test-phone', type=str, default='',
+                            help='Se informado, envia as mensagens para este número ao invés do '
+                                 'telefone real do cliente, e NÃO grava nada no banco (nem '
+                                 'CollectionLog, nem avanço de estado da régua) — evita que o '
+                                 'disparo real seja pulado depois por já ter "avançado" no teste.')
 
     def handle(self, *args, **options):
-        dry_run = options['dry_run']
+        test_phone = (options.get('test_phone') or '').strip()
         today = local_today()
 
-        if dry_run:
-            self.stdout.write(self.style.WARNING('[DRY-RUN] Nenhuma mensagem será enviada.'))
+        if test_phone:
+            self.stdout.write(self.style.WARNING(
+                f'[TESTE] Mensagens serão enviadas para {test_phone} ao invés do telefone real '
+                f'do cliente. Nenhuma alteração será gravada no banco (sem logs, sem avanço de régua).'
+            ))
 
         sequences = CollectionSequence.objects.filter(is_active=True).prefetch_related('steps__variables')
         self.stdout.write(f'[Régua de Cobrança] {today} — {sequences.count()} régua(s) ativa(s).')
@@ -50,6 +56,10 @@ class Command(BaseCommand):
                 .select_related('billing__client')
                 .prefetch_related('billing__client__phones', 'gateway_charges')
             )
+            if sequence.date_range_start:
+                installments = installments.filter(due_date__gte=sequence.date_range_start)
+            if sequence.date_range_end:
+                installments = installments.filter(due_date__lte=sequence.date_range_end)
 
             for installment in installments:
                 state, _ = CollectionInstallmentState.objects.get_or_create(
@@ -80,7 +90,8 @@ class Command(BaseCommand):
                     skipped += 1
                     continue
 
-                phone = self._resolve_phone(installment)
+                real_phone = self._resolve_phone(installment)
+                phone = test_phone or real_phone
                 if not phone:
                     logger.warning('Régua "%s": parcela #%s sem telefone — ignorada.', sequence.name, installment.pk)
                     skipped += 1
@@ -89,14 +100,6 @@ class Command(BaseCommand):
                 variables = self._resolve_variables(step, installment)
                 contact_name = self._resolve_contact_name(installment)
                 effective_interval = max(sequence.min_interval_days, step.wait_days_before_next)
-
-                if dry_run:
-                    self.stdout.write(
-                        f'  [DRY-RUN] "{sequence.name}" ocorrência #{step.occurrence} → '
-                        f'parcela #{installment.pk} (vence {installment.due_date}) → {phone} vars={variables}'
-                    )
-                    sent += 1
-                    continue
 
                 try:
                     cw_contact = cw_client.create_contact(contact_name, phone)
@@ -115,34 +118,41 @@ class Command(BaseCommand):
                         button_data=button_data,
                     )
 
-                    CollectionLog.objects.create(
-                        installment=installment,
-                        step=step,
-                        occurrence_number=step.occurrence,
-                        phone=phone,
-                        status=CollectionLog.Status.SENT,
-                    )
+                    if test_phone:
+                        # Envio de teste: não grava log nem avança o estado da régua, para não
+                        # "queimar" a ocorrência e pular o disparo real depois.
+                        logger.info('Régua "%s" #%s enviada em modo TESTE para %s (parcela #%s) — sem gravação no banco',
+                                    sequence.name, step.occurrence, phone, installment.pk)
+                    else:
+                        CollectionLog.objects.create(
+                            installment=installment,
+                            step=step,
+                            occurrence_number=step.occurrence,
+                            phone=phone,
+                            status=CollectionLog.Status.SENT,
+                        )
 
-                    state.current_occurrence = step.occurrence
-                    state.last_sent_at = today
-                    state.next_eligible_date = today + timedelta(days=effective_interval)
-                    state.save(update_fields=['current_occurrence', 'last_sent_at', 'next_eligible_date'])
+                        state.current_occurrence = step.occurrence
+                        state.last_sent_at = today
+                        state.next_eligible_date = today + timedelta(days=effective_interval)
+                        state.save(update_fields=['current_occurrence', 'last_sent_at', 'next_eligible_date'])
 
-                    logger.info('Régua "%s" #%s enviada para %s (parcela #%s)',
-                                sequence.name, step.occurrence, phone, installment.pk)
+                        logger.info('Régua "%s" #%s enviada para %s (parcela #%s)',
+                                    sequence.name, step.occurrence, phone, installment.pk)
                     sent += 1
 
                 except Exception as exc:
                     logger.error('Erro na régua "%s" #%s parcela #%s: %s',
                                  sequence.name, step.occurrence, installment.pk, exc)
-                    CollectionLog.objects.create(
-                        installment=installment,
-                        step=step,
-                        occurrence_number=step.occurrence,
-                        phone=phone or '',
-                        status=CollectionLog.Status.FAILED,
-                        notes=str(exc),
-                    )
+                    if not test_phone:
+                        CollectionLog.objects.create(
+                            installment=installment,
+                            step=step,
+                            occurrence_number=step.occurrence,
+                            phone=phone or '',
+                            status=CollectionLog.Status.FAILED,
+                            notes=str(exc),
+                        )
                     failed += 1
 
         self.stdout.write(

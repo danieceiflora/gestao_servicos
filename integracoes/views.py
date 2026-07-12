@@ -1440,11 +1440,15 @@ def collection_sequence_list(request):
 @user_passes_test(lambda u: u.is_staff)
 def collection_sequence_create(request):
     if request.method == 'POST':
+        from django.utils.dateparse import parse_date
+
         name = request.POST.get('name')
         start_after = int(request.POST.get('start_after_days_overdue', 1))
         stop_after = int(request.POST.get('stop_after_days_overdue', 60))
         max_occ = int(request.POST.get('max_occurrences', 3))
         min_interval = int(request.POST.get('min_interval_days', 5))
+        date_range_start = parse_date(request.POST.get('date_range_start', '') or '')
+        date_range_end = parse_date(request.POST.get('date_range_end', '') or '')
 
         seq = CollectionSequence.objects.create(
             name=name,
@@ -1452,6 +1456,8 @@ def collection_sequence_create(request):
             stop_after_days_overdue=stop_after,
             max_occurrences=max_occ,
             min_interval_days=min_interval,
+            date_range_start=date_range_start,
+            date_range_end=date_range_end,
         )
         messages.success(request, f'Régua "{name}" criada! Adicione as etapas abaixo.')
         return redirect('integracoes:collection_sequence_edit', pk=seq.pk)
@@ -1465,11 +1471,15 @@ def collection_sequence_edit(request, pk):
     sequence = get_object_or_404(CollectionSequence, pk=pk)
 
     if request.method == 'POST':
+        from django.utils.dateparse import parse_date
+
         sequence.name = request.POST.get('name')
         sequence.start_after_days_overdue = int(request.POST.get('start_after_days_overdue', 1))
         sequence.stop_after_days_overdue = int(request.POST.get('stop_after_days_overdue', 60))
         sequence.max_occurrences = int(request.POST.get('max_occurrences', 3))
         sequence.min_interval_days = int(request.POST.get('min_interval_days', 5))
+        sequence.date_range_start = parse_date(request.POST.get('date_range_start', '') or '')
+        sequence.date_range_end = parse_date(request.POST.get('date_range_end', '') or '')
         sequence.is_active = request.POST.get('is_active') == 'on'
         sequence.save()
         messages.success(request, 'Régua atualizada!')
@@ -1514,6 +1524,10 @@ def collection_sequence_simulate(request, pk):
         .select_related('billing__client')
         .prefetch_related('billing__client__phones', 'gateway_charges')
     )
+    if sequence.date_range_start:
+        installments = installments.filter(due_date__gte=sequence.date_range_start)
+    if sequence.date_range_end:
+        installments = installments.filter(due_date__lte=sequence.date_range_end)
 
     results = []
     for installment in installments:
@@ -1566,12 +1580,17 @@ def collection_sequence_run_now(request):
     from io import StringIO
     from django.core.management import call_command
 
-    dry_run = request.POST.get('dry_run') == '1'
+    test_phone = request.POST.get('test_phone', '').strip()
 
     out = StringIO()
     error = None
     try:
-        call_command('send_collection_reminders', dry_run=dry_run, stdout=out, no_color=True)
+        call_command(
+            'send_collection_reminders',
+            test_phone=test_phone,
+            stdout=out,
+            no_color=True,
+        )
     except Exception as exc:
         logger.exception('Falha ao executar send_collection_reminders manualmente')
         error = str(exc)
@@ -1585,7 +1604,7 @@ def collection_sequence_run_now(request):
     return render(request, 'integracoes/collection/partials/run_now_result.html', {
         'output': out.getvalue(),
         'error': error,
-        'dry_run': dry_run,
+        'test_phone': test_phone,
         'recent_logs': recent_logs,
     })
 
