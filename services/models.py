@@ -1009,6 +1009,12 @@ class Sale(models.Model):
         CARTAO_DEBITO = 'CARTAO_DEBITO', 'Cartão de Débito'
         CARTAO_CREDITO = 'CARTAO_CREDITO', 'Cartão de Crédito'
 
+    public_token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name="Token da Página Pública",
+    )
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     number = models.PositiveIntegerField(unique=True, null=True, blank=True, verbose_name="Número da Venda")
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
@@ -1096,6 +1102,15 @@ class Sale(models.Model):
 
     def __str__(self):
         return f"Venda #{self.number} - {self.get_status_display()}"
+
+    @property
+    def public_page_path(self):
+        return f"venda/{self.public_token}/"
+
+    @property
+    def public_page_url(self):
+        from django.conf import settings
+        return f"{settings.SITE_URL.rstrip('/')}/venda/{self.public_token}/"
 
     def can_be_edited(self):
         """

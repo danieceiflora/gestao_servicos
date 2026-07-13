@@ -691,24 +691,18 @@ def sale_create(request):
                     sale.total_amount = total - sale.discount + sale.surcharge
                     sale.status = Sale.Status.RASCUNHO if is_draft else Sale.Status.FINALIZADA
                     sale.stock_reduced = not is_draft
-                    sale.save()
 
                     if not is_draft:
-                        from .utils.finance import (
-                            create_billing_for_sale,
-                            parse_installments_from_post,
-                            resolve_charge_config_from_post,
-                        )
+                        from .utils.finance import parse_installments_from_post, resolve_charge_config_from_post
                         installments_data = parse_installments_from_post(request)
                         if installments_data:
-                            charge_config = resolve_charge_config_from_post(request)
-                            billing = create_billing_for_sale(sale, installments_data, charge_config=charge_config)
-                            if charge_config and charge_config.auto_send_to_gateway:
-                                from pagamentos.views import auto_create_charges_for_billing
-                                try:
-                                    auto_create_charges_for_billing(billing)
-                                except Exception:
-                                    logger.exception('Erro ao disparar cobranças automáticas para billing %s', billing.number)
+                            # Anexa antes do save final: o signal handle_sale_creation lê
+                            # esses atributos para criar o billing já com as parcelas certas,
+                            # evitando criar-e-recriar o billing na mesma transação.
+                            sale._pending_installments_data = installments_data
+                            sale._pending_charge_config = resolve_charge_config_from_post(request)
+
+                    sale.save()
 
                     action = "salvo como rascunho" if is_draft else "realizada com sucesso"
                     messages.success(request, f"Venda #{sale.number} {action}!")
@@ -790,24 +784,18 @@ def sale_detail(request, number):
                     sale.total_amount = total - sale.discount + sale.surcharge
                     sale.status = Sale.Status.RASCUNHO if is_draft else Sale.Status.FINALIZADA
                     sale.stock_reduced = not is_draft
-                    sale.save()
 
                     if not is_draft:
-                        from .utils.finance import (
-                            create_billing_for_sale,
-                            parse_installments_from_post,
-                            resolve_charge_config_from_post,
-                        )
+                        from .utils.finance import parse_installments_from_post, resolve_charge_config_from_post
                         installments_data = parse_installments_from_post(request)
                         if installments_data:
-                            charge_config = resolve_charge_config_from_post(request)
-                            billing = create_billing_for_sale(sale, installments_data, charge_config=charge_config)
-                            if charge_config and charge_config.auto_send_to_gateway:
-                                from pagamentos.views import auto_create_charges_for_billing
-                                try:
-                                    auto_create_charges_for_billing(billing)
-                                except Exception:
-                                    logger.exception('Erro ao disparar cobranças automáticas para billing %s', billing.number)
+                            # Anexa antes do save final: o signal handle_sale_creation lê
+                            # esses atributos para criar o billing já com as parcelas certas,
+                            # evitando criar-e-recriar o billing na mesma transação.
+                            sale._pending_installments_data = installments_data
+                            sale._pending_charge_config = resolve_charge_config_from_post(request)
+
+                    sale.save()
 
                     messages.success(request, f"Venda #{sale.number} atualizada com sucesso!")
                     return redirect('sale_detail', number=sale.number)
@@ -2551,6 +2539,33 @@ def payment_attachment_delete(request, pk):
     return redirect('expense_list')
 
 
+# ── PÁGINA PÚBLICA DE VENDA ───────────────────────────────────────────────────
+
+def public_sale_page(request, token):
+    from integracoes.models import SystemConfig
+    from django.urls import reverse
+
+    sale = get_object_or_404(Sale, public_token=token)
+    config = SystemConfig.objects.first()
+
+    items = list(sale.items.select_related('product'))
+
+    billing = getattr(sale, 'billing', None)
+    billing_url = None
+    is_paid = False
+    if billing:
+        billing_url = reverse('public_billing_page', args=[billing.public_token])
+        is_paid = billing.get_remaining_balance() <= 0
+
+    return render(request, 'services/public/sale_page.html', {
+        'sale': sale,
+        'config': config,
+        'items': items,
+        'billing_url': billing_url,
+        'is_paid': is_paid,
+    })
+
+
 # ── PÁGINA PÚBLICA DE PAGAMENTO ──────────────────────────────────────────────
 
 def public_billing_page(request, token):
@@ -2666,7 +2681,16 @@ def public_billing_generate_charge(request, token):
             if existing:
                 return render(request, 'services/public/partials/charge_result.html', {'charge': existing})
 
+            from pagamentos.views import _charge_config_to_kwargs
+
             gw = AsaasGateway()
+            billing_config = billing.charge_config
+            charge_kwargs = {}
+            if billing_config:
+                is_cash = billing.installments.count() == 1
+                apply_discount = billing_config.discount_applies_to_installments or is_cash
+                charge_kwargs = _charge_config_to_kwargs(billing_config, apply_discount)
+
             charge_data = ChargeData(
                 customer_name=client.name,
                 customer_document=client_doc,
@@ -2676,6 +2700,7 @@ def public_billing_generate_charge(request, token):
                 due_date=installment.due_date,
                 method=method,
                 external_reference=str(installment.pk),
+                **charge_kwargs,
             )
             result = gw.create_charge(charge_data, wallet_id=gateway_config.wallet_id)
 
@@ -2694,6 +2719,9 @@ def public_billing_generate_charge(request, token):
                 boleto_barcode=result.boleto_barcode,
                 invoice_url=result.invoice_url,
                 invoice_number=result.invoice_number,
+                discount_type=charge_kwargs.get('discount_type') or '',
+                discount_value=charge_kwargs.get('discount_value') or Decimal('0'),
+                discount_due_days=charge_kwargs.get('discount_due_days') or 0,
             )
         return render(request, 'services/public/partials/charge_result.html', {'charge': charge})
 

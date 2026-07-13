@@ -20,6 +20,7 @@ urlpatterns = [
     path('os/<uuid:token>/pdf/relatorio/', views.public_os_pdf_report, name='public_os_pdf_report'),
     path('pagar/<uuid:token>/', views_finance.public_billing_page, name='public_billing_page'),
     path('pagar/<uuid:token>/gerar-cobranca/', views_finance.public_billing_generate_charge, name='public_billing_generate_charge'),
+    path('venda/<uuid:token>/', views_finance.public_sale_page, name='public_sale_page'),
     path('', views.home, name='home'),
     path('financeiro/', views_finance.finance_dashboard, name='finance_dashboard'),
     path('financeiro/comissoes/', views_finance.finance_commissions, name='finance_commissions'),

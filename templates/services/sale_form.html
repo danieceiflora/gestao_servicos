@@ -130,6 +130,13 @@
         <div class="flex items-center gap-3">
             <a href="{% url 'sale_list' %}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-md transition-colors">Voltar</a>
 
+            {% if is_detail %}
+            <a href="{% url 'public_sale_page' sale.public_token %}" target="_blank"
+               class="px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50 border border-emerald-200 bg-emerald-50 rounded-md transition-colors flex items-center gap-2">
+                <i data-lucide="external-link" class="w-4 h-4"></i> PÁG. DO CLIENTE
+            </a>
+            {% endif %}
+
             {% if is_detail and sale.status != 'CANCELADO' %}
             <form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="return confirm('Tem certeza que deseja cancelar esta venda? O estoque será estornado.')">
                 {% csrf_token %}

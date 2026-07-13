@@ -254,6 +254,19 @@ class GatewayCharge(models.Model):
     net_value = models.DecimalField('Valor Líquido', max_digits=10, decimal_places=2,
                                     null=True, blank=True)
 
+    # Desconto por antecipação — copiado da BillingChargeConfig no momento da criação da
+    # cobrança, para que a página pública possa exibir "pague R$ X até dd/mm" sem depender
+    # de a regra de cobrança ainda existir/estar inalterada depois.
+    discount_type = models.CharField('Tipo de Desconto', max_length=15,
+                                     choices=BillingChargeConfig.DiscountType.choices,
+                                     default=BillingChargeConfig.DiscountType.NONE, blank=True)
+    discount_value = models.DecimalField('Valor do Desconto', max_digits=10, decimal_places=2,
+                                         default=Decimal('0'))
+    discount_due_days = models.IntegerField(
+        'Prazo do Desconto (dias antes do vencimento)', default=0,
+        help_text='0 = desconto válido até o próprio vencimento'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -272,3 +285,25 @@ class GatewayCharge(models.Model):
     @property
     def is_active(self):
         return self.status in [self.Status.PENDING, self.Status.OVERDUE]
+
+    @property
+    def discount_amount(self):
+        """Valor do desconto por antecipação, em reais."""
+        if not self.discount_type or self.discount_type == BillingChargeConfig.DiscountType.NONE or self.discount_value <= 0:
+            return Decimal('0')
+        if self.discount_type == BillingChargeConfig.DiscountType.PERCENTAGE:
+            return (self.amount * self.discount_value / Decimal('100')).quantize(Decimal('0.01'))
+        return min(self.discount_value, self.amount)
+
+    @property
+    def discounted_amount(self):
+        """Valor a pagar se quitado até discount_deadline."""
+        return self.amount - self.discount_amount
+
+    @property
+    def discount_deadline(self):
+        """Data-limite para pagar com desconto, ou None se não houver desconto configurado."""
+        if self.discount_amount <= 0:
+            return None
+        from datetime import timedelta
+        return self.due_date - timedelta(days=self.discount_due_days)

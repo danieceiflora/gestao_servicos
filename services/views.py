@@ -2329,7 +2329,16 @@ def public_os_generate_charge(request, token):
     description = f'OS #{order.number} — Etapa {task.pk} — {company}' if company else f'OS #{order.number} — Etapa {task.pk}'
 
     try:
+        from pagamentos.views import _charge_config_to_kwargs
+
         gw = AsaasGateway()
+        billing_config = billing.charge_config
+        charge_kwargs = {}
+        if billing_config:
+            is_cash = billing.installments.count() == 1
+            apply_discount = billing_config.discount_applies_to_installments or is_cash
+            charge_kwargs = _charge_config_to_kwargs(billing_config, apply_discount)
+
         charge_data = ChargeData(
             customer_name=client.name,
             customer_document=client_doc,
@@ -2339,6 +2348,7 @@ def public_os_generate_charge(request, token):
             due_date=installment.due_date,
             method=method,
             external_reference=str(installment.pk),
+            **charge_kwargs,
         )
         result = gw.create_charge(charge_data, wallet_id=gateway_config.wallet_id)
 
@@ -2356,6 +2366,9 @@ def public_os_generate_charge(request, token):
             boleto_url=result.boleto_url,
             boleto_barcode=result.boleto_barcode,
             invoice_url=result.invoice_url,
+            discount_type=charge_kwargs.get('discount_type') or '',
+            discount_value=charge_kwargs.get('discount_value') or Decimal('0'),
+            discount_due_days=charge_kwargs.get('discount_due_days') or 0,
         )
 
         return render(request, 'services/public/partials/charge_result.html', {'charge': charge})

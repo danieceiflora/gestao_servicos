@@ -239,6 +239,9 @@ def installment_create_charge(request, installment_pk):
                 boleto_barcode=result.boleto_barcode,
                 invoice_url=result.invoice_url,
                 invoice_number=result.invoice_number,
+                discount_type=charge_kwargs.get('discount_type') or '',
+                discount_value=charge_kwargs.get('discount_value') or Decimal('0'),
+                discount_due_days=charge_kwargs.get('discount_due_days') or 0,
             )
         messages.success(request, f'{method} gerado com sucesso!')
     except Exception as e:
@@ -322,6 +325,9 @@ def installment_update(request, installment_pk):
                 active_charge.boleto_barcode = result.boleto_barcode
                 active_charge.invoice_url = result.invoice_url
                 active_charge.invoice_number = result.invoice_number
+                active_charge.discount_type = charge_kwargs.get('discount_type') or ''
+                active_charge.discount_value = charge_kwargs.get('discount_value') or Decimal('0')
+                active_charge.discount_due_days = charge_kwargs.get('discount_due_days') or 0
                 active_charge.save()
 
             locked.due_date = new_due_date
@@ -673,6 +679,9 @@ def auto_create_charges_for_billing(billing):
                     boleto_barcode=result.boleto_barcode,
                     invoice_url=result.invoice_url,
                     invoice_number=result.invoice_number,
+                    discount_type=charge_kwargs.get('discount_type') or '',
+                    discount_value=charge_kwargs.get('discount_value') or Decimal('0'),
+                    discount_due_days=charge_kwargs.get('discount_due_days') or 0,
                 )
         except Exception:
             logger.exception('auto_create_charges_for_billing: erro ao criar cobrança para parcela %s', installment.pk)
