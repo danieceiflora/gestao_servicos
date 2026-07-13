@@ -54,6 +54,12 @@ def handle_dynamic_notifications(sender, instance, created, **kwargs):
                 try:
                     fresh = sender_cls.objects.get(pk=pk)
                     dispatch_dynamic_notification(fresh, 'CRIAR')
+                    # Registro pode já nascer com o status-alvo de uma regra de MUDANCA_STATUS
+                    # (ex: task criada direto como CONCLUIDO). Dispara também nesse caso,
+                    # tratando old_status=None — regras com from_status preenchido não
+                    # disparam aqui (não existe "origem" numa criação).
+                    if getattr(fresh, 'status', None):
+                        dispatch_dynamic_notification(fresh, 'MUDANCA_STATUS', old_status=None)
                 except Exception as e:
                     logger.error(f"Erro ao processar notificação CRIAR para {sender_cls.__name__}: {e}")
             transaction.on_commit(_dispatch_criar)

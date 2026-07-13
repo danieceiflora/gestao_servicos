@@ -91,6 +91,12 @@ class AsaasGateway(BasePaymentGateway):
         self._raise_for_status(resp)
         return resp.json()
 
+    def _put(self, path, data, api_key: str = None):
+        url = f'{self.base_url}/{path.lstrip("/")}'
+        resp = requests.put(url, headers=self._headers(api_key), json=data, timeout=self._TIMEOUT)
+        self._raise_for_status(resp)
+        return resp.json()
+
     def _delete(self, path):
         url = f'{self.base_url}/{path.lstrip("/")}'
         resp = requests.delete(url, headers=self._headers(), timeout=self._TIMEOUT)
@@ -237,6 +243,14 @@ class AsaasGateway(BasePaymentGateway):
             invoice_number=str(result.get('invoiceNumber', '') or ''),
         )
 
+        self._populate_charge_artifacts(charge, charge_id, billing_type, result)
+
+        return charge
+
+    def _populate_charge_artifacts(self, charge: ChargeResult, charge_id: str, billing_type: str, result: dict):
+        """Preenche QR Code PIX ou linha digitável do boleto a partir da resposta do
+        Asaas — usado após criar ou atualizar uma cobrança (o Asaas regenera esses
+        artefatos quando a data/valor mudam)."""
         if billing_type == 'PIX':
             try:
                 pix = self._get(f'payments/{charge_id}/pixQrCode')
@@ -253,6 +267,45 @@ class AsaasGateway(BasePaymentGateway):
                 charge.boleto_barcode = ident.get('identificationField', '')
             except Exception:
                 logger.warning(f'Não foi possível obter código de barras para {charge_id}')
+
+    def update_charge(self, external_id: str, data: ChargeData) -> ChargeResult:
+        """Atualiza valor/vencimento (e desconto/juros/multa) de uma cobrança já
+        existente — PUT /payments/{id} do Asaas. Mantém a mesma cobrança (mesmo
+        boleto/PIX, mesmo external_id); não recria nem envia customer/billingType/split,
+        que não mudam numa atualização."""
+        billing_type = 'PIX' if data.method == 'PIX' else 'BOLETO'
+        payload = {
+            'value': float(data.amount),
+            'dueDate': data.due_date.strftime('%Y-%m-%d'),
+            'description': data.description,
+        }
+
+        if data.discount_type and data.discount_type != 'NONE' and data.discount_value > 0:
+            payload['discount'] = {
+                'value': float(round(data.discount_value, 2)),
+                'dueDateLimitDays': data.discount_due_days,
+                'type': data.discount_type,
+            }
+        if data.interest_monthly > 0:
+            payload['interest'] = {'value': float(round(data.interest_monthly, 2))}
+        if data.fine_type and data.fine_type != 'NONE' and data.fine_value > 0:
+            payload['fine'] = {
+                'value': float(round(data.fine_value, 2)),
+                'type': data.fine_type,
+            }
+
+        result = self._put(f'payments/{external_id}', payload)
+
+        charge = ChargeResult(
+            external_id=external_id,
+            status=STATUS_MAP.get(result.get('status', ''), 'PENDING'),
+            method=data.method,
+            amount=Decimal(str(result['value'])),
+            due_date=data.due_date,
+            invoice_url=result.get('invoiceUrl', ''),
+            invoice_number=str(result.get('invoiceNumber', '') or ''),
+        )
+        self._populate_charge_artifacts(charge, external_id, billing_type, result)
 
         return charge
 

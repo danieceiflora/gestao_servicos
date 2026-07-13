@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.contrib import messages
@@ -244,6 +244,96 @@ def installment_create_charge(request, installment_pk):
     except Exception as e:
         logger.exception('Erro ao criar cobrança no gateway')
         messages.error(request, f'Erro ao gerar cobrança: {e}')
+
+    return redirect('billing_detail', pk=installment.billing_id)
+
+
+@login_required
+@user_passes_test(is_manager)
+@require_POST
+def installment_update(request, installment_pk):
+    """Edita vencimento/valor de uma parcela já gerada. Se houver uma cobrança
+    PENDING/OVERDUE ativa no gateway, atualiza a mesma cobrança (mesmo boleto/PIX)
+    em vez de cancelar e reemitir."""
+    from datetime import date as date_type
+    from core.tz_utils import local_today
+
+    installment = get_object_or_404(Installment, pk=installment_pk)
+
+    if installment.status in [Installment.Status.PAGO, Installment.Status.CANCELADO]:
+        messages.error(request, 'Não é possível editar uma parcela paga ou cancelada.')
+        return redirect('billing_detail', pk=installment.billing_id)
+
+    due_date_str = request.POST.get('due_date', '').strip()
+    amount_str = request.POST.get('amount', '0').replace(',', '.').strip()
+    try:
+        new_due_date = date_type.fromisoformat(due_date_str)
+        new_amount = Decimal(amount_str)
+    except (ValueError, InvalidOperation):
+        messages.error(request, 'Data ou valor inválido.')
+        return redirect('billing_detail', pk=installment.billing_id)
+
+    if new_amount <= 0:
+        messages.error(request, 'O valor deve ser maior que zero.')
+        return redirect('billing_detail', pk=installment.billing_id)
+
+    already_paid = installment.get_total_paid()
+    if new_amount < already_paid:
+        messages.error(request, f'O valor não pode ser menor que o já recebido (R$ {already_paid}).')
+        return redirect('billing_detail', pk=installment.billing_id)
+
+    active_charge = installment.gateway_charges.filter(
+        status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.OVERDUE]
+    ).order_by('-created_at').first()
+
+    try:
+        with transaction.atomic():
+            locked = Installment.objects.select_for_update().get(pk=installment.pk)
+
+            if active_charge:
+                gw = _get_gateway()
+                client = locked.billing.client
+                billing_config = locked.billing.charge_config
+                charge_kwargs = {}
+                if billing_config:
+                    is_cash = locked.billing.installments.count() == 1
+                    apply_discount = billing_config.discount_applies_to_installments or is_cash
+                    charge_kwargs = _charge_config_to_kwargs(billing_config, apply_discount)
+                data = ChargeData(
+                    customer_name=client.name,
+                    customer_document=client.document or '',
+                    customer_email=client.emails.values_list('email', flat=True).first() or '',
+                    description=_charge_description(f'Parcela {locked.installment_number} — Cobrança #{locked.billing.number}'),
+                    amount=new_amount,
+                    due_date=new_due_date,
+                    method=active_charge.method,
+                    external_reference=str(locked.pk),
+                    **charge_kwargs,
+                )
+                result = gw.update_charge(active_charge.external_id, data)
+
+                active_charge.status = result.status
+                active_charge.amount = result.amount
+                active_charge.due_date = result.due_date
+                active_charge.pix_qrcode = result.pix_qrcode
+                active_charge.pix_copy_paste = result.pix_copy_paste
+                active_charge.pix_expiration_date = result.pix_expiration_date
+                active_charge.boleto_url = result.boleto_url
+                active_charge.boleto_barcode = result.boleto_barcode
+                active_charge.invoice_url = result.invoice_url
+                active_charge.invoice_number = result.invoice_number
+                active_charge.save()
+
+            locked.due_date = new_due_date
+            locked.amount = new_amount
+            if locked.status == Installment.Status.ATRASADO and new_due_date >= local_today():
+                locked.status = Installment.Status.PENDENTE
+            locked.save()
+
+        messages.success(request, 'Parcela atualizada com sucesso.')
+    except Exception as e:
+        logger.exception('Erro ao atualizar parcela/cobrança no gateway')
+        messages.error(request, f'Erro ao atualizar: {e}')
 
     return redirect('billing_detail', pk=installment.billing_id)
 

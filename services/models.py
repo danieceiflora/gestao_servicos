@@ -909,6 +909,12 @@ class Installment(models.Model):
         return self.gateway_charges.filter(status='PENDING').order_by('-created_at').first()
 
     @property
+    def editable_gateway_charge(self):
+        """Cobrança PENDING ou OVERDUE mais recente — a que seria atualizada no
+        gateway se o vencimento/valor desta parcela for editado."""
+        return self.gateway_charges.filter(status__in=['PENDING', 'OVERDUE']).order_by('-created_at').first()
+
+    @property
     def gateway_pix_code(self):
         charge = self.active_gateway_charge
         if charge and charge.method == 'PIX':

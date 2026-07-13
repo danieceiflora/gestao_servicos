@@ -83,6 +83,12 @@ class BasePaymentGateway(ABC):
         ...
 
     @abstractmethod
+    def update_charge(self, external_id: str, data: ChargeData) -> ChargeResult:
+        """Atualiza valor/vencimento (e desconto/juros/multa) de uma cobrança já
+        existente, mantendo a mesma identidade (mesmo boleto/PIX)."""
+        ...
+
+    @abstractmethod
     def get_charge(self, external_id: str) -> ChargeResult:
         ...
 

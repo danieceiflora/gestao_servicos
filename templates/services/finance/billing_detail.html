@@ -153,6 +153,15 @@
                             {% endwith %}
                         </div>
 
+                        {% if inst.status != 'PAGO' and inst.status != 'CANCELADO' %}
+                        <button type="button"
+                                onclick="openEditModal('{{ inst.id }}', '{{ inst.due_date|date:'Y-m-d' }}', '{{ inst.amount|stringformat:'.2f' }}', '{{ inst.installment_number }}', {% if inst.editable_gateway_charge %}true{% else %}false{% endif %}, '{{ inst.editable_gateway_charge.get_method_display|default:'' }}')"
+                                class="p-2 text-slate-400 hover:text-slate-900 transition-colors rounded-lg hover:bg-slate-100"
+                                title="Editar vencimento/valor">
+                            <i data-lucide="pencil" class="h-4 w-4"></i>
+                        </button>
+                        {% endif %}
+
                         {% if inst.status == 'PAGO' %}
                             <div class="flex flex-col items-end gap-1">
                                 <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-700">Quitada</span>
@@ -452,6 +461,39 @@
     </div>
 </div>
 
+<!-- Modal de Edição de Parcela -->
+<div id="edit-installment-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div class="p-8">
+            <h3 class="text-xl font-black text-slate-900 tracking-tighter mb-1">Editar Parcela</h3>
+            <p id="edit-modal-desc" class="text-sm text-slate-500 font-medium mb-6"></p>
+
+            <div id="edit-modal-gateway-note" class="hidden text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6">
+                Esta parcela tem uma cobrança <strong id="edit-modal-gateway-method"></strong> ativa no gateway —
+                ela será atualizada com a nova data/valor (mesmo boleto/PIX, sem reemitir).
+            </div>
+
+            <form id="edit-installment-form" method="POST" class="space-y-4">
+                {% csrf_token %}
+                <div class="space-y-1.5">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vencimento</label>
+                    <input type="date" name="due_date" id="edit-due-date" required
+                           class="w-full bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Valor</label>
+                    <input type="number" step="0.01" name="amount" id="edit-amount" required
+                           class="w-full bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                </div>
+                <div class="flex gap-3 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="closeEditModal()" class="flex-1 px-6 py-3 rounded-2xl text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all">Cancelar</button>
+                    <button type="submit" class="flex-[2] bg-slate-900 text-white px-6 py-3 rounded-2xl text-xs font-black hover:bg-slate-800 transition-all shadow-xl active:scale-95 uppercase tracking-widest">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Modal de QR Code PIX -->
 <div id="pix-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -574,6 +616,34 @@
         document.getElementById('pay-modal').classList.add('hidden');
     }
 
+    /* ---- Modal de Edição de Parcela ---- */
+    function openEditModal(id, dueDate, amount, number, hasActiveCharge, method) {
+        const modal = document.getElementById('edit-installment-modal');
+        const form = document.getElementById('edit-installment-form');
+        const note = document.getElementById('edit-modal-gateway-note');
+
+        document.getElementById('edit-modal-desc').textContent = `Parcela #${number}`;
+        document.getElementById('edit-due-date').value = dueDate;
+        document.getElementById('edit-amount').value = amount;
+
+        if (hasActiveCharge) {
+            document.getElementById('edit-modal-gateway-method').textContent = method;
+            note.classList.remove('hidden');
+        } else {
+            note.classList.add('hidden');
+        }
+
+        form.action = "{% url 'pagamentos:installment_update' installment_pk=0 %}".replace('/0/editar/', `/${id}/editar/`);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closeEditModal() {
+        document.getElementById('edit-installment-modal').classList.add('hidden');
+        document.getElementById('edit-installment-modal').classList.remove('flex');
+    }
+
     /* ---- Modal PIX ---- */
     function openPixFromBtn(btn) {
         openPixModal(btn.dataset.pixId, btn.dataset.pixQr, btn.dataset.pixCopy);
@@ -615,7 +685,7 @@
 
     // Fecha modais com ESC
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { closePayModal(); closePixModal(); }
+        if (e.key === 'Escape') { closePayModal(); closePixModal(); closeEditModal(); }
     });
 
     /* ---- Link público de pagamento ---- */
