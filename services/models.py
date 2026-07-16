@@ -916,22 +916,32 @@ class Installment(models.Model):
 
     @property
     def gateway_pix_code(self):
-        charge = self.active_gateway_charge
+        # Usa editable_gateway_charge (PENDING/OVERDUE) e não active_gateway_charge (só PENDING):
+        # a régua de cobrança dispara justamente para parcelas já vencidas, cuja cobrança no
+        # gateway normalmente já virou OVERDUE — mas o código Pix continua válido para pagamento.
+        charge = self.editable_gateway_charge
         if charge and charge.method == 'PIX':
             return charge.pix_copy_paste or ''
         return ''
 
     @property
     def gateway_payment_link(self):
-        charge = self.active_gateway_charge
+        charge = self.editable_gateway_charge
         return charge.invoice_url if charge else ''
 
     @property
     def gateway_boleto_barcode(self):
-        charge = self.active_gateway_charge
+        charge = self.editable_gateway_charge
         if charge and charge.method == 'BOLETO':
             return charge.boleto_barcode or ''
         return ''
+
+    @property
+    def has_gateway_charge(self):
+        """True se a parcela tem uma cobrança ativa (PENDING/OVERDUE) gerada via gateway
+        (Pix/Boleto automático) — usado para decidir qual variante de template WhatsApp
+        usar nas réguas de cobrança e lembretes."""
+        return self.editable_gateway_charge is not None
 
     @property
     def manual_actual_payments(self):

@@ -1486,6 +1486,18 @@ def collection_sequence_edit(request, pk):
         return redirect('integracoes:collection_sequence_list')
 
     steps = sequence.steps.prefetch_related('variables').all()
+
+    # Ocorrências com apenas uma variante COM_GATEWAY/SEM_GATEWAY cadastrada, sem ANY nem a
+    # variante complementar: parcelas do lado "faltante" ficam sem etapa para essa ocorrência.
+    from collections import defaultdict
+    by_occurrence = defaultdict(set)
+    for s in steps:
+        by_occurrence[s.occurrence].add(s.applies_to)
+    incomplete_occurrences = {
+        occ for occ, variants in by_occurrence.items()
+        if 'ANY' not in variants and len(variants) == 1 and variants != {'ANY'}
+    }
+
     recent_logs = (
         CollectionLog.objects
         .filter(step__sequence=sequence)
@@ -1495,6 +1507,7 @@ def collection_sequence_edit(request, pk):
     return render(request, 'integracoes/collection/sequence_form.html', {
         'sequence': sequence,
         'steps': steps,
+        'incomplete_occurrences': incomplete_occurrences,
         'recent_logs': recent_logs,
     })
 
@@ -1505,7 +1518,7 @@ def collection_sequence_simulate(request, pk):
     """Simula o disparo da régua para hoje e retorna tabela de resultados via HTMX."""
     from datetime import timedelta
     from integracoes.models import CollectionInstallmentState
-    from integracoes.utils import get_client_phone
+    from integracoes.utils import get_client_phone, select_next_collection_step
     from services.models import Installment
 
     sequence = get_object_or_404(CollectionSequence, pk=pk)
@@ -1544,7 +1557,8 @@ def collection_sequence_simulate(request, pk):
             skip_reason = f'Aguardando até {state.next_eligible_date.strftime("%d/%m")}'
 
         current_occ = state.current_occurrence if state else 0
-        step = sequence.steps.filter(occurrence__gt=current_occ).order_by('occurrence').first()
+        has_gateway = installment.has_gateway_charge
+        step = select_next_collection_step(sequence, current_occ, has_gateway)
         if not step and not skip_reason:
             skip_reason = 'Sem próxima etapa'
 
@@ -1557,6 +1571,7 @@ def collection_sequence_simulate(request, pk):
             'phone': phone,
             'step': step,
             'state': state,
+            'has_gateway': has_gateway,
             'skip_reason': skip_reason,
             'would_send': not skip_reason and bool(phone) and bool(step),
         })
@@ -1631,6 +1646,7 @@ def collection_step_create(request, seq_pk):
         label = request.POST.get('label', '')
         template_name = request.POST.get('template_name')
         wait_days = int(request.POST.get('wait_days_before_next', 7))
+        applies_to = request.POST.get('applies_to', CollectionStep.GatewayRequirement.ANY)
 
         step = CollectionStep.objects.create(
             sequence=sequence,
@@ -1638,6 +1654,7 @@ def collection_step_create(request, seq_pk):
             label=label,
             template_name=template_name,
             wait_days_before_next=wait_days,
+            applies_to=applies_to,
         )
 
         for i, path in zip(request.POST.getlist('var_index[]'), request.POST.getlist('var_path[]')):
@@ -1654,6 +1671,7 @@ def collection_step_create(request, seq_pk):
         'sequence': sequence,
         'templates': templates,
         'next_occurrence': next_occurrence,
+        'gateway_requirement_choices': CollectionStep.GatewayRequirement.choices,
     })
 
 
@@ -1668,6 +1686,7 @@ def collection_step_edit(request, pk):
         step.label = request.POST.get('label', '')
         step.template_name = request.POST.get('template_name')
         step.wait_days_before_next = int(request.POST.get('wait_days_before_next', 7))
+        step.applies_to = request.POST.get('applies_to', CollectionStep.GatewayRequirement.ANY)
         step.save()
 
         step.variables.all().delete()
@@ -1686,6 +1705,7 @@ def collection_step_edit(request, pk):
         'sequence': step.sequence,
         'templates': templates,
         'next_occurrence': step.occurrence,
+        'gateway_requirement_choices': CollectionStep.GatewayRequirement.choices,
     })
 
 

@@ -287,10 +287,24 @@ class CollectionSequence(models.Model):
 
 
 class CollectionStep(models.Model):
+    class GatewayRequirement(models.TextChoices):
+        ANY         = 'ANY',         'Qualquer cobrança'
+        COM_GATEWAY = 'COM_GATEWAY', 'Somente com cobrança no gateway (Pix/Boleto automático)'
+        SEM_GATEWAY = 'SEM_GATEWAY', 'Somente sem cobrança no gateway (pagamento manual)'
+
     sequence = models.ForeignKey(CollectionSequence, on_delete=models.CASCADE, related_name='steps')
     occurrence = models.PositiveIntegerField('Nº da Ocorrência', help_text='1 = primeira cobrança, 2 = segunda, etc.')
     label = models.CharField('Tom / Descrição', max_length=200, blank=True, help_text='Ex: Tom amigável, Tom firme')
     template_name = models.CharField('Template WhatsApp (Meta)', max_length=200)
+    applies_to = models.CharField(
+        'Aplica-se a', max_length=15,
+        choices=GatewayRequirement.choices, default=GatewayRequirement.ANY,
+        help_text='Um template com botão de Pix/copiar código não pode ser reaproveitado para '
+                   'parcelas sem cobrança no gateway (o botão é fixo no template aprovado pela Meta). '
+                   'Cadastre duas etapas para a mesma ocorrência — uma "Somente com gateway" e outra '
+                   '"Somente sem gateway" — para usar templates diferentes conforme o caso. Deixe '
+                   '"Qualquer cobrança" se o mesmo template serve para os dois casos.'
+    )
     wait_days_before_next = models.PositiveIntegerField(
         'Aguardar antes da próxima (dias)', default=7,
         help_text='Dias a aguardar após este envio antes de enviar a próxima etapa'
@@ -299,7 +313,7 @@ class CollectionStep(models.Model):
     class Meta:
         verbose_name = 'Etapa da Régua'
         verbose_name_plural = 'Etapas da Régua'
-        unique_together = ('sequence', 'occurrence')
+        unique_together = ('sequence', 'occurrence', 'applies_to')
         ordering = ['occurrence']
 
     def __str__(self):

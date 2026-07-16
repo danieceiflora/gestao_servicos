@@ -51,7 +51,39 @@
             </div>
         </div>
 
-        {# ===== Bloco 2: Template WhatsApp ===== #}
+        {# ===== Bloco 2: Aplica-se a (variante de gateway) ===== #}
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Aplica-se a</h2>
+
+            <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-500 flex items-start gap-2">
+                <i data-lucide="info" class="h-4 w-4 mt-0.5 shrink-0 text-slate-400"></i>
+                <span>
+                    Um template com botão de copiar código Pix é fixo — não dá pra reaproveitá-lo para
+                    parcelas sem cobrança no gateway (o botão ficaria vazio/quebrado). Se esta ocorrência
+                    precisa de mensagens diferentes conforme o caso, cadastre <strong class="text-slate-700">duas etapas
+                    com o mesmo número de ocorrência</strong>: uma "Somente com gateway" (aponta pro template com
+                    botão Pix) e outra "Somente sem gateway" (aponta pro template sem esse botão).
+                </span>
+            </div>
+
+            <div class="space-y-2">
+                <label for="id_applies_to" class="text-sm font-bold text-slate-700">Quando usar esta etapa</label>
+                <select name="applies_to" id="id_applies_to"
+                        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    {% for value, display in gateway_requirement_choices %}
+                    <option value="{{ value }}" {% if step.applies_to == value or not step and value == 'ANY' %}selected{% endif %}>
+                        {{ display }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-slate-400">
+                    "Qualquer cobrança" dispara para todas as parcelas nesta ocorrência, com o mesmo template.
+                    Use as opções "Somente com/sem gateway" apenas quando precisar de templates diferentes.
+                </p>
+            </div>
+        </div>
+
+        {# ===== Bloco 3: Template WhatsApp ===== #}
         <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
             <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Mensagem (Template WhatsApp)</h2>
 
@@ -89,7 +121,7 @@
             </div>
         </div>
 
-        {# ===== Bloco 3: Intervalo de Espera ===== #}
+        {# ===== Bloco 4: Intervalo de Espera ===== #}
         <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-5">
             <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Intervalo para Próxima Cobrança</h2>
 

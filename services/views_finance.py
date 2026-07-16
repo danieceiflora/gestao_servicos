@@ -2563,7 +2563,20 @@ def public_sale_page(request, token):
         'items': items,
         'billing_url': billing_url,
         'is_paid': is_paid,
+        'sale_pdf_url': reverse('public_sale_pdf', args=[sale.public_token]),
     })
+
+
+def public_sale_pdf(request, token):
+    from .utils.pdf_generator import SalePDFGenerator
+
+    sale = get_object_or_404(Sale, public_token=token)
+    generator = SalePDFGenerator(sale)
+    pdf_content = generator.generate()
+
+    response = HttpResponse(pdf_content, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="Venda_{sale.number}.pdf"'
+    return response
 
 
 # ── PÁGINA PÚBLICA DE PAGAMENTO ──────────────────────────────────────────────

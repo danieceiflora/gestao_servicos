@@ -24,6 +24,7 @@
           <th class="px-4 py-2.5">Cliente</th>
           <th class="px-4 py-2.5">Parcela</th>
           <th class="px-4 py-2.5">Vencimento</th>
+          <th class="px-4 py-2.5">Cobrança</th>
           <th class="px-4 py-2.5">Telefone</th>
           <th class="px-4 py-2.5">Etapa</th>
           <th class="px-4 py-2.5">Resultado</th>
@@ -40,6 +41,17 @@
           </td>
           <td class="px-4 py-3 text-slate-600">
             {{ r.installment.due_date|date:"d/m/Y" }}
+          </td>
+          <td class="px-4 py-3">
+            {% if r.has_gateway %}
+            <span class="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-1.5 py-0.5">
+              <i data-lucide="credit-card" class="h-2.5 w-2.5"></i> Gateway
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-200 rounded-md px-1.5 py-0.5">
+              <i data-lucide="hand-coins" class="h-2.5 w-2.5"></i> Manual
+            </span>
+            {% endif %}
           </td>
           <td class="px-4 py-3 font-mono text-xs text-slate-500">
             {% if r.phone %}{{ r.phone }}{% else %}<span class="text-red-500">Sem telefone</span>{% endif %}

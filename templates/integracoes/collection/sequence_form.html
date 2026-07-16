@@ -171,6 +171,15 @@
                         <div class="flex items-center gap-2 flex-wrap">
                             <span class="font-semibold text-sm text-slate-800">{{ step.label }}</span>
                             <span class="text-[11px] font-mono text-slate-400 bg-slate-100 rounded px-1.5 py-0.5">{{ step.template_name }}</span>
+                            {% if step.applies_to == 'COM_GATEWAY' %}
+                            <span class="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-1.5 py-0.5">
+                                <i data-lucide="credit-card" class="h-2.5 w-2.5"></i> Só com gateway
+                            </span>
+                            {% elif step.applies_to == 'SEM_GATEWAY' %}
+                            <span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-200 rounded-md px-1.5 py-0.5">
+                                <i data-lucide="hand-coins" class="h-2.5 w-2.5"></i> Só sem gateway
+                            </span>
+                            {% endif %}
                         </div>
 
                         <div class="flex items-center gap-3 mt-1.5 flex-wrap">
@@ -201,6 +210,14 @@
                         <div class="mt-2 inline-flex items-center gap-1 text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-md px-2 py-0.5">
                             <i data-lucide="alert-circle" class="h-3 w-3"></i>
                             Nenhuma variável mapeada — verifique o template
+                        </div>
+                        {% endif %}
+
+                        {% if step.occurrence in incomplete_occurrences %}
+                        <div class="mt-2 inline-flex items-center gap-1 text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-md px-2 py-0.5">
+                            <i data-lucide="alert-triangle" class="h-3 w-3"></i>
+                            {% if step.applies_to == 'COM_GATEWAY' %}Parcelas sem gateway não recebem etapa #{{ step.occurrence }} — cadastre uma etapa "Somente sem gateway" ou "Qualquer cobrança"
+                            {% else %}Parcelas com gateway não recebem etapa #{{ step.occurrence }} — cadastre uma etapa "Somente com gateway" ou "Qualquer cobrança"{% endif %}
                         </div>
                         {% endif %}
                     </div>

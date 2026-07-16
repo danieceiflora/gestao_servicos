@@ -10,7 +10,7 @@ from integracoes.models import (
     CollectionInstallmentState, CollectionLog,
 )
 from integracoes.chatwoot_client import ChatwootClient
-from integracoes.utils import resolve_field_path, get_client_phone
+from integracoes.utils import resolve_field_path, get_client_phone, select_next_collection_step
 from services.models import Installment
 
 logger = logging.getLogger(__name__)
@@ -83,9 +83,8 @@ class Command(BaseCommand):
                     skipped += 1
                     continue
 
-                step = sequence.steps.filter(
-                    occurrence__gt=state.current_occurrence
-                ).order_by('occurrence').first()
+                has_gateway = installment.has_gateway_charge
+                step = select_next_collection_step(sequence, state.current_occurrence, has_gateway)
                 if step is None:
                     skipped += 1
                     continue

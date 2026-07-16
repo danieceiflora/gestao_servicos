@@ -122,9 +122,14 @@ CURATED_FIELDS = {
         ('billing.sale.get_payment_method_display', 'Venda > Forma de Pagamento'),
         ('billing.sale.delivery_address',    'Venda > Endereço de Entrega'),
         ('billing.sale.delivery_city',       'Venda > Cidade de Entrega'),
-        ('gateway_pix_code',            'PIX > Código Copia e Cola'),
-        ('gateway_payment_link',        'PIX/Boleto > Link de Pagamento'),
-        ('gateway_boleto_barcode',      'Boleto > Linha Digitável'),
+        ('gateway_pix_code',                        'PIX > Código Copia e Cola'),
+        ('gateway_payment_link',                    'PIX/Boleto > Link de Pagamento'),
+        ('gateway_boleto_barcode',                  'Boleto > Linha Digitável'),
+        ('editable_gateway_charge.discounted_amount', 'PIX/Boleto > Valor com Desconto'),
+        ('editable_gateway_charge.discount_amount',   'PIX/Boleto > Valor do Desconto'),
+        ('editable_gateway_charge.discount_deadline', 'PIX/Boleto > Data Limite do Desconto'),
+        ('editable_gateway_charge.pix_expiration_date', 'PIX > Expiração do QR Code'),
+        ('editable_gateway_charge.boleto_bank_slip_url', 'Boleto > URL do PDF'),
     ],
     'ExpenseInstallment': [
         ('expense.description',         'Despesa > Descrição'),
@@ -258,6 +263,34 @@ def get_client_phone(client_obj):
         logger.error(f"Erro ao buscar telefone do cliente: {e}")
         
     return None
+
+def select_next_collection_step(sequence, current_occurrence, has_gateway):
+    """
+    Escolhe a próxima etapa de uma régua de cobrança (CollectionStep) após `current_occurrence`,
+    considerando se a parcela tem cobrança ativa via gateway (has_gateway).
+
+    Para a menor ocorrência disponível acima de current_occurrence, pode haver até duas etapas
+    cadastradas (uma COM_GATEWAY, outra SEM_GATEWAY) além de uma etapa ANY genérica. A etapa
+    específica que bate com `has_gateway` tem prioridade; se não houver, cai para a ANY. Se só
+    existir a variante que não bate com `has_gateway` (sem ANY), retorna None — a ocorrência é
+    pulada para esta parcela até que o admin cadastre um fallback.
+    """
+    candidates = list(sequence.steps.filter(occurrence__gt=current_occurrence).order_by('occurrence'))
+    if not candidates:
+        return None
+
+    next_occurrence = candidates[0].occurrence
+    same_occurrence = [c for c in candidates if c.occurrence == next_occurrence]
+
+    specific_key = 'COM_GATEWAY' if has_gateway else 'SEM_GATEWAY'
+    for step in same_occurrence:
+        if step.applies_to == specific_key:
+            return step
+    for step in same_occurrence:
+        if step.applies_to == 'ANY':
+            return step
+    return None
+
 
 def dispatch_dynamic_notification(instance, event_type, old_status=None):
     """
