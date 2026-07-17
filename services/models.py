@@ -809,7 +809,15 @@ class Billing(models.Model):
 
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Bruto")
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
-    
+    discount_deadline = models.DateField(
+        'Data Limite para Desconto', null=True, blank=True,
+        help_text='Data até a qual o desconto informado é válido. Uso apenas informativo em mensagens.'
+    )
+    interest = models.DecimalField(
+        'Juros (%)', max_digits=5, decimal_places=2, default=0, blank=True,
+        help_text='Percentual de juros de mora informativo, exibido em mensagens (não é aplicado automaticamente ao saldo devedor).'
+    )
+
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, verbose_name="Status")
     
     created_at = models.DateTimeField(auto_now_add=True)
