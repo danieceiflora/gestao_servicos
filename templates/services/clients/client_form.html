@@ -543,9 +543,10 @@
         const fieldNeighborhood = container.querySelector('[name*="-neighborhood"]');
         const fieldCity = container.querySelector('[name*="-city"]');
         const fieldState = container.querySelector('[name*="-state"]');
+        const fieldIbge = container.querySelector('[name*="-ibge_code"]');
 
         cepLabel.innerHTML = `${originalLabel} <span class="text-blue-500 animate-pulse text-[10px] ml-2">(Buscando...)</span>`;
-        
+
         fetch(`https://viacep.com.br/ws/${value}/json/`)
             .then(res => res.json())
             .then(data => {
@@ -555,6 +556,7 @@
                     fieldNeighborhood.value = data.bairro;
                     fieldCity.value = data.localidade;
                     fieldState.value = data.uf;
+                    if (fieldIbge) fieldIbge.value = data.ibge || '';
                     container.querySelector('[name*="-number"]').focus();
                     toggleError(input, false);
                 } else {
@@ -564,6 +566,7 @@
                     fieldNeighborhood.value = '';
                     fieldCity.value = '';
                     fieldState.value = '';
+                    if (fieldIbge) fieldIbge.value = '';
                     container.querySelector('[name*="-latitude"]').value = '';
                     container.querySelector('[name*="-longitude"]').value = '';
                     toggleError(input, true, "CEP não encontrado");

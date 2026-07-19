@@ -826,6 +826,9 @@ def sale_detail(request, number):
     from integracoes.models import SystemConfig as _SC
     due_days = _SC.load().billing_default_due_days or 1
 
+    from fiscal.models import NFeConfig
+    nfe_config = NFeConfig.load()
+
     context = {
         'sale': sale,
         'form': form,
@@ -837,6 +840,8 @@ def sale_detail(request, number):
         'clients': Client.objects.all().order_by('name'),
         'initial_installments': initial_installments,
         'returns': sale.returns.all().prefetch_related('items__sale_item__product') if hasattr(sale, 'returns') else [],
+        'nfe_config': nfe_config,
+        'documents': sale.fiscal_documents.all().order_by('-created_at'),
     }
     context.update(_charge_config_panel_context(PaymentMethod.objects.filter(ativo=True), due_days))
     return render(request, 'services/sale_form.html', context)

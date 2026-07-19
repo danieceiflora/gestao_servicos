@@ -1,0 +1,50 @@
+{% comment %}
+JS compartilhado pelas ações fiscais (emitir/consultar/cancelar). Inclua UMA VEZ por
+página (não dentro de um loop) — várias telas podem ter múltiplos cards de documentos
+fiscais (ex: um por etapa da OS), mas a função só precisa existir uma vez no escopo global.
+
+Monta e submete um POST via <form> criado dinamicamente fora da árvore do form
+principal da página — necessário porque estas ações podem estar dentro de outro
+<form> maior (ex: sale_form.html envolve a página inteira em <form id="sale-form">),
+e HTML não permite <form> aninhado (o navegador descarta silenciosamente qualquer
+<form> dentro de outro, sem erro no console).
+{% endcomment %}
+<script>
+    function fiscalPost(url, confirmMsg, extraFields) {
+        if (confirmMsg && !confirm(confirmMsg)) return false;
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+        form.style.display = 'none';
+
+        const csrf = document.createElement('input');
+        csrf.type = 'hidden';
+        csrf.name = 'csrfmiddlewaretoken';
+        csrf.value = '{{ csrf_token }}';
+        form.appendChild(csrf);
+
+        if (extraFields) {
+            Object.keys(extraFields).forEach(function (key) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = extraFields[key];
+                form.appendChild(input);
+            });
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+        return false;
+    }
+
+    function fiscalCancel(url, pk) {
+        const textarea = document.getElementById('justificativa-' + pk);
+        const justificativa = (textarea.value || '').trim();
+        if (justificativa.length < 15) {
+            alert('A justificativa precisa ter pelo menos 15 caracteres.');
+            return;
+        }
+        fiscalPost(url, 'Confirmar o cancelamento deste documento fiscal?', {justificativa: justificativa});
+    }
+</script>

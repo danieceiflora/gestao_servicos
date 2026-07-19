@@ -456,6 +456,16 @@
 
                 {# Tab: Dados Fiscais #}
                 <div id="tab-fiscal" class="tab-content hidden space-y-8">
+
+                    {# Aviso: campos abaixo não são obrigatórios para salvar o produto, mas
+                       sem eles a emissão de NF-e/NFC-e falha (validação de schema na Focus). #}
+                    <div class="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-start gap-3">
+                        <i data-lucide="alert-triangle" class="h-4 w-4 text-amber-500 mt-0.5 shrink-0"></i>
+                        <p class="text-xs text-amber-800 leading-relaxed">
+                            <strong>NCM</strong>, <strong>CFOP Padrão</strong> e a tributação de <strong>ICMS</strong> (CSOSN ou CST), <strong>PIS</strong> e <strong>COFINS</strong> não são obrigatórios para salvar o produto, mas são exigidos pela SEFAZ para emitir NF-e/NFC-e — todo item precisa ter os três grupos (ICMS, PIS e COFINS) preenchidos. Deixá-los em branco faz a emissão falhar na venda.
+                        </p>
+                    </div>
+
                     {# Identificação Fiscal #}
                     <div class="space-y-4">
                         <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
@@ -468,19 +478,19 @@
                                 {{ form.origem_mercadoria }}
                             </div>
                             <div class="space-y-1">
-                                <label for="{{ form.ncm.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">NCM</label>
+                                <label for="{{ form.ncm.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">NCM <span class="text-amber-500" title="Necessário para NF-e/NFC-e">●</span></label>
                                 {{ form.ncm }}
-                                <p class="text-[10px] text-slate-400">8 dígitos numéricos.</p>
+                                <p class="text-[10px] text-slate-400">8 dígitos numéricos. Necessário para emitir nota fiscal.</p>
                             </div>
                             <div class="space-y-1">
                                 <label for="{{ form.cest.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CEST</label>
                                 {{ form.cest }}
-                                <p class="text-[10px] text-slate-400">7 dígitos (Subst. Tributária).</p>
+                                <p class="text-[10px] text-slate-400">7 dígitos (Subst. Tributária). Só obrigatório se o produto tiver ST.</p>
                             </div>
                             <div class="space-y-1">
-                                <label for="{{ form.cfop_padrao.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CFOP Padrão</label>
+                                <label for="{{ form.cfop_padrao.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CFOP Padrão <span class="text-amber-500" title="Necessário para NF-e/NFC-e">●</span></label>
                                 {{ form.cfop_padrao }}
-                                <p class="text-[10px] text-slate-400">Ex: 5102, 5405.</p>
+                                <p class="text-[10px] text-slate-400">Ex: 5102, 5405. Necessário para emitir nota fiscal.</p>
                             </div>
                         </div>
                     </div>
@@ -494,25 +504,29 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {% if tax_regime == 'SIMPLES' %}
                             <div class="space-y-1">
-                                <label for="{{ form.csosn.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CSOSN</label>
+                                <label for="{{ form.csosn.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CSOSN <span class="text-amber-500" title="Necessário para NF-e/NFC-e">●</span></label>
                                 {{ form.csosn }}
+                                <p class="text-[10px] text-slate-400">Necessário para emitir nota fiscal.</p>
                             </div>
                             <div class="hidden">{{ form.cst_icms }}</div>
                             {% else %}
                             <div class="space-y-1">
-                                <label for="{{ form.cst_icms.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST ICMS</label>
+                                <label for="{{ form.cst_icms.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST ICMS <span class="text-amber-500" title="Necessário para NF-e/NFC-e">●</span></label>
                                 {{ form.cst_icms }}
+                                <p class="text-[10px] text-slate-400">Necessário para emitir nota fiscal.</p>
                             </div>
                             <div class="hidden">{{ form.csosn }}</div>
                             {% endif %}
 
                             <div class="space-y-1">
-                                <label for="{{ form.cst_pis.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST PIS</label>
+                                <label for="{{ form.cst_pis.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST PIS <span class="text-amber-500" title="Necessário para NF-e/NFC-e">●</span></label>
                                 {{ form.cst_pis }}
+                                <p class="text-[10px] text-slate-400">Necessário para emitir nota fiscal.</p>
                             </div>
                             <div class="space-y-1">
-                                <label for="{{ form.cst_cofins.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST COFINS</label>
+                                <label for="{{ form.cst_cofins.id_for_label }}" class="text-xs font-bold text-slate-600 uppercase tracking-wider">CST COFINS <span class="text-amber-500" title="Necessário para NF-e/NFC-e">●</span></label>
                                 {{ form.cst_cofins }}
+                                <p class="text-[10px] text-slate-400">Necessário para emitir nota fiscal.</p>
                             </div>
                         </div>
                     </div>

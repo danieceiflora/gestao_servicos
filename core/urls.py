@@ -24,6 +24,7 @@ urlpatterns = [
     path('webhooks/', integracoes_views.webhooks, name='chatwoot_budget_webhook_slash'),
     path('api/integracoes/', include('integracoes.urls', namespace='integracoes')),
     path('integracoes/pagamentos/', include('pagamentos.urls', namespace='pagamentos')),
+    path('integracoes/fiscal/', include('fiscal.urls', namespace='fiscal')),
     path('', include('services.urls')),
 ]
 

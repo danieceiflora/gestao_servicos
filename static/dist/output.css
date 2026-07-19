@@ -5118,6 +5118,11 @@
       --tw-ring-color: var(--color-purple-500);
     }
   }
+  .focus\:ring-red-300 {
+    &:focus {
+      --tw-ring-color: var(--color-red-300);
+    }
+  }
   .focus\:ring-rose-400 {
     &:focus {
       --tw-ring-color: var(--color-rose-400);
@@ -5413,6 +5418,11 @@
   .sm\:col-span-2 {
     @media (width >= 40rem) {
       grid-column: span 2 / span 2;
+    }
+  }
+  .sm\:col-span-3 {
+    @media (width >= 40rem) {
+      grid-column: span 3 / span 3;
     }
   }
   .sm\:flex {

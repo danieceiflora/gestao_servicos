@@ -866,6 +866,25 @@ def service_order_detail(request, order_id):
 
     total_task_discount = sum((t.discount or 0) for t in billable_tasks)
 
+    from fiscal.models import NFeConfig, NFeDocument
+    nfe_config = NFeConfig.load()
+
+    # Emissão fiscal é por etapa (nunca somando produto e serviço no mesmo documento —
+    # ver fiscal/builders.py): cada etapa faturável precisa saber se tem item de produto
+    # e/ou de serviço (controla quais botões aparecem) e seus próprios documentos já emitidos.
+    task_fiscal_info = {}
+    if billable_tasks:
+        task_ids = [t.id for t in billable_tasks]
+        docs_by_task = {}
+        for doc in NFeDocument.objects.filter(task_id__in=task_ids).order_by('-created_at'):
+            docs_by_task.setdefault(doc.task_id, []).append(doc)
+        for t in billable_tasks:
+            task_fiscal_info[t.id] = {
+                'has_product': t.items.filter(product__isnull=False, cobrar_cliente=True).exists(),
+                'has_service': t.items.filter(service__isnull=False, cobrar_cliente=True).exists(),
+                'documents': docs_by_task.get(t.id, []),
+            }
+
     return render(request, 'services/orders/order_detail.html', {
         'order': order,
         'tasks': tasks,
@@ -880,6 +899,8 @@ def service_order_detail(request, order_id):
         'total_task_discount': total_task_discount,
         'payment_methods': PaymentMethod.objects.filter(ativo=True).order_by('descricao'),
         'default_due_date': default_due_date,
+        'nfe_config': nfe_config,
+        'task_fiscal_info': task_fiscal_info,
     })
 
 @login_required

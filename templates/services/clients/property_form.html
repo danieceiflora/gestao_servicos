@@ -62,6 +62,11 @@
                 </div>
             </div>
 
+            {# Código IBGE do município — preenchido automaticamente pela busca de CEP
+               (necessário para emissão de NFSe Nacional); sem input visível porque não
+               é algo que se digite manualmente. #}
+            <div class="hidden">{{ form.ibge_code }}</div>
+
             <div class="pt-4 border-t border-slate-100 space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
@@ -122,6 +127,7 @@
         const fieldNeighborhood = document.querySelector('[name="neighborhood"]');
         const fieldCity = document.querySelector('[name="city"]');
         const fieldState = document.querySelector('[name="state"]');
+        const fieldIbge = document.querySelector('[name="ibge_code"]');
 
         fetch(`https://viacep.com.br/ws/${value}/json/`)
             .then(response => response.json())
@@ -132,6 +138,7 @@
                     fieldNeighborhood.value = data.bairro;
                     fieldCity.value = data.localidade;
                     fieldState.value = data.uf;
+                    if (fieldIbge) fieldIbge.value = data.ibge || '';
                     document.querySelector('[name="number"]').focus();
                     toggleError(input, false);
                 } else {
@@ -140,6 +147,7 @@
                     fieldNeighborhood.value = '';
                     fieldCity.value = '';
                     fieldState.value = '';
+                    if (fieldIbge) fieldIbge.value = '';
                     document.querySelector('[name="latitude"]').value = '';
                     document.querySelector('[name="longitude"]').value = '';
                     toggleError(input, true, "CEP não encontrado");

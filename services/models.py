@@ -13,6 +13,27 @@ from integracoes.models import SystemConfig
 MONEY_PLACES = Decimal('0.01')
 
 
+def _get_company_origem_uf():
+    """UF da empresa usada como origem no cálculo de CFOP (interno x interestadual).
+
+    Prioriza fiscal.NFeConfig.uf (configuração da integração fiscal, preenchida com o
+    endereço real do emitente) e só cai para SystemConfig.state se a integração fiscal
+    ainda não tiver sido configurada. Import local para evitar dependência circular
+    entre os apps 'services' e 'fiscal' (fiscal.models tem FKs para services.Sale/
+    ServiceOrder via string, sem import direto).
+
+    Antes as duas fontes podiam divergir: o CFOP era calculado com SystemConfig.state
+    (não atualizado, ex: 'MS' default) enquanto a NFe era emitida com NFeConfig.uf
+    (correto, ex: 'GO') — gerando CFOP interestadual para vendas na verdade internas,
+    e a SEFAZ rejeitava com 'Operação Interestadual e UF de destino igual a UF de
+    origem'."""
+    from fiscal.models import NFeConfig
+    nfe_config = NFeConfig.load()
+    if nfe_config.uf:
+        return nfe_config.uf
+    return SystemConfig.load().state
+
+
 def quantize_money(value):
     return (value or Decimal('0')).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
 
@@ -441,6 +462,31 @@ class Service(models.Model):
     description = models.TextField(verbose_name="Descrição", blank=True)
     base_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Preço Base")
     unit_of_measure = models.CharField(max_length=50, verbose_name="Unidade de Medida", default="un")
+    codigo_tributacao_nacional_iss = models.CharField(
+        max_length=6, blank=True, verbose_name="Código de Tributação Nacional do ISS",
+        help_text="Código de tributação nacional do ISS (padrão NFSe Nacional) para este serviço. "
+                  "Se vazio, a emissão de NFSe usa o código padrão configurado na integração fiscal."
+    )
+    codigo_tributacao_municipal_iss = models.CharField(
+        max_length=3, blank=True, verbose_name="Código de Tributação Municipal do ISS",
+        help_text="Código de tributação municipal do ISS (tabela própria da prefeitura, distinto do "
+                  "código nacional). Se vazio, a emissão de NFSe usa o código padrão configurado na "
+                  "integração fiscal."
+    )
+    codigo_indicador_operacao = models.CharField(
+        max_length=6, blank=True, verbose_name="Código Indicador de Operação (cIndOp)",
+        help_text="Indicador de operação da Reforma Tributária (IBS/CBS) — tabela do Anexo VIII "
+                  "(correlação item LC 116 x NBS x cIndOp x cClassTrib) do Comitê Gestor da NFS-e. "
+                  "Se vazio, a emissão de NFSe usa o código padrão configurado na integração fiscal."
+    )
+    codigo_nbs = models.CharField(
+        max_length=9, blank=True, verbose_name="Código NBS",
+        help_text="Código da Nomenclatura Brasileira de Serviços (9 dígitos, sem pontos — ex: "
+                  "1.0105.30.00 vira 010530000), exigido pela NFSe Nacional junto com o grupo IBS/CBS "
+                  "(Reforma Tributária). Consulte o Anexo VIII do Comitê Gestor da NFS-e — o item LC 116 "
+                  "não define um único NBS, é uma escolha por tipo específico de serviço prestado. Se "
+                  "vazio, a emissão de NFSe usa o código padrão configurado na integração fiscal."
+    )
     category = models.ForeignKey(ServiceCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='services', verbose_name="Categoria")
     
     # Vínculo com modelo de checklist (opcional)
@@ -1190,9 +1236,8 @@ class SaleItem(models.Model):
                 self.origem_ato = self.product.origem_mercadoria
                 
                 # CFOP
-                config = SystemConfig.load()
-                origem_uf = config.state
-                
+                origem_uf = _get_company_origem_uf()
+
                 # Tenta determinar o destino_uf
                 destino_uf = origem_uf
                 if self.sale.service_order:
@@ -1760,8 +1805,7 @@ class ServiceItem(models.Model):
                 self.origem_ato = self.product.origem_mercadoria
                 
                 # CFOP
-                config = SystemConfig.load()
-                origem_uf = config.state
+                origem_uf = _get_company_origem_uf()
                 destino_uf = self.service_order.client_property.state
                 
                 tem_st = bool(self.product.cest)

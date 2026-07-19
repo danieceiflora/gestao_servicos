@@ -598,6 +598,16 @@
                         </p>
                     </div>
                 </div>
+
+                {# ---- Seção: Nota Fiscal (só disponível com a venda já salva) ---- #}
+                {% if is_detail %}
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                    <h3 class="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-6">
+                        <i data-lucide="file-text" class="w-4 h-4"></i> Nota Fiscal
+                    </h3>
+                    {% include 'fiscal/_nfe_panel.html' %}
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -1065,7 +1075,7 @@
 
         // Bloquear campos se não puder editar
         {% if is_detail and not can_edit %}
-        document.querySelectorAll('#sale-form input, #sale-form select, #sale-form button:not([data-tab-btn]):not(.tab-btn)').forEach(el => {
+        document.querySelectorAll('#sale-form input, #sale-form select, #sale-form button:not([data-tab-btn]):not(.tab-btn):not([data-fiscal-action])').forEach(el => {
             if (el.id !== 'submit-btn') el.disabled = true;
         });
         document.getElementById('product-search').disabled = true;

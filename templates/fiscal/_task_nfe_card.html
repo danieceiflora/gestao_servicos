@@ -1,0 +1,44 @@
+{% comment %}
+Card de nota fiscal de UMA etapa da OS. Espera no contexto: nfe_config, task,
+task_info (dict com has_product/has_service/documents — ver service_order_detail).
+
+Emite NFSe só pelos itens de serviço da etapa e NFe/NFCe só pelos de produto —
+nunca no mesmo documento (padrão de mercado / LC 116 item 7.02). Se a etapa não
+tiver um dos dois tipos, o botão correspondente simplesmente não aparece.
+{% endcomment %}
+<div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+    <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+        <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">{{ task.get_task_type_display }}</span>
+        <span class="text-[11px] text-slate-400">{{ task.scheduled_at|date:"d/m/Y" }}{% if task.finished_at %} · Concluído {{ task.finished_at|date:"d/m/Y" }}{% endif %}</span>
+    </div>
+    <div class="p-4 space-y-4">
+        <div class="flex flex-wrap gap-3">
+            {% if task_info.has_service and nfe_config.can_emit_nfse %}
+            <button type="button" data-fiscal-action
+                    onclick="fiscalPost('{% url 'fiscal:emit_nfse' task.id %}', 'Emitir NFSe para esta etapa ({{ task.get_task_type_display }})? Cobre só os itens de serviço.')"
+                    class="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors">
+                <i data-lucide="file-plus-2" class="h-3.5 w-3.5"></i> Emitir NFSe
+            </button>
+            {% endif %}
+            {% if task_info.has_product and nfe_config.can_emit_nfe %}
+            <button type="button" data-fiscal-action
+                    onclick="fiscalPost('{% url 'fiscal:emit_task_nfe' task.id %}', 'Emitir NFe para esta etapa ({{ task.get_task_type_display }})? Cobre só os itens de produto.')"
+                    class="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors">
+                <i data-lucide="file-plus-2" class="h-3.5 w-3.5"></i> Emitir NFe
+            </button>
+            {% endif %}
+            {% if task_info.has_product and nfe_config.can_emit_nfce %}
+            <button type="button" data-fiscal-action
+                    onclick="fiscalPost('{% url 'fiscal:emit_task_nfce' task.id %}', 'Emitir NFCe para esta etapa ({{ task.get_task_type_display }})? Cobre só os itens de produto.')"
+                    class="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors">
+                <i data-lucide="file-plus-2" class="h-3.5 w-3.5"></i> Emitir NFCe
+            </button>
+            {% endif %}
+            {% if not task_info.has_service and not task_info.has_product %}
+            <p class="text-xs text-slate-400">Nenhum item faturável nesta etapa.</p>
+            {% endif %}
+        </div>
+
+        {% include 'fiscal/_documents_list.html' with documents=task_info.documents %}
+    </div>
+</div>
