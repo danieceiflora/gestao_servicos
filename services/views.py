@@ -901,6 +901,7 @@ def service_order_detail(request, order_id):
         'default_due_date': default_due_date,
         'nfe_config': nfe_config,
         'task_fiscal_info': task_fiscal_info,
+        'asaas_sandbox': getattr(settings, 'ASAAS_ENVIRONMENT', 'SANDBOX') == 'SANDBOX',
     })
 
 @login_required

@@ -17,6 +17,7 @@ proporcionalmente entre as duas partes (ver _task_value_split), para a soma dos
 dois documentos continuar batendo com o valor total da etapa/cobrança.
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -324,10 +325,14 @@ def build_nfe_or_nfce_payload_from_task(task, document_type: str = 'NFE') -> dic
     return payload
 
 
-def _data_competencia_task(task) -> str:
+def _data_competencia_task_date(task):
     if task.finished_at:
-        return task.finished_at.astimezone(BRASILIA_TZ).date().isoformat()
-    return datetime.now(BRASILIA_TZ).date().isoformat()
+        return task.finished_at.astimezone(BRASILIA_TZ).date()
+    return datetime.now(BRASILIA_TZ).date()
+
+
+def _data_competencia_task(task) -> str:
+    return _data_competencia_task_date(task).isoformat()
 
 
 def _resolve_codigo_tributacao_iss_task(task, config: NFeConfig) -> str:
@@ -576,3 +581,307 @@ def build_nfse_nacional_payload(task) -> dict:
             payload['cep_obra'] = int(cep_obra_digits)
 
     return payload
+
+
+def build_asaas_invoice_data(task):
+    """Monta os dados da NFSe via Asaas (fiscal/gateways/asaas.py) só pelos itens
+    de SERVIÇO de uma etapa — mesma separação produto/serviço de
+    build_nfse_nacional_payload, mas no formato InvoiceData/InvoiceTaxes do
+    gateway Asaas em vez do dict esperado pela Focus.
+
+    Função pura (sem chamada de rede): quem resolve/cria o cliente Asaas
+    (`InvoiceData.customer`) é a view, via AsaasInvoiceGateway.get_or_create_customer —
+    igual ao padrão já usado em pagamentos/views.py para cobrança."""
+    from .gateways.asaas import InvoiceData, InvoiceTaxes
+
+    config = NFeConfig.load()
+    service_order = task.service_order
+    prop = service_order.client_property
+    client = prop.client
+    split = _task_value_split(task)
+
+    # require_address=True porque o cliente Asaas (InvoiceData.customer) é sempre
+    # enviado com endereço/CEP (ver emit_nfse em views.py) — sem isso a Asaas rejeita
+    # a emissão com "endereço incompleto/CEP inválido".
+    problems = _validate_client_for_emission(client, require_address=True)
+    if split['service_gross'] <= 0:
+        problems.append('Esta etapa não tem itens de serviço faturáveis — nada para emitir em NFSe.')
+    has_service_id = bool(config.asaas_municipal_service_id and config.asaas_municipal_service_label)
+    has_manual_service = bool(config.asaas_municipal_service_name or config.asaas_municipal_service_code)
+    if not (has_service_id or has_manual_service):
+        problems.append(
+            'Nenhum Serviço Municipal (Asaas) configurado — busque e selecione o serviço em Integração '
+            'Fiscal antes de emitir.'
+        )
+    if not prop.cep or len(_clean_doc(prop.cep)) != 8:
+        problems.append(
+            f'Imóvel do cliente "{client.display_name}" sem CEP válido cadastrado — a Asaas exige CEP '
+            'completo do tomador para emitir NFSe. Edite o cadastro do imóvel antes de emitir.'
+        )
+    # Grupo IBS/CBS (Reforma Tributária) — a prefeitura de Goiânia rejeita a nota
+    # sem os 4 juntos assim que qualquer um deles é declarado (mesma regra já
+    # descoberta no payload da Focus, ver build_nfse_nacional_payload). Vão dentro
+    # de `taxes` no payload da Asaas (fiscal/gateways/asaas.py::_invoice_payload),
+    # não em fiscalInfo — testado na prática: fiscalInfo.nbsCode configurado não
+    # evita a rejeição por "codigoNBS deve ser informado" numa nota nova.
+    if not config.default_codigo_nbs:
+        problems.append('Código NBS não configurado — cadastre em Integração Fiscal antes de emitir.')
+    if not config.default_ibs_cbs_situacao_tributaria:
+        problems.append('CST IBS/CBS não configurado — cadastre em Integração Fiscal antes de emitir.')
+    if not config.default_ibs_cbs_classificacao_tributaria:
+        problems.append('Classificação Tributária IBS/CBS não configurada — cadastre em Integração Fiscal antes de emitir.')
+    if not config.default_codigo_indicador_operacao:
+        problems.append('Código Indicador de Operação (cIndOp) não configurado — cadastre em Integração Fiscal antes de emitir.')
+    if problems:
+        raise FiscalValidationError(problems)
+
+    taxes = InvoiceTaxes(
+        retain_iss=config.asaas_retain_iss,
+        iss=config.asaas_iss_aliquota,
+        pis=config.asaas_pis_aliquota,
+        cofins=config.asaas_cofins_aliquota,
+        csll=config.asaas_csll_aliquota,
+        inss=config.asaas_inss_aliquota,
+        ir=config.asaas_ir_aliquota,
+        nbs_code=config.default_codigo_nbs,
+        tax_situation_code=config.default_ibs_cbs_situacao_tributaria,
+        tax_classification_code=config.default_ibs_cbs_classificacao_tributaria,
+        operation_indicator_code=config.default_codigo_indicador_operacao,
+    )
+
+    # A Asaas rejeita com "A descrição do serviço deve ter no máximo 250 caracteres"
+    # tanto em serviceDescription quanto em municipalServiceName — o catálogo deles
+    # (asaas_municipal_service_label) guarda o texto legal completo do item LC116,
+    # que costuma passar de 250 chars, então precisa truncar antes de mandar.
+    _ASAAS_DESCRIPTION_MAX_LEN = 250
+
+    description = (
+        service_order.description or f'OS #{service_order.number} — {task.get_task_type_display()}'
+    )[:_ASAAS_DESCRIPTION_MAX_LEN]
+
+    # municipalServiceName é exigido pela Asaas em toda emissão, mesmo quando
+    # municipalServiceId também é enviado — não existe um "usar o padrão da conta"
+    # via API (confirmado: GET /fiscalInfo não expõe isso, só a tela deles usa o
+    # botão "Serviço padrão"). Por isso o ID (referência exata ao catálogo deles) é
+    # sempre preferido; nome/código digitados manualmente são só fallback.
+    if has_service_id:
+        municipal_service_id = config.asaas_municipal_service_id
+        municipal_service_code = ''
+        municipal_service_name = config.asaas_municipal_service_label[:_ASAAS_DESCRIPTION_MAX_LEN]
+    else:
+        municipal_service_id = ''
+        municipal_service_code = config.asaas_municipal_service_code
+        municipal_service_name = config.asaas_municipal_service_name[:_ASAAS_DESCRIPTION_MAX_LEN]
+
+    return InvoiceData(
+        service_description=description,
+        value=split['service_net'],
+        # effectiveDate (Asaas) é a DATA DE EMISSÃO da nota, não a competência do
+        # serviço — usar _data_competencia_task_date(task) aqui manda a data em que
+        # a etapa foi concluída (pode ser dias/semanas atrás), e a Asaas rejeita
+        # com "data de emissão não pode ser inferior à data atual" nesse caso.
+        # Diferente da Focus (build_nfse_nacional_payload), que tem um campo de
+        # competência separado do de emissão — a Asaas só tem este.
+        effective_date=datetime.now(BRASILIA_TZ).date(),
+        municipal_service_name=municipal_service_name,
+        municipal_service_id=municipal_service_id,
+        municipal_service_code=municipal_service_code,
+        taxes=taxes,
+    )
+
+
+@dataclass
+class BaseERPOrderItemData:
+    """Um item do pedido, com os dados de PRODUTO já resolvidos — falta só o
+    `productId` do Base ERP, que só existe depois do get_or_create_product() na
+    view (não é uma chamada de rede, então não entra no builder)."""
+    product_code: str
+    product_name: str
+    product_ncm: str
+    product_unit: str
+    product_barcode: str
+    quantity: Decimal
+    unit_price: Decimal
+
+
+# billingType (SalesOrderPaymentDto) não tem opção exata para dinheiro — mapeado
+# para UNDEFINED em vez de forçar em alguma das outras categorias (decisão
+# confirmada com o usuário: dinheiro não é um "depósito" nem cartão). Cobre as
+# chaves de Sale.PaymentMethod E de ServiceOrderTask.PAYMENT_METHODS (não têm
+# sobreposição de nomes, então o mesmo dict serve pros dois).
+BASE_ERP_BILLING_TYPE = {
+    'DINHEIRO': 'UNDEFINED',
+    'PIX': 'PIX',
+    'CARTAO_DEBITO': 'DEBIT_CARD',
+    'CARTAO_CREDITO': 'CREDIT_CARD',
+    'TRANSFERENCIA': 'TRANSFER',
+    'BOLETO': 'BOLETO',
+}
+
+
+@dataclass
+class BaseERPSalesOrderData:
+    client_name: str
+    client_document: str
+    client_address: dict  # billingAddress pronto (dict) ou None — ver _base_erp_billing_address
+    client_tax_info: dict  # taxInformation pronto — ver _base_erp_tax_info
+    issue_date: 'date'
+    items: list
+    billing_type: str  # orderPayments[0].billingType — ver BASE_ERP_BILLING_TYPE
+    payment_value: Decimal  # orderPayments[0].value — só o bankId falta (resolvido pela view via gateway)
+    external_reference: str = ''
+    observations: str = ''
+
+
+def _base_erp_billing_address(prop) -> dict:
+    """Monta o billingAddress (BillingAddress do Base ERP) só se TODOS os campos
+    obrigatórios do schema deles estiverem presentes (address/addressNumber/
+    province/cityName/stateAbbrev/postalCode — complement é opcional). Retorna
+    None se faltar qualquer um — quem chama decide se isso é bloqueante
+    (NF-e sempre exige; NFC-e não)."""
+    if not prop:
+        return None
+    cep = _clean_doc(prop.cep)
+    if not (prop.address and prop.number and prop.neighborhood and prop.city and prop.state and cep):
+        return None
+    return {
+        'postalCode': cep,
+        'address': prop.address,
+        'addressNumber': prop.number,
+        'complement': prop.complement or '',
+        'province': prop.neighborhood,
+        'cityName': prop.city,
+        'stateAbbrev': prop.state,
+        'country': 'Brasil',
+    }
+
+
+def _base_erp_tax_info(client) -> dict:
+    """taxInformation (CustomerInput) — SEFAZ rejeitava com "9051 - Tipo do
+    Contribuinte do seu cliente inválido" sem isso; a Base ERP não infere
+    sozinha a partir do CPF/CNPJ.
+      - PF: sempre CONTRIBUINTE_ISENTO (isento de Inscrição Estadual) — pedido
+        explícito do usuário, não NAO_CONTRIBUINTE.
+      - PJ com Inscrição Estadual: CONTRIBUINTE_ICMS.
+      - PJ sem Inscrição Estadual: NAO_CONTRIBUINTE.
+    finalConsumer: sempre True — pedido explícito do usuário, independente de
+    tipo de nota ou do cliente ser contribuinte de ICMS."""
+    is_pj = bool(client) and client.client_type == 'PJ'
+    is_contribuinte = _is_contribuinte_icms(client)
+    if is_pj:
+        type_of_tax_payer = 'CONTRIBUINTE_ICMS' if is_contribuinte else 'NAO_CONTRIBUINTE'
+    else:
+        type_of_tax_payer = 'CONTRIBUINTE_ISENTO'
+    tax_info = {
+        'typeOfTaxPayer': type_of_tax_payer,
+        'finalConsumer': True,
+    }
+    if is_pj and client.state_registration:
+        tax_info['stateInscription'] = client.state_registration
+    if client and client.municipal_registration:
+        tax_info['municipalInscription'] = client.municipal_registration
+    return tax_info
+
+
+def _build_base_erp_sales_order_data_common(*, client, items, invoice_type: str, billing_type: str,
+                                             payment_value: Decimal, external_reference: str,
+                                             observations: str) -> BaseERPSalesOrderData:
+    """Núcleo comum entre build_base_erp_sales_order_data (Sale) e
+    build_base_erp_sales_order_data_from_task (ServiceOrderTask) — mesma
+    separação que _build_nfe_or_nfce_common já fazia pro payload da Focus.
+
+    Levanta FiscalValidationError se: cliente sem CPF/CNPJ, cliente sem
+    endereço completo (só para NF-e), nenhum item faturável, ou qualquer item
+    com produto sem NCM ou sem Código — os dois são exigidos pelo schema do
+    Base ERP (ProductInputDto.ncm/.code) e não têm fallback automático."""
+    problems = _validate_client_for_emission(client, require_address=False)
+    if not items:
+        problems.append('Nenhum item de produto faturável encontrado — nada para emitir.')
+    for item in items:
+        product = item.product
+        if not (item.ncm_ato or product.ncm):
+            problems.append(f'Produto "{product.name}": NCM não cadastrado — preencha antes de emitir.')
+        if not product.code:
+            problems.append(f'Produto "{product.name}": Código não cadastrado — obrigatório para o Base ERP.')
+
+    prop = client.properties.first() if client else None
+    address = _base_erp_billing_address(prop)
+    if invoice_type == '55' and not address:
+        label = client.display_name if client else '(sem cliente)'
+        problems.append(
+            f'Cliente "{label}" sem endereço completo (logradouro/número/bairro/cidade/UF/CEP) — '
+            'obrigatório para NF-e (não obrigatório para NFC-e).'
+        )
+
+    if problems:
+        raise FiscalValidationError(problems)
+
+    order_items = [
+        BaseERPOrderItemData(
+            product_code=item.product.code,
+            product_name=item.product.name,
+            product_ncm=item.ncm_ato or item.product.ncm,
+            product_unit=_unit_code(item.product),
+            product_barcode=item.product.barcode or '',
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+        )
+        for item in items
+    ]
+
+    return BaseERPSalesOrderData(
+        client_name=client.display_name,
+        client_document=_clean_doc(client.document),
+        client_address=address,
+        client_tax_info=_base_erp_tax_info(client),
+        issue_date=datetime.now(BRASILIA_TZ).date(),
+        items=order_items,
+        billing_type=billing_type,
+        payment_value=payment_value,
+        external_reference=external_reference,
+        observations=observations[:255],
+    )
+
+
+def build_base_erp_sales_order_data(sale, invoice_type: str = '55') -> BaseERPSalesOrderData:
+    """Monta os dados para emitir NF-e/NFC-e de produto via Base ERP a partir de
+    uma Sale — mesmos itens de produto já usados em build_nfe_or_nfce_payload
+    (Focus), só que no formato esperado pelo fluxo Base ERP (customer/product
+    "get or create" + salesOrder + invoice, ver fiscal/gateways/base_erp.py).
+
+    `invoice_type`: '55' (NF-e, exige endereço completo do cliente) ou '65'
+    (NFC-e, endereço opcional). Função pura — não chama a rede; quem resolve
+    os ids de cliente/produto no Base é a view, via BaseERPGateway."""
+    client = sale.client
+    items = list(sale.items.select_related('product'))
+
+    return _build_base_erp_sales_order_data_common(
+        client=client, items=items, invoice_type=invoice_type,
+        billing_type=BASE_ERP_BILLING_TYPE.get(sale.payment_method, 'UNDEFINED'),
+        payment_value=sale.total_amount,
+        external_reference=str(sale.pk),
+        observations=f'Venda #{sale.number}',
+    )
+
+
+def build_base_erp_sales_order_data_from_task(task, invoice_type: str = '55') -> BaseERPSalesOrderData:
+    """Emite NFe/NFCe de produto só pelos itens de PRODUTO de uma etapa da OS
+    (ServiceItem com `product` preenchido e cobrar_cliente=True) — a parte de
+    serviço da mesma etapa vai em NFSe separada (build_asaas_invoice_data),
+    nunca no mesmo documento (mesma separação de
+    build_nfe_or_nfce_payload_from_task, que este fluxo substitui pra Base ERP).
+
+    O valor líquido de produto é rateado via _task_value_split (mesmo desconto
+    único da etapa, dividido proporcionalmente entre produto e serviço)."""
+    service_order = task.service_order
+    client = service_order.client_property.client
+    items = list(task.items.filter(product__isnull=False, cobrar_cliente=True).select_related('product'))
+    split = _task_value_split(task)
+
+    return _build_base_erp_sales_order_data_common(
+        client=client, items=items, invoice_type=invoice_type,
+        billing_type=BASE_ERP_BILLING_TYPE.get(task.payment_method, 'UNDEFINED'),
+        payment_value=split['product_net'],
+        external_reference=str(task.id),
+        observations=f'OS #{service_order.number} — {task.get_task_type_display()}',
+    )

@@ -5,6 +5,7 @@ app_name = 'fiscal'
 
 urlpatterns = [
     path('config/', views.nfe_config_view, name='nfe_config'),
+    path('config/asaas/servicos-municipais/', views.asaas_search_municipal_services, name='asaas_search_municipal_services'),
 
     path('vendas/<int:number>/painel/', views.sale_nfe_panel, name='sale_nfe_panel'),
 
@@ -19,4 +20,5 @@ urlpatterns = [
     path('documentos/<int:pk>/cancelar/', views.cancel_nfe, name='cancel_nfe'),
 
     path('webhook/focusnfe/', views.focusnfe_webhook, name='focusnfe_webhook'),
+    path('webhook/base_erp/', views.base_erp_webhook, name='base_erp_webhook'),
 ]

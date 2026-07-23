@@ -6,37 +6,25 @@ Emissão de OS (NFe/NFCe/NFSe por etapa) usa um fluxo próprio — ver
 fiscal/_task_nfe_card.html, incluído na aba "Nota Fiscal" de order_detail.html.
 {% endcomment %}
 
-{% if not nfe_config.can_emit %}
-    {% if not nfe_config.active_token %}
+{% if not nfe_config.can_emit_nfe and not nfe_config.can_emit_nfce %}
     <div class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center">
         <i data-lucide="file-text" class="h-8 w-8 text-slate-300 mx-auto mb-2"></i>
-        <p class="text-sm font-semibold text-slate-700">Emissão de nota fiscal não configurada</p>
-        <p class="text-xs text-slate-500 mt-1 mb-3">Configure a integração com a FocusNFe para emitir NFe, NFCe ou NFSe.</p>
-        <a href="{% url 'fiscal:nfe_config' %}" target="_blank"
-           class="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors">
-            <i data-lucide="settings-2" class="h-3.5 w-3.5"></i> Configurar Integração Fiscal
-        </a>
-    </div>
-    {% else %}
-    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
-        <i data-lucide="clock" class="h-8 w-8 text-amber-400 mx-auto mb-2"></i>
-        <p class="text-sm font-semibold text-amber-800">Integração pendente ({{ nfe_config.get_status_display }})</p>
-        <p class="text-xs text-amber-700 mt-1 mb-3">
-            {% if nfe_config.status == 'PENDENTE_CERTIFICADO' %}
-                Empresa cadastrada na Focus — falta anexar o certificado digital A1 pelo painel da Focus.
+        <p class="text-sm font-semibold text-slate-700">Emissão de NFe/NFCe não está habilitada</p>
+        <p class="text-xs text-slate-500 mt-1 mb-3">
+            {% if not nfe_config.base_erp_ready %}
+                Chave de API do Base ERP não configurada (variável de ambiente do servidor).
             {% else %}
-                Revise a configuração da integração fiscal.
+                Habilite "NFe" ou "NFCe" em Integração Fiscal para liberar a emissão desta venda.
             {% endif %}
         </p>
         <a href="{% url 'fiscal:nfe_config' %}" target="_blank"
-           class="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors">
-            <i data-lucide="settings-2" class="h-3.5 w-3.5"></i> Ver Configuração
+           class="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors">
+            <i data-lucide="settings-2" class="h-3.5 w-3.5"></i> Ver Integração Fiscal
         </a>
     </div>
-    {% endif %}
 {% else %}
     <div class="space-y-4">
-        {% if nfe_config.is_sandbox %}
+        {% if base_erp_sandbox %}
         <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs text-amber-800">
             <i data-lucide="flask-conical" class="h-3.5 w-3.5 shrink-0"></i>
             <span><strong>Modo Sandbox</strong> — documentos emitidos aqui não têm validade fiscal.</span>

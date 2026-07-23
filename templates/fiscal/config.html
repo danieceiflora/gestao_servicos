@@ -10,267 +10,397 @@
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-2xl font-bold text-slate-900">Integração Fiscal</h1>
-      <p class="text-sm text-slate-500 mt-0.5">Configure a integração com a FocusNFe para emitir NFe, NFCe e NFSe Nacional</p>
+      <p class="text-sm text-slate-500 mt-0.5">NFSe é emitida via Asaas.</p>
     </div>
-    <!-- Status Badge -->
+    <!-- Status Badge (Asaas / NFSe) -->
     <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
-      {% if config.status == 'ATIVO' %}bg-emerald-100 text-emerald-700
-      {% elif config.status == 'PENDENTE_CERTIFICADO' %}bg-amber-100 text-amber-700
-      {% elif config.status == 'ERRO' %}bg-red-100 text-red-700
-      {% else %}bg-slate-100 text-slate-600{% endif %}">
-      <span class="w-1.5 h-1.5 rounded-full
-        {% if config.status == 'ATIVO' %}bg-emerald-500
-        {% elif config.status == 'PENDENTE_CERTIFICADO' %}bg-amber-500
-        {% elif config.status == 'ERRO' %}bg-red-500
-        {% else %}bg-slate-400{% endif %}"></span>
-      {{ config.get_status_display }}
+      {% if config.can_emit_nfse %}bg-emerald-100 text-emerald-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+      <span class="w-1.5 h-1.5 rounded-full {% if config.can_emit_nfse %}bg-emerald-500{% else %}bg-amber-500{% endif %}"></span>
+      {% if config.can_emit_nfse %}NFSe pronta para emitir{% else %}NFSe pendente de configuração{% endif %}
     </span>
   </div>
-
-  {% if config.status_detail %}
-  <div class="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-800">
-    <i data-lucide="alert-circle" class="h-4 w-4 shrink-0 mt-0.5"></i>
-    <span>{{ config.status_detail }}</span>
-  </div>
-  {% endif %}
-
-  {% if config.is_sandbox %}
-  <div class="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-    <i data-lucide="flask-conical" class="h-4 w-4 shrink-0"></i>
-    <span><strong>Modo Sandbox ativo</strong> — Documentos emitidos em homologação não têm validade fiscal.</span>
-  </div>
-  {% endif %}
 
   <form method="post">
     {% csrf_token %}
 
-    <!-- Bloco 1: Ambiente e Tokens -->
+    <!-- Bloco Asaas: Ambiente -->
     <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
       <div class="px-5 py-4">
         <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
           <i data-lucide="server-cog" class="h-4 w-4 text-slate-400"></i>
-          Ambiente e Tokens
+          Asaas — Ambiente
         </h2>
         <p class="text-xs text-slate-500 mt-1">
-          O token da empresa é obtido no painel da Focus (ou aqui, via o botão "Cadastrar empresa na Focus" abaixo).
+          Chave de API e ambiente vêm das variáveis <code>ASAAS_API_KEY</code>/<code>ASAAS_ENVIRONMENT</code> do
+          servidor (mesma conta usada pelo módulo de cobranças) — não são editadas por aqui.
         </p>
       </div>
-      <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="px-5 py-4 flex flex-wrap gap-6 text-sm">
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Ambiente</label>
-          <select name="environment" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-            {% for val, label in config.Environment.choices %}
-            <option value="{{ val }}" {% if config.environment == val %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div></div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Token de Produção</label>
-          <input type="text" name="token_producao" value="{{ config.token_producao }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+          <span class="block text-xs font-medium text-slate-500">Chave de API</span>
+          <span class="font-semibold {% if asaas_api_key_set %}text-emerald-700{% else %}text-red-600{% endif %}">
+            {% if asaas_api_key_set %}Configurada{% else %}Não configurada{% endif %}
+          </span>
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Token de Homologação</label>
-          <input type="text" name="token_homologacao" value="{{ config.token_homologacao }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
-        </div>
-        <div class="sm:col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Token de Conta/Revenda da Focus (opcional)</label>
-          <input type="text" name="account_token" value="{{ config.account_token }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
-          <p class="text-[11px] text-slate-400 mt-1">Necessário apenas para usar o botão "Cadastrar empresa na Focus" abaixo.</p>
+          <span class="block text-xs font-medium text-slate-500">Ambiente</span>
+          <span class="font-semibold text-slate-700">{{ asaas_environment }}</span>
         </div>
       </div>
+      {% if asaas_environment == 'SANDBOX' %}
+      <div class="px-5 py-3 bg-amber-50 flex items-center gap-2 text-xs text-amber-800">
+        <i data-lucide="flask-conical" class="h-3.5 w-3.5 shrink-0"></i>
+        <span><strong>Modo Sandbox</strong> — notas emitidas aqui não têm validade fiscal.</span>
+      </div>
+      {% endif %}
     </div>
 
-    <!-- Bloco 2: Dados do Emitente -->
-    <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 mt-4">
-      <div class="px-5 py-4">
-        <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
-          <i data-lucide="building-2" class="h-4 w-4 text-slate-400"></i>
-          Dados do Emitente
-        </h2>
-      </div>
-      <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="sm:col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Razão Social <span class="text-red-500">*</span></label>
-          <input type="text" name="razao_social" value="{{ config.razao_social }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" required>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Nome Fantasia</label>
-          <input type="text" name="nome_fantasia" value="{{ config.nome_fantasia }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">CNPJ <span class="text-red-500">*</span></label>
-          <input type="text" name="cnpj" value="{{ config.cnpj }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Inscrição Estadual</label>
-          <input type="text" name="inscricao_estadual" value="{{ config.inscricao_estadual }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Inscrição Municipal</label>
-          <input type="text" name="inscricao_municipal" value="{{ config.inscricao_municipal }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-        </div>
-        <div class="sm:col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Regime Tributário (CRT)</label>
-          <select name="regime_tributario" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-            {% for val, label in config.RegimeTributario.choices %}
-            <option value="{{ val }}" {% if config.regime_tributario == val %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      </div>
-
-      <!-- Endereço -->
-      <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div class="sm:col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Logradouro <span class="text-red-500">*</span></label>
-          <input type="text" name="logradouro" value="{{ config.logradouro }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Número <span class="text-red-500">*</span></label>
-          <input type="text" name="numero" value="{{ config.numero }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Complemento</label>
-          <input type="text" name="complemento" value="{{ config.complemento }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Bairro <span class="text-red-500">*</span></label>
-          <input type="text" name="bairro" value="{{ config.bairro }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Município <span class="text-red-500">*</span></label>
-          <input type="text" name="municipio" value="{{ config.municipio }}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">UF</label>
-            <input type="text" name="uf" value="{{ config.uf }}" maxlength="2"
-                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-slate-900">
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">CEP</label>
-            <input type="text" name="cep" value="{{ config.cep }}"
-                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
-          </div>
-        </div>
-        <div class="sm:col-span-3">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Código IBGE do Município (prestador de serviço)</label>
-          <input type="text" name="codigo_municipio_ibge" value="{{ config.codigo_municipio_ibge }}" maxlength="7"
-                 class="w-full sm:w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
-          <p class="text-[11px] text-slate-400 mt-1">Usado na NFSe Nacional. Padrão: 5208707 (Goiânia/GO).</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Bloco 3: Documentos habilitados -->
+    <!-- Bloco Asaas: Serviço municipal e alíquotas -->
     <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 mt-4">
       <div class="px-5 py-4">
         <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
           <i data-lucide="file-text" class="h-4 w-4 text-slate-400"></i>
-          Documentos Habilitados
+          Asaas — NFSe
         </h2>
       </div>
-      <div class="px-5 py-4 space-y-3">
-        <div class="flex flex-wrap gap-6">
-          <label for="habilita_nfe" class="flex items-center gap-3 cursor-pointer select-none">
-            <div class="relative">
-              <input type="checkbox" name="habilita_nfe" id="habilita_nfe" {% if config.habilita_nfe %}checked{% endif %} class="peer sr-only">
-              <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
-              <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
-            </div>
-            <span class="text-sm font-medium text-slate-700">NFe (venda B2B)</span>
-          </label>
-          <label for="habilita_nfce" class="flex items-center gap-3 cursor-pointer select-none">
-            <div class="relative">
-              <input type="checkbox" name="habilita_nfce" id="habilita_nfce" {% if config.habilita_nfce %}checked{% endif %} class="peer sr-only">
-              <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
-              <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
-            </div>
-            <span class="text-sm font-medium text-slate-700">NFCe (venda ao consumidor)</span>
-          </label>
-          <label for="habilita_nfse" class="flex items-center gap-3 cursor-pointer select-none">
-            <div class="relative">
-              <input type="checkbox" name="habilita_nfse" id="habilita_nfse" {% if config.habilita_nfse %}checked{% endif %} class="peer sr-only">
-              <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
-              <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
-            </div>
-            <span class="text-sm font-medium text-slate-700">NFSe Nacional (serviço)</span>
-          </label>
-        </div>
+      <div class="px-5 py-4 space-y-4">
+        <label for="habilita_nfse" class="flex items-center gap-3 cursor-pointer select-none w-fit">
+          <div class="relative">
+            <input type="checkbox" name="habilita_nfse" id="habilita_nfse" {% if config.habilita_nfse %}checked{% endif %} class="peer sr-only">
+            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <span class="text-sm font-medium text-slate-700">Habilitar emissão de NFSe</span>
+        </label>
+
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Código de Tributação Nacional do ISS (padrão)</label>
-          <input type="text" name="default_codigo_tributacao_iss" value="{{ config.default_codigo_tributacao_iss }}"
-                 class="w-full sm:w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
-          <p class="text-[11px] text-slate-400 mt-1">Usado quando o serviço faturado não tiver um código próprio cadastrado.</p>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Serviço Municipal</label>
+
+          <input type="hidden" name="asaas_municipal_service_id" id="id_asaas_municipal_service_id" value="{{ config.asaas_municipal_service_id }}">
+          <input type="hidden" name="asaas_municipal_service_label" id="id_asaas_municipal_service_label" value="{{ config.asaas_municipal_service_label }}">
+
+          <!-- Serviço já selecionado -->
+          <div id="asaas-service-selected-box" class="{% if not config.asaas_municipal_service_id %}hidden{% endif %} flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+            <div>
+              <p id="asaas-service-selected-label" class="text-xs font-medium text-emerald-900">{{ config.asaas_municipal_service_label }}</p>
+              <p class="text-[10px] text-emerald-700 mt-0.5">ID Asaas: <span id="asaas-service-selected-id">{{ config.asaas_municipal_service_id }}</span></p>
+            </div>
+            <button type="button" onclick="document.getElementById('asaas-service-selected-box').classList.add('hidden'); document.getElementById('asaas-service-search-box').classList.remove('hidden');"
+                    class="shrink-0 text-xs font-semibold text-emerald-700 hover:text-emerald-900">Trocar</button>
+          </div>
+
+          <!-- Busca no catálogo da Asaas -->
+          <div id="asaas-service-search-box" class="{% if config.asaas_municipal_service_id %}hidden{% endif %} relative">
+            <input type="text" id="municipal-service-search-input" autocomplete="off"
+                   placeholder="Buscar no catálogo da Asaas por descrição ou CNAE (ex: calha, reparação, 4399199)..."
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                   hx-get="{% url 'fiscal:asaas_search_municipal_services' %}"
+                   hx-trigger="keyup changed delay:400ms, search"
+                   hx-target="#municipal-service-results"
+                   hx-swap="innerHTML"
+                   name="q">
+            <div id="municipal-service-results" class="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-72 overflow-y-auto"></div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">
+            Referencia o serviço já cadastrado no painel Asaas (Notas Fiscais → Configurações → Serviços) por ID —
+            evita divergência com texto digitado à mão. Sem isso, cai no preenchimento manual abaixo.
+          </p>
         </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Código de Tributação Municipal do ISS (padrão)</label>
-          <input type="text" name="default_codigo_tributacao_municipal_iss" value="{{ config.default_codigo_tributacao_municipal_iss }}"
-                 maxlength="3"
-                 class="w-full sm:w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
-          <p class="text-[11px] text-slate-400 mt-1">Tabela própria da prefeitura de Goiânia — diferente do código nacional acima.</p>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Código Indicador de Operação — cIndOp (padrão)</label>
-          <input type="text" name="default_codigo_indicador_operacao" value="{{ config.default_codigo_indicador_operacao }}"
-                 maxlength="6"
-                 class="w-full sm:w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
-          <p class="text-[11px] text-slate-400 mt-1">Reforma Tributária (Anexo VIII). Para instalação de calhas (item 07.02), o valor padrão da tabela oficial é 020201.</p>
+
+        <details class="pt-1">
+          <summary class="cursor-pointer text-xs font-semibold text-slate-500 select-none">Preenchimento manual (fallback, usado só se nenhum serviço acima estiver selecionado)</summary>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Nome do Serviço Municipal</label>
+              <input type="text" name="asaas_municipal_service_name" value="{{ config.asaas_municipal_service_name }}"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+              <p class="text-[11px] text-slate-400 mt-1">Texto igual ao cadastrado na tabela de serviços municipais do Asaas.</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Código do Serviço Municipal</label>
+              <input type="text" name="asaas_municipal_service_code" value="{{ config.asaas_municipal_service_code }}"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+              <p class="text-[11px] text-slate-400 mt-1">Código na tabela da prefeitura (conforme cadastrado no Asaas).</p>
+            </div>
+          </div>
+        </details>
+
+        <label for="asaas_retain_iss" class="flex items-center gap-3 cursor-pointer select-none w-fit">
+          <div class="relative">
+            <input type="checkbox" name="asaas_retain_iss" id="asaas_retain_iss" {% if config.asaas_retain_iss %}checked{% endif %} class="peer sr-only">
+            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <span class="text-sm font-medium text-slate-700">Reter ISS (retainIss)</span>
+        </label>
+
+        <div class="pt-2 border-t border-slate-100">
+          <p class="text-xs font-semibold text-slate-700 mb-3">Alíquotas (%)</p>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">ISS</label>
+              <input type="text" name="asaas_iss_aliquota" value="{{ config.asaas_iss_aliquota }}"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">PIS</label>
+              <input type="text" name="asaas_pis_aliquota" value="{{ config.asaas_pis_aliquota }}"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">COFINS</label>
+              <input type="text" name="asaas_cofins_aliquota" value="{{ config.asaas_cofins_aliquota }}"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">CSLL</label>
+              <input type="text" name="asaas_csll_aliquota" value="{{ config.asaas_csll_aliquota }}"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">INSS</label>
+              <input type="text" name="asaas_inss_aliquota" value="{{ config.asaas_inss_aliquota }}"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">IR</label>
+              <input type="text" name="asaas_ir_aliquota" value="{{ config.asaas_ir_aliquota }}"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            </div>
+          </div>
         </div>
 
         <div class="pt-2 border-t border-slate-100">
-          <p class="text-xs font-semibold text-slate-700 mb-1">Reforma Tributária — IBS/CBS</p>
+          <p class="text-xs font-semibold text-slate-700 mb-1">Reforma Tributária — grupo IBS/CBS</p>
           <p class="text-[11px] text-slate-500 mb-3">
-            Grupo obrigatório na NFSe Nacional a partir de 2026. Confirme os códigos com seu contador —
-            não preencha um valor às cegas.
+            A prefeitura de Goiânia passou a exigir esse grupo completo na nota (rejeita faltando qualquer um
+            dos 4). Vão <strong>na própria nota</strong> (dentro de "taxes" no payload da Asaas) — diferente do
+            que a gente pensava antes, configurar só na conta (fiscalInfo) não bastou. Confirme os valores com
+            seu contador.
           </p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">CST IBS/CBS</label>
-              <input type="text" name="default_ibs_cbs_situacao_tributaria" value="{{ config.default_ibs_cbs_situacao_tributaria }}"
-                     maxlength="3"
+              <label class="block text-xs font-medium text-slate-600 mb-1">Código NBS</label>
+              <input type="text" name="default_codigo_nbs" value="{{ config.default_codigo_nbs }}" maxlength="15"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+              <p class="text-[11px] text-slate-400 mt-1">Formato com pontos, igual ao catálogo Asaas (ex: 1.0105.30.00).</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Código Indicador de Operação (cIndOp)</label>
+              <input type="text" name="default_codigo_indicador_operacao" value="{{ config.default_codigo_indicador_operacao }}" maxlength="6"
                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
             </div>
             <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">Classificação Tributária IBS/CBS</label>
-              <input type="text" name="default_ibs_cbs_classificacao_tributaria" value="{{ config.default_ibs_cbs_classificacao_tributaria }}"
-                     maxlength="6"
+              <label class="block text-xs font-medium text-slate-600 mb-1">CST IBS/CBS</label>
+              <input type="text" name="default_ibs_cbs_situacao_tributaria" value="{{ config.default_ibs_cbs_situacao_tributaria }}" maxlength="3"
+                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Classificação Tributária IBS/CBS (cClassTrib)</label>
+              <input type="text" name="default_ibs_cbs_classificacao_tributaria" value="{{ config.default_ibs_cbs_classificacao_tributaria }}" maxlength="6"
                      class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
             </div>
           </div>
+
         </div>
       </div>
     </div>
 
-    <!-- Bloco 4: Webhook -->
+    <!-- Bloco Asaas: Dados Fiscais da Conta (fiscalInfo) -->
+    <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 mt-4">
+      <div class="px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <i data-lucide="building-2" class="h-4 w-4 text-slate-400"></i>
+          Asaas — Dados Fiscais da Conta
+        </h2>
+        <p class="text-xs text-slate-500 mt-1">
+          Espelho do cadastro em Notas Fiscais → Configurações → Informações da Empresa, no painel Asaas
+          (endpoint <code>fiscalInfo</code>). Configurado <strong>uma vez por conta</strong>, não por nota.
+          Razão social e CNPJ não entram aqui — são registro da própria conta Asaas, editado só pelo painel deles.
+        </p>
+      </div>
+      <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Inscrição Municipal</label>
+          <input type="text" name="inscricao_municipal" value="{{ config.inscricao_municipal }}"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">E-mail Fiscal</label>
+          <input type="email" name="asaas_fiscal_email" value="{{ config.asaas_fiscal_email }}"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Código CNAE</label>
+          <input type="text" name="asaas_cnae" value="{{ config.asaas_cnae }}"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900"
+                 placeholder="Só números, ex: 4399199">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Item da Lista de Serviços</label>
+          <input type="text" name="asaas_service_list_item" value="{{ config.asaas_service_list_item }}"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900"
+                 placeholder="Com ponto, ex: 07.05">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Regime Especial de Tributação</label>
+          <select name="asaas_special_tax_regime" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            {% for val, label in config.SpecialTaxRegime.choices %}
+            <option value="{{ val }}" {% if config.asaas_special_tax_regime == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Regime de Apuração Tributária SN</label>
+          <select name="asaas_national_portal_tax_calc_regime" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900">
+            <option value="">Não preencher</option>
+            {% for val, label in config.NationalPortalTaxCalcRegime.choices %}
+            <option value="{{ val }}" {% if config.asaas_national_portal_tax_calc_regime == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <p class="text-[11px] text-slate-400 mt-1">Só se sua empresa for ME/EPP optante do Simples Nacional.</p>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Série do RPS</label>
+          <input type="text" name="asaas_rps_serie" value="{{ config.asaas_rps_serie }}"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Número do RPS</label>
+            <input type="number" name="asaas_rps_number" value="{{ config.asaas_rps_number|default_if_none:'' }}"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Número do Lote</label>
+            <input type="number" name="asaas_lote_number" value="{{ config.asaas_lote_number|default_if_none:'' }}"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900">
+          </div>
+        </div>
+      </div>
+      <div class="px-5 py-4 flex flex-wrap gap-6">
+        <label for="asaas_simples_nacional" class="flex items-center gap-3 cursor-pointer select-none">
+          <div class="relative">
+            <input type="checkbox" name="asaas_simples_nacional" id="asaas_simples_nacional" {% if config.asaas_simples_nacional %}checked{% endif %} class="peer sr-only">
+            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <span class="text-sm font-medium text-slate-700">Optante pelo Simples Nacional</span>
+        </label>
+        <label for="asaas_cultural_projects_promoter" class="flex items-center gap-3 cursor-pointer select-none">
+          <div class="relative">
+            <input type="checkbox" name="asaas_cultural_projects_promoter" id="asaas_cultural_projects_promoter" {% if config.asaas_cultural_projects_promoter %}checked{% endif %} class="peer sr-only">
+            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <span class="text-sm font-medium text-slate-700">Incentivador Cultural</span>
+        </label>
+      </div>
+      <div class="px-5 py-4 flex flex-wrap items-center gap-3">
+        <button type="submit" name="action" value="sync_asaas_fiscal_info"
+                class="inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                onclick="return confirm('Isso salva as configurações e envia os dados fiscais para a conta Asaas (fiscalInfo). Confirma?')">
+          <i data-lucide="upload-cloud" class="h-4 w-4"></i>
+          Salvar e enviar para a Asaas
+        </button>
+        <button type="submit" name="action" value="fetch_asaas_fiscal_info"
+                class="inline-flex items-center gap-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors">
+          <i data-lucide="download-cloud" class="h-4 w-4"></i>
+          Buscar da Asaas
+        </button>
+      </div>
+    </div>
+
+    <!-- Bloco Base ERP: Ambiente -->
+    <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 mt-4">
+      <div class="px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <i data-lucide="package" class="h-4 w-4 text-slate-400"></i>
+          Base ERP — Ambiente (Nota Fiscal de Produto)
+        </h2>
+        <p class="text-xs text-slate-500 mt-1">
+          Chave de API e ambiente vêm das variáveis <code>BASEERP_API_KEY</code>/<code>BASEERP_ENVIRONMENT</code>
+          do servidor — não são editadas por aqui. É uma API separada da Asaas Invoices (NFSe): mesma conta,
+          autenticação e URL próprias.
+        </p>
+      </div>
+      <div class="px-5 py-4 flex flex-wrap gap-6 text-sm">
+        <div>
+          <span class="block text-xs font-medium text-slate-500">Chave de API</span>
+          <span class="font-semibold {% if base_erp_api_key_set %}text-emerald-700{% else %}text-red-600{% endif %}">
+            {% if base_erp_api_key_set %}Configurada{% else %}Não configurada{% endif %}
+          </span>
+        </div>
+        <div>
+          <span class="block text-xs font-medium text-slate-500">Ambiente</span>
+          <span class="font-semibold text-slate-700">{{ base_erp_environment }}</span>
+        </div>
+      </div>
+      <div class="px-5 py-4 flex flex-wrap gap-6">
+        <label for="habilita_nfe" class="flex items-center gap-3 cursor-pointer select-none">
+          <div class="relative">
+            <input type="checkbox" name="habilita_nfe" id="habilita_nfe" {% if config.habilita_nfe %}checked{% endif %} class="peer sr-only">
+            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <span class="text-sm font-medium text-slate-700">Habilitar emissão de NFe (produto)</span>
+        </label>
+        <label for="habilita_nfce" class="flex items-center gap-3 cursor-pointer select-none">
+          <div class="relative">
+            <input type="checkbox" name="habilita_nfce" id="habilita_nfce" {% if config.habilita_nfce %}checked{% endif %} class="peer sr-only">
+            <div class="w-10 h-6 bg-slate-200 rounded-full transition-colors peer-checked:bg-emerald-500"></div>
+            <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <span class="text-sm font-medium text-slate-700">Habilitar emissão de NFCe (produto)</span>
+        </label>
+      </div>
+      {% if base_erp_environment == 'SANDBOX' %}
+      <div class="px-5 py-3 bg-amber-50 flex items-center gap-2 text-xs text-amber-800">
+        <i data-lucide="flask-conical" class="h-3.5 w-3.5 shrink-0"></i>
+        <span><strong>Modo Sandbox</strong> — notas emitidas aqui não têm validade fiscal.</span>
+      </div>
+      {% endif %}
+      <div class="px-5 py-3 bg-slate-50 flex items-start gap-2 text-xs text-slate-600">
+        <i data-lucide="info" class="h-3.5 w-3.5 shrink-0 mt-0.5"></i>
+        <span>
+          A configuração fiscal da empresa (inscrição estadual, regime tributário, certificado digital A1/A3,
+          grupo de impostos) é feita manualmente no painel do Base ERP — em <strong>Faturamento &gt; Nota Fiscal
+          Eletrônica &gt; Configurar emissão</strong>. Não há endpoint de API para isso; a chave acima só
+          autentica as chamadas de cliente/produto/pedido/emissão.
+        </span>
+      </div>
+    </div>
+
+    <!-- Bloco Base ERP: Webhook -->
     <div class="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 mt-4">
       <div class="px-5 py-4">
         <h2 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
           <i data-lucide="webhook" class="h-4 w-4 text-slate-400"></i>
-          Webhook (status assíncrono)
+          Base ERP — Webhook
         </h2>
-        <p class="text-xs text-slate-500 mt-1">A Focus notifica esta URL quando um documento assíncrono for autorizado/rejeitado.</p>
+        <p class="text-xs text-slate-500 mt-1">
+          Cadastre esta URL manualmente no painel do Base ERP — <strong>Menu do usuário &gt; Configurações &gt;
+          Integrações &gt; Webhooks</strong> — habilitando os eventos <code>INVOICE_NFE_CREATED</code>,
+          <code>INVOICE_NFE_AUTHORIZED</code>, <code>INVOICE_NFE_ERROR</code> e <code>INVOICE_NFE_CANCELED</code>.
+          É o único jeito de saber quando uma nota foi autorizada sem precisar clicar em "Consultar status"
+          manualmente em cada documento.
+        </p>
       </div>
-      <div class="px-5 py-4 space-y-3">
+      <div class="px-5 py-4 space-y-4">
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Token do Webhook</label>
-          <input type="text" name="webhook_token" value="{{ config.webhook_token }}"
+          <label class="block text-xs font-medium text-slate-600 mb-1">URL do Webhook</label>
+          <input type="text" readonly value="{{ base_erp_webhook_url }}" onclick="this.select()"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono bg-slate-50 text-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-900">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Token de Autenticação</label>
+          <input type="text" name="base_erp_webhook_token" value="{{ config.base_erp_webhook_token }}"
                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900"
-                 placeholder="Gerado automaticamente ao registrar o webhook">
+                 placeholder="Gere um valor aleatório e cole também no campo 'Token de autenticação' do Base ERP">
+          <p class="text-[11px] text-slate-400 mt-1">
+            Enviado pelo Base ERP no header <code>asaas-access-token</code> — precisa ser idêntico dos dois lados.
+            Deixe vazio para não validar (não recomendado em produção).
+          </p>
         </div>
       </div>
     </div>
@@ -282,30 +412,21 @@
         <i data-lucide="save" class="h-4 w-4"></i>
         Salvar Configurações
       </button>
-
-      <button type="submit" name="action" value="create_empresa"
-              class="inline-flex items-center gap-2 bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
-              onclick="return confirm('Isso enviará os dados salvos para a Focus e cadastrará/atualizará a empresa. Confirma?')">
-        <i data-lucide="send" class="h-4 w-4"></i>
-        Cadastrar/Atualizar empresa na Focus
-      </button>
-
-      {% if config.can_emit %}
-      <button type="submit" name="action" value="register_webhook"
-              class="inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-        <i data-lucide="webhook" class="h-4 w-4"></i>
-        Registrar Webhook
-      </button>
-      {% endif %}
     </div>
   </form>
 
-  <div class="bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 text-xs text-slate-500 leading-relaxed">
-    <p class="font-semibold text-slate-600 mb-1">Certificado Digital A1</p>
-    <p>O certificado é enviado direto para a Focus e fica custodiado por ela — não é armazenado neste sistema.
-    Anexe pelo painel da Focus em <strong>Serviços &gt; Minhas Empresas &gt; Editar &gt; Anexar Certificado</strong>.
-    {% if config.certificado_valido_ate %}Certificado válido até <strong>{{ config.certificado_valido_ate|date:"d/m/Y" }}</strong>.{% endif %}</p>
-  </div>
-
 </div>
+
+<script>
+  function selectMunicipalService(el) {
+    document.getElementById('id_asaas_municipal_service_id').value = el.dataset.id;
+    document.getElementById('id_asaas_municipal_service_label').value = el.dataset.label;
+    document.getElementById('asaas-service-selected-label').textContent = el.dataset.label;
+    document.getElementById('asaas-service-selected-id').textContent = el.dataset.id;
+    document.getElementById('asaas-service-selected-box').classList.remove('hidden');
+    document.getElementById('asaas-service-search-box').classList.add('hidden');
+    document.getElementById('municipal-service-results').innerHTML = '';
+    document.getElementById('municipal-service-search-input').value = '';
+  }
+</script>
 {% endblock %}

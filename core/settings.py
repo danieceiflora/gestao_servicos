@@ -54,6 +54,14 @@ ASAAS_API_KEY = os.environ.get('ASAAS_API_KEY', '')
 ASAAS_ENVIRONMENT = os.environ.get('ASAAS_ENVIRONMENT', 'SANDBOX')  # SANDBOX ou PRODUCTION
 ASAAS_MASTER_WALLET_ID = os.environ.get('ASAAS_CLIENT_WALLET_ID', '')  # Wallet da conta master (recebe split das subcontas)
 
+# --- BASE ERP (Nota Fiscal de Produto) ---
+# API própria do Base ERP — mesma conta Asaas, mas autenticação (access_token) e
+# base URL separadas (api.baseerp.com.br / api-sandbox.baseerp.com.br). A config
+# fiscal (regime tributário, certificado A1/A3, grupo de impostos) é feita
+# manualmente no painel do Base ERP — não tem endpoint de API para isso.
+BASEERP_API_KEY = os.environ.get('BASEERP_API_KEY', '')
+BASEERP_ENVIRONMENT = os.environ.get('BASEERP_ENVIRONMENT', 'SANDBOX')  # SANDBOX ou PRODUCTION
+
 # Margem da plataforma por método de pagamento (interna — não exposta na UI)
 # PIX: percentual sobre o valor da transação, com valor mínimo em R$
 PLATFORM_PIX_SPLIT_PERCENT = '0.008'   # 0,80%

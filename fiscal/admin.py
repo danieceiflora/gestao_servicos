@@ -10,7 +10,7 @@ class NFeConfigAdmin(admin.ModelAdmin):
 
 @admin.register(NFeDocument)
 class NFeDocumentAdmin(admin.ModelAdmin):
-    list_display = ['document_type', 'ref', 'status', 'numero', 'owner', 'created_at']
+    list_display = ['document_type', 'ref', 'gateway_id', 'status', 'numero', 'owner', 'created_at']
     list_filter = ['document_type', 'status']
-    search_fields = ['ref', 'numero', 'chave_acesso']
+    search_fields = ['ref', 'gateway_id', 'numero', 'chave_acesso']
     readonly_fields = ['created_at', 'updated_at', 'raw_response']

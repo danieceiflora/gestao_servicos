@@ -98,11 +98,12 @@ class NFeConfig(models.Model):
                   'NBS x cIndOp x cClassTrib). Usado quando o serviço faturado não tiver um código próprio.'
     )
     default_codigo_nbs = models.CharField(
-        'Código NBS (padrão)', max_length=9, blank=True,
-        help_text='Nomenclatura Brasileira de Serviços, 9 dígitos sem pontos (Anexo VIII). Diferente do '
+        'Código NBS (padrão)', max_length=15, blank=True,
+        help_text='Nomenclatura Brasileira de Serviços (Anexo VIII). Para o Asaas, use o formato com pontos '
+                  'igual ao devolvido pelo catálogo dele (GET /v3/fiscalInfo/nbsCodes), ex: "1.0105.30.00" — '
+                  'não confirmamos se a Asaas aceita o formato sem pontos no payload da nota. Diferente do '
                   'cIndOp, o NBS não é único por item LC 116 — varia por tipo específico de serviço, então '
-                  'esse default só é confiável se todos os serviços faturados forem do mesmo tipo. Usado '
-                  'quando o serviço faturado não tiver um código NBS próprio.'
+                  'esse default só é confiável se todos os serviços faturados forem do mesmo tipo.'
     )
 
     # Reforma Tributária (IBS/CBS) — grupo obrigatório na NFSe Nacional a partir de 2026.
@@ -116,6 +117,130 @@ class NFeConfig(models.Model):
     default_ibs_cbs_classificacao_tributaria = models.CharField(
         'Classificação Tributária IBS/CBS (padrão)', max_length=6, blank=True,
         help_text='Código de Classificação Tributária do IBS/CBS (Reforma Tributária). Consulte seu contador.'
+    )
+
+    # --- Asaas (NFSe) ---
+    # Segundo provedor de NFSe, alternativo à Focus. Diferente da Focus, o Asaas não
+    # usa CNPJ/certificado/empresa por chamada — a config cadastral (município,
+    # regime, série de RPS) fica na própria conta Asaas, via endpoint /fiscalInfo
+    # (fora de escopo aqui). O que falta pra emitir (ver fiscal/gateways/asaas.py,
+    # InvoiceData/InvoiceTaxes) são as alíquotas e o serviço municipal — sem
+    # equivalente automático no cadastro de Service, então ficam como default aqui,
+    # nos mesmos moldes dos defaults da Focus (default_codigo_tributacao_iss etc.).
+    class NFSeProvider(models.TextChoices):
+        FOCUS = 'FOCUS', 'Focus NFe'
+        ASAAS = 'ASAAS', 'Asaas'
+
+    nfse_provider = models.CharField(
+        'Provedor de NFSe', max_length=10, choices=NFSeProvider.choices, default=NFSeProvider.FOCUS,
+        help_text='Qual gateway emite NFSe. NFe/NFCe de produto são emitidas pelo Base ERP (ver '
+                  'fiscal/gateways/base_erp.py) — o Asaas só emite nota de serviço.'
+    )
+    asaas_municipal_service_id = models.CharField(
+        'ID do Serviço Municipal — Asaas (padrão)', max_length=20, blank=True,
+        help_text='municipalServiceId — id do catálogo de serviços da Asaas (GET /v3/fiscalInfo/services). '
+                  'Forma recomendada pela Asaas: referencia exatamente o serviço já homologado, sem risco '
+                  'de nome/código digitado não bater com o cadastro deles. Escolhido pela busca na tela de '
+                  'configuração; os campos de nome/código abaixo são só um fallback manual.'
+    )
+    asaas_municipal_service_label = models.CharField(
+        'Descrição do Serviço Selecionado — Asaas', max_length=255, blank=True,
+        help_text='Cache só para exibição — texto do serviço escolhido via busca (evita nova chamada à '
+                  'Asaas só para mostrar o que já foi selecionado).'
+    )
+    asaas_municipal_service_name = models.CharField(
+        'Nome do Serviço Municipal — Asaas (padrão, fallback manual)', max_length=255, blank=True,
+        help_text='municipalServiceName da nota — texto livre igual ao cadastrado na tabela de serviços '
+                  'municipais do Asaas. Só é usado se "ID do Serviço Municipal" acima estiver vazio.'
+    )
+    asaas_municipal_service_code = models.CharField(
+        'Código do Serviço Municipal — Asaas (padrão, fallback manual)', max_length=20, blank=True,
+        help_text='municipalServiceCode — só é usado se "ID do Serviço Municipal" acima estiver vazio.'
+    )
+    asaas_retain_iss = models.BooleanField(
+        'Reter ISS — Asaas (padrão)', default=False,
+        help_text='retainIss — se o ISS é retido pelo tomador do serviço.'
+    )
+    asaas_iss_aliquota = models.DecimalField(
+        'Alíquota ISS % — Asaas (padrão)', max_digits=5, decimal_places=2, default=0,
+    )
+    asaas_pis_aliquota = models.DecimalField(
+        'Alíquota PIS % — Asaas (padrão)', max_digits=5, decimal_places=2, default=0,
+    )
+    asaas_cofins_aliquota = models.DecimalField(
+        'Alíquota COFINS % — Asaas (padrão)', max_digits=5, decimal_places=2, default=0,
+    )
+    asaas_csll_aliquota = models.DecimalField(
+        'Alíquota CSLL % — Asaas (padrão)', max_digits=5, decimal_places=2, default=0,
+    )
+    asaas_inss_aliquota = models.DecimalField(
+        'Alíquota INSS % — Asaas (padrão)', max_digits=5, decimal_places=2, default=0,
+    )
+    asaas_ir_aliquota = models.DecimalField(
+        'Alíquota IR % — Asaas (padrão)', max_digits=5, decimal_places=2, default=0,
+    )
+
+    # --- Asaas fiscalInfo (config fiscal DA CONTA, não da nota) ---
+    # Espelho local dos campos de POST/GET /v3/fiscalInfo — ver
+    # AsaasInvoiceGateway.get_fiscal_info()/update_fiscal_info(). Editável aqui e
+    # sincronizável nos dois sentidos (botões "Buscar da Asaas"/"Salvar na Asaas"
+    # em fiscal/views.py). Razão social/CNPJ NÃO estão aqui de propósito — são
+    # dados de registro da própria conta Asaas (endpoint diferente, tipicamente
+    # com verificação de identidade/KYC), não algo pra reeditar por aqui.
+    class SpecialTaxRegime(models.TextChoices):
+        NENHUM = '0', ' - '
+        MICROEMPRESA_MUNICIPAL = '1', 'Microempresa Municipal'
+        ESTIMATIVA = '2', 'Estimativa'
+        SOCIEDADE_PROFISSIONAIS = '3', 'Sociedade de Profissionais'
+        COOPERATIVA = '4', 'Cooperativa'
+        MEI_SIMPLES_NACIONAL = '5', 'MEI - Simples Nacional'
+        ME_EPP_SIMPLES_NACIONAL = '6', 'ME EPP - Simples Nacional'
+
+    class NationalPortalTaxCalcRegime(models.TextChoices):
+        NENHUM = '0', 'Nenhum'
+        FEDERAL_MUNICIPAL_SN = '1', 'Tributos federais e municipal pelo SN'
+        FEDERAL_SN_ISSQN_FORA = '2', 'Tributos federais pelo SN e ISSQN fora do SN'
+        FORA_SN = '3', 'Tributos federais e municipal fora do SN'
+
+    asaas_fiscal_email = models.EmailField(
+        'E-mail Fiscal — Asaas', blank=True,
+        help_text='fiscalInfo.email — usado pela Asaas para notificações de nota fiscal (pode ser diferente '
+                  'do e-mail da própria conta Asaas).'
+    )
+    asaas_cultural_projects_promoter = models.BooleanField('Incentivador Cultural — Asaas', default=False)
+    asaas_cnae = models.CharField(
+        'Código CNAE — Asaas', max_length=10, blank=True,
+        help_text='Só números, sem pontuação (ex: 4399199).'
+    )
+    asaas_simples_nacional = models.BooleanField('Optante pelo Simples Nacional — Asaas', default=True)
+    asaas_special_tax_regime = models.CharField(
+        'Regime Especial de Tributação — Asaas', max_length=1,
+        choices=SpecialTaxRegime.choices, default=SpecialTaxRegime.NENHUM, blank=True,
+    )
+    asaas_service_list_item = models.CharField(
+        'Item da Lista de Serviços — Asaas', max_length=10, blank=True,
+        help_text='Formato com ponto, mantendo a formatação da LC 116 (ex: 07.05, não 0705).'
+    )
+    asaas_national_portal_tax_calc_regime = models.CharField(
+        'Regime de Apuração Tributária SN — Asaas', max_length=1,
+        choices=NationalPortalTaxCalcRegime.choices, blank=True, default='',
+        help_text='Preencher só se sua empresa for ME/EPP optante do Simples Nacional.'
+    )
+    asaas_rps_serie = models.CharField('Série do RPS — Asaas', max_length=10, blank=True)
+    asaas_rps_number = models.PositiveIntegerField('Número do RPS — Asaas', null=True, blank=True)
+    asaas_lote_number = models.PositiveIntegerField('Número do Lote — Asaas', null=True, blank=True)
+
+    # --- Base ERP (NFe/NFCe de produto) ---
+    # Diferente do webhook da Focus (registrado por aqui via API, ver
+    # register_webhook), o webhook do Base ERP é cadastrado manualmente no painel
+    # deles (Menu do usuário > Configurações > Integrações > Webhooks) — a API de
+    # criação de webhook (POST /webhooks) se mostrou instável no sandbox. Esse
+    # token é só o que o usuário cola na configuração de lá (campo "Token de
+    # autenticação"), pra validarmos o header `asaas-access-token` recebido.
+    base_erp_webhook_token = models.CharField(
+        'Token do Webhook — Base ERP', max_length=100, blank=True,
+        help_text='Cole aqui o mesmo token configurado no webhook do Base ERP (painel deles). Usado para '
+                  'validar o header "asaas-access-token" recebido em /integracoes/fiscal/webhook/base_erp/.'
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -151,15 +276,43 @@ class NFeConfig(models.Model):
 
     @property
     def can_emit_nfe(self):
-        return self.can_emit and self.habilita_nfe
+        """NFe de produto passou a ser emitida via Base ERP (Focus está
+        aposentada — ver fiscal/gateways/base_erp.py), mesma migração que a
+        NFSe já fez para a Asaas."""
+        return self.habilita_nfe and self.base_erp_ready
 
     @property
     def can_emit_nfce(self):
-        return self.can_emit and self.habilita_nfce
+        return self.habilita_nfce and self.base_erp_ready
+
+    @property
+    def asaas_ready(self):
+        """NFSe passou a ser emitida via Asaas (Focus está aposentada por
+        enquanto — ver fiscal/gateways/asaas.py). A API key vem de settings, não
+        do model, então "configurado" aqui significa: chave presente + serviço
+        municipal referenciado — via ID (forma recomendada, ver
+        asaas_municipal_service_id) ou, na falta dele, nome/código digitados."""
+        from django.conf import settings
+        has_key = bool(getattr(settings, 'ASAAS_API_KEY', ''))
+        has_service = bool(
+            self.asaas_municipal_service_id
+            or self.asaas_municipal_service_name
+            or self.asaas_municipal_service_code
+        )
+        return has_key and has_service
 
     @property
     def can_emit_nfse(self):
-        return self.can_emit and self.habilita_nfse
+        return self.habilita_nfse and self.asaas_ready
+
+    @property
+    def base_erp_ready(self):
+        """NF-e/NFC-e de produto via Base ERP. Diferente do Asaas, a chave de API
+        aqui não basta sozinha: a config fiscal (regime tributário, certificado,
+        impostos) é feita manualmente no painel do Base ERP, então isso só
+        confirma que a chave está presente — não que a emissão vai funcionar."""
+        from django.conf import settings
+        return bool(getattr(settings, 'BASEERP_API_KEY', ''))
 
 
 class NFeDocument(models.Model):
@@ -193,7 +346,12 @@ class NFeDocument(models.Model):
         related_name='fiscal_documents', verbose_name='Etapa da OS',
     )
 
-    ref = models.CharField('Referência (nosso ID enviado à Focus)', max_length=80, unique=True)
+    ref = models.CharField('Referência (nosso ID enviado ao gateway)', max_length=80, unique=True)
+    gateway_id = models.CharField(
+        'ID no Gateway', max_length=80, blank=True,
+        help_text='ID atribuído pelo gateway (ex: id da invoice no Asaas). A Focus é consultada pelo '
+                  'nosso `ref`; o Asaas exige o próprio ID nos endpoints de consulta/cancelamento.'
+    )
     status = models.CharField('Status', max_length=15, choices=Status.choices, default=Status.PROCESSANDO)
 
     numero = models.CharField('Número', max_length=20, blank=True)
