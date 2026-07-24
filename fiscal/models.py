@@ -293,7 +293,7 @@ class NFeConfig(models.Model):
         municipal referenciado — via ID (forma recomendada, ver
         asaas_municipal_service_id) ou, na falta dele, nome/código digitados."""
         from django.conf import settings
-        has_key = bool(getattr(settings, 'ASAAS_API_KEY', ''))
+        has_key = bool(getattr(settings, 'ASAAS_CLIENT_API_KEY', ''))
         has_service = bool(
             self.asaas_municipal_service_id
             or self.asaas_municipal_service_name

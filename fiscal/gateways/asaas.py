@@ -95,8 +95,8 @@ class AsaasInvoiceGateway:
     """
 
     def __init__(self):
-        env = getattr(settings, 'ASAAS_ENVIRONMENT', 'SANDBOX')
-        self.api_key = getattr(settings, 'ASAAS_API_KEY', '')
+        env = getattr(settings, 'ASAAS_CLIENT_ENVIRONMENT', 'SANDBOX')
+        self.api_key = getattr(settings, 'ASAAS_CLIENT_API_KEY', '')
         self.base_url = SANDBOX_URL if env == 'SANDBOX' else PRODUCTION_URL
 
     def _headers(self):

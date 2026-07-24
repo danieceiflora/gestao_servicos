@@ -54,6 +54,12 @@ ASAAS_API_KEY = os.environ.get('ASAAS_API_KEY', '')
 ASAAS_ENVIRONMENT = os.environ.get('ASAAS_ENVIRONMENT', 'SANDBOX')  # SANDBOX ou PRODUCTION
 ASAAS_MASTER_WALLET_ID = os.environ.get('ASAAS_CLIENT_WALLET_ID', '')  # Wallet da conta master (recebe split das subcontas)
 
+# --- ASAAS INVOICES (emissão de NFSe — fiscal/gateways/asaas.py) ---
+# Mesma conta Asaas de ASAAS_API_KEY acima, mas lida como par separado porque
+# AsaasInvoiceGateway usa estas chaves especificamente (settings.ASAAS_CLIENT_*).
+ASAAS_CLIENT_API_KEY = os.environ.get('ASAAS_CLIENT_API_KEY', '')
+ASAAS_CLIENT_ENVIRONMENT = os.environ.get('ASAAS_CLIENT_ENVIRONMENT', 'SANDBOX')  # SANDBOX ou PRODUCTION
+
 # --- BASE ERP (Nota Fiscal de Produto) ---
 # API própria do Base ERP — mesma conta Asaas, mas autenticação (access_token) e
 # base URL separadas (api.baseerp.com.br / api-sandbox.baseerp.com.br). A config
