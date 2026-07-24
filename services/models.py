@@ -855,14 +855,6 @@ class Billing(models.Model):
 
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Bruto")
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Desconto")
-    discount_deadline = models.DateField(
-        'Data Limite para Desconto', null=True, blank=True,
-        help_text='Data até a qual o desconto informado é válido. Uso apenas informativo em mensagens.'
-    )
-    interest = models.DecimalField(
-        'Juros (%)', max_digits=5, decimal_places=2, default=0, blank=True,
-        help_text='Percentual de juros de mora informativo, exibido em mensagens (não é aplicado automaticamente ao saldo devedor).'
-    )
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, verbose_name="Status")
     
@@ -903,7 +895,18 @@ class Billing(models.Model):
         return sum(inst.get_total_paid() for inst in self.installments.all())
 
     def get_remaining_balance(self):
-        return (self.total_amount - self.discount) - self.get_total_paid()
+        """Soma do saldo devedor de cada parcela ativa (exclui canceladas).
+
+        Não usa total_amount/discount diretamente: esses campos são congelados na
+        criação da cobrança e não é garantido que fiquem em sincronia com a soma
+        real das parcelas (ex: parcela editada manualmente via installment_update,
+        ou acréscimo aplicado só no rateio das parcelas). Somar o saldo de cada
+        parcela sempre reflete o que de fato ainda está em aberto.
+        """
+        return sum(
+            (inst.get_remaining_balance() for inst in self.installments.exclude(status=Installment.Status.CANCELADO)),
+            Decimal('0'),
+        )
 
     @property
     def next_installment(self):
@@ -937,16 +940,44 @@ class Installment(models.Model):
         ATRASADO = 'ATRASADO', 'Atrasado'
         CANCELADO = 'CANCELADO', 'Cancelado'
 
+    class DiscountType(models.TextChoices):
+        NONE = 'NONE', 'Sem desconto'
+        FIXED = 'FIXED', 'Valor fixo (R$)'
+        PERCENTAGE = 'PERCENTAGE', 'Percentual (%)'
+
+    class FineType(models.TextChoices):
+        NONE = 'NONE', 'Sem multa'
+        FIXED = 'FIXED', 'Valor fixo (R$)'
+        PERCENTAGE = 'PERCENTAGE', 'Percentual (%)'
+
     billing = models.ForeignKey(Billing, on_delete=models.CASCADE, related_name='installments', verbose_name="Cobrança")
     installment_number = models.PositiveIntegerField(verbose_name="Nº Parcela")
     due_date = models.DateField(verbose_name="Data de Vencimento")
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor")
-    
+
     payment_method = models.ForeignKey('PaymentMethod', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Forma de Pagto")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, verbose_name="Status")
-    
+
     paid_at = models.DateTimeField(null=True, blank=True, verbose_name="Pago em")
     notes = models.TextField(blank=True, null=True, verbose_name="Observações")
+
+    # Snapshot da BillingChargeConfig no momento da criação da parcela — ver
+    # CLAUDE.md/histórico: antes esses valores só existiam em GatewayCharge (criado
+    # apenas quando a parcela ia para o gateway), deixando parcelas em dinheiro sem
+    # nenhum dado de desconto/juros/multa, e sem coluna no banco para a régua de
+    # lembretes (integracoes) disparar mensagens ancoradas no limite do desconto.
+    discount_type = models.CharField('Tipo de Desconto', max_length=15,
+                                     choices=DiscountType.choices, default=DiscountType.NONE, blank=True)
+    discount_value = models.DecimalField('Valor do Desconto', max_digits=10, decimal_places=2, default=Decimal('0'))
+    discount_due_days = models.IntegerField('Prazo do Desconto (dias antes do vencimento)', default=0)
+    discount_deadline = models.DateField(
+        'Data Limite do Desconto', null=True, blank=True,
+        help_text='due_date - discount_due_days, calculado na criação da parcela. Nulo se não há desconto.'
+    )
+    interest_monthly = models.DecimalField('Juros por Atraso (% a.m.)', max_digits=6, decimal_places=2, default=Decimal('0'))
+    fine_type = models.CharField('Tipo de Multa', max_length=15,
+                                 choices=FineType.choices, default=FineType.NONE, blank=True)
+    fine_value = models.DecimalField('Valor da Multa', max_digits=10, decimal_places=2, default=Decimal('0'))
 
     def __str__(self):
         return f"{self.billing} - Parc {self.installment_number}"
@@ -957,6 +988,23 @@ class Installment(models.Model):
 
     def get_remaining_balance(self):
         return self.amount - self.get_total_paid()
+
+    @property
+    def discount_amount(self):
+        """Valor do desconto por antecipação, em reais, calculado a partir do
+        snapshot gravado na criação da parcela (discount_type/discount_value).
+        Property (não coluna) para nunca dessincronizar de `amount` caso a parcela
+        seja editada depois (ver installment_update em pagamentos/views.py)."""
+        if self.discount_type == self.DiscountType.NONE or self.discount_value <= 0:
+            return Decimal('0')
+        if self.discount_type == self.DiscountType.PERCENTAGE:
+            return (self.amount * self.discount_value / Decimal('100')).quantize(Decimal('0.01'))
+        return min(self.discount_value, self.amount)
+
+    @property
+    def discounted_amount(self):
+        """Valor a pagar se quitado até discount_deadline."""
+        return self.amount - self.discount_amount
 
     @property
     def active_gateway_charge(self):

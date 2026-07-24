@@ -34,20 +34,38 @@ class Command(BaseCommand):
         sent = failed = skipped = 0
 
         for reminder in reminders:
-            # offset_days = -1 → parcelas que vencem amanhã (today+1)
-            # offset_days =  0 → parcelas que vencem hoje
-            # offset_days =  3 → parcelas com 3 dias de atraso
-            target_due_date = today - timedelta(days=reminder.offset_days)
+            # offset_days é sempre relativo ao campo em reminder.anchor_field
+            # (due_date ou discount_deadline). Ex: anchor=discount_deadline,
+            # offset_days=-1 → parcelas cujo limite de desconto é amanhã.
+            target_date = today - timedelta(days=reminder.offset_days)
 
             installments = (
                 Installment.objects
                 .filter(
-                    due_date=target_due_date,
                     status__in=['PENDENTE', 'PARCIAL', 'ATRASADO'],
+                    **{reminder.anchor_field: target_date},
                 )
                 .select_related('billing__client')
                 .prefetch_related('billing__client__phones', 'gateway_charges')
             )
+
+            # Restringe pelo canal de pagamento — evita disparar um template que
+            # referencia dado de gateway (ex: código Pix) para quem paga por outro meio.
+            active_charge_status = ['PENDING', 'OVERDUE']
+            if reminder.payment_channel == ScheduledReminder.PaymentChannel.PIX:
+                installments = installments.filter(
+                    gateway_charges__status__in=active_charge_status,
+                    gateway_charges__method='PIX',
+                ).distinct()
+            elif reminder.payment_channel == ScheduledReminder.PaymentChannel.BOLETO:
+                installments = installments.filter(
+                    gateway_charges__status__in=active_charge_status,
+                    gateway_charges__method='BOLETO',
+                ).distinct()
+            elif reminder.payment_channel == ScheduledReminder.PaymentChannel.SEM_GATEWAY:
+                installments = installments.exclude(
+                    gateway_charges__status__in=active_charge_status,
+                )
 
             for installment in installments:
                 # Pula se já enviado com sucesso (falhas podem ser retentadas)
@@ -71,7 +89,7 @@ class Command(BaseCommand):
 
                 if dry_run:
                     self.stdout.write(
-                        f'  [DRY-RUN] "{reminder.name}" ({reminder.offset_label}) → '
+                        f'  [DRY-RUN] "{reminder.name}" ({reminder.offset_label}, canal={reminder.get_payment_channel_display()}) → '
                         f'parcela #{installment.pk} (vence {installment.due_date}) → {phone} vars={variables}'
                     )
                     sent += 1

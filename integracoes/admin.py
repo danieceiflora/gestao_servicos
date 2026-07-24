@@ -115,8 +115,8 @@ class ScheduledReminderVariableInline(admin.TabularInline):
 
 @admin.register(ScheduledReminder)
 class ScheduledReminderAdmin(admin.ModelAdmin):
-    list_display = ['name', 'offset_days', 'template_name', 'is_active', 'created_at']
-    list_filter = ['is_active']
+    list_display = ['name', 'anchor_field', 'offset_days', 'payment_channel', 'template_name', 'is_active', 'created_at']
+    list_filter = ['is_active', 'anchor_field', 'payment_channel']
     search_fields = ['name', 'template_name']
     inlines = [ScheduledReminderVariableInline]
     fieldsets = (
@@ -124,8 +124,9 @@ class ScheduledReminderAdmin(admin.ModelAdmin):
             'fields': ('name', 'is_active'),
         }),
         ('Gatilho', {
-            'fields': ('offset_days',),
-            'description': 'Negativo = antes do vencimento. Zero = no vencimento. Positivo = após o vencimento.',
+            'fields': ('anchor_field', 'offset_days', 'payment_channel'),
+            'description': 'Negativo = antes da data de referência. Zero = no dia. Positivo = após. '
+                          'Canal de pagamento restringe quais parcelas recebem este lembrete.',
         }),
         ('Mensagem', {
             'fields': ('template_name',),

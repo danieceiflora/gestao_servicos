@@ -1154,7 +1154,10 @@ def _billing_create_context(order, task, payment_methods, due_days):
 
 
 def _billing_create_post(request, order, task):
-    from .utils.finance import parse_installments_from_post, resolve_charge_config_from_post
+    from .utils.finance import (
+        parse_installments_from_post, resolve_charge_config_from_post,
+        installment_charge_snapshot, resolve_apply_discount,
+    )
 
     installments_data = parse_installments_from_post(request)
 
@@ -1178,7 +1181,9 @@ def _billing_create_post(request, order, task):
         status=Billing.Status.PENDENTE,
     )
 
+    apply_discount = resolve_apply_discount(charge_config, installment_count=len(installments_data))
     for i, d in enumerate(installments_data, 1):
+        snapshot = installment_charge_snapshot(charge_config, d['due_date'], apply_discount)
         Installment.objects.create(
             billing=billing,
             installment_number=i,
@@ -1186,6 +1191,7 @@ def _billing_create_post(request, order, task):
             amount=d['amount'],
             payment_method_id=d['payment_method_id'],
             status=Installment.Status.PENDENTE,
+            **snapshot,
         )
 
     if charge_config and charge_config.auto_send_to_gateway:
@@ -2699,15 +2705,10 @@ def public_billing_generate_charge(request, token):
             if existing:
                 return render(request, 'services/public/partials/charge_result.html', {'charge': existing})
 
-            from pagamentos.views import _charge_config_to_kwargs
+            from pagamentos.views import _installment_charge_kwargs
 
             gw = AsaasGateway()
-            billing_config = billing.charge_config
-            charge_kwargs = {}
-            if billing_config:
-                is_cash = billing.installments.count() == 1
-                apply_discount = billing_config.discount_applies_to_installments or is_cash
-                charge_kwargs = _charge_config_to_kwargs(billing_config, apply_discount)
+            charge_kwargs = _installment_charge_kwargs(locked_installment)
 
             charge_data = ChargeData(
                 customer_name=client.name,

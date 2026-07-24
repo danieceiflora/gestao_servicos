@@ -1778,11 +1778,15 @@ def scheduled_reminder_create(request):
         name = request.POST.get('name')
         offset_days = int(request.POST.get('offset_days', -1))
         template_name = request.POST.get('template_name')
+        anchor_field = request.POST.get('anchor_field', ScheduledReminder.AnchorField.DUE_DATE)
+        payment_channel = request.POST.get('payment_channel', ScheduledReminder.PaymentChannel.ANY)
 
         reminder = ScheduledReminder.objects.create(
             name=name,
             offset_days=offset_days,
             template_name=template_name,
+            anchor_field=anchor_field,
+            payment_channel=payment_channel,
         )
 
         for i, path in zip(request.POST.getlist('var_index[]'), request.POST.getlist('var_path[]')):
@@ -1797,6 +1801,8 @@ def scheduled_reminder_create(request):
 
     return render(request, 'integracoes/collection/scheduled_reminder_form.html', {
         'templates': templates,
+        'anchor_choices': ScheduledReminder.AnchorField.choices,
+        'payment_channel_choices': ScheduledReminder.PaymentChannel.choices,
     })
 
 
@@ -1810,6 +1816,8 @@ def scheduled_reminder_edit(request, pk):
         reminder.name = request.POST.get('name')
         reminder.offset_days = int(request.POST.get('offset_days', -1))
         reminder.template_name = request.POST.get('template_name')
+        reminder.anchor_field = request.POST.get('anchor_field', ScheduledReminder.AnchorField.DUE_DATE)
+        reminder.payment_channel = request.POST.get('payment_channel', ScheduledReminder.PaymentChannel.ANY)
         reminder.is_active = request.POST.get('is_active') == 'on'
         reminder.save()
 
@@ -1828,6 +1836,8 @@ def scheduled_reminder_edit(request, pk):
         'reminder': reminder,
         'templates': templates,
         'variables': reminder.variables.all(),
+        'anchor_choices': ScheduledReminder.AnchorField.choices,
+        'payment_channel_choices': ScheduledReminder.PaymentChannel.choices,
     })
 
 

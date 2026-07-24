@@ -2351,15 +2351,10 @@ def public_os_generate_charge(request, token):
     description = f'OS #{order.number} — Etapa {task.pk} — {company}' if company else f'OS #{order.number} — Etapa {task.pk}'
 
     try:
-        from pagamentos.views import _charge_config_to_kwargs
+        from pagamentos.views import _installment_charge_kwargs
 
         gw = AsaasGateway()
-        billing_config = billing.charge_config
-        charge_kwargs = {}
-        if billing_config:
-            is_cash = billing.installments.count() == 1
-            apply_discount = billing_config.discount_applies_to_installments or is_cash
-            charge_kwargs = _charge_config_to_kwargs(billing_config, apply_discount)
+        charge_kwargs = _installment_charge_kwargs(installment)
 
         charge_data = ChargeData(
             customer_name=client.name,

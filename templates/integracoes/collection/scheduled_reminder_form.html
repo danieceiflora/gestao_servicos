@@ -42,8 +42,30 @@
                            value="{{ reminder.offset_days|default:-1 }}"
                            min="-365" max="365"
                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
-                    <p id="offset_hint" class="text-xs text-slate-400"></p>
                 </div>
+            </div>
+
+            <div class="space-y-2">
+                <label for="id_anchor_field" class="text-sm font-bold text-slate-700">Data de Referência</label>
+                <select name="anchor_field" id="id_anchor_field"
+                        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    {% for val, label in anchor_choices %}
+                    <option value="{{ val }}" {% if reminder.anchor_field == val or not reminder and val == 'due_date' %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-slate-400">Sobre qual data da parcela o offset em dias é calculado. "Limite do Desconto" só existe em parcelas com desconto por antecipação configurado na regra de cobrança.</p>
+                <p id="offset_hint" class="text-xs text-slate-400"></p>
+            </div>
+
+            <div class="space-y-2">
+                <label for="id_payment_channel" class="text-sm font-bold text-slate-700">Canal de Pagamento</label>
+                <select name="payment_channel" id="id_payment_channel"
+                        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    {% for val, label in payment_channel_choices %}
+                    <option value="{{ val }}" {% if reminder.payment_channel == val or not reminder and val == 'ANY' %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-slate-400">Restringe o disparo às parcelas desse canal — essencial se o template referencia dado específico do gateway (ex: código Pix), para não mandar a variável em branco pra quem paga por outro meio.</p>
             </div>
 
             <!-- Preview do gatilho -->
@@ -111,6 +133,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const offsetInput = document.getElementById('id_offset_days');
+    const anchorSelect = document.getElementById('id_anchor_field');
     const hintEl = document.getElementById('offset_hint');
     const previewEl = document.getElementById('trigger_preview');
 
@@ -118,23 +141,26 @@ document.addEventListener('DOMContentLoaded', function () {
         const val = parseInt(offsetInput.value, 10);
         if (isNaN(val)) return;
 
+        const anchorLabel = anchorSelect.options[anchorSelect.selectedIndex].text;
+
         if (val < 0) {
             const n = Math.abs(val);
-            hintEl.textContent = `Parcelas com vencimento em ${n} dia(s)`;
-            previewEl.textContent = `Dispara ${n} dia(s) antes do vencimento — parcelas ainda em aberto`;
+            hintEl.textContent = `Parcelas com "${anchorLabel}" em ${n} dia(s)`;
+            previewEl.textContent = `Dispara ${n} dia(s) antes de: ${anchorLabel} — parcelas ainda em aberto`;
             previewEl.className = 'p-3 rounded-xl border text-sm font-medium transition-all bg-emerald-50 border-emerald-200 text-emerald-800';
         } else if (val === 0) {
-            hintEl.textContent = 'Parcelas com vencimento hoje';
-            previewEl.textContent = 'Dispara no dia do vencimento';
+            hintEl.textContent = `Parcelas com "${anchorLabel}" hoje`;
+            previewEl.textContent = `Dispara no dia de: ${anchorLabel}`;
             previewEl.className = 'p-3 rounded-xl border text-sm font-medium transition-all bg-blue-50 border-blue-200 text-blue-800';
         } else {
-            hintEl.textContent = `Parcelas que venceram há ${val} dia(s)`;
-            previewEl.textContent = `Dispara ${val} dia(s) após o vencimento — parcelas em atraso`;
+            hintEl.textContent = `Parcelas cujo "${anchorLabel}" foi há ${val} dia(s)`;
+            previewEl.textContent = `Dispara ${val} dia(s) após: ${anchorLabel}`;
             previewEl.className = 'p-3 rounded-xl border text-sm font-medium transition-all bg-amber-50 border-amber-200 text-amber-800';
         }
     }
 
     offsetInput.addEventListener('input', updatePreview);
+    anchorSelect.addEventListener('change', updatePreview);
     updatePreview();
 });
 </script>

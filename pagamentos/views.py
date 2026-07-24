@@ -205,12 +205,7 @@ def installment_create_charge(request, installment_pk):
                 return redirect('billing_detail', pk=installment.billing_id)
 
             gw = _get_gateway()
-            billing_config = installment.billing.charge_config
-            charge_kwargs = {}
-            if billing_config:
-                is_cash = installment.billing.installments.count() == 1
-                apply_discount = billing_config.discount_applies_to_installments or is_cash
-                charge_kwargs = _charge_config_to_kwargs(billing_config, apply_discount)
+            charge_kwargs = _installment_charge_kwargs(locked_installment)
             data = ChargeData(
                 customer_name=client.name,
                 customer_document=client_doc,
@@ -267,17 +262,38 @@ def installment_update(request, installment_pk):
         messages.error(request, 'Não é possível editar uma parcela paga ou cancelada.')
         return redirect('billing_detail', pk=installment.billing_id)
 
+    from services.utils.finance import compute_discount_deadline
+
+    def _parse_decimal(raw, default='0'):
+        raw = (raw or '').strip().replace(',', '.')
+        return Decimal(raw) if raw else Decimal(default)
+
     due_date_str = request.POST.get('due_date', '').strip()
     amount_str = request.POST.get('amount', '0').replace(',', '.').strip()
     try:
         new_due_date = date_type.fromisoformat(due_date_str)
         new_amount = Decimal(amount_str)
+        discount_due_days = int(request.POST.get('discount_due_days', '0') or 0)
+        discount_value = _parse_decimal(request.POST.get('discount_value'))
+        interest_monthly = _parse_decimal(request.POST.get('interest_monthly'))
+        fine_value = _parse_decimal(request.POST.get('fine_value'))
     except (ValueError, InvalidOperation):
         messages.error(request, 'Data ou valor inválido.')
         return redirect('billing_detail', pk=installment.billing_id)
 
+    discount_type = request.POST.get('discount_type', '').strip() or Installment.DiscountType.NONE
+    if discount_type not in Installment.DiscountType.values:
+        discount_type = Installment.DiscountType.NONE
+    fine_type = request.POST.get('fine_type', '').strip() or Installment.FineType.NONE
+    if fine_type not in Installment.FineType.values:
+        fine_type = Installment.FineType.NONE
+
     if new_amount <= 0:
         messages.error(request, 'O valor deve ser maior que zero.')
+        return redirect('billing_detail', pk=installment.billing_id)
+
+    if discount_value < 0 or discount_due_days < 0 or interest_monthly < 0 or fine_value < 0:
+        messages.error(request, 'Valores de desconto/juros/multa não podem ser negativos.')
         return redirect('billing_detail', pk=installment.billing_id)
 
     already_paid = installment.get_total_paid()
@@ -293,15 +309,22 @@ def installment_update(request, installment_pk):
         with transaction.atomic():
             locked = Installment.objects.select_for_update().get(pk=installment.pk)
 
+            # Aplica as edições ANTES de montar charge_kwargs — assim, se houver
+            # cobrança ativa no gateway, ela já é atualizada com os novos termos.
+            locked.due_date = new_due_date
+            locked.amount = new_amount
+            locked.discount_type = discount_type
+            locked.discount_value = discount_value
+            locked.discount_due_days = discount_due_days
+            locked.discount_deadline = compute_discount_deadline(discount_type, discount_value, discount_due_days, new_due_date)
+            locked.interest_monthly = interest_monthly
+            locked.fine_type = fine_type
+            locked.fine_value = fine_value
+
             if active_charge:
                 gw = _get_gateway()
                 client = locked.billing.client
-                billing_config = locked.billing.charge_config
-                charge_kwargs = {}
-                if billing_config:
-                    is_cash = locked.billing.installments.count() == 1
-                    apply_discount = billing_config.discount_applies_to_installments or is_cash
-                    charge_kwargs = _charge_config_to_kwargs(billing_config, apply_discount)
+                charge_kwargs = _installment_charge_kwargs(locked)
                 data = ChargeData(
                     customer_name=client.name,
                     customer_document=client.document or '',
@@ -330,8 +353,6 @@ def installment_update(request, installment_pk):
                 active_charge.discount_due_days = charge_kwargs.get('discount_due_days') or 0
                 active_charge.save()
 
-            locked.due_date = new_due_date
-            locked.amount = new_amount
             if locked.status == Installment.Status.ATRASADO and new_due_date >= local_today():
                 locked.status = Installment.Status.PENDENTE
             locked.save()
@@ -576,20 +597,20 @@ def _auto_baixa_installment(charge: GatewayCharge):
 
 # --- REGRAS DE COBRANÇA ---
 
-def _charge_config_to_kwargs(config: BillingChargeConfig, apply_discount: bool) -> dict:
-    """Converte uma BillingChargeConfig nos kwargs extras de ChargeData.
-
-    apply_discount controla se o desconto por antecipação é enviado — regras com
-    discount_applies_to_installments=False só concedem desconto quando a cobrança
-    for à vista (billing com 1 única parcela).
+def _installment_charge_kwargs(installment) -> dict:
+    """Kwargs extras de ChargeData/GatewayCharge, lidos do snapshot já gravado na
+    Installment no momento em que a parcela foi criada (ver
+    services.utils.finance.installment_charge_snapshot). Não recalcula a partir da
+    BillingChargeConfig para não divergir caso a regra seja editada depois de a
+    parcela já existir — gateway e parcela sempre concordam sobre os termos.
     """
     return {
-        'discount_type': config.discount_type if (apply_discount and config.discount_type != 'NONE') else '',
-        'discount_value': config.discount_value if apply_discount else Decimal('0'),
-        'discount_due_days': config.discount_due_days,
-        'interest_monthly': config.interest_monthly,
-        'fine_type': config.fine_type if config.fine_type != 'NONE' else '',
-        'fine_value': config.fine_value,
+        'discount_type': installment.discount_type if installment.discount_type not in ('', 'NONE') else '',
+        'discount_value': installment.discount_value,
+        'discount_due_days': installment.discount_due_days,
+        'interest_monthly': installment.interest_monthly,
+        'fine_type': installment.fine_type if installment.fine_type not in ('', 'NONE') else '',
+        'fine_value': installment.fine_value,
     }
 
 
@@ -635,10 +656,6 @@ def auto_create_charges_for_billing(billing):
     client_email = client.emails.values_list('email', flat=True).first() or ''
     gw = _get_gateway()
 
-    is_cash = billing.installments.count() == 1
-    apply_discount = charge_config.discount_applies_to_installments or is_cash
-    charge_kwargs = _charge_config_to_kwargs(charge_config, apply_discount)
-
     for installment in billing.installments.filter(status='PENDENTE'):
         try:
             with transaction.atomic():
@@ -652,6 +669,7 @@ def auto_create_charges_for_billing(billing):
                 ).exists():
                     continue
 
+                charge_kwargs = _installment_charge_kwargs(locked_installment)
                 data = ChargeData(
                     customer_name=client.name,
                     customer_document=client_doc,

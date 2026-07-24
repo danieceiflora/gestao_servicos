@@ -98,6 +98,11 @@
                                     {% if next_inst.status == 'ATRASADO' %}
                                         <p class="text-[9px] text-red-500 font-black uppercase tracking-wide">Atrasada</p>
                                     {% endif %}
+                                    {% if next_inst.discount_amount > 0 %}
+                                        <p class="text-[9px] text-emerald-600 font-bold" title="Válido até {{ next_inst.discount_deadline|date:'d/m/Y' }} — paga com desconto, R$ {{ next_inst.discounted_amount|floatformat:2 }}">
+                                            -R$ {{ next_inst.discount_amount|floatformat:2 }} até {{ next_inst.discount_deadline|date:"d/m" }}
+                                        </p>
+                                    {% endif %}
                                 {% else %}
                                     <span class="text-sm text-slate-300">—</span>
                                 {% endif %}

@@ -151,13 +151,44 @@
                                     {% endif %}
                                 {% endif %}
                             {% endwith %}
+
+                            {# Desconto por antecipação — mesmas informações mostradas em billing_list.html #}
+                            {% if inst.status != 'PAGO' and inst.status != 'CANCELADO' and inst.discount_amount > 0 %}
+                            <p class="text-[9px] font-bold text-emerald-600 uppercase mt-1" title="Paga R$ {{ inst.discounted_amount|floatformat:2 }} se quitada até o limite">
+                                -R$ {{ inst.discount_amount|floatformat:2 }} até {{ inst.discount_deadline|date:"d/m/Y" }}
+                            </p>
+                            {% endif %}
+
+                            {# Juros/multa por atraso — condições da regra, informativo (aplicado pelo gateway) #}
+                            {% if inst.status != 'PAGO' and inst.status != 'CANCELADO' %}
+                                {% if inst.interest_monthly > 0 or inst.fine_type != 'NONE' %}
+                                <p class="text-[9px] font-bold text-amber-600 uppercase mt-1">
+                                    Após venc.:
+                                    {% if inst.interest_monthly > 0 %}juros {{ inst.interest_monthly|floatformat:2 }}%/mês{% endif %}
+                                    {% if inst.interest_monthly > 0 and inst.fine_type != 'NONE' %} + {% endif %}
+                                    {% if inst.fine_type == 'FIXED' %}multa R$ {{ inst.fine_value|floatformat:2 }}{% elif inst.fine_type == 'PERCENTAGE' %}multa {{ inst.fine_value|floatformat:2 }}%{% endif %}
+                                </p>
+                                {% endif %}
+                            {% endif %}
                         </div>
 
                         {% if inst.status != 'PAGO' and inst.status != 'CANCELADO' %}
                         <button type="button"
-                                onclick="openEditModal('{{ inst.id }}', '{{ inst.due_date|date:'Y-m-d' }}', '{{ inst.amount|stringformat:'.2f' }}', '{{ inst.installment_number }}', {% if inst.editable_gateway_charge %}true{% else %}false{% endif %}, '{{ inst.editable_gateway_charge.get_method_display|default:'' }}')"
+                                onclick="openEditModal(this)"
+                                data-id="{{ inst.id }}"
+                                data-due-date="{{ inst.due_date|date:'Y-m-d' }}"
+                                data-amount="{{ inst.amount|stringformat:'.2f' }}"
+                                data-number="{{ inst.installment_number }}"
+                                data-has-charge="{% if inst.editable_gateway_charge %}true{% else %}false{% endif %}"
+                                data-method="{{ inst.editable_gateway_charge.get_method_display|default:'' }}"
+                                data-discount-type="{{ inst.discount_type }}"
+                                data-discount-value="{{ inst.discount_value|stringformat:'.2f' }}"
+                                data-discount-due-days="{{ inst.discount_due_days }}"
+                                data-interest-monthly="{{ inst.interest_monthly|stringformat:'.2f' }}"
+                                data-fine-type="{{ inst.fine_type }}"
+                                data-fine-value="{{ inst.fine_value|stringformat:'.2f' }}"
                                 class="p-2 text-slate-400 hover:text-slate-900 transition-colors rounded-lg hover:bg-slate-100"
-                                title="Editar vencimento/valor">
+                                title="Editar vencimento/valor/desconto/juros">
                             <i data-lucide="pencil" class="h-4 w-4"></i>
                         </button>
                         {% endif %}
@@ -463,28 +494,67 @@
 
 <!-- Modal de Edição de Parcela -->
 <div id="edit-installment-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        <div class="p-8">
+    <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+        <div class="p-8 overflow-y-auto">
             <h3 class="text-xl font-black text-slate-900 tracking-tighter mb-1">Editar Parcela</h3>
             <p id="edit-modal-desc" class="text-sm text-slate-500 font-medium mb-6"></p>
 
             <div id="edit-modal-gateway-note" class="hidden text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6">
                 Esta parcela tem uma cobrança <strong id="edit-modal-gateway-method"></strong> ativa no gateway —
-                ela será atualizada com a nova data/valor (mesmo boleto/PIX, sem reemitir).
+                ela será atualizada com os novos dados (mesmo boleto/PIX, sem reemitir), incluindo desconto/juros/multa.
             </div>
 
             <form id="edit-installment-form" method="POST" class="space-y-4">
                 {% csrf_token %}
-                <div class="space-y-1.5">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vencimento</label>
-                    <input type="date" name="due_date" id="edit-due-date" required
-                           class="w-full bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vencimento</label>
+                        <input type="date" name="due_date" id="edit-due-date" required
+                               class="w-full bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Valor</label>
+                        <input type="number" step="0.01" name="amount" id="edit-amount" required
+                               class="w-full bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                    </div>
                 </div>
-                <div class="space-y-1.5">
-                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Valor</label>
-                    <input type="number" step="0.01" name="amount" id="edit-amount" required
-                           class="w-full bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+
+                <div class="space-y-1.5 pt-2 border-t border-slate-100">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Desconto por Antecipação</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <select name="discount_type" id="edit-discount-type"
+                                class="rounded-xl border-2 border-slate-200 px-2 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                            <option value="NONE">Sem desconto</option>
+                            <option value="FIXED">Valor Fixo (R$)</option>
+                            <option value="PERCENTAGE">Percentual (%)</option>
+                        </select>
+                        <input type="number" step="0.01" min="0" name="discount_value" id="edit-discount-value" placeholder="Valor"
+                               class="rounded-xl border-2 border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                        <input type="number" step="1" min="0" name="discount_due_days" id="edit-discount-due-days" placeholder="Dias antes"
+                               class="rounded-xl border-2 border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                    </div>
+                    <p class="text-[9px] text-slate-400 ml-1">Nº de dias antes do vencimento em que o desconto deixa de valer.</p>
                 </div>
+
+                <div class="space-y-1.5">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Juros e Multa por Atraso</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="flex items-center gap-1">
+                            <input type="number" step="0.01" min="0" name="interest_monthly" id="edit-interest-monthly" placeholder="Juros"
+                                   class="w-full rounded-xl border-2 border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                            <span class="text-[9px] text-slate-400 whitespace-nowrap">%/mês</span>
+                        </div>
+                        <select name="fine_type" id="edit-fine-type"
+                                class="rounded-xl border-2 border-slate-200 px-2 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                            <option value="NONE">Sem multa</option>
+                            <option value="FIXED">Valor Fixo (R$)</option>
+                            <option value="PERCENTAGE">Percentual (%)</option>
+                        </select>
+                        <input type="number" step="0.01" min="0" name="fine_value" id="edit-fine-value" placeholder="Valor"
+                               class="rounded-xl border-2 border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                    </div>
+                </div>
+
                 <div class="flex gap-3 pt-4 border-t border-slate-100">
                     <button type="button" onclick="closeEditModal()" class="flex-1 px-6 py-3 rounded-2xl text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all">Cancelar</button>
                     <button type="submit" class="flex-[2] bg-slate-900 text-white px-6 py-3 rounded-2xl text-xs font-black hover:bg-slate-800 transition-all shadow-xl active:scale-95 uppercase tracking-widest">Salvar Alterações</button>
@@ -617,23 +687,30 @@
     }
 
     /* ---- Modal de Edição de Parcela ---- */
-    function openEditModal(id, dueDate, amount, number, hasActiveCharge, method) {
+    function openEditModal(btn) {
         const modal = document.getElementById('edit-installment-modal');
         const form = document.getElementById('edit-installment-form');
         const note = document.getElementById('edit-modal-gateway-note');
+        const d = btn.dataset;
 
-        document.getElementById('edit-modal-desc').textContent = `Parcela #${number}`;
-        document.getElementById('edit-due-date').value = dueDate;
-        document.getElementById('edit-amount').value = amount;
+        document.getElementById('edit-modal-desc').textContent = `Parcela #${d.number}`;
+        document.getElementById('edit-due-date').value = d.dueDate;
+        document.getElementById('edit-amount').value = d.amount;
+        document.getElementById('edit-discount-type').value = d.discountType || 'NONE';
+        document.getElementById('edit-discount-value').value = d.discountValue;
+        document.getElementById('edit-discount-due-days').value = d.discountDueDays;
+        document.getElementById('edit-interest-monthly').value = d.interestMonthly;
+        document.getElementById('edit-fine-type').value = d.fineType || 'NONE';
+        document.getElementById('edit-fine-value').value = d.fineValue;
 
-        if (hasActiveCharge) {
-            document.getElementById('edit-modal-gateway-method').textContent = method;
+        if (d.hasCharge === 'true') {
+            document.getElementById('edit-modal-gateway-method').textContent = d.method;
             note.classList.remove('hidden');
         } else {
             note.classList.add('hidden');
         }
 
-        form.action = "{% url 'pagamentos:installment_update' installment_pk=0 %}".replace('/0/editar/', `/${id}/editar/`);
+        form.action = "{% url 'pagamentos:installment_update' installment_pk=0 %}".replace('/0/editar/', `/${d.id}/editar/`);
         modal.classList.remove('hidden');
         modal.classList.add('flex');
         if (window.lucide) window.lucide.createIcons();

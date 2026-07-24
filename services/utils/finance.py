@@ -1,4 +1,4 @@
-from datetime import date as date_type
+from datetime import date as date_type, timedelta
 from decimal import Decimal
 from django.utils import timezone
 from ..models import Billing, Installment, SystemConfig
@@ -40,6 +40,55 @@ def resolve_charge_config_from_post(request):
         return BillingChargeConfig.objects.get(pk=int(config_id), is_active=True)
     except (BillingChargeConfig.DoesNotExist, ValueError):
         return None
+
+
+def compute_discount_deadline(discount_type, discount_value, discount_due_days, due_date):
+    """due_date - discount_due_days, ou None se não há desconto (tipo NONE/vazio ou
+    valor <= 0). Usado tanto no snapshot inicial da parcela quanto na edição manual
+    (installment_update em pagamentos/views.py), para devolver sempre o mesmo cálculo."""
+    if discount_type and discount_type != Installment.DiscountType.NONE and discount_value and discount_value > 0:
+        return due_date - timedelta(days=discount_due_days)
+    return None
+
+
+def installment_charge_snapshot(charge_config, due_date, apply_discount):
+    """Snapshot dos termos de desconto/juros/multa de uma BillingChargeConfig, no
+    formato dos campos de Installment. Calculado uma vez na criação da parcela para
+    não depender da regra ainda existir/estar inalterada depois (mesmo raciocínio já
+    usado em GatewayCharge, aqui estendido para toda parcela — inclusive as pagas em
+    dinheiro, que nunca chegam a ter um GatewayCharge).
+
+    apply_discount controla se o desconto por antecipação é aplicado — regras com
+    discount_applies_to_installments=False só concedem desconto quando a cobrança
+    for à vista (billing com 1 única parcela).
+    """
+    if not charge_config:
+        return {}
+
+    discount_type = charge_config.discount_type if (apply_discount and charge_config.discount_type != 'NONE') else Installment.DiscountType.NONE
+    discount_value = charge_config.discount_value if apply_discount else Decimal('0')
+    discount_due_days = charge_config.discount_due_days
+    discount_deadline = compute_discount_deadline(discount_type, discount_value, discount_due_days, due_date)
+
+    return {
+        'discount_type': discount_type,
+        'discount_value': discount_value,
+        'discount_due_days': discount_due_days,
+        'discount_deadline': discount_deadline,
+        'interest_monthly': charge_config.interest_monthly,
+        'fine_type': charge_config.fine_type,
+        'fine_value': charge_config.fine_value,
+    }
+
+
+def resolve_apply_discount(charge_config, installment_count):
+    """Regra de is_cash: desconto por antecipação só vale para parcelamento se a
+    regra permitir explicitamente (discount_applies_to_installments), ou se a
+    cobrança for à vista (1 única parcela)."""
+    if not charge_config:
+        return False
+    is_cash = installment_count == 1
+    return bool(charge_config.discount_applies_to_installments or is_cash)
 
 
 def parse_installments_from_post(request):
@@ -103,13 +152,18 @@ def create_billing_for_task(task, charge_config=None):
         status=Billing.Status.PENDENTE
     )
 
+    due_date = _get_due_date(charge_config)
+    apply_discount = resolve_apply_discount(charge_config, installment_count=1)
+    snapshot = installment_charge_snapshot(charge_config, due_date, apply_discount)
+
     Installment.objects.create(
         billing=billing,
         installment_number=1,
-        due_date=_get_due_date(charge_config),
+        due_date=due_date,
         amount=net_value,
         payment_method=task.preferred_payment_method,
-        status=Installment.Status.PENDENTE
+        status=Installment.Status.PENDENTE,
+        **snapshot,
     )
 
     return billing
@@ -167,22 +221,29 @@ def create_billing_for_sale(sale, installments_data=None, charge_config=None):
         )
 
     if installments_data:
+        apply_discount = resolve_apply_discount(charge_config, installment_count=len(installments_data))
         for i, data in enumerate(installments_data, 1):
+            snapshot = installment_charge_snapshot(charge_config, data['due_date'], apply_discount)
             Installment.objects.create(
                 billing=billing,
                 installment_number=i,
                 due_date=data['due_date'],
                 amount=data['amount'],
                 payment_method_id=data.get('payment_method_id'),
-                status=Installment.Status.PENDENTE
+                status=Installment.Status.PENDENTE,
+                **snapshot,
             )
     else:
+        due_date = _get_due_date(charge_config)
+        apply_discount = resolve_apply_discount(charge_config, installment_count=1)
+        snapshot = installment_charge_snapshot(charge_config, due_date, apply_discount)
         Installment.objects.create(
             billing=billing,
             installment_number=1,
-            due_date=_get_due_date(charge_config),
+            due_date=due_date,
             amount=sale.total_amount - sale.discount,
-            status=Installment.Status.PENDENTE
+            status=Installment.Status.PENDENTE,
+            **snapshot,
         )
 
     return billing

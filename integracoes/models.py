@@ -388,10 +388,31 @@ class CollectionLog(models.Model):
 # --- LEMBRETES AGENDADOS (ENVIO ÚNICO) ---
 
 class ScheduledReminder(models.Model):
+    class AnchorField(models.TextChoices):
+        DUE_DATE = 'due_date', 'Vencimento'
+        DISCOUNT_DEADLINE = 'discount_deadline', 'Limite do Desconto'
+
+    class PaymentChannel(models.TextChoices):
+        ANY = 'ANY', 'Qualquer'
+        PIX = 'PIX', 'Pix (gateway ativo)'
+        BOLETO = 'BOLETO', 'Boleto (gateway ativo)'
+        SEM_GATEWAY = 'SEM_GATEWAY', 'Sem gateway (dinheiro/manual)'
+
     name = models.CharField('Nome', max_length=200)
+    anchor_field = models.CharField(
+        'Data de Referência', max_length=20,
+        choices=AnchorField.choices, default=AnchorField.DUE_DATE,
+        help_text='Campo de Installment usado como base para o offset em dias.'
+    )
     offset_days = models.IntegerField(
         'Offset em Dias', default=-1,
-        help_text='Negativo = antes do vencimento (ex: -1 = 1 dia antes), 0 = no vencimento, positivo = após (ex: 3 = 3 dias após vencido)'
+        help_text='Negativo = antes da data de referência (ex: -1 = 1 dia antes), 0 = no dia, positivo = após'
+    )
+    payment_channel = models.CharField(
+        'Canal de Pagamento', max_length=15,
+        choices=PaymentChannel.choices, default=PaymentChannel.ANY,
+        help_text='Restringe o disparo às parcelas com esse canal — evita mandar '
+                  'variável de template (ex: código Pix) em branco para quem paga por outro meio.'
     )
     template_name = models.CharField('Template WhatsApp (Meta)', max_length=200)
     is_active = models.BooleanField('Ativo', default=True)
@@ -407,11 +428,12 @@ class ScheduledReminder(models.Model):
 
     @property
     def offset_label(self):
+        anchor_label = self.get_anchor_field_display()
         if self.offset_days < 0:
-            return f'{abs(self.offset_days)} dia(s) antes do vencimento'
+            return f'{abs(self.offset_days)} dia(s) antes de: {anchor_label}'
         elif self.offset_days == 0:
-            return 'No dia do vencimento'
-        return f'{self.offset_days} dia(s) após o vencimento'
+            return f'No dia de: {anchor_label}'
+        return f'{self.offset_days} dia(s) após: {anchor_label}'
 
 
 class ScheduledReminderVariable(models.Model):

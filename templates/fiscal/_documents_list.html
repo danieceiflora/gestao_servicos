@@ -21,6 +21,10 @@ uma vez na página que usar este partial.
                     </span>
                 </div>
                 <p class="text-[11px] text-slate-400 mt-1 font-mono">ref: {{ doc.ref }}</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">
+                    Solicitado em {{ doc.created_at|date:"d/m/Y H:i" }}
+                    {% if doc.updated_at != doc.created_at %} · Atualizado em {{ doc.updated_at|date:"d/m/Y H:i" }}{% endif %}
+                </p>
                 {% if doc.chave_acesso %}<p class="text-[11px] text-slate-400 font-mono">chave: {{ doc.chave_acesso }}</p>{% endif %}
                 {% if doc.codigo_verificacao %}<p class="text-[11px] text-slate-400 font-mono">código verificação: {{ doc.codigo_verificacao }}</p>{% endif %}
                 {% if doc.mensagem_sefaz %}<p class="text-xs text-slate-500 mt-1">{{ doc.mensagem_sefaz }}</p>{% endif %}
