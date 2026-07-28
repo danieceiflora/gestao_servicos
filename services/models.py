@@ -1265,7 +1265,10 @@ class SaleItem(models.Model):
 
     def save(self, *args, **kwargs):
         self.discount = self.discount or Decimal('0.00')
-        self.subtotal = (self.quantity * self.unit_price) - self.discount
+        # quantize explícito: Decimal não arredonda multiplicação (2 casas × 2 casas = 4
+        # casas) — sem isso, o atributo em memória fica com "26.7200" em vez de "26.72"
+        # até ser lido de volta do banco (onde o DecimalField força 2 casas na gravação).
+        self.subtotal = ((self.quantity * self.unit_price) - self.discount).quantize(MONEY_PLACES)
         
         # Lógica Fiscal (Inteligência Fiscal)
         if self.product:

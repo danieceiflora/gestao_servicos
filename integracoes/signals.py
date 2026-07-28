@@ -50,15 +50,23 @@ def handle_dynamic_notifications(sender, instance, created, **kwargs):
             # relacionados (ex: ServiceOrderTeam) já estejam salvos quando a notificação disparar.
             pk = instance.pk
             sender_cls = sender
+            # Status capturado AGORA (síncrono, no momento deste save) — não no momento em
+            # que a closure roda. Views como sale_create fazem 2 saves na mesma transação
+            # (1º cria com status ainda "vazio"/rascunho, 2º já grava o status final antes
+            # do commit). Se comparássemos com o status "fresco" pós-commit, pareceria
+            # sempre "nasceu com esse status", disparando MUDANCA_STATUS aqui de novo —
+            # duplicando a notificação que o ramo `else` abaixo já disparou de forma
+            # síncrona para essa mesma mudança de status.
+            status_at_creation = getattr(instance, 'status', None)
             def _dispatch_criar():
                 try:
                     fresh = sender_cls.objects.get(pk=pk)
                     dispatch_dynamic_notification(fresh, 'CRIAR')
-                    # Registro pode já nascer com o status-alvo de uma regra de MUDANCA_STATUS
-                    # (ex: task criada direto como CONCLUIDO). Dispara também nesse caso,
-                    # tratando old_status=None — regras com from_status preenchido não
-                    # disparam aqui (não existe "origem" numa criação).
-                    if getattr(fresh, 'status', None):
+                    # Só dispara MUDANCA_STATUS aqui se o status não mudou desde a criação
+                    # (registro nasceu direto com o status-alvo, num único save — ex: task
+                    # criada já como CONCLUIDO). Se mudou, é porque um save posterior, na
+                    # mesma transação, já disparou MUDANCA_STATUS pelo ramo síncrono normal.
+                    if getattr(fresh, 'status', None) and fresh.status == status_at_creation:
                         dispatch_dynamic_notification(fresh, 'MUDANCA_STATUS', old_status=None)
                 except Exception as e:
                     logger.error(f"Erro ao processar notificação CRIAR para {sender_cls.__name__}: {e}")
