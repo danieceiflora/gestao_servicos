@@ -1518,7 +1518,7 @@ document.addEventListener('DOMContentLoaded', function() {
             saveBtn.innerHTML = '<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i>';
             if (window.lucide) window.lucide.createIcons();
             try {
-                const res = await fetch(`/items/${rowId}/update/`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }, body: formData });
+                const res = await fetch(`/itens/${rowId}/atualizar/`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }, body: formData });
                 const data = await res.json();
                 if (data.success) {
                     document.querySelectorAll(`.js-order-item-row[data-item-id="${rowId}"]`).forEach(r => {
