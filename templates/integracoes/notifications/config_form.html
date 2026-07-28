@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    <form method="post" enctype="multipart/form-data" class="space-y-6">
+    <form method="post" enctype="multipart/form-data" class="space-y-6" id="notification-config-form">
         {% csrf_token %}
         
         <!-- Bloco 1: Identificação -->
@@ -247,6 +247,35 @@
         eventSelect.addEventListener('change', toggleStatusFields);
         recipientTypeSelect.addEventListener('change', toggleRecipientFields);
         modelSelect.addEventListener('change', toggleExpenseHint);
+
+        // Bloqueia o envio se alguma variável exigida pelo template ficou em branco —
+        // mensagem enviada com parâmetro faltando falha no WhatsApp. Validação real (que
+        // não pode ser contornada) é feita no servidor; isto é só feedback imediato.
+        const notificationConfigForm = document.getElementById('notification-config-form');
+        if (notificationConfigForm) {
+            notificationConfigForm.addEventListener('submit', function(e) {
+                const templateDetails = document.getElementById('template_details');
+                if (!templateDetails) return;
+
+                const blankSlots = [];
+                templateDetails.querySelectorAll('input[name="var_path[]"], input[name="btn_var_path[]"]').forEach(function(input) {
+                    if (!input.value.trim()) {
+                        blankSlots.push(input);
+                        const slot = input.closest('.var-slot-inner');
+                        if (slot) slot.classList.add('ring-2', 'ring-red-400', 'rounded-xl');
+                    } else {
+                        const slot = input.closest('.var-slot-inner');
+                        if (slot) slot.classList.remove('ring-2', 'ring-red-400', 'rounded-xl');
+                    }
+                });
+
+                if (blankSlots.length > 0) {
+                    e.preventDefault();
+                    alert('Preencha todas as variáveis do template antes de salvar (' + blankSlots.length + ' em branco) — variável faltando faz o envio da mensagem falhar.');
+                    blankSlots[0].closest('.var-slot-inner').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
 
         // Inicializar estados
         toggleStatusFields();

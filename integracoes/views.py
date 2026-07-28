@@ -634,6 +634,60 @@ from .models import (
 
 from .utils import get_mappable_fields
 
+
+def _get_template_var_requirements(template_name):
+    """Quantas variáveis de corpo ({{n}}) e quais índices de botão com URL dinâmica
+    um template Meta exige — mesma lógica de detecção usada em
+    ajax_get_template_details, extraída pra reuso na validação de salvamento (garante
+    que nenhuma regra seja salva com variável exigida pelo template em branco, o que
+    faria o envio falhar por parâmetro faltando).
+
+    Retorna (vars_count: int, button_indices: list[int]).
+    """
+    config_obj = SystemConfig.load()
+    api = MetaCloudAPI(config_obj.meta_waba_id, config_obj.meta_access_token)
+    templates = api.get_templates().get('data', [])
+
+    matching = [t for t in templates if t['name'] == template_name]
+    template = next((t for t in matching if t.get('status') == 'APPROVED'), None)
+    if not template:
+        template = matching[0] if matching else None
+    if not template:
+        template = next((t for t in templates if t.get('id') == template_name), None)
+    if not template:
+        return 0, []
+
+    body_comp = next((c for c in template.get('components', []) if c['type'] == 'BODY'), None)
+    body_text = body_comp.get('text', '') if body_comp else ''
+    vars_count = len(re.findall(r"\{\{\d+\}\}", body_text))
+
+    buttons_comp = next((c for c in template.get('components', []) if c['type'] == 'BUTTONS'), None)
+    button_indices = []
+    if buttons_comp:
+        for btn_idx, btn in enumerate(buttons_comp.get('buttons', [])):
+            if btn.get('type') == 'URL':
+                url = btn.get('url', '')
+                has_dynamic = '{{1}}' in url or bool(btn.get('example'))
+                if has_dynamic:
+                    button_indices.append(btn_idx)
+
+    return vars_count, button_indices
+
+
+def _validate_template_variables(template_name, body_map, btn_map):
+    """Confere se todo índice exigido pelo template tem um field_path não-vazio em
+    body_map/btn_map (dicts {index: path}, já com strip() aplicado). Retorna lista de
+    strings descrevendo o que falta (vazia = tudo preenchido)."""
+    vars_count, button_indices = _get_template_var_requirements(template_name)
+    missing = []
+    for i in range(1, vars_count + 1):
+        if not body_map.get(str(i)):
+            missing.append(f'Variável do corpo #{i}')
+    for idx in button_indices:
+        if not btn_map.get(str(idx)):
+            missing.append(f'Variável do botão #{idx + 1}')
+    return missing
+
 @login_required
 @user_passes_test(lambda u: u.is_staff)
 def notification_config_list(request):
@@ -687,32 +741,45 @@ def notification_config_create(request):
         chatwoot_tag = request.POST.get('chatwoot_tag')
         chatwoot_tag_mode = request.POST.get('chatwoot_tag_mode', 'ADD')
 
-        config = NotificationConfig.objects.create(
-            name=name, model_name=model_name, event_type=event_type,
-            from_status=from_status, to_status=to_status,
-            template_name=template_name, recipient_type=recipient_type,
-            fixed_phone=fixed_phone, phone_field_path=phone_path,
-            header_media_type=header_media_type,
-            static_media_file=static_media_file,
-            chatwoot_tag=chatwoot_tag, chatwoot_tag_mode=chatwoot_tag_mode
-        )
-        
-        # Salvar variáveis do corpo
         indices = request.POST.getlist('var_index[]')
         paths = request.POST.getlist('var_path[]')
-        for i, path in zip(indices, paths):
-            if path:
-                NotificationVariable.objects.create(config=config, index=i, field_path=path, component='BODY')
-
-        # Salvar variáveis de botão (URL dinâmica)
         btn_indices = request.POST.getlist('btn_var_index[]')
         btn_paths = request.POST.getlist('btn_var_path[]')
-        for i, path in zip(btn_indices, btn_paths):
-            if path:
-                NotificationVariable.objects.create(config=config, index=int(i), field_path=path, component='BUTTON')
 
-        messages.success(request, "Configuração de notificação criada com sucesso!")
-        return redirect('integracoes:notification_config_list')
+        body_map = {str(i): (path or '').strip() for i, path in zip(indices, paths)}
+        btn_map = {str(i): (path or '').strip() for i, path in zip(btn_indices, btn_paths)}
+        missing = _validate_template_variables(template_name, body_map, btn_map)
+
+        if missing:
+            messages.error(
+                request,
+                'Não é possível salvar: preencha todas as variáveis exigidas pelo template — '
+                'faltando: ' + ', '.join(missing) + '. Variável em branco faz o envio falhar por '
+                'parâmetro faltando.'
+            )
+        else:
+            config = NotificationConfig.objects.create(
+                name=name, model_name=model_name, event_type=event_type,
+                from_status=from_status, to_status=to_status,
+                template_name=template_name, recipient_type=recipient_type,
+                fixed_phone=fixed_phone, phone_field_path=phone_path,
+                header_media_type=header_media_type,
+                static_media_file=static_media_file,
+                chatwoot_tag=chatwoot_tag, chatwoot_tag_mode=chatwoot_tag_mode
+            )
+
+            # Salvar variáveis do corpo
+            for i, path in zip(indices, paths):
+                if path:
+                    NotificationVariable.objects.create(config=config, index=i, field_path=path, component='BODY')
+
+            # Salvar variáveis de botão (URL dinâmica)
+            for i, path in zip(btn_indices, btn_paths):
+                if path:
+                    NotificationVariable.objects.create(config=config, index=int(i), field_path=path, component='BUTTON')
+
+            messages.success(request, "Configuração de notificação criada com sucesso!")
+            return redirect('integracoes:notification_config_list')
 
     return render(request, 'integracoes/notifications/config_form.html', {
         'templates': templates,
@@ -730,46 +797,60 @@ def notification_config_edit(request, pk):
     templates = api.get_templates().get('data', [])
     
     if request.method == 'POST':
-        config.name = request.POST.get('name')
-        config.model_name = request.POST.get('model_name')
-        config.event_type = request.POST.get('event_type')
-        config.from_status = request.POST.get('from_status')
-        config.to_status = request.POST.get('to_status')
-        config.template_name = request.POST.get('template_name')
-        config.recipient_type = request.POST.get('recipient_type')
-        config.fixed_phone = request.POST.get('fixed_phone')
-        config.phone_field_path = request.POST.get('phone_field_path')
-        config.chatwoot_tag = request.POST.get('chatwoot_tag')
-        config.chatwoot_tag_mode = request.POST.get('chatwoot_tag_mode', 'ADD')
-        config.is_active = request.POST.get('is_active') == 'on'
-
-        header_media_type = request.POST.get('header_media_type')
-        if header_media_type:
-            config.header_media_type = header_media_type
-        
-        static_media_file = request.FILES.get('static_media_file')
-        if static_media_file:
-            config.static_media_file = static_media_file
-            
-        config.save()
-        
-        # Atualizar variáveis do corpo
-        config.variables.all().delete()
+        template_name = request.POST.get('template_name')
         indices = request.POST.getlist('var_index[]')
         paths = request.POST.getlist('var_path[]')
-        for i, path in zip(indices, paths):
-            if path:
-                NotificationVariable.objects.create(config=config, index=i, field_path=path, component='BODY')
-
-        # Atualizar variáveis de botão (URL dinâmica)
         btn_indices = request.POST.getlist('btn_var_index[]')
         btn_paths = request.POST.getlist('btn_var_path[]')
-        for i, path in zip(btn_indices, btn_paths):
-            if path:
-                NotificationVariable.objects.create(config=config, index=int(i), field_path=path, component='BUTTON')
 
-        messages.success(request, "Configuração atualizada!")
-        return redirect('integracoes:notification_config_list')
+        body_map = {str(i): (path or '').strip() for i, path in zip(indices, paths)}
+        btn_map = {str(i): (path or '').strip() for i, path in zip(btn_indices, btn_paths)}
+        missing = _validate_template_variables(template_name, body_map, btn_map)
+
+        if missing:
+            messages.error(
+                request,
+                'Não é possível salvar: preencha todas as variáveis exigidas pelo template — '
+                'faltando: ' + ', '.join(missing) + '. Variável em branco faz o envio falhar por '
+                'parâmetro faltando.'
+            )
+        else:
+            config.name = request.POST.get('name')
+            config.model_name = request.POST.get('model_name')
+            config.event_type = request.POST.get('event_type')
+            config.from_status = request.POST.get('from_status')
+            config.to_status = request.POST.get('to_status')
+            config.template_name = template_name
+            config.recipient_type = request.POST.get('recipient_type')
+            config.fixed_phone = request.POST.get('fixed_phone')
+            config.phone_field_path = request.POST.get('phone_field_path')
+            config.chatwoot_tag = request.POST.get('chatwoot_tag')
+            config.chatwoot_tag_mode = request.POST.get('chatwoot_tag_mode', 'ADD')
+            config.is_active = request.POST.get('is_active') == 'on'
+
+            header_media_type = request.POST.get('header_media_type')
+            if header_media_type:
+                config.header_media_type = header_media_type
+
+            static_media_file = request.FILES.get('static_media_file')
+            if static_media_file:
+                config.static_media_file = static_media_file
+
+            config.save()
+
+            # Atualizar variáveis do corpo
+            config.variables.all().delete()
+            for i, path in zip(indices, paths):
+                if path:
+                    NotificationVariable.objects.create(config=config, index=i, field_path=path, component='BODY')
+
+            # Atualizar variáveis de botão (URL dinâmica)
+            for i, path in zip(btn_indices, btn_paths):
+                if path:
+                    NotificationVariable.objects.create(config=config, index=int(i), field_path=path, component='BUTTON')
+
+            messages.success(request, "Configuração atualizada!")
+            return redirect('integracoes:notification_config_list')
 
     return render(request, 'integracoes/notifications/config_form.html', {
         'config': config,
