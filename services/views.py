@@ -193,6 +193,16 @@ def home(request):
         due_date__lt=_today
     ).exclude(status__in=[PlatformInvoice.Status.PAGA, PlatformInvoice.Status.CANCELADA]).exists()
 
+    subscription_due_soon = None
+    subscription_due_soon_key = ''
+    if not subscription_not_configured and not subscription_overdue:
+        subscription_due_soon = PlatformInvoice.objects.filter(
+            due_date__gte=_today,
+            due_date__lte=_today + timedelta(days=5),
+        ).exclude(status__in=[PlatformInvoice.Status.PAGA, PlatformInvoice.Status.CANCELADA]).order_by('due_date').first()
+        if subscription_due_soon:
+            subscription_due_soon_key = f'subscription_due_soon_dismissed_{subscription_due_soon.id}_{subscription_due_soon.due_date.isoformat()}'
+
     return render(request, 'services/home.html', {
         'active_orders': active_orders,
         'pending_approval': pending_approval,
@@ -202,6 +212,8 @@ def home(request):
         'layout_base': layout_base,
         'subscription_not_configured': subscription_not_configured,
         'subscription_overdue': subscription_overdue,
+        'subscription_due_soon': subscription_due_soon,
+        'subscription_due_soon_key': subscription_due_soon_key,
     })
 
 # --- CLIENT VIEWS ---

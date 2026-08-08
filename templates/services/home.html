@@ -62,6 +62,32 @@
             </div>
         </a>
     </section>
+    {% elif user.is_manager and subscription_due_soon %}
+    <section id="subscription-due-soon-banner" class="relative">
+        <a href="{% url 'integracoes:platform_invoice_list' %}" class="block w-full rounded-xl border border-amber-200 bg-amber-50 p-4 pr-12 transition-all hover:bg-amber-100/50">
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                    <i data-lucide="clock" class="h-5 w-5"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-sm font-semibold text-amber-900">Fatura da plataforma vence em breve</h3>
+                    <p class="text-sm text-amber-700">Vencimento em {{ subscription_due_soon.due_date|date:"d/m/Y" }}. Gere o Pix e evite a suspensão do sistema.</p>
+                </div>
+                <div class="shrink-0 text-amber-500">
+                    <i data-lucide="chevron-right" class="h-5 w-5"></i>
+                </div>
+            </div>
+        </a>
+        <button type="button" onclick="event.preventDefault(); document.getElementById('subscription-due-soon-banner').remove(); localStorage.setItem('{{ subscription_due_soon_key }}', '1');" class="absolute top-3 right-3 p-1.5 text-amber-400 hover:text-amber-700 hover:bg-amber-100 rounded-md transition-colors" title="Fechar aviso">
+            <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+    </section>
+    <script>
+        if (localStorage.getItem('{{ subscription_due_soon_key }}')) {
+            var _banner = document.getElementById('subscription-due-soon-banner');
+            if (_banner) _banner.remove();
+        }
+    </script>
     {% endif %}
 
     <!-- Stats Section -->
