@@ -348,6 +348,8 @@ def service_order_list(request):
     query = request.GET.get('q')
     status_filter = request.GET.get('status')
     custom_filter = request.GET.get('filter')
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
     orders = get_orders_queryset(request).order_by('-created_at')
 
     if query:
@@ -365,9 +367,21 @@ def service_order_list(request):
     if status_filter:
         orders = orders.filter(status=status_filter)
 
+    if date_from:
+        try:
+            orders = orders.filter(created_at__date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
+        except ValueError:
+            date_from = ''
+
+    if date_to:
+        try:
+            orders = orders.filter(created_at__date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
+        except ValueError:
+            date_to = ''
+
     if custom_filter == 'needs_scheduling':
         orders = orders.filter(
-            Q(status=ServiceOrder.Status.APROVADO_AGUARDANDO_AGENDAMENTO) | 
+            Q(status=ServiceOrder.Status.APROVADO_AGUARDANDO_AGENDAMENTO) |
             Q(tasks__status=ServiceOrderTask.TaskStatus.NAO_EXECUTADO)
         ).distinct()
 
@@ -381,6 +395,8 @@ def service_order_list(request):
         'query': query,
         'status_filter': status_filter,
         'custom_filter': custom_filter,
+        'date_from': date_from,
+        'date_to': date_to,
         'status_choices': ServiceOrder.Status.choices,
     })
 @permission_required('services.add_serviceorder', raise_exception=True)

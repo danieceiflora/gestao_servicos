@@ -35,9 +35,27 @@
                         {% endfor %}
                     </select>
 
-                    <button type="submit" class="hidden">Pesquisar</button>
+                    <input
+                        type="date"
+                        name="date_from"
+                        value="{{ date_from|default:'' }}"
+                        aria-label="Data inicial"
+                        class="flex h-9 items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm ring-offset-white focus:outline-none focus:ring-1 focus:ring-slate-950 transition-all text-slate-600"
+                    >
 
-                    {% if query or status_filter or custom_filter %}
+                    <input
+                        type="date"
+                        name="date_to"
+                        value="{{ date_to|default:'' }}"
+                        aria-label="Data final"
+                        class="flex h-9 items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm ring-offset-white focus:outline-none focus:ring-1 focus:ring-slate-950 transition-all text-slate-600"
+                    >
+
+                    <button type="submit" class="h-9 shrink-0 inline-flex items-center justify-center px-3 rounded-md bg-slate-900 text-sm font-medium text-slate-50 shadow transition-colors hover:bg-slate-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
+                        Filtrar
+                    </button>
+
+                    {% if query or status_filter or custom_filter or date_from or date_to %}
                     <a href="{% url 'service_order_list' %}" class="h-9 w-9 shrink-0 inline-flex items-center justify-center text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 rounded-md transition-colors shadow-sm" title="Limpar Filtros">
                         <i data-lucide="x" class="h-4 w-4"></i>
                     </a>
@@ -66,7 +84,7 @@
         </div>
         <h3 class="text-lg font-semibold text-slate-900">Nenhuma ordem encontrada</h3>
         <p class="text-slate-500 text-sm mt-1">Tente ajustar seus termos de busca ou filtros.</p>
-        {% if query %}
+        {% if query or status_filter or date_from or date_to %}
         <a href="{% url 'service_order_list' %}" class="mt-4 text-sm font-medium text-slate-900 hover:underline">Limpar busca</a>
         {% endif %}
     </div>

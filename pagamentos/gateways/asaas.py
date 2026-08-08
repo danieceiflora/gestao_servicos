@@ -120,9 +120,11 @@ class AsaasGateway(BasePaymentGateway):
         if doc_clean:
             result = self._get('customers', params={'cpfCnpj': doc_clean, 'limit': 1}, api_key=api_key)
             if result.get('data'):
-                return result['data'][0]['id']
+                customer_id = result['data'][0]['id']
+                self._put(f'customers/{customer_id}', {'notificationDisabled': True}, api_key=api_key)
+                return customer_id
 
-        payload = {'name': name}
+        payload = {'name': name, 'notificationDisabled': True}
         if email:
             payload['email'] = email
         if doc_clean:
