@@ -6,6 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.urls import reverse_lazy
 from django.db.models import Q, Sum, F, ExpressionWrapper, DecimalField, Count
 from django.db.models.functions import Coalesce
+from django.forms import inlineformset_factory
 import csv
 import io
 import hashlib
@@ -13,9 +14,19 @@ from decimal import Decimal
 from openpyxl import load_workbook
 from django.http import HttpResponse, JsonResponse
 from django.db import transaction
-from .models import Product, StockMovement, ImportHistory, ImportItem, ProductCategory
+from .models import (
+    Product, StockMovement, ImportHistory, ImportItem, ProductCategory,
+    Supplier, PurchaseInvoice, PurchaseInvoiceItem,
+)
 from integracoes.models import SystemConfig
-from .forms import ProductForm, StockMovementForm, ProductImportForm, ProductCompositionFormSet, ProductVariantFormSet
+from .forms import (
+    ProductForm, StockMovementForm, ProductImportForm, ProductCompositionFormSet, ProductVariantFormSet,
+    PurchaseInvoiceForm, PurchaseInvoiceItemForm, PurchaseInvoiceItemFormSet, PurchaseInvoiceXMLUploadForm,
+)
+from .utils_nfe_import import (
+    parse_nfe_xml, match_products, NFeXMLParseError,
+    find_supplier_by_cnpj, get_or_create_supplier_from_xml, create_missing_products,
+)
 
 class ManagerRequiredMixin(UserPassesTestMixin):
     def test_func(self):
@@ -526,3 +537,385 @@ class ImportHistoryDetailView(LoginRequiredMixin, ManagerRequiredMixin, DetailVi
         context = super().get_context_data(**kwargs)
         context['items'] = self.object.items_logged.all().select_related('product')
         return context
+
+
+# --- NOTA DE ENTRADA (PURCHASE INVOICE) ---
+
+def _item_from_hidden_post(post_data, index):
+    return {
+        'code': post_data.get(f'item_{index}_code', ''),
+        'barcode': post_data.get(f'item_{index}_barcode', ''),
+        'name': post_data.get(f'item_{index}_name', ''),
+        'unit': post_data.get(f'item_{index}_unit', ''),
+        'ncm': post_data.get(f'item_{index}_ncm', ''),
+        'cfop': post_data.get(f'item_{index}_cfop', ''),
+        'quantity': _decimal_or_zero(post_data.get(f'item_{index}_quantity')),
+        'unit_cost': _decimal_or_zero(post_data.get(f'item_{index}_unit_cost')),
+    }
+
+
+def _decimal_or_zero(value):
+    if value in (None, ''):
+        return Decimal('0')
+    try:
+        # Aceita tanto "25.00" quanto "25,00" — proteção extra caso algum
+        # número chegue localizado (ex: template renderizando em pt-BR).
+        return Decimal(str(value).replace(',', '.'))
+    except Exception:
+        return Decimal('0')
+
+
+@login_required
+@user_passes_test(is_manager)
+def purchase_invoice_import_preview(request):
+    """Tela única de importação: passo 1 lê o XML e mostra os dados extraídos
+    (nota, fornecedor, itens) pra conferência; passo 2 ("Confirmar e
+    Importar") efetivamente cria a Nota de Entrada (RASCUNHO) com esses
+    dados, cadastrando fornecedor/produtos que não existirem. O usuário
+    revisa e lança (dá entrada no estoque) na tela de detalhe da nota."""
+    parsed = None
+    matched_items = None
+    supplier = None
+    total = None
+    xml_import_error = ''
+    raw_preview = ''
+    filename = ''
+
+    if request.method == 'POST' and request.POST.get('action') == 'confirm':
+        try:
+            item_count = int(request.POST.get('item_count', 0))
+        except (TypeError, ValueError):
+            item_count = 0
+
+        parsed = {
+            'number': request.POST.get('h_number', ''),
+            'series': request.POST.get('h_series', ''),
+            'access_key': request.POST.get('h_access_key', ''),
+            'issue_date': request.POST.get('h_issue_date', ''),
+            'supplier_cnpj': request.POST.get('h_supplier_cnpj', ''),
+            'supplier_name': request.POST.get('h_supplier_name', ''),
+            'supplier_trade_name': request.POST.get('h_supplier_trade_name', ''),
+            'supplier_ie': request.POST.get('h_supplier_ie', ''),
+            'supplier_phone': request.POST.get('h_supplier_phone', ''),
+            'supplier_address': request.POST.get('h_supplier_address', ''),
+            'items': [_item_from_hidden_post(request.POST, i) for i in range(item_count)],
+        }
+
+        supplier, supplier_created = get_or_create_supplier_from_xml(parsed)
+        if not supplier:
+            messages.error(
+                request,
+                "O XML não traz um CNPJ de fornecedor válido — não é possível importar automaticamente. "
+                "Cadastre o fornecedor manualmente e lance a nota pela opção \"Lançar Manualmente\"."
+            )
+            return redirect('purchase_invoice_import_preview')
+
+        matched_items, _unmatched = match_products(parsed['items'])
+        created_products = create_missing_products(matched_items, supplier=supplier)
+
+        with transaction.atomic():
+            invoice_kwargs = dict(
+                supplier=supplier,
+                number=parsed['number'],
+                series=parsed['series'],
+                access_key=parsed['access_key'],
+                generate_expense=bool(request.POST.get('generate_expense')),
+                expense_due_date=request.POST.get('expense_due_date') or None,
+                status=PurchaseInvoice.Status.RASCUNHO,
+            )
+            if parsed['issue_date']:
+                invoice_kwargs['issue_date'] = parsed['issue_date']
+            invoice = PurchaseInvoice.objects.create(**invoice_kwargs)
+
+            for item in matched_items:
+                PurchaseInvoiceItem.objects.create(
+                    invoice=invoice,
+                    product=item['product'],
+                    quantity=item['quantity'],
+                    unit_cost=item['unit_cost'],
+                )
+
+        if supplier_created:
+            messages.info(request, f"Fornecedor \"{supplier.display_name}\" cadastrado automaticamente a partir do XML.")
+        if created_products:
+            names = ", ".join(p.name for p in created_products[:5])
+            more = f" e mais {len(created_products) - 5}" if len(created_products) > 5 else ""
+            messages.info(request, f"{len(created_products)} produto(s) cadastrados automaticamente: {names}{more}. Revise categoria e preço de venda depois.")
+        messages.success(request, "Nota de entrada importada como rascunho. Confira os itens e clique em \"Lançar Nota\" pra dar entrada no estoque.")
+        return redirect('purchase_invoice_detail', pk=invoice.pk)
+
+    if request.method == 'POST':
+        upload_form = PurchaseInvoiceXMLUploadForm(request.POST, request.FILES)
+        if upload_form.is_valid():
+            xml_file = upload_form.cleaned_data['xml_file']
+            filename = xml_file.name
+            try:
+                raw_bytes = xml_file.read()
+                xml_file.seek(0)
+                raw_preview = raw_bytes[:800].decode('utf-8', errors='replace')
+            except Exception:
+                raw_preview = ''
+
+            try:
+                parsed = parse_nfe_xml(xml_file)
+            except NFeXMLParseError as e:
+                xml_import_error = str(e)
+        else:
+            xml_import_error = "Escolha um arquivo XML antes de enviar."
+
+        if parsed:
+            matched_items, _unmatched = match_products(parsed['items'])
+            supplier = find_supplier_by_cnpj(parsed['supplier_cnpj'])
+            for item in matched_items:
+                item['subtotal'] = item['quantity'] * item['unit_cost']
+            total = sum((item['subtotal'] for item in matched_items), Decimal('0'))
+    else:
+        upload_form = PurchaseInvoiceXMLUploadForm()
+
+    return render(request, 'services/purchase_invoices/purchase_invoice_import_preview.html', {
+        'upload_form': upload_form,
+        'parsed': parsed,
+        'matched_items': matched_items,
+        'supplier': supplier,
+        'total': total,
+        'xml_import_error': xml_import_error,
+        'raw_preview': raw_preview,
+        'filename': filename,
+    })
+
+
+def _items_initial_from_post(post_data):
+    """Reconstrói a lista de itens a partir do POST sem passar pelo formset
+    ligado (bound) — evita que o simples fato de renderizar o template
+    (que acessa `formset.errors`) dispare validação e mostre erros de campo
+    obrigatório quando só queremos reexibir o que o usuário já tinha
+    preenchido (ex.: reenvio do Importar sem escolher o arquivo de novo, ou
+    XML que falhou ao ser lido)."""
+    try:
+        total = int(post_data.get('items-TOTAL_FORMS', 0))
+    except (TypeError, ValueError):
+        total = 0
+
+    rows = []
+    for i in range(total):
+        if post_data.get(f'items-{i}-DELETE'):
+            continue
+        rows.append({
+            'product': post_data.get(f'items-{i}-product') or None,
+            'quantity': post_data.get(f'items-{i}-quantity') or None,
+            'unit_cost': post_data.get(f'items-{i}-unit_cost') or None,
+        })
+    return rows
+
+
+def _header_initial_from_post(post_data):
+    return {
+        'supplier': post_data.get('supplier') or None,
+        'number': post_data.get('number', ''),
+        'series': post_data.get('series', ''),
+        'access_key': post_data.get('access_key', ''),
+        'issue_date': post_data.get('issue_date') or None,
+        'notes': post_data.get('notes', ''),
+        'generate_expense': bool(post_data.get('generate_expense')),
+        'expense_due_date': post_data.get('expense_due_date') or None,
+    }
+
+
+def _xml_item_formset_class(extra):
+    """FormSet com `extra` dinâmico — usado só para pré-popular as linhas de
+    itens extraídas do XML antes de salvar (o formset padrão da tela manual
+    usa extra=0 e adiciona linhas via JS)."""
+    return inlineformset_factory(
+        PurchaseInvoice, PurchaseInvoiceItem,
+        form=PurchaseInvoiceItemForm,
+        extra=extra, can_delete=True, min_num=1, validate_min=True,
+    )
+
+
+class PurchaseInvoiceListView(LoginRequiredMixin, ManagerRequiredMixin, ListView):
+    model = PurchaseInvoice
+    template_name = 'services/purchase_invoices/purchase_invoice_list.html'
+    context_object_name = 'invoices'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = PurchaseInvoice.objects.select_related('supplier').order_by('-issue_date', '-created_at')
+        status = self.request.GET.get('status')
+        supplier_id = self.request.GET.get('supplier')
+        if status:
+            queryset = queryset.filter(status=status)
+        if supplier_id:
+            queryset = queryset.filter(supplier_id=supplier_id)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['status_choices'] = PurchaseInvoice.Status.choices
+        context['suppliers'] = Supplier.objects.order_by('name')
+        context['selected_status'] = self.request.GET.get('status', '')
+        context['selected_supplier'] = self.request.GET.get('supplier', '')
+        return context
+
+
+@login_required
+@user_passes_test(is_manager)
+def purchase_invoice_create(request):
+    header_initial = None
+    items_initial = None
+    xml_import_error = ''
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'import_xml':
+            upload_form = PurchaseInvoiceXMLUploadForm(request.POST, request.FILES)
+            parsed = None
+
+            if upload_form.is_valid():
+                try:
+                    parsed = parse_nfe_xml(upload_form.cleaned_data['xml_file'])
+                except NFeXMLParseError as e:
+                    xml_import_error = str(e)
+                    messages.error(request, f"Não foi possível ler o XML: {e}")
+            else:
+                # O navegador limpa o campo de arquivo a cada envio do formulário —
+                # se o usuário reenviar sem escolher o XML de novo, não há nada pra
+                # importar. Mantém tudo que já estava preenchido em vez de zerar.
+                xml_import_error = "Nenhum arquivo XML foi enviado. Escolha o arquivo antes de clicar em Importar."
+                messages.error(request, xml_import_error)
+
+            if parsed:
+                matched_items, _unmatched = match_products(parsed['items'])
+
+                supplier, supplier_created = get_or_create_supplier_from_xml(parsed)
+                created_products = create_missing_products(matched_items, supplier=supplier)
+
+                header_initial = {
+                    'supplier': supplier.id if supplier else None,
+                    'number': parsed['number'],
+                    'series': parsed['series'],
+                    'access_key': parsed['access_key'],
+                    'issue_date': parsed['issue_date'] or None,
+                }
+                items_initial = [
+                    {
+                        'product': item['product'].id if item['product'] else None,
+                        'quantity': item['quantity'],
+                        'unit_cost': item['unit_cost'],
+                    }
+                    for item in matched_items
+                ]
+
+                if supplier_created:
+                    messages.info(
+                        request,
+                        f"Fornecedor \"{supplier.display_name}\" (CNPJ {parsed['supplier_cnpj']}) não existia e foi "
+                        "cadastrado automaticamente com os dados do XML. Revise o cadastro se precisar completar algo."
+                    )
+                elif not supplier:
+                    messages.warning(
+                        request,
+                        f"O XML não traz um CNPJ de fornecedor válido ({parsed['supplier_cnpj'] or 's/ CNPJ'}). "
+                        "Selecione o fornecedor manualmente."
+                    )
+
+                if created_products:
+                    names = ", ".join(p.name for p in created_products[:5])
+                    more = f" e mais {len(created_products) - 5}" if len(created_products) > 5 else ""
+                    messages.info(
+                        request,
+                        f"{len(created_products)} produto(s) não existiam no catálogo e foram cadastrados "
+                        f"automaticamente a partir do XML: {names}{more}. Revise categoria, preço de venda e "
+                        "estoque mínimo depois — o XML só traz nome, código/EAN, unidade, NCM/CFOP e custo."
+                    )
+
+                messages.success(request, f"XML importado: {len(items_initial)} item(ns) prontos. Confira e salve.")
+
+                form = PurchaseInvoiceForm(initial=header_initial)
+                formset = _xml_item_formset_class(extra=max(len(items_initial or []), 1))(initial=items_initial)
+            else:
+                # Sem XML novo pra processar (arquivo não enviado ou XML não
+                # reconhecido): reconstrói o formulário a partir do que veio no
+                # POST sem "ligar" (bind) o form/formset a ele — só usando
+                # `initial`. Isso preserva o que o usuário já tinha preenchido
+                # sem disparar validação (o simples fato de renderizar
+                # `{{ formset.errors }}" no template já validaria um formset
+                # bound, mostrando "campo obrigatório" pra linhas que o
+                # usuário nem tentou salvar ainda).
+                header_initial = _header_initial_from_post(request.POST)
+                rows = _items_initial_from_post(request.POST)
+                form = PurchaseInvoiceForm(initial=header_initial)
+                formset = _xml_item_formset_class(extra=max(len(rows), 1))(initial=rows)
+
+        elif action in ('save_draft', 'save_and_launch'):
+            form = PurchaseInvoiceForm(request.POST)
+            formset = PurchaseInvoiceItemFormSet(request.POST)
+
+            if form.is_valid() and formset.is_valid():
+                with transaction.atomic():
+                    invoice = form.save(commit=False)
+                    invoice.status = PurchaseInvoice.Status.RASCUNHO
+                    invoice.save()
+                    formset.instance = invoice
+                    formset.save()
+
+                if action == 'save_and_launch':
+                    try:
+                        invoice.launch(user=request.user)
+                        messages.success(request, "Nota de entrada lançada com sucesso — estoque e custo dos produtos atualizados.")
+                    except ValueError as e:
+                        messages.error(request, f"Nota salva como rascunho, mas não pôde ser lançada: {e}")
+                else:
+                    messages.success(request, "Nota de entrada salva como rascunho.")
+                return redirect('purchase_invoice_detail', pk=invoice.pk)
+        else:
+            form = PurchaseInvoiceForm()
+            formset = PurchaseInvoiceItemFormSet()
+    else:
+        form = PurchaseInvoiceForm()
+        formset = PurchaseInvoiceItemFormSet()
+
+    return render(request, 'services/purchase_invoices/purchase_invoice_form.html', {
+        'form': form,
+        'formset': formset,
+        'upload_form': PurchaseInvoiceXMLUploadForm(),
+        'title': 'Nova Nota de Entrada',
+        'xml_import_error': xml_import_error,
+    })
+
+
+class PurchaseInvoiceDetailView(LoginRequiredMixin, ManagerRequiredMixin, DetailView):
+    model = PurchaseInvoice
+    template_name = 'services/purchase_invoices/purchase_invoice_detail.html'
+    context_object_name = 'invoice'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['items'] = self.object.items.select_related('product').all()
+        return context
+
+
+@login_required
+@user_passes_test(is_manager)
+def purchase_invoice_launch(request, pk):
+    invoice = get_object_or_404(PurchaseInvoice, pk=pk)
+    if request.method == 'POST':
+        try:
+            invoice.launch(user=request.user)
+            messages.success(request, "Nota de entrada lançada com sucesso — estoque e custo dos produtos atualizados.")
+        except ValueError as e:
+            messages.error(request, str(e))
+    return redirect('purchase_invoice_detail', pk=invoice.pk)
+
+
+@login_required
+@user_passes_test(is_manager)
+def purchase_invoice_cancel(request, pk):
+    invoice = get_object_or_404(PurchaseInvoice, pk=pk)
+    if request.method == 'POST':
+        try:
+            invoice.cancel()
+            messages.success(request, "Nota de entrada cancelada.")
+        except ValueError as e:
+            messages.error(request, str(e))
+    return redirect('purchase_invoice_detail', pk=invoice.pk)

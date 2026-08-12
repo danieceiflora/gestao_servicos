@@ -9,6 +9,7 @@ from .models import (
     ChecklistResponseMedia, Sale, SaleItem, Supplier, PaymentMethod, SalePayment,
     FinancialCategory, BankAccount, Expense, ExpenseInstallment, ExpenseAttachment,
     RecurrenceRule, FinanceSettings, Billing, Installment,
+    PurchaseInvoice, PurchaseInvoiceItem,
 )
 
 
@@ -85,6 +86,19 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = ['name', 'code', 'supplier', 'unit_type', 'default_unit_price', 'is_active']
     list_filter = ['is_active', 'unit_type', 'supplier']
     search_fields = ['name', 'code']
+
+class PurchaseInvoiceItemInline(admin.TabularInline):
+    model = PurchaseInvoiceItem
+    extra = 0
+
+
+@admin.register(PurchaseInvoice)
+class PurchaseInvoiceAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'supplier', 'issue_date', 'status', 'total_value']
+    list_filter = ['status', 'supplier']
+    search_fields = ['number', 'access_key', 'supplier__name', 'supplier__trade_name']
+    inlines = [PurchaseInvoiceItemInline]
+
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):

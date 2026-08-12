@@ -830,6 +830,120 @@ class StockMovement(models.Model):
         ordering = ['-created_at']
 
 
+class PurchaseInvoice(models.Model):
+    """Nota Fiscal de Entrada: registra a compra de produtos de um fornecedor.
+    Ao ser lançada (`launch()`), dá entrada no estoque de cada item, atualiza o
+    custo do produto e, opcionalmente, gera a conta a pagar correspondente —
+    mesma lógica da "Nota de Entrada" do Bling."""
+
+    class Status(models.TextChoices):
+        RASCUNHO = 'RASCUNHO', 'Rascunho'
+        LANCADA = 'LANCADA', 'Lançada'
+        CANCELADA = 'CANCELADA', 'Cancelada'
+
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='purchase_invoices', verbose_name="Fornecedor")
+    number = models.CharField(max_length=20, blank=True, verbose_name="Número da Nota")
+    series = models.CharField(max_length=10, blank=True, verbose_name="Série")
+    access_key = models.CharField(max_length=44, blank=True, verbose_name="Chave de Acesso (NF-e)")
+    issue_date = models.DateField(default=timezone.now, verbose_name="Data de Emissão")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.RASCUNHO, verbose_name="Status")
+    xml_file = models.FileField(upload_to='purchase_invoices/xml/', null=True, blank=True, verbose_name="XML da NF-e")
+
+    generate_expense = models.BooleanField(default=False, verbose_name="Gerar Conta a Pagar")
+    expense_due_date = models.DateField(null=True, blank=True, verbose_name="Vencimento da Conta a Pagar")
+    expense = models.OneToOneField(
+        'Expense', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='purchase_invoice', verbose_name="Conta a Pagar Gerada"
+    )
+
+    notes = models.TextField(blank=True, verbose_name="Observações")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Lançada por")
+    launched_at = models.DateTimeField(null=True, blank=True, verbose_name="Lançada em")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Nota de Entrada"
+        verbose_name_plural = "Notas de Entrada"
+        ordering = ['-issue_date', '-created_at']
+
+    def __str__(self):
+        return f"NF Entrada #{self.number or self.pk} - {self.supplier.display_name}"
+
+    @property
+    def total_value(self):
+        return sum((item.subtotal for item in self.items.all()), Decimal('0'))
+
+    def launch(self, user=None):
+        """Confirma a nota: dá entrada no estoque, atualiza o custo dos produtos e,
+        se configurado, gera a conta a pagar. Só pode ser chamada em notas RASCUNHO."""
+        if self.status != self.Status.RASCUNHO:
+            raise ValueError("Apenas notas em rascunho podem ser lançadas.")
+        if not self.items.exists():
+            raise ValueError("A nota não possui itens para lançar.")
+
+        from django.db import transaction
+        with transaction.atomic():
+            for item in self.items.select_related('product'):
+                item.product.increase_stock(
+                    item.quantity,
+                    user=user,
+                    reason=StockMovement.Reason.COMPRA,
+                    notes=f"Nota de Entrada #{self.number or self.pk} - {self.supplier.display_name}",
+                )
+                item.product.preco_custo = item.unit_cost
+                item.product.save(update_fields=['preco_custo'])
+
+            if self.generate_expense and not self.expense_id:
+                total = self.total_value
+                expense = Expense.objects.create(
+                    supplier=self.supplier,
+                    description=f"Nota de Entrada #{self.number or self.pk}",
+                    total_amount=total,
+                    issue_date=self.issue_date,
+                    installments_count=1,
+                )
+                ExpenseInstallment.objects.create(
+                    expense=expense,
+                    installment_number='1/1',
+                    amount=total,
+                    due_date=self.expense_due_date or self.issue_date,
+                )
+                self.expense = expense
+
+            self.status = self.Status.LANCADA
+            self.user = user
+            self.launched_at = timezone.now()
+            self.save()
+
+    def cancel(self):
+        """Cancela uma nota em rascunho. Notas já lançadas não podem ser canceladas
+        por aqui — o estoque e a conta a pagar gerados já produziram efeitos que
+        exigem estorno manual (ajuste de estoque / cancelamento da despesa)."""
+        if self.status != self.Status.RASCUNHO:
+            raise ValueError("Apenas notas em rascunho podem ser canceladas.")
+        self.status = self.Status.CANCELADA
+        self.save(update_fields=['status', 'updated_at'])
+
+
+class PurchaseInvoiceItem(models.Model):
+    invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.CASCADE, related_name='items', verbose_name="Nota de Entrada")
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='purchase_invoice_items', verbose_name="Produto")
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Quantidade")
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Custo Unitário")
+
+    class Meta:
+        verbose_name = "Item da Nota de Entrada"
+        verbose_name_plural = "Itens da Nota de Entrada"
+
+    def __str__(self):
+        return f"{self.product.name} x{self.quantity}"
+
+    @property
+    def subtotal(self):
+        return (self.quantity or Decimal('0')) * (self.unit_cost or Decimal('0'))
+
+
 class Billing(models.Model):
     class Status(models.TextChoices):
         PENDENTE = 'PENDENTE', 'Pendente'

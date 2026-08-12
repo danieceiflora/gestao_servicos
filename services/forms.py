@@ -7,7 +7,7 @@ from .models import (
     ProfessionalRole, ProfessionalScheduleBlock,
     ServiceOrderTask, ServicePayment, Product, StockMovement,
     Sale, SaleItem, Supplier, PaymentMethod, Expense, ProductComposition, ExpenseInstallment,
-    FinanceSettings, SaleSettings, ProductVariant
+    FinanceSettings, SaleSettings, ProductVariant, PurchaseInvoice, PurchaseInvoiceItem
 )
 
 
@@ -1174,6 +1174,67 @@ class ExpenseForm(forms.ModelForm):
             self.add_error('frequency', 'A frequência é obrigatória se houver mais de uma parcela.')
 
         return cleaned_data
+
+
+# --- PURCHASE INVOICE (NOTA DE ENTRADA) FORMS ---
+
+class PurchaseInvoiceXMLUploadForm(forms.Form):
+    xml_file = forms.FileField(
+        label="XML da NF-e do Fornecedor",
+        help_text="Envie o XML da nota fiscal que o fornecedor emitiu para você. Os itens serão pré-preenchidos automaticamente.",
+        widget=forms.FileInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'accept': '.xml'})
+    )
+
+
+class PurchaseInvoiceForm(forms.ModelForm):
+    class Meta:
+        model = PurchaseInvoice
+        fields = [
+            'supplier', 'number', 'series', 'access_key', 'issue_date',
+            'generate_expense', 'expense_due_date', 'notes',
+        ]
+        widgets = {
+            'supplier': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 search-select'}),
+            'number': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Nº da nota'}),
+            'series': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Série'}),
+            'access_key': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-xs', 'placeholder': 'Chave de acesso (44 dígitos)'}),
+            'issue_date': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'generate_expense': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
+            'expense_due_date': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date', 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'notes': forms.Textarea(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in ['number', 'series', 'access_key', 'generate_expense', 'expense_due_date', 'notes']:
+            self.fields[field].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('generate_expense') and not cleaned_data.get('expense_due_date'):
+            self.add_error('expense_due_date', 'Informe o vencimento da conta a pagar a ser gerada.')
+        return cleaned_data
+
+
+class PurchaseInvoiceItemForm(forms.ModelForm):
+    class Meta:
+        model = PurchaseInvoiceItem
+        fields = ['product', 'quantity', 'unit_cost']
+        widgets = {
+            'product': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 search-select product-select'}),
+            'quantity': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 quantity-input', 'step': '0.01'}),
+            'unit_cost': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 cost-input', 'step': '0.01'}),
+        }
+
+
+PurchaseInvoiceItemFormSet = inlineformset_factory(
+    PurchaseInvoice, PurchaseInvoiceItem,
+    form=PurchaseInvoiceItemForm,
+    extra=0,
+    can_delete=True,
+    min_num=1,
+    validate_min=True,
+)
 
 
 class FinanceSettingsForm(forms.ModelForm):

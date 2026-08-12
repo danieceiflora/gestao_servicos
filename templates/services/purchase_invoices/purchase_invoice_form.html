@@ -1,0 +1,320 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }} - Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <a href="{% url 'purchase_invoice_list' %}" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all">
+            <i data-lucide="arrow-left" class="h-6 w-6"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">{{ title }}</h1>
+            <p class="text-slate-500 text-sm">Registre a compra de um fornecedor — ao lançar, o estoque e o custo dos produtos são atualizados.</p>
+        </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" id="invoice-form" class="space-y-6" novalidate>
+        {% csrf_token %}
+
+        <!-- Importação de XML -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex items-center gap-2 mb-3">
+                <i data-lucide="upload" class="h-4 w-4 text-blue-500"></i>
+                <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Importar XML da NF-e (opcional)</h2>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                {{ upload_form.xml_file }}
+                <button type="submit" name="action" value="import_xml" formnovalidate
+                        class="shrink-0 inline-flex items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 h-10 px-4 text-sm font-bold transition-colors">
+                    <i data-lucide="file-symlink" class="h-4 w-4"></i>
+                    Importar
+                </button>
+            </div>
+            <p class="text-xs text-slate-400 mt-2">{{ upload_form.xml_file.help_text }} Depois de importar, ajuste o que faltar abaixo e use os botões "Salvar" no final da página — não é preciso clicar em Importar de novo.</p>
+            {% if xml_import_error %}
+            <div class="mt-3 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0 mt-0.5"></i>
+                <div>
+                    <p class="font-semibold">Não foi possível importar o XML</p>
+                    <p class="text-red-600">{{ xml_import_error }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if form.errors %}
+        <div class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            Verifique os campos destacados abaixo.
+        </div>
+        {% endif %}
+
+        <!-- Dados da Nota -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Dados da Nota</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="md:col-span-2 space-y-2">
+                    <label class="text-sm font-semibold text-slate-700">Fornecedor</label>
+                    {{ form.supplier }}
+                    {% if form.supplier.errors %}<p class="text-xs text-red-600">{{ form.supplier.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-700">Nº da Nota</label>
+                    {{ form.number }}
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-700">Série</label>
+                    {{ form.series }}
+                </div>
+                <div class="md:col-span-2 space-y-2">
+                    <label class="text-sm font-semibold text-slate-700">Chave de Acesso</label>
+                    {{ form.access_key }}
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-700">Data de Emissão</label>
+                    {{ form.issue_date }}
+                    {% if form.issue_date.errors %}<p class="text-xs text-red-600">{{ form.issue_date.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="md:col-span-4 space-y-2">
+                    <label class="text-sm font-semibold text-slate-700">Observações</label>
+                    {{ form.notes }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Itens -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-6 pb-0 flex items-center justify-between">
+                <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Itens</h2>
+                <button type="button" id="add-item-btn" class="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800">
+                    <i data-lucide="plus-circle" class="h-4 w-4"></i>
+                    Adicionar Item
+                </button>
+            </div>
+
+            {% if formset.non_form_errors %}
+            <div class="mx-6 mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
+                {{ formset.non_form_errors.0 }}
+            </div>
+            {% endif %}
+
+            {{ formset.management_form }}
+
+            <div class="overflow-x-auto mt-4">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 border-y border-slate-200 text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        <tr>
+                            <th class="px-4 py-2 w-1/2">Produto</th>
+                            <th class="px-4 py-2">Quantidade</th>
+                            <th class="px-4 py-2">Custo Unitário</th>
+                            <th class="px-4 py-2 text-right">Subtotal</th>
+                            <th class="px-4 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="items-container" class="divide-y divide-slate-100">
+                        {% for item_form in formset %}
+                        <tr class="item-row {% if item_form.DELETE.value %}hidden{% endif %}">
+                            <td class="px-4 py-2">
+                                {{ item_form.id }}
+                                {{ item_form.product }}
+                                {% if item_form.product.errors %}<p class="text-xs text-red-600 mt-1">{{ item_form.product.errors.0 }}</p>{% endif %}
+                            </td>
+                            <td class="px-4 py-2">{{ item_form.quantity }}</td>
+                            <td class="px-4 py-2">{{ item_form.unit_cost }}</td>
+                            <td class="px-4 py-2 text-right font-bold text-slate-900 subtotal-cell">R$ 0,00</td>
+                            <td class="px-4 py-2 text-right">
+                                {% if item_form.instance.pk %}
+                                <label class="inline-flex items-center gap-1 text-xs text-red-500 cursor-pointer">
+                                    {{ item_form.DELETE }} Remover
+                                </label>
+                                {% else %}
+                                <button type="button" class="remove-row-btn text-slate-400 hover:text-red-600" title="Remover linha">
+                                    <i data-lucide="x" class="h-4 w-4"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr id="no-items-row" class="{% if formset.forms %}hidden{% endif %}">
+                            <td colspan="5" class="px-4 py-8 text-center text-sm text-slate-400">Nenhum item adicionado. Importe um XML ou clique em "Adicionar Item".</td>
+                        </tr>
+                        <tr class="bg-slate-50">
+                            <td colspan="3" class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Total</td>
+                            <td id="invoice-total" class="px-4 py-3 text-right text-base font-black text-slate-900">R$ 0,00</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div id="empty-form-template" class="hidden">{{ formset.empty_form }}</div>
+        </div>
+
+        <!-- Conta a pagar -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+            <label class="flex items-center gap-2 cursor-pointer">
+                {{ form.generate_expense }}
+                <span class="text-sm font-semibold text-slate-700">Gerar Conta a Pagar para este fornecedor ao lançar a nota</span>
+            </label>
+            <div id="expense-due-date-wrapper" class="space-y-2 max-w-xs {% if not form.generate_expense.value %}hidden{% endif %}">
+                <label class="text-sm font-semibold text-slate-700">Vencimento da Conta a Pagar</label>
+                {{ form.expense_due_date }}
+                {% if form.expense_due_date.errors %}<p class="text-xs text-red-600">{{ form.expense_due_date.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        <!-- Ações -->
+        <div class="flex flex-col sm:flex-row gap-3 pt-2">
+            <button type="submit" name="action" value="save_and_launch" data-validate="true"
+                    class="flex-1 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-2">
+                <i data-lucide="check-circle" class="h-5 w-5"></i>
+                Salvar e Lançar (dar entrada no estoque)
+            </button>
+            <button type="submit" name="action" value="save_draft" data-validate="true"
+                    class="flex-1 bg-slate-100 text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-200 transition-all active:scale-[0.98]">
+                Salvar como Rascunho
+            </button>
+            <a href="{% url 'purchase_invoice_list' %}" class="flex-1 text-center bg-white border border-slate-200 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-50 transition-all active:scale-[0.98]">
+                Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const itemsContainer = document.getElementById('items-container');
+const totalFormsInput = document.getElementById('id_items-TOTAL_FORMS');
+const emptyFormTemplate = document.getElementById('empty-form-template').innerHTML;
+const noItemsRow = document.getElementById('no-items-row');
+const addItemBtn = document.getElementById('add-item-btn');
+const generateExpenseCheckbox = document.querySelector('[name="generate_expense"]');
+const expenseDueDateWrapper = document.getElementById('expense-due-date-wrapper');
+
+function fmtCurrency(n) {
+    return 'R$ ' + Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function updateRowSubtotal(row) {
+    const qty = parseFloat(row.querySelector('[name$="-quantity"]')?.value) || 0;
+    const cost = parseFloat(row.querySelector('[name$="-unit_cost"]')?.value) || 0;
+    const cell = row.querySelector('.subtotal-cell');
+    if (cell) cell.textContent = fmtCurrency(qty * cost);
+}
+
+function updateInvoiceTotal() {
+    let total = 0;
+    itemsContainer.querySelectorAll('.item-row').forEach(row => {
+        if (row.classList.contains('hidden')) return;
+        const qty = parseFloat(row.querySelector('[name$="-quantity"]')?.value) || 0;
+        const cost = parseFloat(row.querySelector('[name$="-unit_cost"]')?.value) || 0;
+        total += qty * cost;
+    });
+    document.getElementById('invoice-total').textContent = fmtCurrency(total);
+}
+
+function refreshAll() {
+    itemsContainer.querySelectorAll('.item-row').forEach(updateRowSubtotal);
+    updateInvoiceTotal();
+    noItemsRow.classList.toggle('hidden', itemsContainer.querySelectorAll('.item-row:not(.hidden)').length > 0);
+}
+
+async function autofillCost(select) {
+    const id = select.value;
+    if (!id) return;
+    try {
+        const res = await fetch(`/produtos/${id}/precos/`);
+        const data = await res.json();
+        const row = select.closest('.item-row');
+        const costInput = row.querySelector('[name$="-unit_cost"]');
+        if (costInput && (!costInput.value || parseFloat(costInput.value) === 0)) {
+            costInput.value = data.preco_custo;
+        }
+        refreshAll();
+    } catch (e) { /* silencioso */ }
+}
+
+function bindRow(row) {
+    row.querySelectorAll('[name$="-quantity"], [name$="-unit_cost"]').forEach(input => {
+        input.addEventListener('input', refreshAll);
+    });
+    const select = row.querySelector('[name$="-product"]');
+    if (select) select.addEventListener('change', () => autofillCost(select));
+
+    const removeBtn = row.querySelector('.remove-row-btn');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+            row.remove();
+            refreshAll();
+        });
+    }
+    const deleteCheckbox = row.querySelector('[name$="-DELETE"]');
+    if (deleteCheckbox) {
+        deleteCheckbox.addEventListener('change', () => {
+            row.classList.toggle('hidden', deleteCheckbox.checked);
+            refreshAll();
+        });
+    }
+}
+
+function addRow() {
+    const index = parseInt(totalFormsInput.value, 10);
+    const html = emptyFormTemplate.replace(/__prefix__/g, index);
+    const wrapper = document.createElement('tbody');
+    wrapper.innerHTML = `<tr class="item-row">
+        <td class="px-4 py-2"></td>
+        <td class="px-4 py-2"></td>
+        <td class="px-4 py-2"></td>
+        <td class="px-4 py-2 text-right font-bold text-slate-900 subtotal-cell">R$ 0,00</td>
+        <td class="px-4 py-2 text-right"><button type="button" class="remove-row-btn text-slate-400 hover:text-red-600" title="Remover linha"><i data-lucide="x" class="h-4 w-4"></i></button></td>
+    </tr>`;
+    const row = wrapper.querySelector('tr');
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    row.children[0].appendChild(tempDiv.querySelector('[name$="-product"]'));
+    row.children[1].appendChild(tempDiv.querySelector('[name$="-quantity"]'));
+    row.children[2].appendChild(tempDiv.querySelector('[name$="-unit_cost"]'));
+
+    itemsContainer.appendChild(row);
+    totalFormsInput.value = index + 1;
+    bindRow(row);
+    if (window.lucide) lucide.createIcons();
+    refreshAll();
+}
+
+addItemBtn.addEventListener('click', addRow);
+
+itemsContainer.querySelectorAll('.item-row').forEach(bindRow);
+refreshAll();
+
+if (itemsContainer.querySelectorAll('.item-row').length === 0) {
+    addRow();
+}
+
+if (generateExpenseCheckbox) {
+    generateExpenseCheckbox.addEventListener('change', () => {
+        expenseDueDateWrapper.classList.toggle('hidden', !generateExpenseCheckbox.checked);
+    });
+}
+
+// O <form> inteiro está com novalidate — assim o botão "Importar" nunca é
+// bloqueado por campos obrigatórios ainda vazios (fornecedor, itens...).
+// Só os botões marcados com data-validate (Salvar) re-checam a validade na
+// hora do clique — em vez de 'submit', usamos 'click' com preventDefault
+// pra nem disparar o evento de submit (e o spinner global) quando inválido.
+document.getElementById('invoice-form').querySelectorAll('[data-validate="true"]').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        const form = document.getElementById('invoice-form');
+        if (!form.checkValidity()) {
+            e.preventDefault();
+            form.reportValidity();
+        }
+    });
+});
+</script>
+{% endblock %}

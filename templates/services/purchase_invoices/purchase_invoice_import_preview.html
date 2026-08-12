@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% load static l10n %}
+
+{% block title %}Importar Nota de Entrada - Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <a href="{% url 'purchase_invoice_list' %}" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all">
+            <i data-lucide="arrow-left" class="h-6 w-6"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Importar Nota de Entrada</h1>
+            <p class="text-slate-500 text-sm">Envie o XML da NF-e do fornecedor, confira os dados extraídos e confirme pra importar como nota de entrada.</p>
+        </div>
+    </div>
+
+    <!-- Upload -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <form method="post" enctype="multipart/form-data" class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            {% csrf_token %}
+            {{ upload_form.xml_file }}
+            <button type="submit" class="shrink-0 inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 text-white hover:bg-slate-900/90 h-10 px-4 text-sm font-bold transition-colors">
+                <i data-lucide="upload" class="h-4 w-4"></i>
+                Importar
+            </button>
+        </form>
+    </div>
+
+    {% if xml_import_error %}
+    <div class="bg-white rounded-2xl shadow-sm border border-red-200 overflow-hidden">
+        <div class="flex items-start gap-3 px-6 py-4 bg-red-50 border-b border-red-200">
+            <i data-lucide="alert-triangle" class="h-5 w-5 text-red-500 shrink-0 mt-0.5"></i>
+            <div>
+                <p class="font-semibold text-red-800">Não foi possível importar o XML{% if filename %} ({{ filename }}){% endif %}</p>
+                <p class="text-sm text-red-600 mt-0.5">{{ xml_import_error }}</p>
+            </div>
+        </div>
+        {% if raw_preview %}
+        <div class="px-6 py-4">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Início do arquivo recebido (pra conferência)</p>
+            <pre class="text-xs bg-slate-900 text-slate-200 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap break-all">{{ raw_preview }}</pre>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if parsed %}
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="confirm">
+        <input type="hidden" name="h_number" value="{{ parsed.number }}">
+        <input type="hidden" name="h_series" value="{{ parsed.series }}">
+        <input type="hidden" name="h_access_key" value="{{ parsed.access_key }}">
+        <input type="hidden" name="h_issue_date" value="{{ parsed.issue_date }}">
+        <input type="hidden" name="h_supplier_cnpj" value="{{ parsed.supplier_cnpj }}">
+        <input type="hidden" name="h_supplier_name" value="{{ parsed.supplier_name }}">
+        <input type="hidden" name="h_supplier_trade_name" value="{{ parsed.supplier_trade_name }}">
+        <input type="hidden" name="h_supplier_ie" value="{{ parsed.supplier_ie }}">
+        <input type="hidden" name="h_supplier_phone" value="{{ parsed.supplier_phone }}">
+        <input type="hidden" name="h_supplier_address" value="{{ parsed.supplier_address }}">
+        <input type="hidden" name="item_count" value="{{ matched_items|length }}">
+        {% for item in matched_items %}
+        <input type="hidden" name="item_{{ forloop.counter0 }}_code" value="{{ item.code }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_barcode" value="{{ item.barcode }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_name" value="{{ item.name }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_unit" value="{{ item.unit }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_ncm" value="{{ item.ncm }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_cfop" value="{{ item.cfop }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_quantity" value="{{ item.quantity|unlocalize }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_unit_cost" value="{{ item.unit_cost|unlocalize }}">
+        {% endfor %}
+
+    <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
+        <i data-lucide="check-circle" class="h-4 w-4 shrink-0"></i>
+        XML lido com sucesso — {{ matched_items|length }} item(ns) encontrados na nota.
+    </div>
+
+    <!-- Fornecedor -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-3 border-b border-slate-100 bg-slate-50/50">
+            <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Fornecedor (do XML)</h2>
+        </div>
+        <div class="p-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div class="sm:col-span-2">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Razão Social</p>
+                <p class="text-sm font-semibold text-slate-900">{{ parsed.supplier_name|default:"—" }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">CNPJ</p>
+                <p class="text-sm font-semibold text-slate-900">{{ parsed.supplier_cnpj|default:"—" }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cadastro</p>
+                {% if supplier %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Já cadastrado</span>
+                {% else %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Não encontrado</span>
+                {% endif %}
+            </div>
+            {% if parsed.supplier_trade_name %}
+            <div class="sm:col-span-2">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nome Fantasia</p>
+                <p class="text-sm text-slate-700">{{ parsed.supplier_trade_name }}</p>
+            </div>
+            {% endif %}
+            {% if parsed.supplier_address %}
+            <div class="sm:col-span-2">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Endereço</p>
+                <p class="text-sm text-slate-700">{{ parsed.supplier_address }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Dados da Nota -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-3 border-b border-slate-100 bg-slate-50/50">
+            <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Dados da Nota</h2>
+        </div>
+        <div class="p-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Número</p>
+                <p class="text-sm font-semibold text-slate-900">{{ parsed.number|default:"—" }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Série</p>
+                <p class="text-sm font-semibold text-slate-900">{{ parsed.series|default:"—" }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Emissão</p>
+                <p class="text-sm font-semibold text-slate-900">{{ parsed.issue_date|default:"—" }}</p>
+            </div>
+            <div class="sm:col-span-1">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chave de Acesso</p>
+                <p class="text-xs font-mono text-slate-700 break-all">{{ parsed.access_key|default:"—" }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Itens -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-3 border-b border-slate-100 bg-slate-50/50">
+            <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Itens</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    <tr>
+                        <th class="px-5 py-3">Código / EAN</th>
+                        <th class="px-5 py-3">Produto (no XML)</th>
+                        <th class="px-5 py-3">Catálogo</th>
+                        <th class="px-5 py-3 text-right">Quantidade</th>
+                        <th class="px-5 py-3 text-right">Custo Unit.</th>
+                        <th class="px-5 py-3 text-right">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for item in matched_items %}
+                    <tr>
+                        <td class="px-5 py-3.5 text-xs font-mono text-slate-500">
+                            {{ item.code|default:"—" }}{% if item.barcode %}<br><span class="text-slate-400">{{ item.barcode }}</span>{% endif %}
+                        </td>
+                        <td class="px-5 py-3.5 font-semibold text-slate-900">{{ item.name }}</td>
+                        <td class="px-5 py-3.5">
+                            {% if item.product %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">{{ item.product.name }}</span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Não encontrado</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-3.5 text-right text-slate-600">{{ item.quantity|floatformat:2 }}</td>
+                        <td class="px-5 py-3.5 text-right text-slate-600">R$ {{ item.unit_cost|floatformat:2 }}</td>
+                        <td class="px-5 py-3.5 text-right font-bold text-slate-900">R$ {{ item.subtotal|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-slate-900 text-white">
+                        <td colspan="5" class="px-5 py-4 text-right text-xs font-bold uppercase tracking-widest text-slate-400">Total</td>
+                        <td class="px-5 py-4 text-right text-base font-black whitespace-nowrap">R$ {{ total|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Confirmação -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="generate_expense" id="generate_expense" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+            <span class="text-sm font-semibold text-slate-700">Gerar Conta a Pagar para este fornecedor ao lançar a nota</span>
+        </label>
+        <div id="expense-due-date-wrapper" class="hidden space-y-2 max-w-xs">
+            <label class="text-sm font-semibold text-slate-700">Vencimento da Conta a Pagar</label>
+            <input type="date" name="expense_due_date" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        {% if not supplier and not parsed.supplier_cnpj %}
+        <div class="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0 mt-0.5"></i>
+            O XML não traz um CNPJ de fornecedor válido — não será possível confirmar a importação automaticamente.
+        </div>
+        {% else %}
+        <button type="submit" class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white font-bold py-3 hover:bg-emerald-700 transition-all shadow-sm active:scale-[0.98]">
+            <i data-lucide="check-circle" class="h-5 w-5"></i>
+            Confirmar e Importar
+        </button>
+        <p class="text-xs text-slate-400 text-center">
+            Cria a nota como rascunho — fornecedor/produtos que não existirem são cadastrados automaticamente.
+            O estoque só é atualizado quando você "Lançar" a nota na tela seguinte.
+        </p>
+        {% endif %}
+    </div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const generateExpenseCheckbox = document.getElementById('generate_expense');
+    const expenseDueDateWrapper = document.getElementById('expense-due-date-wrapper');
+    if (generateExpenseCheckbox) {
+        generateExpenseCheckbox.addEventListener('change', () => {
+            expenseDueDateWrapper.classList.toggle('hidden', !generateExpenseCheckbox.checked);
+        });
+    }
+</script>
+{% endblock %}

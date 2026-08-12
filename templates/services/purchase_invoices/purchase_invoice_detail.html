@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Nota de Entrada #{{ invoice.number|default:invoice.pk }} - Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'purchase_invoice_list' %}" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all">
+                <i data-lucide="arrow-left" class="h-6 w-6"></i>
+            </a>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Nota de Entrada #{{ invoice.number|default:invoice.pk }}</h1>
+                    {% if invoice.status == 'LANCADA' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Lançada</span>
+                    {% elif invoice.status == 'CANCELADA' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">Cancelada</span>
+                    {% else %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Rascunho</span>
+                    {% endif %}
+                </div>
+                <p class="text-slate-500 text-sm">{{ invoice.supplier.display_name }} — Emissão {{ invoice.issue_date|date:"d/m/Y" }}</p>
+            </div>
+        </div>
+
+        {% if invoice.status == 'RASCUNHO' %}
+        <div class="flex gap-2">
+            <form method="post" action="{% url 'purchase_invoice_launch' invoice.pk %}" onsubmit="return confirm('Lançar esta nota? O estoque e o custo dos produtos serão atualizados imediatamente.');">
+                {% csrf_token %}
+                <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 h-10 px-4 text-sm font-bold transition-colors">
+                    <i data-lucide="check-circle" class="h-4 w-4"></i>
+                    Lançar Nota
+                </button>
+            </form>
+            <form method="post" action="{% url 'purchase_invoice_cancel' invoice.pk %}" onsubmit="return confirm('Cancelar esta nota de entrada?');">
+                {% csrf_token %}
+                <button type="submit" class="inline-flex items-center gap-2 rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 h-10 px-4 text-sm font-bold transition-colors">
+                    Cancelar
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Dados da nota -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Série</p>
+            <p class="text-sm font-semibold text-slate-900">{{ invoice.series|default:"—" }}</p>
+        </div>
+        <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chave de Acesso</p>
+            <p class="text-xs font-mono text-slate-700 break-all">{{ invoice.access_key|default:"—" }}</p>
+        </div>
+        <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lançada em</p>
+            <p class="text-sm font-semibold text-slate-900">{{ invoice.launched_at|date:"d/m/Y H:i"|default:"—" }}</p>
+        </div>
+        <div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Conta a Pagar</p>
+            {% if invoice.expense %}
+            <a href="{% url 'expense_edit' invoice.expense.pk %}" class="text-sm font-semibold text-blue-600 hover:underline">Ver despesa gerada</a>
+            {% else %}
+            <p class="text-sm font-semibold text-slate-400">Não gerada</p>
+            {% endif %}
+        </div>
+        {% if invoice.notes %}
+        <div class="col-span-2 sm:col-span-4">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Observações</p>
+            <p class="text-sm text-slate-700">{{ invoice.notes }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Itens -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    <tr>
+                        <th class="px-5 py-3">Produto</th>
+                        <th class="px-5 py-3 text-right">Quantidade</th>
+                        <th class="px-5 py-3 text-right">Custo Unitário</th>
+                        <th class="px-5 py-3 text-right">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for item in items %}
+                    <tr>
+                        <td class="px-5 py-3.5 font-semibold text-slate-900">{{ item.product.name }}</td>
+                        <td class="px-5 py-3.5 text-right text-slate-600">{{ item.quantity|floatformat:2 }}</td>
+                        <td class="px-5 py-3.5 text-right text-slate-600">R$ {{ item.unit_cost|floatformat:2 }}</td>
+                        <td class="px-5 py-3.5 text-right font-bold text-slate-900">R$ {{ item.subtotal|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-slate-900 text-white">
+                        <td colspan="3" class="px-5 py-4 text-xs font-bold uppercase tracking-widest text-slate-400 text-right">Total</td>
+                        <td class="px-5 py-4 text-right text-base font-black whitespace-nowrap">R$ {{ invoice.total_value|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

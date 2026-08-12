@@ -57,13 +57,17 @@
 
                 {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
                 <div class="relative group">
-                    <button type="button" class="text-sm font-medium {% if 'product' in request.resolver_match.url_name or 'sale' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
+                    <button type="button" class="text-sm font-medium {% if 'product' in request.resolver_match.url_name or 'sale' in request.resolver_match.url_name or 'purchase_invoice' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
                         Estoque <i data-lucide="chevron-down" class="h-3 w-3"></i>
                     </button>
                     <div class="absolute left-0 top-full -mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
                         <a href="{% url 'product_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
                             <i data-lucide="package" class="h-4 w-4 text-slate-400"></i>
                             Produtos
+                        </a>
+                        <a href="{% url 'purchase_invoice_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="file-down" class="h-4 w-4 text-blue-500"></i>
+                            Notas de Entrada
                         </a>
                         <a href="{% url 'sale_list' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
                             <i data-lucide="shopping-cart" class="h-4 w-4 text-emerald-500"></i>
