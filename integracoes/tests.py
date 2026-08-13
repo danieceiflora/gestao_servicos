@@ -317,3 +317,31 @@ class PlatformInvoiceGeneratePixViewTests(TestCase):
         charge_data = mock_gateway.create_charge.call_args[0][0]
         self.assertEqual(charge_data.due_date, local_today())
 
+
+class CollectionSequenceBillingSourceTests(TestCase):
+    def test_create_sequence_with_billing_source(self):
+        from integracoes.models import CollectionSequence
+        seq = CollectionSequence.objects.create(
+            name="Régua Somente Vendas",
+            billing_source=CollectionSequence.BillingSource.VENDA,
+        )
+        self.assertEqual(seq.billing_source, 'VENDA')
+
+    def test_sequence_form_post_saves_billing_source(self):
+        from integracoes.models import CollectionSequence
+        user = User.objects.create_superuser(username='admin_seq', password='x')
+        self.client.force_login(user)
+
+        response = self.client.post(reverse('integracoes:collection_sequence_create'), {
+            'name': 'Régua de Serviços',
+            'billing_source': 'SERVICO',
+            'start_after_days_overdue': 1,
+            'stop_after_days_overdue': 30,
+            'max_occurrences': 2,
+            'min_interval_days': 5,
+        })
+        self.assertEqual(response.status_code, 302)
+        seq = CollectionSequence.objects.get(name='Régua de Serviços')
+        self.assertEqual(seq.billing_source, 'SERVICO')
+
+

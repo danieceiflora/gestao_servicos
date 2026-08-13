@@ -247,7 +247,19 @@ class NotificationVariable(models.Model):
 # --- RÉGUA DE COBRANÇA ---
 
 class CollectionSequence(models.Model):
+    class BillingSource(models.TextChoices):
+        ANY = 'ANY', 'Qualquer origem'
+        VENDA = 'VENDA', 'Somente Vendas'
+        SERVICO = 'SERVICO', 'Somente Serviços'
+
     name = models.CharField('Nome da Régua', max_length=200)
+    billing_source = models.CharField(
+        'Origem da Cobrança',
+        max_length=20,
+        choices=BillingSource.choices,
+        default=BillingSource.ANY,
+        help_text='Filtra as cobranças por origem (Vendas, Serviços ou Qualquer).'
+    )
     start_after_days_overdue = models.PositiveIntegerField(
         'Iniciar após (dias em atraso)', default=1,
         help_text='Só começa a cobrar após a parcela estar em atraso por este número de dias'

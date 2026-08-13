@@ -37,6 +37,17 @@
                        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
             </div>
 
+            <div class="space-y-2">
+                <label for="id_billing_source" class="text-sm font-bold text-slate-700">Origem da Cobrança</label>
+                <select name="billing_source" id="id_billing_source"
+                        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <option value="ANY" {% if not sequence or sequence.billing_source == 'ANY' %}selected{% endif %}>Qualquer origem (Vendas e Serviços)</option>
+                    <option value="VENDA" {% if sequence.billing_source == 'VENDA' %}selected{% endif %}>Somente Vendas</option>
+                    <option value="SERVICO" {% if sequence.billing_source == 'SERVICO' %}selected{% endif %}>Somente Serviços (Ordens de Serviço / Etapas)</option>
+                </select>
+                <p class="text-xs text-slate-400">Define para quais cobranças esta régua será aplicada conforme a origem (Venda ou Serviço).</p>
+            </div>
+
             {% if sequence %}
             <div class="flex items-center gap-2 pt-1">
                 <input type="checkbox" name="is_active" id="id_is_active"

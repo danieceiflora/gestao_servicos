@@ -1524,6 +1524,7 @@ def collection_sequence_create(request):
         from django.utils.dateparse import parse_date
 
         name = request.POST.get('name')
+        billing_source = request.POST.get('billing_source', CollectionSequence.BillingSource.ANY)
         start_after = int(request.POST.get('start_after_days_overdue', 1))
         stop_after = int(request.POST.get('stop_after_days_overdue', 60))
         max_occ = int(request.POST.get('max_occurrences', 3))
@@ -1533,6 +1534,7 @@ def collection_sequence_create(request):
 
         seq = CollectionSequence.objects.create(
             name=name,
+            billing_source=billing_source,
             start_after_days_overdue=start_after,
             stop_after_days_overdue=stop_after,
             max_occurrences=max_occ,
@@ -1555,6 +1557,7 @@ def collection_sequence_edit(request, pk):
         from django.utils.dateparse import parse_date
 
         sequence.name = request.POST.get('name')
+        sequence.billing_source = request.POST.get('billing_source', CollectionSequence.BillingSource.ANY)
         sequence.start_after_days_overdue = int(request.POST.get('start_after_days_overdue', 1))
         sequence.stop_after_days_overdue = int(request.POST.get('stop_after_days_overdue', 60))
         sequence.max_occurrences = int(request.POST.get('max_occurrences', 3))
@@ -1598,6 +1601,7 @@ def collection_sequence_edit(request, pk):
 def collection_sequence_simulate(request, pk):
     """Simula o disparo da régua para hoje e retorna tabela de resultados via HTMX."""
     from datetime import timedelta
+    from django.db.models import Q
     from integracoes.models import CollectionInstallmentState
     from integracoes.utils import get_client_phone, select_next_collection_step
     from services.models import Installment
@@ -1618,6 +1622,11 @@ def collection_sequence_simulate(request, pk):
         .select_related('billing__client')
         .prefetch_related('billing__client__phones', 'gateway_charges')
     )
+    if sequence.billing_source == CollectionSequence.BillingSource.VENDA:
+        installments = installments.filter(billing__sale__isnull=False)
+    elif sequence.billing_source == CollectionSequence.BillingSource.SERVICO:
+        installments = installments.filter(Q(billing__service_order__isnull=False) | Q(billing__task__isnull=False))
+
     if sequence.date_range_start:
         installments = installments.filter(due_date__gte=sequence.date_range_start)
     if sequence.date_range_end:

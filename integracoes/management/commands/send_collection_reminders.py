@@ -56,6 +56,12 @@ class Command(BaseCommand):
                 .select_related('billing__client')
                 .prefetch_related('billing__client__phones', 'gateway_charges')
             )
+            from django.db.models import Q
+            if sequence.billing_source == CollectionSequence.BillingSource.VENDA:
+                installments = installments.filter(billing__sale__isnull=False)
+            elif sequence.billing_source == CollectionSequence.BillingSource.SERVICO:
+                installments = installments.filter(Q(billing__service_order__isnull=False) | Q(billing__task__isnull=False))
+
             if sequence.date_range_start:
                 installments = installments.filter(due_date__gte=sequence.date_range_start)
             if sequence.date_range_end:
