@@ -1939,8 +1939,12 @@ def scheduled_reminder_delete(request, pk):
 def platform_invoice_list(request):
     PlatformInvoice.ensure_six_month_plan()
     invoices = PlatformInvoice.objects.all()
+    show_paid = request.GET.get('show_paid') == '1'
+    has_paid_invoices = invoices.filter(status=PlatformInvoice.Status.PAGA).exists()
     return render(request, 'integracoes/platform_invoice_list.html', {
         'invoices': invoices,
+        'show_paid': show_paid,
+        'has_paid_invoices': has_paid_invoices,
     })
 
 
@@ -1951,32 +1955,49 @@ def platform_invoice_generate_pix(request, pk):
         return redirect('integracoes:platform_invoice_list')
 
     invoice = get_object_or_404(PlatformInvoice, pk=pk)
-    if invoice.asaas_charge_id:
-        messages.warning(request, 'O Pix desta fatura já foi gerado.')
-        return redirect('integracoes:platform_invoice_list')
-
     config = SystemConfig.load()
 
     try:
         gw = AsaasGateway()
-        charge = gw.create_charge(ChargeData(
+        today = local_today()
+        due_date = max(invoice.due_date, today)
+
+        charge_data = ChargeData(
             customer_name=config.company_name,
             customer_document=config.company_cnpj,
             customer_email='',
             description=getattr(settings, 'PLATFORM_SUBSCRIPTION_DESCRIPTION', 'Assinatura da Plataforma'),
             amount=Decimal(invoice.value_cents) / 100,
-            due_date=invoice.due_date,
+            due_date=due_date,
             method='PIX',
             external_reference=f'platform-invoice-{invoice.pk}',
-        ))
+        )
+
+        if invoice.asaas_charge_id:
+            charge = gw.update_charge(invoice.asaas_charge_id, charge_data)
+        else:
+            charge = gw.create_charge(charge_data)
+
+        pix_code = charge.pix_copy_paste
+        pix_qrcode = charge.pix_qrcode
+
+        if not pix_code and charge.external_id:
+            try:
+                pix_data = gw.get_pix_qr_code(charge.external_id)
+                pix_code = pix_data.get('payload', '')
+                pix_qrcode = pix_data.get('encoded_image', '')
+            except Exception as ex:
+                logger.warning(f'Busca complementar de QR Code Pix falhou para {charge.external_id}: {ex}')
+
     except Exception as e:
-        logger.exception('Falha ao gerar Pix da fatura da plataforma')
+        logger.exception('Falha ao gerar/atualizar Pix da fatura da plataforma')
         messages.error(request, f'Não foi possível gerar o Pix: {e}')
         return redirect('integracoes:platform_invoice_list')
 
     invoice.asaas_charge_id = charge.external_id
-    invoice.qr_code = charge.pix_copy_paste
-    invoice.qr_code_base64 = charge.pix_qrcode
+    invoice.due_date = due_date
+    invoice.qr_code = pix_code
+    invoice.qr_code_base64 = pix_qrcode
     invoice.status = PlatformInvoice.Status.AGUARDANDO_PAGAMENTO
     invoice.save()
 

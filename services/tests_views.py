@@ -41,7 +41,7 @@ class ServiceOrderListViewTest(TestCase):
         )
 
     def test_view_url_exists_at_desired_location(self):
-        response = self.client_obj.get('/orders/')
+        response = self.client_obj.get('/ordens/')
         self.assertEqual(response.status_code, 200)
 
     def test_view_accessible_by_name(self):

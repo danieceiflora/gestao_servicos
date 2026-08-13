@@ -93,8 +93,8 @@ class BudgetResponseLabelTests(TestCase):
     def test_sets_order_status_when_budget_approved(self):
         self.assertEqual(
             _resolve_order_status_from_budget_decision(True),
-            status=ServiceOrder.Status.APROVADO_AGUARDANDO_AGENDAMENTO
-            )
+            ServiceOrder.Status.APROVADO_AGUARDANDO_AGENDAMENTO
+        )
 
     def test_sets_order_status_when_budget_rejected(self):
         self.assertEqual(
@@ -269,10 +269,51 @@ class PlatformInvoiceGeneratePixViewTests(TestCase):
         self.assertEqual(self.invoice.status, PlatformInvoice.Status.AGUARDANDO_PAGAMENTO)
 
     @patch('integracoes.views.AsaasGateway')
-    def test_generate_pix_blocked_if_already_generated(self, mock_gateway_cls):
+    def test_generate_pix_updates_existing_charge(self, mock_gateway_cls):
+        from pagamentos.gateways.base import ChargeResult
         self.invoice.asaas_charge_id = 'pay_existing'
         self.invoice.save()
 
-        self.client.post(reverse('integracoes:platform_invoice_generate_pix', args=[self.invoice.pk]))
+        mock_gateway = mock_gateway_cls.return_value
+        mock_gateway.update_charge.return_value = ChargeResult(
+            external_id='pay_existing',
+            status='PENDING',
+            method='PIX',
+            amount=Decimal('99.00'),
+            due_date=self.invoice.due_date,
+            pix_qrcode='updated_base64',
+            pix_copy_paste='updated_pix_code',
+        )
 
-        mock_gateway_cls.return_value.create_charge.assert_not_called()
+        response = self.client.post(reverse('integracoes:platform_invoice_generate_pix', args=[self.invoice.pk]))
+        self.assertEqual(response.status_code, 302)
+
+        mock_gateway.update_charge.assert_called_once()
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.qr_code, 'updated_pix_code')
+
+    @patch('integracoes.views.AsaasGateway')
+    def test_generate_pix_uses_today_if_overdue(self, mock_gateway_cls):
+        import datetime as dt
+        from core.tz_utils import local_today
+        from pagamentos.gateways.base import ChargeResult
+
+        past_invoice = PlatformInvoice.objects.create(due_date=dt.date(2020, 1, 1), value_cents=9900)
+        mock_gateway = mock_gateway_cls.return_value
+        mock_gateway.create_charge.return_value = ChargeResult(
+            external_id='pay_past',
+            status='PENDING',
+            method='PIX',
+            amount=Decimal('99.00'),
+            due_date=local_today(),
+            pix_qrcode='base64',
+            pix_copy_paste='copiapaste',
+        )
+
+        response = self.client.post(reverse('integracoes:platform_invoice_generate_pix', args=[past_invoice.pk]))
+        self.assertEqual(response.status_code, 302)
+
+        mock_gateway.create_charge.assert_called_once()
+        charge_data = mock_gateway.create_charge.call_args[0][0]
+        self.assertEqual(charge_data.due_date, local_today())
+

@@ -6,7 +6,7 @@ import requests
 from django.conf import settings
 from django.utils import timezone as dj_timezone
 
-from core.tz_utils import safe_make_aware
+from core.tz_utils import safe_make_aware, local_today
 from .base import BasePaymentGateway, SubaccountData, SubaccountResult, ChargeData, ChargeResult
 
 logger = logging.getLogger(__name__)
@@ -205,12 +205,13 @@ class AsaasGateway(BasePaymentGateway):
             data.customer_name, data.customer_document, data.customer_email
         )
 
+        effective_due_date = max(data.due_date, local_today()) if data.due_date else local_today()
         billing_type = 'PIX' if data.method == 'PIX' else 'BOLETO'
         payload = {
             'customer': customer_id,
             'billingType': billing_type,
             'value': float(data.amount),
-            'dueDate': data.due_date.strftime('%Y-%m-%d'),
+            'dueDate': effective_due_date.strftime('%Y-%m-%d'),
             'description': data.description,
             'externalReference': data.external_reference,
         }
@@ -269,6 +270,15 @@ class AsaasGateway(BasePaymentGateway):
                 charge.boleto_barcode = ident.get('identificationField', '')
             except Exception:
                 logger.warning(f'Não foi possível obter código de barras para {charge_id}')
+
+    def get_pix_qr_code(self, charge_id: str) -> dict:
+        """Obtém os dados do QR Code Pix (imagem base64 e payload copia e cola) no Asaas."""
+        pix = self._get(f'payments/{charge_id}/pixQrCode')
+        return {
+            'encoded_image': pix.get('encodedImage', ''),
+            'payload': pix.get('payload', ''),
+            'expiration_date': pix.get('expirationDate', ''),
+        }
 
     def update_charge(self, external_id: str, data: ChargeData) -> ChargeResult:
         """Atualiza valor/vencimento (e desconto/juros/multa) de uma cobrança já

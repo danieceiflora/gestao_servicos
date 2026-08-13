@@ -5,16 +5,25 @@
 <div class="space-y-6">
 
   <!-- Header -->
-  <div class="flex items-center justify-between">
+  <div class="flex items-center justify-between flex-wrap gap-4">
     <div>
       <h1 class="text-2xl font-bold text-slate-900">Faturamento da Conta</h1>
       <p class="text-sm text-slate-500 mt-1">Mensalidade da plataforma — vencimento todo dia 10. O Pix de cada fatura só é gerado quando você clicar em "Gerar Pix".</p>
     </div>
+
+    {% if has_paid_invoices %}
+    <div>
+      <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 bg-white border border-slate-200 px-3.5 py-2 rounded-lg shadow-xs hover:bg-slate-50 transition-colors select-none">
+        <input type="checkbox" id="toggle-paid-checkbox" onchange="togglePaidInvoices(this.checked)" {% if show_paid %}checked{% endif %} class="rounded border-slate-300 text-slate-900 focus:ring-slate-900 h-4 w-4">
+        <span>Exibir faturas pagas</span>
+      </label>
+    </div>
+    {% endif %}
   </div>
 
   <div class="space-y-3">
     {% for invoice in invoices %}
-    <div class="bg-white border {% if invoice.is_overdue or invoice.status == 'ATRASADA' %}border-rose-200{% else %}border-slate-200{% endif %} rounded-xl p-5 space-y-3">
+    <div class="invoice-card {% if invoice.status == 'PAGA' %}invoice-paid {% if not show_paid %}hidden{% endif %}{% endif %} bg-white border {% if invoice.is_overdue or invoice.status == 'ATRASADA' %}border-rose-200{% else %}border-slate-200{% endif %} rounded-xl p-5 space-y-3">
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div class="flex items-center gap-3">
           <span class="text-sm font-semibold text-slate-900">Vencimento {{ invoice.due_date|date:"d/m/Y" }}</span>
@@ -44,7 +53,7 @@
         {% endif %}
       </div>
 
-      {% if invoice.status == 'PENDENTE' %}
+      {% if not invoice.qr_code and invoice.status != 'PAGA' and invoice.status != 'CANCELADA' %}
       <form action="{% url 'integracoes:platform_invoice_generate_pix' invoice.pk %}" method="post">
         {% csrf_token %}
         <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors">
@@ -71,10 +80,57 @@
     {% empty %}
     <p class="text-sm text-slate-500">Nenhuma fatura encontrada.</p>
     {% endfor %}
+
+    <!-- Aviso quando todas as faturas visíveis forem pagas e o filtro estiver desligado -->
+    <div id="all-paid-notice" class="hidden text-center bg-white border border-slate-200 rounded-xl p-8 space-y-3">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 mb-1">
+        <i data-lucide="check-circle-2" class="h-6 w-6"></i>
+      </div>
+      <h3 class="text-base font-semibold text-slate-900">Todas as faturas atuais estão pagas!</h3>
+      <p class="text-sm text-slate-500 max-w-md mx-auto">Você está em dia com os pagamentos da sua conta.</p>
+      <button type="button" onclick="const cb = document.getElementById('toggle-paid-checkbox'); if (cb) { cb.checked = true; togglePaidInvoices(true); }" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors">
+        <i data-lucide="eye" class="h-4 w-4"></i>
+        Visualizar histórico de faturas pagas
+      </button>
+    </div>
   </div>
 </div>
 
 <script>
+function togglePaidInvoices(show) {
+  const paidCards = document.querySelectorAll('.invoice-paid');
+  paidCards.forEach(card => {
+    if (show) {
+      card.classList.remove('hidden');
+    } else {
+      card.classList.add('hidden');
+    }
+  });
+  checkEmptyState();
+}
+
+function checkEmptyState() {
+  const cards = document.querySelectorAll('.invoice-card');
+  const visibleCards = Array.from(cards).filter(c => !c.classList.contains('hidden'));
+  const notice = document.getElementById('all-paid-notice');
+  if (notice) {
+    if (visibleCards.length === 0) {
+      notice.classList.remove('hidden');
+    } else {
+      notice.classList.add('hidden');
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const checkbox = document.getElementById('toggle-paid-checkbox');
+  if (checkbox) {
+    togglePaidInvoices(checkbox.checked);
+  } else {
+    checkEmptyState();
+  }
+});
+
 function copiarPix(id) {
   const texto = document.getElementById('pix-' + id).value;
   navigator.clipboard.writeText(texto).then(function () {

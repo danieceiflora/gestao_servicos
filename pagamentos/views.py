@@ -532,7 +532,7 @@ def _handle_platform_subscription_webhook(external_id: str, normalized: dict, pa
     PlatformSubscriptionEvent.objects.create(
         subscription=subscription,
         charge_id=external_id,
-        raw_event=normalized.get('status', ''),
+        raw_event=normalized.get('event') or normalized.get('status') or '',
         mapped_status=mapped or '',
         payload=payload,
         notes='' if mapped else 'Evento não reconhecido — revisar manualmente.',
