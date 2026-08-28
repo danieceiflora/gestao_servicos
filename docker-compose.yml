@@ -80,14 +80,14 @@ services:
     depends_on:
       - web
 
-  # Serviço para renovação automática do certificado
+  # Serviço para renovação automática do certificado (modo webroot — não conflita com o Nginx)
   certbot:
     image: certbot/certbot
     container_name: service_management_certbot
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done;'"
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
     restart: always
 
 volumes:
