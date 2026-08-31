@@ -706,7 +706,11 @@ def sale_create(request):
 
                     action = "salvo como rascunho" if is_draft else "realizada com sucesso"
                     messages.success(request, f"Venda #{sale.number} {action}!")
-                    return redirect('sale_detail', number=sale.number)
+                    if is_draft:
+                        return redirect('sale_detail', number=sale.number)
+                    if request.POST.get('save_and_new') == '1':
+                        return redirect('sale_create')
+                    return redirect('sale_list')
             except Exception as e:
                 import traceback
                 print(traceback.format_exc())

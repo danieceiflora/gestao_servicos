@@ -168,6 +168,14 @@
                 <span id="submit-text">{% if is_detail %}SALVAR ALTERAÇÕES{% else %}FINALIZAR VENDA{% endif %}</span>
             </button>
             {% endif %}
+
+            {% if not is_detail %}
+            <button type="submit" form="sale-form" id="save-and-new-btn" name="save_and_new" value="1"
+                    class="bg-emerald-600 text-white px-5 py-2 rounded-md font-bold text-xs hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-sm active:scale-[0.98]">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span id="save-and-new-text">SALVAR E INICIAR NOVA VENDA</span>
+            </button>
+            {% endif %}
         </div>
     </div>
 
@@ -1117,12 +1125,30 @@
         }
 
         // Feedback de carregamento
-        const btn = document.getElementById('submit-btn');
-        const text = document.getElementById('submit-text');
-        if (btn && text) {
-            btn.disabled = true;
-            btn.classList.add('opacity-50', 'cursor-not-allowed');
-            text.textContent = '{% if is_detail %}SALVANDO...{% else %}FINALIZANDO...{% endif %}';
+        const submitBtn = document.getElementById('submit-btn');
+        const submitText = document.getElementById('submit-text');
+        const saveAndNewBtn = document.getElementById('save-and-new-btn');
+        const saveAndNewText = document.getElementById('save-and-new-text');
+
+        if (e.submitter === saveAndNewBtn) {
+            const saveAndNewIntent = document.createElement('input');
+            saveAndNewIntent.type = 'hidden';
+            saveAndNewIntent.name = 'save_and_new';
+            saveAndNewIntent.value = '1';
+            this.appendChild(saveAndNewIntent);
+        }
+
+        [submitBtn, saveAndNewBtn].forEach(btn => {
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        });
+
+        if (e.submitter === saveAndNewBtn && saveAndNewText) {
+            saveAndNewText.textContent = 'SALVANDO...';
+        } else if (submitText) {
+            submitText.textContent = '{% if is_detail %}SALVANDO...{% else %}FINALIZANDO...{% endif %}';
         }
     });
 </script>
