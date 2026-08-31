@@ -11,11 +11,13 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "tailwindcss": "^4.2.2"
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.2.2",
     "claude": "^0.1.1",
-    "cli": "^1.0.1"
+    "cli": "^1.0.1",
+    "codex": "^0.2.3"
   }
 }

@@ -6,7 +6,7 @@
 {% block content %}
 <div class="max-w-5xl mx-auto space-y-6">
 
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
             <h2 class="text-xl font-bold tracking-tight text-slate-950">{{ title }}</h2>
             <p class="text-sm text-slate-500">Equipamentos e bens vinculados aos imóveis dos clientes</p>
@@ -16,8 +16,8 @@
         </a>
     </div>
 
-    <form method="get" class="flex gap-3 items-end">
-        <div class="flex-1 max-w-xs space-y-1">
+    <form method="get" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="w-full flex-1 sm:max-w-xs space-y-1">
             <label class="text-xs font-medium text-slate-600">Filtrar por Cliente</label>
             <select name="client" class="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm h-10">
                 <option value="">Todos</option>
@@ -33,13 +33,13 @@
     {% if assets %}
     <div class="space-y-3">
         {% for asset in assets %}
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-4 flex items-center justify-between gap-4">
-            <div class="flex items-center gap-4">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex min-w-0 items-start gap-4 sm:items-center">
                 <div class="p-2 rounded-lg bg-slate-100 border border-slate-200 shrink-0">
                     <i data-lucide="{{ asset.category.icon|default:'tool' }}" class="h-5 w-5 text-slate-600"></i>
                 </div>
-                <div class="space-y-0.5">
-                    <div class="flex items-center gap-2">
+                <div class="min-w-0 space-y-0.5">
+                    <div class="flex flex-wrap items-center gap-2">
                         <span class="font-semibold text-slate-900">{{ asset.name }}</span>
                         <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{{ asset.category.name }}</span>
                         {% if not asset.is_active %}<span class="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Inativo</span>{% endif %}
@@ -50,7 +50,7 @@
                     {% endif %}
                 </div>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
+            <div class="flex items-center justify-between gap-2 sm:shrink-0 sm:justify-start">
                 <span class="text-xs text-slate-400">{{ asset.contracts.count }} contrato{{ asset.contracts.count|pluralize }}</span>
                 <a href="{% url 'asset_edit' asset.pk %}" class="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium hover:bg-slate-50">
                     Editar

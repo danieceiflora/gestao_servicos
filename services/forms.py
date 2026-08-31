@@ -1213,6 +1213,24 @@ class PurchaseInvoiceForm(forms.ModelForm):
         cleaned_data = super().clean()
         if cleaned_data.get('generate_expense') and not cleaned_data.get('expense_due_date'):
             self.add_error('expense_due_date', 'Informe o vencimento da conta a pagar a ser gerada.')
+
+        access_key = ''.join(filter(str.isdigit, cleaned_data.get('access_key') or ''))
+        cleaned_data['access_key'] = access_key
+        if access_key and len(access_key) != 44:
+            self.add_error('access_key', 'A chave de acesso deve conter 44 dígitos.')
+
+        duplicate = PurchaseInvoice.find_duplicate(
+            supplier=cleaned_data.get('supplier'),
+            number=cleaned_data.get('number'),
+            series=cleaned_data.get('series'),
+            access_key=access_key,
+            exclude_pk=self.instance.pk,
+        )
+        if duplicate:
+            self.add_error(
+                None,
+                f'Esta nota já foi cadastrada (registro #{duplicate.pk}, status: {duplicate.get_status_display()}).'
+            )
         return cleaned_data
 
 

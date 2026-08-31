@@ -41,15 +41,14 @@ module.exports = defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    // Descomente para testar em mais browsers
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-    // {
-    //   name: 'mobile',
-    //   use: { ...devices['Pixel 5'] },
-    // },
+    {
+      name: 'mobile-small',
+      use: { ...devices['iPhone SE'], browserName: 'chromium' },
+    },
+    {
+      name: 'mobile-standard',
+      use: { ...devices['Pixel 5'] },
+    },
   ],
 
   // Iniciar servidor automaticamente

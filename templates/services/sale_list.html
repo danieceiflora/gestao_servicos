@@ -11,7 +11,7 @@
             <h1 class="text-2xl font-black tracking-tight leading-none">Histórico de Vendas</h1>
             <p class="text-slate-400 text-sm font-medium mt-1">Gestão de vendas diretas e PDV</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:gap-3">
             <a href="{% url 'sale_settings' %}"
                class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg transition-colors border border-slate-700"
                title="Configurações de Vendas">
@@ -21,7 +21,7 @@
                 </svg>
             </a>
             <a href="{% url 'sale_export_csv' %}{% if q or status_filter or date_from or date_to or seller_id %}?{% if q %}q={{ q }}&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}&{% endif %}{% if seller_id %}seller={{ seller_id }}{% endif %}{% endif %}"
-               class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors border border-slate-600">
+               class="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors border border-slate-600">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
@@ -41,7 +41,7 @@
 <div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
     {# KPI Cards #}
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {# Total Vendido #}
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
             <div class="flex-shrink-0 w-11 h-11 rounded-xl bg-green-100 flex items-center justify-center">
@@ -164,7 +164,7 @@
 
     {# Tabela de Vendas #}
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50 border-b border-slate-200">
@@ -293,6 +293,22 @@
                 </tfoot>
                 {% endif %}
             </table>
+        </div>
+
+        <div class="md:hidden divide-y divide-slate-100">
+            {% for sale in sales %}
+            <article class="p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0"><p class="font-mono text-sm font-bold text-slate-700">#{{ sale.number }}</p><p class="mt-1 truncate font-semibold text-slate-900">{{ sale.client.name|default:"Consumidor Final" }}</p><p class="mt-1 text-xs text-slate-500">{{ sale.created_at|date:"d/m/Y H:i" }}</p></div>
+                    <span class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold {% if sale.status == 'FINALIZADA' %}bg-green-100 text-green-800{% elif sale.status == 'CANCELADO' %}bg-red-100 text-red-800{% elif sale.status == 'RASCUNHO' %}bg-amber-100 text-amber-800{% else %}bg-blue-100 text-blue-800{% endif %}">{{ sale.get_status_display }}</span>
+                </div>
+                <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3"><span class="text-xs text-slate-500">Total</span><strong class="text-base text-slate-900">R$ {{ sale.total_amount|floatformat:2 }}</strong></div>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                    <a href="{% url 'sale_detail' number=sale.number %}" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-900 px-3 text-xs font-bold text-white">Ver/Editar</a>
+                    <form action="{% url 'sale_duplicate' number=sale.number %}" method="POST">{% csrf_token %}<button type="submit" class="min-h-11 w-full rounded-xl bg-blue-50 px-3 text-xs font-bold text-blue-700">Duplicar</button></form>
+                </div>
+            </article>
+            {% empty %}<div class="p-8 text-center text-sm text-slate-500">Nenhuma venda encontrada.</div>{% endfor %}
         </div>
 
         {# Paginação com preservação de query params #}

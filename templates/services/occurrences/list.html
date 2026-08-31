@@ -39,7 +39,7 @@
     </div>
 
     <!-- List -->
-    <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+    <div class="hidden md:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
         <table class="w-full text-left text-sm whitespace-nowrap">
             <thead class="uppercase tracking-wider border-b border-slate-200 bg-slate-50 text-slate-500">
                 <tr>
@@ -100,13 +100,32 @@
         </table>
     </div>
 
+    <div class="md:hidden space-y-3">
+        {% for occurrence in occurrences %}
+        <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <a href="{% url 'service_order_detail' occurrence.task.service_order.id %}" class="font-bold text-blue-700">OS #{{ occurrence.task.service_order.number|default:"-" }}</a>
+                    <p class="mt-1 truncate text-xs text-slate-500">{{ occurrence.task.title }}</p>
+                </div>
+                {% if occurrence.status == 'REGISTRADA' %}<span class="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-700">Registrada</span>{% else %}<span class="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700">Resolvida</span>{% endif %}
+            </div>
+            <dl class="mt-4 grid grid-cols-2 gap-3 text-xs">
+                <div><dt class="text-slate-400">Tipo</dt><dd class="mt-1 font-semibold text-slate-700">{{ occurrence.get_occurrence_type_display }}</dd></div>
+                <div><dt class="text-slate-400">Data</dt><dd class="mt-1 font-semibold text-slate-700">{{ occurrence.created_at|date:"d/m/Y H:i" }}</dd></div>
+            </dl>
+            <button type="button" onclick="document.getElementById('modal-{{ occurrence.id }}').showModal()" class="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-slate-100 px-4 text-sm font-bold text-slate-700">{% if occurrence.status == 'REGISTRADA' %}Registrar resolução{% else %}Ver detalhes{% endif %}</button>
+        </article>
+        {% empty %}<div class="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Nenhuma ocorrência encontrada.</div>{% endfor %}
+    </div>
+
     {% include 'services/components/pagination.html' %}
 </div>
 
 <!-- Modals for Occurrences -->
 {% for occurrence in occurrences %}
 <dialog id="modal-{{ occurrence.id }}" class="bg-white backdrop:bg-slate-900/50 rounded-xl p-0 w-[95%] max-w-lg shadow-xl open:animate-in open:fade-in open:zoom-in-95 m-auto fixed inset-0 max-h-[90vh] overflow-y-auto">
-    <div class="p-6">
+    <div class="p-4 sm:p-6">
         <h3 class="text-lg font-bold text-slate-900 mb-4">Detalhes da Ocorrência</h3>
         
         <div class="space-y-4 mb-6">
@@ -150,7 +169,7 @@
                     <textarea id="observation-{{ occurrence.id }}" name="observation" rows="3" class="w-full text-sm rounded-lg border-slate-200 focus:border-blue-500 focus:ring-blue-500" placeholder="Informações sobre a resolução da ocorrência..."></textarea>
                 </div>
                 
-                <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 border-t border-slate-200">
                     <button type="button" onclick="document.getElementById('modal-{{ occurrence.id }}').close()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors">
                         Cancelar
                     </button>

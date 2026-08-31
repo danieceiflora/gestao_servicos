@@ -6,7 +6,7 @@
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Clientes</h2>
             <p class="text-sm text-slate-500">Gerencie sua base de clientes e seus imóveis.</p>
@@ -31,7 +31,7 @@
             {% endif %}
         </div>
         {% if perms.services.add_client %}
-        <a href="{% url 'client_create' %}" class="md:hidden fixed right-6 bottom-28 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl active:scale-90 transition-transform">
+        <a href="{% url 'client_create' %}" class="md:hidden fixed right-5 bottom-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl active:scale-90 transition-transform" aria-label="Novo cliente">
             <i data-lucide="plus" class="h-6 w-6"></i>
         </a>
         {% endif %}

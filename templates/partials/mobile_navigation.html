@@ -1,0 +1,83 @@
+{% load static %}
+<div id="mobile-menu" class="xl:hidden fixed inset-0 z-[90] invisible" aria-hidden="true">
+    <button type="button" id="mobile-menu-overlay" class="absolute inset-0 bg-slate-950/50 opacity-0 transition-opacity duration-200" aria-label="Fechar menu"></button>
+    <aside id="mobile-menu-drawer" role="dialog" aria-modal="true" aria-label="Menu principal" tabindex="-1"
+           class="absolute inset-y-0 left-0 flex w-[min(88vw,22rem)] -translate-x-full flex-col bg-white shadow-2xl transition-transform duration-200 ease-out">
+        <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3 safe-area-top">
+            <div class="min-w-0">
+                <p class="truncate text-sm font-bold text-slate-900">{{ user.get_full_name|default:user.username }}</p>
+                <p class="truncate text-xs text-slate-500">{{ user.get_role_display }}</p>
+            </div>
+            <button type="button" id="mobile-menu-close" class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100" aria-label="Fechar menu"><i data-lucide="x" class="h-5 w-5"></i></button>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto overscroll-contain px-3 py-4" aria-label="Navegação principal">
+            <div class="space-y-1">
+                <a href="{% url 'home' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'home' %}mobile-nav-link-active{% endif %}"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></a>
+                <a href="{% url 'service_order_calendar' %}" class="mobile-nav-link {% if 'calendar' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="calendar"></i><span>Agenda</span></a>
+                {% if not user.is_manager %}
+                <a href="{% url 'equipe_task_list' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'equipe_task_list' %}mobile-nav-link-active{% endif %}"><i data-lucide="list-checks"></i><span>Tarefas</span></a>
+                {% else %}
+                <a href="{% url 'service_order_list' %}" class="mobile-nav-link {% if 'service_order' in request.resolver_match.url_name or 'order_' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="clipboard-list"></i><span>Ordens de Serviço</span></a>
+                {% endif %}
+            </div>
+
+            {% if perms.services.view_client or perms.services.view_professional or user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
+            <section class="mobile-nav-group"><h2 class="mobile-nav-label">Operacional</h2>
+                {% if perms.services.view_client %}<a href="{% url 'client_list' %}" class="mobile-nav-link {% if 'client' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="users"></i><span>Clientes</span></a>{% endif %}
+                {% if perms.services.view_professional %}<a href="{% url 'professional_list' %}" class="mobile-nav-link {% if 'professional' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="hard-hat"></i><span>Equipe</span></a>{% endif %}
+                {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}<a href="{% url 'occurrence_list' %}" class="mobile-nav-link {% if 'occurrence' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="alert-triangle"></i><span>Ocorrências</span></a>{% endif %}
+            </section>
+            {% endif %}
+
+            {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
+            <section class="mobile-nav-group"><h2 class="mobile-nav-label">Estoque e vendas</h2>
+                <a href="{% url 'product_list' %}" class="mobile-nav-link {% if 'product' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="package"></i><span>Produtos</span></a>
+                <a href="{% url 'purchase_invoice_list' %}" class="mobile-nav-link {% if 'purchase_invoice' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="file-down"></i><span>Notas de Entrada</span></a>
+                <a href="{% url 'sale_list' %}" class="mobile-nav-link {% if 'sale' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="shopping-cart"></i><span>Vendas</span></a>
+            </section>
+            {% endif %}
+
+            {% if user.is_manager %}
+            <section class="mobile-nav-group"><h2 class="mobile-nav-label">Manutenção</h2>
+                <a href="{% url 'contract_list' %}" class="mobile-nav-link"><i data-lucide="file-check"></i><span>Contratos</span></a>
+                <a href="{% url 'asset_list' %}" class="mobile-nav-link"><i data-lucide="cpu"></i><span>Equipamentos</span></a>
+                <a href="{% url 'closing_list' %}" class="mobile-nav-link"><i data-lucide="calculator"></i><span>Fechamentos</span></a>
+                <a href="{% url 'asset_category_list' %}" class="mobile-nav-link"><i data-lucide="tag"></i><span>Categorias</span></a>
+            </section>
+            <section class="mobile-nav-group"><h2 class="mobile-nav-label">Relatórios</h2>
+                <a href="{% url 'bi_operacional' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'bi_operacional' %}mobile-nav-link-active{% endif %}"><i data-lucide="activity"></i><span>Painel Operacional</span></a>
+                <a href="{% url 'bi_produtividade' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'bi_produtividade' %}mobile-nav-link-active{% endif %}"><i data-lucide="users"></i><span>Produtividade</span></a>
+                <a href="{% url 'bi_manutencao' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'bi_manutencao' %}mobile-nav-link-active{% endif %}"><i data-lucide="wrench"></i><span>Manutenção</span></a>
+            </section>
+            <section class="mobile-nav-group"><h2 class="mobile-nav-label">Financeiro</h2>
+                <a href="{% url 'finance_dashboard' %}" class="mobile-nav-link"><i data-lucide="line-chart"></i><span>Painel Financeiro</span></a>
+                <a href="{% url 'billing_list' %}" class="mobile-nav-link"><i data-lucide="receipt"></i><span>Contas a Receber</span></a>
+                <a href="{% url 'expense_list' %}" class="mobile-nav-link"><i data-lucide="circle-dollar-sign"></i><span>Contas a Pagar</span></a>
+                <a href="{% url 'finance_commissions' %}" class="mobile-nav-link"><i data-lucide="percent"></i><span>Comissões</span></a>
+                <a href="{% url 'finance_professional_payments' %}" class="mobile-nav-link"><i data-lucide="banknote"></i><span>Pagamentos de Técnicos</span></a>
+                <a href="{% url 'payment_method_list' %}" class="mobile-nav-link"><i data-lucide="credit-card"></i><span>Métodos de Pagamento</span></a>
+                <a href="{% url 'finance_settings' %}" class="mobile-nav-link"><i data-lucide="settings-2"></i><span>Configurações Financeiras</span></a>
+            </section>
+            {% endif %}
+
+            {% if user.is_staff %}
+            <section class="mobile-nav-group"><h2 class="mobile-nav-label">Configurações e integrações</h2>
+                <a href="{% url 'admin:index' %}" class="mobile-nav-link"><i data-lucide="shield-check"></i><span>Django Admin</span></a>
+                <a href="{% url 'pagamentos:gateway_config' %}" class="mobile-nav-link"><i data-lucide="credit-card"></i><span>Gateway de Pagamentos</span></a>
+                <a href="{% url 'pagamentos:charge_config_list' %}" class="mobile-nav-link"><i data-lucide="settings-2"></i><span>Regras de Cobrança</span></a>
+                <a href="{% url 'fiscal:nfe_config' %}" class="mobile-nav-link"><i data-lucide="file-text"></i><span>Integração Fiscal</span></a>
+                <a href="{% url 'integracoes:whatsapp_template_list' %}" class="mobile-nav-link"><i data-lucide="message-square"></i><span>Templates WhatsApp</span></a>
+                <a href="{% url 'integracoes:notification_config_list' %}" class="mobile-nav-link"><i data-lucide="zap"></i><span>Notificações Automáticas</span></a>
+                <a href="{% url 'integracoes:collection_sequence_list' %}" class="mobile-nav-link"><i data-lucide="git-branch"></i><span>Régua de Cobrança</span></a>
+                <a href="{% url 'integracoes:scheduled_reminder_list' %}" class="mobile-nav-link"><i data-lucide="bell"></i><span>Lembretes Agendados</span></a>
+            </section>
+            {% endif %}
+        </nav>
+
+        <div class="border-t border-slate-200 p-3 safe-area-bottom">
+            {% if user.is_manager %}<a href="{% url 'integracoes:platform_invoice_list' %}" class="mobile-nav-link"><i data-lucide="receipt-text"></i><span>Faturamento da conta</span></a>{% endif %}
+            <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button type="submit" class="mobile-nav-link w-full text-red-600 hover:bg-red-50"><i data-lucide="log-out"></i><span>Sair</span></button></form>
+        </div>
+    </aside>
+</div>

@@ -26,6 +26,7 @@ from .forms import (
 from .utils_nfe_import import (
     parse_nfe_xml, match_products, NFeXMLParseError,
     find_supplier_by_cnpj, get_or_create_supplier_from_xml, create_missing_products,
+    _update_product_fiscal,
 )
 
 class ManagerRequiredMixin(UserPassesTestMixin):
@@ -549,8 +550,13 @@ def _item_from_hidden_post(post_data, index):
         'unit': post_data.get(f'item_{index}_unit', ''),
         'ncm': post_data.get(f'item_{index}_ncm', ''),
         'cfop': post_data.get(f'item_{index}_cfop', ''),
+        'cest': post_data.get(f'item_{index}_cest', ''),
         'quantity': _decimal_or_zero(post_data.get(f'item_{index}_quantity')),
         'unit_cost': _decimal_or_zero(post_data.get(f'item_{index}_unit_cost')),
+        'origem': _decimal_or_zero(post_data.get(f'item_{index}_origem')),
+        'icms_raw': post_data.get(f'item_{index}_icms_raw', ''),
+        'pis_cst': post_data.get(f'item_{index}_pis_cst', ''),
+        'cofins_cst': post_data.get(f'item_{index}_cofins_cst', ''),
     }
 
 
@@ -580,6 +586,7 @@ def purchase_invoice_import_preview(request):
     xml_import_error = ''
     raw_preview = ''
     filename = ''
+    duplicate_invoice = None
 
     if request.method == 'POST' and request.POST.get('action') == 'confirm':
         try:
@@ -610,30 +617,101 @@ def purchase_invoice_import_preview(request):
             )
             return redirect('purchase_invoice_import_preview')
 
+        duplicate_invoice = PurchaseInvoice.find_duplicate(
+            supplier=supplier,
+            number=parsed['number'],
+            series=parsed['series'],
+            access_key=parsed['access_key'],
+        )
+        if duplicate_invoice:
+            messages.error(
+                request,
+                f"Esta nota já foi importada (registro #{duplicate_invoice.pk}, "
+                f"status: {duplicate_invoice.get_status_display()})."
+            )
+            return redirect('purchase_invoice_detail', pk=duplicate_invoice.pk)
+
         matched_items, _unmatched = match_products(parsed['items'])
         created_products = create_missing_products(matched_items, supplier=supplier)
 
+        # Modo Bling: opt-in checkbox pra atualizar campos fiscais de produtos
+        # já cadastrados (só preenche campos vazios — nunca sobrescreve
+        # configuração manual).
+        regime_mismatch_labels = []
+        updated_products = []
+        if request.POST.get('update_existing_products'):
+            for item in matched_items:
+                product = item.get('product')
+                if product is None or product in created_products:
+                    continue
+                changed = _update_product_fiscal(product, item)
+                if changed:
+                    updated_products.append(product.name)
+            if updated_products:
+                messages.info(
+                    request,
+                    f"Dados fiscais de {len(updated_products)} produto(s) existente(s) "
+                    f"atualizados: {', '.join(updated_products[:5])}."
+                )
+
+        # Mark itens com CST/CSOSN divergente do regime da empresa — para o
+        # preview renderizado abaixo (torna visível que ficou em branco).
+        from fiscal.models import NFeConfig
+        try:
+            cfg = NFeConfig.load()
+            is_simples = cfg.regime_tributario in (1, 2)
+        except Exception:
+            is_simples = None
+        for item in matched_items:
+            icms_raw = item.get('icms_raw') or ''
+            if icms_raw and ((len(icms_raw) == 2 and is_simples) or (len(icms_raw) == 3 and not is_simples)):
+                item['regime_mismatch'] = True
+                regime_mismatch_labels.append(item['name'])
+        if regime_mismatch_labels:
+            messages.warning(
+                request,
+                f"{len(regime_mismatch_labels)} item(ns) tinham CST/CSOSN divergente do regime da empresa "
+                f"e ficaram sem CST ICMS/CSOSN no cadastro. Revise manualmente: "
+                f"{', '.join(regime_mismatch_labels[:5])}."
+            )
+
         with transaction.atomic():
-            invoice_kwargs = dict(
-                supplier=supplier,
+            locked_supplier = Supplier.objects.select_for_update().get(pk=supplier.pk)
+            duplicate_invoice = PurchaseInvoice.find_duplicate(
+                supplier=locked_supplier,
                 number=parsed['number'],
                 series=parsed['series'],
                 access_key=parsed['access_key'],
-                generate_expense=bool(request.POST.get('generate_expense')),
-                expense_due_date=request.POST.get('expense_due_date') or None,
-                status=PurchaseInvoice.Status.RASCUNHO,
             )
-            if parsed['issue_date']:
-                invoice_kwargs['issue_date'] = parsed['issue_date']
-            invoice = PurchaseInvoice.objects.create(**invoice_kwargs)
-
-            for item in matched_items:
-                PurchaseInvoiceItem.objects.create(
-                    invoice=invoice,
-                    product=item['product'],
-                    quantity=item['quantity'],
-                    unit_cost=item['unit_cost'],
+            if not duplicate_invoice:
+                invoice_kwargs = dict(
+                    supplier=locked_supplier,
+                    number=parsed['number'],
+                    series=parsed['series'],
+                    access_key=''.join(filter(str.isdigit, parsed['access_key'] or '')),
+                    generate_expense=bool(request.POST.get('generate_expense')),
+                    expense_due_date=request.POST.get('expense_due_date') or None,
+                    status=PurchaseInvoice.Status.RASCUNHO,
                 )
+                if parsed['issue_date']:
+                    invoice_kwargs['issue_date'] = parsed['issue_date']
+                invoice = PurchaseInvoice.objects.create(**invoice_kwargs)
+
+                for item in matched_items:
+                    PurchaseInvoiceItem.objects.create(
+                        invoice=invoice,
+                        product=item['product'],
+                        quantity=item['quantity'],
+                        unit_cost=item['unit_cost'],
+                    )
+
+        if duplicate_invoice:
+            messages.error(
+                request,
+                f"Esta nota já foi importada (registro #{duplicate_invoice.pk}, "
+                f"status: {duplicate_invoice.get_status_display()})."
+            )
+            return redirect('purchase_invoice_detail', pk=duplicate_invoice.pk)
 
         if supplier_created:
             messages.info(request, f"Fornecedor \"{supplier.display_name}\" cadastrado automaticamente a partir do XML.")
@@ -666,6 +744,12 @@ def purchase_invoice_import_preview(request):
         if parsed:
             matched_items, _unmatched = match_products(parsed['items'])
             supplier = find_supplier_by_cnpj(parsed['supplier_cnpj'])
+            duplicate_invoice = PurchaseInvoice.find_duplicate(
+                supplier=supplier,
+                number=parsed['number'],
+                series=parsed['series'],
+                access_key=parsed['access_key'],
+            )
             for item in matched_items:
                 item['subtotal'] = item['quantity'] * item['unit_cost']
             total = sum((item['subtotal'] for item in matched_items), Decimal('0'))
@@ -681,6 +765,7 @@ def purchase_invoice_import_preview(request):
         'xml_import_error': xml_import_error,
         'raw_preview': raw_preview,
         'filename': filename,
+        'duplicate_invoice': duplicate_invoice,
     })
 
 
@@ -853,11 +938,32 @@ def purchase_invoice_create(request):
 
             if form.is_valid() and formset.is_valid():
                 with transaction.atomic():
-                    invoice = form.save(commit=False)
-                    invoice.status = PurchaseInvoice.Status.RASCUNHO
-                    invoice.save()
-                    formset.instance = invoice
-                    formset.save()
+                    supplier = Supplier.objects.select_for_update().get(pk=form.cleaned_data['supplier'].pk)
+                    duplicate = PurchaseInvoice.find_duplicate(
+                        supplier=supplier,
+                        number=form.cleaned_data.get('number'),
+                        series=form.cleaned_data.get('series'),
+                        access_key=form.cleaned_data.get('access_key'),
+                    )
+                    if duplicate:
+                        form.add_error(
+                            None,
+                            f'Esta nota já foi cadastrada (registro #{duplicate.pk}, '
+                            f'status: {duplicate.get_status_display()}).'
+                        )
+                    else:
+                        invoice = form.save(commit=False)
+                        invoice.status = PurchaseInvoice.Status.RASCUNHO
+                        invoice.save()
+                        formset.instance = invoice
+                        formset.save()
+
+                if duplicate:
+                    return render(request, 'services/purchase_invoices/purchase_invoice_form.html', {
+                        'form': form, 'formset': formset,
+                        'upload_form': PurchaseInvoiceXMLUploadForm(),
+                        'title': 'Nova Nota de Entrada',
+                    })
 
                 if action == 'save_and_launch':
                     try:

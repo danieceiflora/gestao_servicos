@@ -870,6 +870,28 @@ class PurchaseInvoice(models.Model):
     def __str__(self):
         return f"NF Entrada #{self.number or self.pk} - {self.supplier.display_name}"
 
+    @classmethod
+    def find_duplicate(cls, *, supplier=None, number='', series='', access_key='', exclude_pk=None):
+        """Retorna uma nota fiscal já cadastrada com a mesma identidade fiscal."""
+        queryset = cls.objects.all()
+        if exclude_pk:
+            queryset = queryset.exclude(pk=exclude_pk)
+
+        normalized_key = ''.join(filter(str.isdigit, access_key or ''))
+        if normalized_key:
+            duplicate = queryset.filter(access_key=normalized_key).first()
+            if duplicate:
+                return duplicate
+
+        normalized_number = (number or '').strip()
+        if supplier and normalized_number:
+            return queryset.filter(
+                supplier=supplier,
+                number__iexact=normalized_number,
+                series__iexact=(series or '').strip(),
+            ).first()
+        return None
+
     @property
     def total_value(self):
         return sum((item.subtotal for item in self.items.all()), Decimal('0'))

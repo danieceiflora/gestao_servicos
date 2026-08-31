@@ -3,7 +3,7 @@
 
 {% block layout %}
     <!-- Desktop Header -->
-    <header class="hidden lg:flex sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur">
+    <header id="desktop-header" class="hidden xl:flex sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="container mx-auto flex h-16 items-center justify-between px-4">
             <div class="flex items-center gap-2">
                 {% if SYSTEM_CONFIG and SYSTEM_CONFIG.company_logo %}
@@ -247,79 +247,39 @@
         </div>
     </header>
 
+    {% if user.is_authenticated %}
+        {% include 'partials/mobile_navigation.html' %}
+    {% endif %}
+
     <!-- Mobile Header -->
-    <header class="flex lg:hidden sticky top-0 z-40 w-full border-b border-slate-200 bg-white px-4 py-3 items-center justify-between">
-        <span class="text-base font-bold tracking-tight">{% if SYSTEM_CONFIG %}{{ SYSTEM_CONFIG.company_name }}{% else %}Gestão de Serviços{% endif %}</span>
+    <header id="mobile-header" class="flex xl:hidden sticky top-0 z-40 w-full min-w-0 border-b border-slate-200 bg-white/95 px-3 sm:px-4 py-2.5 items-center justify-between backdrop-blur">
+        <a href="{% url 'home' %}" class="flex min-w-0 items-center gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900">
+            {% if SYSTEM_CONFIG and SYSTEM_CONFIG.company_logo %}
+            <img src="{{ SYSTEM_CONFIG.company_logo.url }}" alt="" class="h-9 w-9 shrink-0 rounded-lg object-cover">
+            {% else %}
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white"><i data-lucide="briefcase" class="h-5 w-5"></i></span>
+            {% endif %}
+            <span class="truncate text-sm sm:text-base font-bold tracking-tight">{% if SYSTEM_CONFIG %}{{ SYSTEM_CONFIG.company_name }}{% else %}Gestão de Serviços{% endif %}</span>
+        </a>
         {% if user.is_authenticated %}
-        <div class="flex items-center gap-3">
-            <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{{ user.get_role_display }}</span>
-            {% if user.is_staff %}
-            <a href="{% url 'admin:index' %}" class="p-1 text-slate-400 hover:text-slate-900" title="Painel Admin">
-                <i data-lucide="settings" class="h-4 w-4"></i>
-            </a>
-            <a href="{% url 'integracoes:whatsapp_template_list' %}" class="p-1 text-slate-400 hover:text-slate-900" title="Templates WhatsApp">
-                <i data-lucide="message-square" class="h-4 w-4"></i>
-            </a>
-            {% endif %}
-            {% if user.is_manager %}
-            <a href="{% url 'integracoes:platform_invoice_list' %}" class="p-1 text-slate-400 hover:text-slate-900" title="Faturamento">
-                <i data-lucide="receipt" class="h-4 w-4"></i>
-            </a>
-            {% endif %}
-            <form action="{% url 'logout' %}" method="post" class="inline">
-                {% csrf_token %}
-                <button type="submit" class="p-1 text-slate-400 hover:text-red-600">
-                    <i data-lucide="log-out" class="h-4 w-4"></i>
-                </button>
-            </form>
             {% if VAPID_PUBLIC_KEY %}
-            <button type="button" onclick="PushManagerUI.openSettings('{{ VAPID_PUBLIC_KEY }}')" class="p-1 text-slate-400 hover:text-blue-600" title="Notificações">
-                <i data-lucide="bell" class="h-4 w-4"></i>
+            <button type="button" onclick="PushManagerUI.openSettings('{{ VAPID_PUBLIC_KEY }}')" class="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-blue-600" aria-label="Configurar notificações">
+                <i data-lucide="bell" class="h-5 w-5"></i>
             </button>
             {% endif %}
-        </div>
+            <button type="button" id="mobile-menu-button" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900" aria-label="Abrir menu principal" aria-controls="mobile-menu-drawer" aria-expanded="false"><i data-lucide="menu" class="h-6 w-6"></i></button>
         {% endif %}
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 container mx-auto px-4 py-6 pb-28 lg:pb-6">
+    <main id="main-content" class="flex-1 container mx-auto min-w-0 w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
         <!-- Django Messages -->
         {% include "partials/messages.html" %}
 
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Mobile Bottom Navigation (IHC: Thumb Zone) -->
     {% if user.is_authenticated %}
-    <nav class="lg:hidden fixed bottom-0 left-0 z-50 w-full bg-white border-t border-slate-200 safe-area-bottom">
-        <div class="grid h-16 {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}grid-cols-5{% else %}grid-cols-2{% endif %} items-center justify-around">
-            <a href="{% url 'home' %}" class="flex flex-col items-center justify-center gap-1 {% if request.resolver_match.url_name == 'home' %}text-slate-900{% else %}text-slate-500{% endif %}">
-                <i data-lucide="layout-dashboard" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Início</span>
-            </a>
-
-            <a href="{% url 'service_order_calendar' %}" class="flex flex-col items-center justify-center gap-1 {% if 'calendar' in request.resolver_match.url_name %}text-slate-900{% else %}text-slate-500{% endif %}">
-                <i data-lucide="calendar" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Agenda</span>
-            </a>
-
-            {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
-            <a href="{% url 'expense_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'expense' in request.resolver_match.url_name %}text-red-600{% else %}text-slate-500{% endif %}">
-                <i data-lucide="ban" class="h-5 w-5 rotate-180"></i>
-                <span class="text-[10px] font-medium">Pagar</span>
-            </a>
-
-            <a href="{% url 'billing_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'billing' in request.resolver_match.url_name %}text-emerald-600{% else %}text-slate-500{% endif %}">
-                <i data-lucide="receipt" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Receber</span>
-            </a>
-
-            <a href="{% url 'occurrence_list' %}" class="flex flex-col items-center justify-center gap-1 {% if 'occurrence' in request.resolver_match.url_name %}text-amber-600{% else %}text-slate-500{% endif %}">
-                <i data-lucide="alert-triangle" class="h-5 w-5"></i>
-                <span class="text-[10px] font-medium">Ocorrências</span>
-            </a>
-            {% endif %}
-        </div>
-    </nav>
+    <script src="{% static 'js/responsive-navigation.js' %}"></script>
     {% endif %}
 {% endblock %}

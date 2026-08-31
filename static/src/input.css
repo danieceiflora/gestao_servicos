@@ -1,1 +1,33 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
+
+@layer components {
+  .mobile-nav-group { @apply mt-5 border-t border-slate-100 pt-4; }
+  .mobile-nav-label { @apply mb-1 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400; }
+  .mobile-nav-link { @apply flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900; }
+  .mobile-nav-link > svg { @apply h-5 w-5 shrink-0 text-slate-400; }
+  .mobile-nav-link-active { @apply bg-slate-900 text-white hover:bg-slate-800 hover:text-white; }
+  .mobile-nav-link-active > svg { @apply text-white; }
+}
+
+@layer utilities {
+  .safe-area-top { padding-top: max(0.75rem, env(safe-area-inset-top)); }
+  .safe-area-bottom { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
+  #main-content .p-8 { padding: 1rem; }
+  #main-content .p-6 { padding: 1rem; }
+  #main-content .px-8 { padding-left: 1rem; padding-right: 1rem; }
+  #main-content .px-6 { padding-left: 1rem; padding-right: 1rem; }
+  #main-content .py-8 { padding-top: 1rem; padding-bottom: 1rem; }
+  #main-content h1, #main-content h2, #main-content h3 { overflow-wrap: anywhere; }
+  #main-content dialog { width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); }
+}
+
+#main-content > * { min-width: 0; }
+#main-content .overflow-x-auto {
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+#main-content .overflow-x-auto > table { min-width: max-content; }

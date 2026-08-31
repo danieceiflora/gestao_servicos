@@ -43,6 +43,22 @@ def _text(el, path):
     return node.text.strip() if node is not None and node.text else ''
 
 
+def _first_group_text(det, group_name, leaf):
+    """Pega a tag `leaf` dentro do primeiro filho de `group_name` no `<det>`
+    (ex.: ICMS tem vários sub-grupos: ICMS00, ICMS10, ...). Retorna '' se não
+    encontrar — não explode na importação por variações de layout de CST."""
+    if det is None:
+        return ''
+    group = det.find(group_name)
+    if group is None:
+        return ''
+    first_sub_group = next(iter(group), None)
+    if first_sub_group is None:
+        return ''
+    node = first_sub_group.find(leaf)
+    return node.text.strip() if node is not None and node.text else ''
+
+
 def _decimal(value, default='0'):
     try:
         return Decimal(value or default)
@@ -126,7 +142,28 @@ def parse_nfe_xml(file_obj):
             barcode = ''
         name = _text(prod, 'xProd')
         qty = round_money(_decimal(_text(prod, 'qCom')))
-        unit_cost = round_money(_decimal(_text(prod, 'vUnCom')))
+
+        v_prod = _decimal(_text(prod, 'vProd'))
+        v_frete = _decimal(_text(prod, 'vFrete'))
+        v_seg = _decimal(_text(prod, 'vSeg'))
+        v_outro = _decimal(_text(prod, 'vOutro'))
+        # Custo líquido do fornecedor: (vProd + vFrete + vSeg + vOutro) / qCom.
+        # Desconto (vDesc) não entra — alinhado ao fluxo Bling e padrão ERP.
+        extras = v_frete + v_seg + v_outro
+        if qty and qty != 0:
+            unit_cost = round_money((v_prod + extras) / qty)
+        else:
+            unit_cost = round_money(_decimal(_text(prod, 'vUnCom')))
+
+        origem_txt = _first_group_text(det, 'imposto/ICMS', 'orig')
+        try:
+            origem = int(origem_txt) if origem_txt else 0
+        except (TypeError, ValueError):
+            origem = 0
+        icms_raw = _first_group_text(det, 'imposto/ICMS', 'CST') or _first_group_text(det, 'imposto/ICMS', 'CSOSN')
+        pis_cst = _first_group_text(det, 'imposto/PIS', 'CST')
+        cofins_cst = _first_group_text(det, 'imposto/COFINS', 'CST')
+
         items.append({
             'code': code,
             'barcode': barcode,
@@ -134,8 +171,14 @@ def parse_nfe_xml(file_obj):
             'unit': _text(prod, 'uCom'),
             'ncm': _text(prod, 'NCM'),
             'cfop': _text(prod, 'CFOP'),
+            'cest': _text(prod, 'CEST'),
             'quantity': qty,
             'unit_cost': unit_cost,
+            'extra_cost': extras,
+            'origem': origem,
+            'icms_raw': icms_raw,
+            'pis_cst': pis_cst,
+            'cofins_cst': cofins_cst,
         })
 
     if not items:
@@ -224,6 +267,63 @@ def get_or_create_supplier_from_xml(parsed):
     return supplier, True
 
 
+def _fiscal_kwargs_for_product(item):
+    """Devolve kwargs para Product incluindo campos fiscais, resolvendo CST vs
+    CSOSN conforme o regime tributário da empresa (NFeConfig.regime_tributario).
+    ICMS Raw de 2 dígitos → CST ICMS (Regime Normal); 3 dígitos → CSOSN (Simples).
+    Se tipo diverge do regime da empresa, NÃO preenchemos o campo (o usuário
+    revisa manualmente) e o preview marca 'regime_mismatch'."""
+    from fiscal.models import NFeConfig
+
+    fiscal = dict(
+        ncm=item.get('ncm') or None,
+        cest=item.get('cest') or None,
+        cfop_padrao=item.get('cfop') or None,
+        cst_pis=item.get('pis_cst') or None,
+        cst_cofins=item.get('cofins_cst') or None,
+    )
+    origem = item.get('origem')
+    if origem is not None:
+        fiscal['origem_mercadoria'] = origem
+
+    try:
+        cfg = NFeConfig.load()
+        is_simples = cfg.regime_tributario in (1, 2)
+    except Exception:
+        is_simples = None
+
+    icms_raw = item.get('icms_raw') or ''
+    fiscal['tax_field'] = None
+    if icms_raw and len(icms_raw) == 3 and is_simples is not False:
+        fiscal['csosn'] = icms_raw
+        fiscal['tax_field'] = 'csosn'
+    elif icms_raw and len(icms_raw) == 2 and is_simples is not True:
+        fiscal['cst_icms'] = icms_raw
+        fiscal['tax_field'] = 'cst_icms'
+    return fiscal
+
+
+def _update_product_fiscal(product, item):
+    """Preenche campos fiscais vazios do `product` com os dados do `item`
+    (CST/CSOSN já resolvido por _fiscal_kwargs_for_product). Retorna lista de
+    campos atualizados, ou [] se nada foi mudado."""
+    kwargs = _fiscal_kwargs_for_product(item)
+    # Remover chaves não-fields (sentinel 'tax_field') antes de checar.
+    changed = []
+    for field, value in kwargs.items():
+        if field == 'tax_field':
+            continue
+        current = getattr(product, field, None)
+        # normalize empty
+        if (current is None or current == '') and value is not None:
+            setattr(product, field, value)
+            changed.append(field)
+    # campos fiscais StringField com None — cuidamos na validação de update_fields
+    if changed:
+        product.save(update_fields=changed)
+    return [f for f in changed if f != 'tax_field']
+
+
 def create_missing_products(matched_items, supplier=None):
     """Cadastra automaticamente, no catálogo, os produtos do XML que não
     casaram com nenhum produto existente (por código ou EAN). Preenche
@@ -241,14 +341,16 @@ def create_missing_products(matched_items, supplier=None):
         code = item['code'] or None
         name = item['name'] or (f"Produto {code}" if code else "Produto sem nome (importado)")
         unit_type = UNIT_MAP.get((item.get('unit') or '').upper(), 'UNIDADE')
+        fiscal_kwargs = _fiscal_kwargs_for_product(item)
+        # Remove sentinel pra não passar como product field.
+        fiscal_kwargs.pop('tax_field', None)
         base_kwargs = dict(
             barcode=item['barcode'] or None,
             unit_type=unit_type,
-            ncm=item.get('ncm') or None,
-            cfop_padrao=item.get('cfop') or None,
             supplier=supplier,
             default_unit_price=item['unit_cost'],
             preco_custo=item['unit_cost'],
+            **fiscal_kwargs,
         )
         try:
             product = Product.objects.create(name=name, code=code, **base_kwargs)

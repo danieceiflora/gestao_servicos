@@ -6,13 +6,13 @@
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Ordens de Serviço</h2>
             <p class="text-sm text-slate-500 font-medium">Acompanhe o ciclo de vida dos serviços.</p>
         </div>
-        <div class="flex flex-col sm:flex-row gap-3 items-center">
-            <form method="GET" class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <div class="flex w-full flex-col gap-3 2xl:w-auto 2xl:flex-row 2xl:items-center">
+            <form method="GET" class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap 2xl:w-auto 2xl:flex-nowrap">
                 {% if custom_filter %}
                 <input type="hidden" name="filter" value="{{ custom_filter }}">
                 {% endif %}
@@ -27,8 +27,8 @@
                     >
                 </div>
                 
-                <div class="flex gap-2">
-                    <select name="status" onchange="this.form.submit()" class="flex h-9 items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm ring-offset-white focus:outline-none focus:ring-1 focus:ring-slate-950 transition-all text-slate-600 cursor-pointer">
+                <div class="grid grid-cols-1 sm:flex gap-2 w-full">
+                    <select name="status" onchange="this.form.submit()" class="flex h-11 sm:h-9 w-full sm:w-auto items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm ring-offset-white focus:outline-none focus:ring-1 focus:ring-slate-950 transition-all text-slate-600 cursor-pointer">
                         <option value="">Todos os status</option>
                         {% for value, label in status_choices %}
                             <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
@@ -40,7 +40,7 @@
                         name="date_from"
                         value="{{ date_from|default:'' }}"
                         aria-label="Data inicial"
-                        class="flex h-9 items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm ring-offset-white focus:outline-none focus:ring-1 focus:ring-slate-950 transition-all text-slate-600"
+                        class="flex h-11 sm:h-9 w-full sm:w-auto items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm ring-offset-white focus:outline-none focus:ring-1 focus:ring-slate-950 transition-all text-slate-600"
                     >
 
                     <input
@@ -48,10 +48,10 @@
                         name="date_to"
                         value="{{ date_to|default:'' }}"
                         aria-label="Data final"
-                        class="flex h-9 items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm ring-offset-white focus:outline-none focus:ring-1 focus:ring-slate-950 transition-all text-slate-600"
+                        class="flex h-11 sm:h-9 w-full sm:w-auto items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-sm shadow-sm ring-offset-white focus:outline-none focus:ring-1 focus:ring-slate-950 transition-all text-slate-600"
                     >
 
-                    <button type="submit" class="h-9 shrink-0 inline-flex items-center justify-center px-3 rounded-md bg-slate-900 text-sm font-medium text-slate-50 shadow transition-colors hover:bg-slate-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
+                    <button type="submit" class="h-11 sm:h-9 shrink-0 inline-flex items-center justify-center px-3 rounded-md bg-slate-900 text-sm font-medium text-slate-50 shadow transition-colors hover:bg-slate-900/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950">
                         Filtrar
                     </button>
 
@@ -71,7 +71,7 @@
         </div>
         <!-- Floating Action Button for Mobile -->
         {% if perms.services.add_serviceorder %}
-        <a href="{% url 'service_order_scheduling' %}" class="md:hidden fixed right-6 bottom-24 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg shadow-slate-900/20 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950">
+        <a href="{% url 'service_order_scheduling' %}" class="md:hidden fixed right-5 bottom-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg shadow-slate-900/20 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950" aria-label="Novo agendamento">
             <i data-lucide="calendar-plus" class="h-6 w-6"></i>
         </a>
         {% endif %}

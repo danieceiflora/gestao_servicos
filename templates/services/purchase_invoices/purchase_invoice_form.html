@@ -20,34 +20,18 @@
         {% csrf_token %}
 
         <!-- Importação de XML -->
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <div class="flex items-center gap-2 mb-3">
-                <i data-lucide="upload" class="h-4 w-4 text-blue-500"></i>
-                <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Importar XML da NF-e (opcional)</h2>
-            </div>
-            <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                {{ upload_form.xml_file }}
-                <button type="submit" name="action" value="import_xml" formnovalidate
-                        class="shrink-0 inline-flex items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 h-10 px-4 text-sm font-bold transition-colors">
-                    <i data-lucide="file-symlink" class="h-4 w-4"></i>
-                    Importar
-                </button>
-            </div>
-            <p class="text-xs text-slate-400 mt-2">{{ upload_form.xml_file.help_text }} Depois de importar, ajuste o que faltar abaixo e use os botões "Salvar" no final da página — não é preciso clicar em Importar de novo.</p>
-            {% if xml_import_error %}
-            <div class="mt-3 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0 mt-0.5"></i>
-                <div>
-                    <p class="font-semibold">Não foi possível importar o XML</p>
-                    <p class="text-red-600">{{ xml_import_error }}</p>
-                </div>
-            </div>
-            {% endif %}
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex items-start gap-3">
+            <i data-lucide="upload" class="h-4 w-4 text-blue-500 shrink-0 mt-0.5"></i>
+            <p class="text-sm text-blue-800">
+                Tem um XML de NF-e pra importar?
+                <a href="{% url 'purchase_invoice_import_preview' %}" class="font-semibold underline">Use a tela dedicada de importação</a>.
+                Depois de importar, a nota fica como rascunho — e você revisa/edita aqui.
+            </p>
         </div>
 
         {% if form.errors %}
         <div class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-            Verifique os campos destacados abaixo.
+            {% if form.non_field_errors %}{{ form.non_field_errors.0 }}{% else %}Verifique os campos destacados abaixo.{% endif %}
         </div>
         {% endif %}
 
@@ -63,14 +47,17 @@
                 <div class="space-y-2">
                     <label class="text-sm font-semibold text-slate-700">Nº da Nota</label>
                     {{ form.number }}
+                    {% if form.number.errors %}<p class="text-xs text-red-600">{{ form.number.errors.0 }}</p>{% endif %}
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-semibold text-slate-700">Série</label>
                     {{ form.series }}
+                    {% if form.series.errors %}<p class="text-xs text-red-600">{{ form.series.errors.0 }}</p>{% endif %}
                 </div>
                 <div class="md:col-span-2 space-y-2">
                     <label class="text-sm font-semibold text-slate-700">Chave de Acesso</label>
                     {{ form.access_key }}
+                    {% if form.access_key.errors %}<p class="text-xs text-red-600">{{ form.access_key.errors.0 }}</p>{% endif %}
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-semibold text-slate-700">Data de Emissão</label>
@@ -302,11 +289,10 @@ if (generateExpenseCheckbox) {
     });
 }
 
-// O <form> inteiro está com novalidate — assim o botão "Importar" nunca é
-// bloqueado por campos obrigatórios ainda vazios (fornecedor, itens...).
-// Só os botões marcados com data-validate (Salvar) re-checam a validade na
-// hora do clique — em vez de 'submit', usamos 'click' com preventDefault
-// pra nem disparar o evento de submit (e o spinner global) quando inválido.
+// O <form> inteiro está com novalidate — os botoes marcados com
+// data-validate (os Salvar) re-checam a validade na hora do clique, em vez de
+// 'submit', usando click com preventDefault para nem disparar o evento de
+// submit (e o spinner global) quando invalido.
 document.getElementById('invoice-form').querySelectorAll('[data-validate="true"]').forEach(btn => {
     btn.addEventListener('click', function(e) {
         const form = document.getElementById('invoice-form');

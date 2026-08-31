@@ -7,7 +7,7 @@
 <div class="max-w-6xl mx-auto space-y-6">
 
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
             <h2 class="text-xl md:text-2xl font-bold tracking-tight text-slate-950">{{ title }}</h2>
             <p class="text-sm text-slate-500">Gerencie contratos de manutenção recorrente</p>
@@ -42,7 +42,7 @@
     </form>
 
     <!-- Links rápidos -->
-    <div class="flex gap-3 text-xs">
+    <div class="flex flex-wrap gap-x-3 gap-y-2 text-xs">
         <a href="{% url 'asset_list' %}" class="inline-flex items-center gap-1 text-slate-500 hover:text-slate-900"><i data-lucide="cpu" class="h-3 w-3"></i> Equipamentos</a>
         <span class="text-slate-300">|</span>
         <a href="{% url 'closing_list' %}" class="inline-flex items-center gap-1 text-slate-500 hover:text-slate-900"><i data-lucide="calculator" class="h-3 w-3"></i> Fechamentos</a>
@@ -55,11 +55,11 @@
     <div class="space-y-3">
         {% for contract in contracts %}
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div class="flex items-start gap-4">
+            <div class="flex min-w-0 items-start gap-4">
                 <div class="p-2 rounded-lg bg-slate-100 border border-slate-200 shrink-0">
                     <i data-lucide="{{ contract.asset.category.icon|default:'tool' }}" class="h-5 w-5 text-slate-600"></i>
                 </div>
-                <div class="space-y-0.5">
+                <div class="min-w-0 space-y-0.5">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="font-semibold text-slate-900">{{ contract.asset.name }}</span>
                         <span class="text-xs font-medium px-2 py-0.5 rounded-full
@@ -69,12 +69,12 @@
                             {{ contract.get_status_display }}
                         </span>
                     </div>
-                    <p class="text-sm text-slate-500">
+                    <p class="break-words text-sm text-slate-500">
                         <i data-lucide="user" class="h-3 w-3 inline"></i> {{ contract.asset.client_property.client.name }}
                         &nbsp;·&nbsp;
                         <i data-lucide="map-pin" class="h-3 w-3 inline"></i> {{ contract.asset.client_property.address }}, {{ contract.asset.client_property.number|default:"S/N" }}
                     </p>
-                    <p class="text-xs text-slate-400">
+                    <p class="break-words text-xs text-slate-400">
                         Técnico: <strong class="text-slate-600">{{ contract.primary_technician.name }}</strong>
                         &nbsp;·&nbsp; {{ contract.get_frequency_display }}
                         &nbsp;·&nbsp; R$ {{ contract.monthly_value|floatformat:2 }}/mês

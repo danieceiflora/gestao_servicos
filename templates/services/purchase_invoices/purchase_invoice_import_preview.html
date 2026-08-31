@@ -68,13 +68,27 @@
         <input type="hidden" name="item_{{ forloop.counter0 }}_unit" value="{{ item.unit }}">
         <input type="hidden" name="item_{{ forloop.counter0 }}_ncm" value="{{ item.ncm }}">
         <input type="hidden" name="item_{{ forloop.counter0 }}_cfop" value="{{ item.cfop }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_cest" value="{{ item.cest }}">
         <input type="hidden" name="item_{{ forloop.counter0 }}_quantity" value="{{ item.quantity|unlocalize }}">
         <input type="hidden" name="item_{{ forloop.counter0 }}_unit_cost" value="{{ item.unit_cost|unlocalize }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_origem" value="{{ item.origem|unlocalize }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_icms_raw" value="{{ item.icms_raw }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_pis_cst" value="{{ item.pis_cst }}">
+        <input type="hidden" name="item_{{ forloop.counter0 }}_cofins_cst" value="{{ item.cofins_cst }}">
         {% endfor %}
 
     <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
         <i data-lucide="check-circle" class="h-4 w-4 shrink-0"></i>
         XML lido com sucesso — {{ matched_items|length }} item(ns) encontrados na nota.
+    </div>
+    <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
+        <i data-lucide="info" class="h-4 w-4 shrink-0 mt-0.5"></i>
+        <div>
+            O <span class="font-semibold">CFOP</span> e os dados fiscais (CST/CSOSN ICMS, CST PIS/COFINS,
+            NCM, CEST, origem) foram capturados do XML do fornecedor. Para as notas de entrada que a sua
+            empresa vai emitir (SPED/SINTEGRA), o CFOP precisa ser ajustado pra entrada — como no Bling,
+            faça isso via Natureza de Operação na tela de cadastro de produtos.
+        </div>
     </div>
 
     <!-- Fornecedor -->
@@ -152,7 +166,7 @@
                         <th class="px-5 py-3">Produto (no XML)</th>
                         <th class="px-5 py-3">Catálogo</th>
                         <th class="px-5 py-3 text-right">Quantidade</th>
-                        <th class="px-5 py-3 text-right">Custo Unit.</th>
+                        <th class="px-5 py-3 text-right">Custo Líq.</th>
                         <th class="px-5 py-3 text-right">Subtotal</th>
                     </tr>
                 </thead>
@@ -186,6 +200,17 @@
         </div>
     </div>
 
+    {% if duplicate_invoice %}
+    <div class="rounded-2xl bg-red-50 border border-red-200 p-5 flex items-start gap-3">
+        <i data-lucide="shield-alert" class="h-5 w-5 text-red-600 shrink-0 mt-0.5"></i>
+        <div class="text-sm text-red-800">
+            <p class="font-bold">Esta nota já foi importada.</p>
+            <p>Registro #{{ duplicate_invoice.pk }} — {{ duplicate_invoice.get_status_display }}.</p>
+            <a href="{% url 'purchase_invoice_detail' duplicate_invoice.pk %}" class="font-semibold underline">Abrir nota existente</a>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Confirmação -->
     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
         <label class="flex items-center gap-2 cursor-pointer">
@@ -197,7 +222,17 @@
             <input type="date" name="expense_due_date" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
         </div>
 
-        {% if not supplier and not parsed.supplier_cnpj %}
+        <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="update_existing_products" id="update_existing_products" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+            <span class="text-sm font-semibold text-slate-700">Atualizar dados fiscais de produtos já cadastrados (NCM, CEST, CFOP, CST/CSOSN ICMS, CST PIS/COFINS, origem)</span>
+        </label>
+        <p class="text-[11px] text-slate-400 -mt-2 ml-6">
+            Só preenche campos vazios — não sobrescreve configurações manuais. Padrão Bling.
+        </p>
+
+        {% if duplicate_invoice %}
+        <p class="text-sm font-semibold text-red-700 text-center">A importação foi bloqueada para evitar duplicidade.</p>
+        {% elif not supplier and not parsed.supplier_cnpj %}
         <div class="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
             <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0 mt-0.5"></i>
             O XML não traz um CNPJ de fornecedor válido — não será possível confirmar a importação automaticamente.
