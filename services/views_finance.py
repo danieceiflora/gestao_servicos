@@ -1161,6 +1161,7 @@ def _billing_create_post(request, order, task):
     from .utils.finance import (
         parse_installments_from_post, resolve_charge_config_from_post,
         installment_charge_snapshot, resolve_apply_discount,
+        resolve_installment_payment_method_id,
     )
 
     installments_data = parse_installments_from_post(request)
@@ -1193,7 +1194,9 @@ def _billing_create_post(request, order, task):
             installment_number=i,
             due_date=d['due_date'],
             amount=d['amount'],
-            payment_method_id=d['payment_method_id'],
+            payment_method_id=resolve_installment_payment_method_id(
+                d['payment_method_id'], charge_config
+            ),
             status=Installment.Status.PENDENTE,
             **snapshot,
         )
@@ -2602,7 +2605,10 @@ def public_billing_page(request, token):
     from django.conf import settings
     from django.urls import reverse
 
-    billing = get_object_or_404(Billing, public_token=token)
+    billing = get_object_or_404(
+        Billing.objects.select_related('charge_config__default_payment_method'),
+        public_token=token,
+    )
     config = SystemConfig.objects.first()
     gateway_config = GatewayConfig.load()
 
@@ -2610,17 +2616,52 @@ def public_billing_page(request, token):
     boleto_available = gateway_config.can_generate_charges and gateway_config.boleto_enabled
     has_cpf = bool(billing.client.document)
 
+    gateway_methods_disabled = not gateway_config.pix_enabled and not gateway_config.boleto_enabled
+    gateway_payment_available = pix_available or boleto_available
+    processor_name = getattr(settings, 'PAYMENT_PROCESSOR_NAME', '')
+    active_static_pix_methods = list(
+        PaymentMethod.objects.filter(
+            ativo=True,
+            tipo_provedor='PIX',
+            pix_type=PaymentMethod.PixType.STATIC,
+        ).order_by('pk')[:2]
+    )
+    unique_static_pix_method = (
+        active_static_pix_methods[0] if len(active_static_pix_methods) == 1 else None
+    )
     installments_data = []
-    for inst in billing.installments.order_by('installment_number'):
+    show_processor_notice = False
+    for inst in billing.installments.select_related('payment_method').order_by('installment_number'):
         active_charge = inst.gateway_charges.filter(
             status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
                         GatewayCharge.Status.CONFIRMED, GatewayCharge.Status.OVERDUE]
         ).order_by('-created_at').first()
         is_paid = inst.status == Installment.Status.PAGO
+        payment_method = inst.payment_method
+        if payment_method is None and billing.charge_config:
+            payment_method = billing.charge_config.default_payment_method
+        if payment_method is None:
+            payment_method = unique_static_pix_method
+        static_pix_key = ''
+        if (
+            gateway_methods_disabled
+            and payment_method
+            and payment_method.ativo
+            and payment_method.tipo_provedor == 'PIX'
+            and payment_method.pix_type == PaymentMethod.PixType.STATIC
+        ):
+            static_pix_key = payment_method.pix_key.strip()
+
+        show_processor_disclosure = bool(
+            processor_name and (active_charge or (not is_paid and gateway_payment_available))
+        )
+        show_processor_notice = show_processor_notice or show_processor_disclosure
         installments_data.append({
             'installment': inst,
             'active_charge': active_charge,
             'is_paid': is_paid,
+            'static_pix_key': static_pix_key,
+            'show_processor_disclosure': show_processor_disclosure,
         })
 
     os_url = None
@@ -2635,7 +2676,8 @@ def public_billing_page(request, token):
         'boleto_available': boleto_available,
         'has_cpf': has_cpf,
         'os_url': os_url,
-        'payment_processor_name': getattr(settings, 'PAYMENT_PROCESSOR_NAME', ''),
+        'payment_processor_name': processor_name,
+        'show_processor_notice': show_processor_notice,
     })
 
 

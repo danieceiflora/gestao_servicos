@@ -36,6 +36,20 @@
                     {% if form.tipo_provedor.errors %}<p class="text-xs text-rose-500">{{ form.tipo_provedor.errors.0 }}</p>{% endif %}
                 </div>
 
+                <!-- Configuração específica de PIX -->
+                <div id="pix-type-field" class="space-y-1.5 hidden">
+                    <label class="text-sm font-semibold text-slate-700">Tipo de PIX</label>
+                    {{ form.pix_type }}
+                    {% if form.pix_type.errors %}<p class="text-xs text-rose-500">{{ form.pix_type.errors.0 }}</p>{% endif %}
+                    <p class="text-[10px] text-slate-400">O PIX estático exibe uma chave ao cliente; o dinâmico é gerado pelo gateway.</p>
+                </div>
+
+                <div id="pix-key-field" class="space-y-1.5 hidden">
+                    <label class="text-sm font-semibold text-slate-700">Chave PIX</label>
+                    {{ form.pix_key }}
+                    {% if form.pix_key.errors %}<p class="text-xs text-rose-500">{{ form.pix_key.errors.0 }}</p>{% endif %}
+                </div>
+
                 <!-- Código SEFAZ -->
                 <div class="space-y-1.5">
                     <label class="text-sm font-semibold text-slate-700">Código SEFAZ (tPag)</label>
@@ -106,4 +120,29 @@
         </div>
     </form>
 </div>
+
+<script>
+    (function () {
+        const provider = document.getElementById('{{ form.tipo_provedor.id_for_label }}');
+        const pixType = document.getElementById('{{ form.pix_type.id_for_label }}');
+        const gateway = document.getElementById('{{ form.integra_gateway.id_for_label }}');
+        const pixTypeField = document.getElementById('pix-type-field');
+        const pixKeyField = document.getElementById('pix-key-field');
+
+        function syncPixFields() {
+            const isPix = provider && provider.value === 'PIX';
+            const isStatic = isPix && pixType && pixType.value === 'STATIC';
+            pixTypeField.classList.toggle('hidden', !isPix);
+            pixKeyField.classList.toggle('hidden', !isStatic);
+
+            if (isPix && pixType && pixType.value && gateway) {
+                gateway.checked = pixType.value === 'DYNAMIC';
+            }
+        }
+
+        if (provider) provider.addEventListener('change', syncPixFields);
+        if (pixType) pixType.addEventListener('change', syncPixFields);
+        syncPixFields();
+    })();
+</script>
 {% endblock %}

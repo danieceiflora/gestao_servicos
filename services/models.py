@@ -1261,6 +1261,10 @@ class ProviderType(models.TextChoices):
     CREDIARIO = 'CREDIARIO', 'Crediário'
 
 class PaymentMethod(models.Model):
+    class PixType(models.TextChoices):
+        STATIC = 'STATIC', 'Estático'
+        DYNAMIC = 'DYNAMIC', 'Dinâmico'
+
     descricao = models.CharField(max_length=100, verbose_name="Descrição")
     tipo_provedor = models.CharField(max_length=20, choices=ProviderType.choices, verbose_name="Tipo de Provedor")
     tarifa_porcentagem = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Tarifa (%)")
@@ -1274,6 +1278,21 @@ class PaymentMethod(models.Model):
         help_text="Marque apenas se este método for de fato processado automaticamente pelo "
                   "gateway (Asaas) — ex: Pix automático via Asaas. Não marque para Pix manual "
                   "via chave/CNPJ ou outros recebimentos que não passam pelo gateway."
+    )
+    pix_type = models.CharField(
+        max_length=10,
+        choices=PixType.choices,
+        blank=True,
+        default='',
+        verbose_name="Tipo de PIX",
+        help_text="PIX estático usa uma chave cadastrada; PIX dinâmico é gerado pelo gateway.",
+    )
+    pix_key = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name="Chave PIX",
+        help_text="Obrigatória para métodos PIX estáticos.",
     )
 
     class Meta:

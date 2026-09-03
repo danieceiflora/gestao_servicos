@@ -1104,7 +1104,7 @@ class PaymentMethodForm(forms.ModelForm):
         fields = [
             'descricao', 'tipo_provedor', 'tarifa_porcentagem',
             'tarifa_minima', 'tarifa_fixa', 'prazo_recebimento', 'codigo_sefaz', 'ativo',
-            'integra_gateway',
+            'integra_gateway', 'pix_type', 'pix_key',
         ]
         widgets = {
             'descricao': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: Cartão de Crédito Visa'}),
@@ -1116,7 +1116,37 @@ class PaymentMethodForm(forms.ModelForm):
             'codigo_sefaz': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: 03'}),
             'ativo': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
             'integra_gateway': forms.CheckboxInput(attrs={'class': 'switch-checkbox peer sr-only'}),
+            'pix_type': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'pix_key': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
+                'placeholder': 'CPF, CNPJ, e-mail, telefone ou chave aleatória',
+                'autocomplete': 'off',
+            }),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        provider_type = cleaned_data.get('tipo_provedor')
+        pix_type = cleaned_data.get('pix_type')
+        pix_key = (cleaned_data.get('pix_key') or '').strip()
+
+        if provider_type == 'PIX':
+            if not pix_type:
+                self.add_error('pix_type', 'Selecione se o PIX é estático ou dinâmico.')
+            elif pix_type == PaymentMethod.PixType.STATIC:
+                cleaned_data['integra_gateway'] = False
+                if not pix_key:
+                    self.add_error('pix_key', 'Informe a chave para o PIX estático.')
+                else:
+                    cleaned_data['pix_key'] = pix_key
+            elif pix_type == PaymentMethod.PixType.DYNAMIC:
+                cleaned_data['integra_gateway'] = True
+                cleaned_data['pix_key'] = ''
+        else:
+            cleaned_data['pix_type'] = ''
+            cleaned_data['pix_key'] = ''
+
+        return cleaned_data
 
 # --- EXPENSE FORMS ---
 

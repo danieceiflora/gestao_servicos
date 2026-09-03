@@ -42,6 +42,13 @@ def resolve_charge_config_from_post(request):
         return None
 
 
+def resolve_installment_payment_method_id(explicit_payment_method_id, charge_config=None):
+    """Mantém a escolha explícita da parcela e usa o método da regra como padrão."""
+    if explicit_payment_method_id:
+        return explicit_payment_method_id
+    return getattr(charge_config, 'default_payment_method_id', None)
+
+
 def compute_discount_deadline(discount_type, discount_value, discount_due_days, due_date):
     """due_date - discount_due_days, ou None se não há desconto (tipo NONE/vazio ou
     valor <= 0). Usado tanto no snapshot inicial da parcela quanto na edição manual
@@ -161,7 +168,9 @@ def create_billing_for_task(task, charge_config=None):
         installment_number=1,
         due_date=due_date,
         amount=net_value,
-        payment_method=task.preferred_payment_method,
+        payment_method_id=resolve_installment_payment_method_id(
+            task.preferred_payment_method_id, charge_config
+        ),
         status=Installment.Status.PENDENTE,
         **snapshot,
     )
@@ -229,7 +238,9 @@ def create_billing_for_sale(sale, installments_data=None, charge_config=None):
                 installment_number=i,
                 due_date=data['due_date'],
                 amount=data['amount'],
-                payment_method_id=data.get('payment_method_id'),
+                payment_method_id=resolve_installment_payment_method_id(
+                    data.get('payment_method_id'), charge_config
+                ),
                 status=Installment.Status.PENDENTE,
                 **snapshot,
             )
@@ -242,6 +253,7 @@ def create_billing_for_sale(sale, installments_data=None, charge_config=None):
             installment_number=1,
             due_date=due_date,
             amount=sale.total_amount - sale.discount,
+            payment_method_id=resolve_installment_payment_method_id(None, charge_config),
             status=Installment.Status.PENDENTE,
             **snapshot,
         )
