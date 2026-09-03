@@ -27,6 +27,30 @@
         </a>
     </div>
 
+    <div class="grid gap-4 lg:grid-cols-2">
+        <section class="bg-white rounded-2xl border border-slate-200 p-5">
+            <h2 class="font-bold text-slate-900 mb-4">Proveniência do cadastro</h2>
+            <dl class="grid grid-cols-2 gap-3 text-sm">
+                <div><dt class="text-slate-400">Origem</dt><dd class="font-bold">{{ product.get_registration_source_display }}</dd></div>
+                <div><dt class="text-slate-400">Criado em</dt><dd class="font-bold">{{ product.created_at|date:"d/m/Y H:i" }}</dd></div>
+                <div><dt class="text-slate-400">Responsável</dt><dd class="font-bold">{{ product.created_by.get_full_name|default:product.created_by.username|default:"—" }}</dd></div>
+                <div><dt class="text-slate-400">Atualizado em</dt><dd class="font-bold">{{ product.updated_at|date:"d/m/Y H:i" }}</dd></div>
+                <div><dt class="text-slate-400">Importação inicial</dt><dd>{% if product.source_import %}<a class="text-blue-600 font-bold" href="{% url 'product_import_history_detail' product.source_import_id %}">#{{ product.source_import_id }}</a>{% else %}—{% endif %}</dd></div>
+                <div><dt class="text-slate-400">Última importação</dt><dd>{% if product.last_import %}<a class="text-blue-600 font-bold" href="{% url 'product_import_history_detail' product.last_import_id %}">#{{ product.last_import_id }}</a>{% else %}—{% endif %}</dd></div>
+            </dl>
+        </section>
+        <section class="bg-white rounded-2xl border border-slate-200 p-5">
+            <h2 class="font-bold text-slate-900 mb-4">Alterações por importação</h2>
+            <div class="space-y-4 max-h-80 overflow-y-auto">
+                {% for item in import_items %}<div class="border-l-2 border-blue-200 pl-4">
+                    <a href="{% url 'product_import_history_detail' item.import_history_id %}" class="text-sm font-bold text-blue-600">Importação #{{ item.import_history_id }}</a>
+                    <p class="text-xs text-slate-400">{{ item.import_history.completed_at|default:item.created_at|date:"d/m/Y H:i" }} • {{ item.action }}</p>
+                    {% for change in item.changes %}<p class="mt-1 text-xs"><span class="font-bold">{{ change.descricao }}</span>: {{ change.valor_anterior|default_if_none:"—" }} → {{ change.valor_novo|default_if_none:"—" }}</p>{% endfor %}
+                </div>{% empty %}<p class="text-sm text-slate-400">Nenhuma alteração importada registrada.</p>{% endfor %}
+            </div>
+        </section>
+    </div>
+
     <!-- Stats -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">

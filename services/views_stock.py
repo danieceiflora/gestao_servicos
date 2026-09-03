@@ -14,6 +14,7 @@ from decimal import Decimal
 from openpyxl import load_workbook
 from django.http import HttpResponse, JsonResponse
 from django.db import transaction
+from django.utils import timezone
 from .models import (
     Product, StockMovement, ImportHistory, ImportItem, ProductCategory,
     Supplier, PurchaseInvoice, PurchaseInvoiceItem,
@@ -28,6 +29,7 @@ from .utils_nfe_import import (
     find_supplier_by_cnpj, get_or_create_supplier_from_xml, create_missing_products,
     _update_product_fiscal,
 )
+from .utils_product_import import parse_bling_rows
 
 class ManagerRequiredMixin(UserPassesTestMixin):
     def test_func(self):
@@ -70,10 +72,11 @@ class ProductListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        queryset = Product.objects.select_related('category').all()
+        queryset = Product.objects.select_related('category', 'last_import').all()
         search = self.request.GET.get('search')
         category = self.request.GET.get('category')
         status = self.request.GET.get('status')
+        source = self.request.GET.get('source')
         if search:
             queryset = queryset.filter(
                 Q(name__icontains=search) |
@@ -81,6 +84,8 @@ class ProductListView(LoginRequiredMixin, ListView):
             )
         if category:
             queryset = queryset.filter(category_id=category)
+        if source in Product.RegistrationSource.values:
+            queryset = queryset.filter(registration_source=source)
         if status == 'low':
             queryset = queryset.filter(current_stock__gt=0, current_stock__lte=F('min_stock'))
         elif status == 'zero':
@@ -105,6 +110,8 @@ class ProductListView(LoginRequiredMixin, ListView):
         context['categories'] = ProductCategory.objects.all().order_by('name')
         context['selected_category'] = self.request.GET.get('category', '')
         context['selected_status'] = self.request.GET.get('status', '')
+        context['selected_source'] = self.request.GET.get('source', '')
+        context['registration_sources'] = Product.RegistrationSource.choices
         return context
 
 class ProductCreateView(LoginRequiredMixin, ManagerRequiredMixin, CreateView):
@@ -130,6 +137,8 @@ class ProductCreateView(LoginRequiredMixin, ManagerRequiredMixin, CreateView):
         variant_formset = context['variant_formset']
 
         with transaction.atomic():
+            form.instance.registration_source = Product.RegistrationSource.MANUAL
+            form.instance.created_by = self.request.user
             self.object = form.save()
             if form.instance.format == 'COM_COMPOSICAO':
                 if composition_formset.is_valid():
@@ -221,7 +230,10 @@ class StockMovementCreateView(LoginRequiredMixin, ManagerRequiredMixin, CreateVi
 def product_stock_history(request, pk):
     from datetime import datetime, date
     product = get_object_or_404(Product, pk=pk)
-    movements = product.movements.all().select_related('user', 'service_order')
+    movements = product.movements.all().select_related('user', 'service_order', 'import_history')
+    import_items = product.importitem_set.filter(is_error=False).exclude(changes=[]).select_related(
+        'import_history', 'import_history__user'
+    ).order_by('-import_history__completed_at', '-created_at')
 
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
@@ -255,6 +267,7 @@ def product_stock_history(request, pk):
         'selected_type': mov_type or '',
         'chart_labels': chart_labels,
         'chart_data': chart_data,
+        'import_items': import_items,
     }
     return render(request, 'services/product_stock_history.html', context)
 
@@ -316,6 +329,531 @@ def product_import_template(request):
         
         return response
 
+
+def _normalized_product_name(value):
+    return ' '.join(str(value or '').casefold().split())
+
+
+def _build_bling_preview(rows, decisions=None):
+    decisions = decisions or {}
+    products = list(Product.objects.select_related('supplier').all())
+    products_by_id = {product.pk: product for product in products}
+    by_bling_id = {product.bling_id: product for product in products if product.bling_id is not None}
+    by_bling_code = {product.bling_code: product for product in products if product.bling_code}
+    by_code = {product.code: product for product in products if product.code}
+    by_barcode = {}
+    for product in products:
+        if product.barcode:
+            by_barcode.setdefault(product.barcode, []).append(product)
+
+    seen_bling_ids = set()
+    seen_bling_codes = set()
+    matched_product_ids = set()
+    reserved_local_codes = {}
+    existing_suppliers = {_normalized_product_name(name) for name in Supplier.objects.values_list('name', flat=True)}
+    existing_categories = {_normalized_product_name(name) for name in ProductCategory.objects.values_list('name', flat=True)}
+    new_suppliers = {
+        _normalized_product_name(row.get('supplier_name'))
+        for row in rows if row.get('supplier_name') and _normalized_product_name(row['supplier_name']) not in existing_suppliers
+    }
+    new_categories = {
+        _normalized_product_name(row.get('category_name'))
+        for row in rows if row.get('category_name') and _normalized_product_name(row['category_name']) not in existing_categories
+    }
+    preview_rows = []
+    summary = {
+        'total': len(rows), 'create': 0, 'update': 0, 'conflicts': 0,
+        'errors': 0, 'movements': 0, 'suppliers': len(new_suppliers),
+        'categories': len(new_categories), 'ignored': 0, 'pending': 0,
+        'resolved': 0,
+    }
+
+    for row in rows:
+        result = dict(row)
+        structural_errors = list(row.get('errors') or [])
+        problems = list(structural_errors)
+        product = None
+        match_reason = ''
+        decision = decisions.get(str(row['row_number']), {'decision': 'IMPORT'})
+        decision_type = decision.get('decision', 'IMPORT')
+
+        if row.get('bling_id') in seen_bling_ids:
+            problems.append('ID do Bling repetido na planilha.')
+        if row.get('bling_code') in seen_bling_codes:
+            problems.append('Código do Bling repetido na planilha.')
+        if row.get('bling_id') is not None:
+            seen_bling_ids.add(row['bling_id'])
+        if row.get('bling_code'):
+            seen_bling_codes.add(row['bling_code'])
+
+        if not problems:
+            product = by_bling_id.get(row.get('bling_id'))
+            if product:
+                match_reason = 'ID do Bling'
+
+        if not product and not problems and row.get('bling_code'):
+            product = by_bling_code.get(row['bling_code'])
+            if product:
+                match_reason = 'Código do Bling'
+
+        if not product and not problems and row.get('barcode'):
+            barcode_matches = by_barcode.get(row['barcode'], [])
+            if len(barcode_matches) == 1:
+                product = barcode_matches[0]
+                match_reason = 'GTIN/EAN'
+            elif len(barcode_matches) > 1:
+                problems.append('GTIN/EAN corresponde a mais de um produto local.')
+
+        supplier_code = row.get('supplier_code')
+        if not product and not problems and supplier_code and supplier_code in by_code:
+            candidate = by_code[supplier_code]
+            if _normalized_product_name(candidate.name) == _normalized_product_name(row.get('name')):
+                product = candidate
+                match_reason = 'código do fornecedor e descrição'
+            else:
+                problems.append(f'O código local {supplier_code} pertence a outro produto ({candidate.name}).')
+
+        local_code = None
+        if not product and not problems:
+            local_code = supplier_code or row.get('bling_code')
+            occupied = by_code.get(local_code)
+            if occupied:
+                problems.append(f'O código local {local_code} já pertence a {occupied.name}.')
+            elif local_code in reserved_local_codes:
+                problems.append(
+                    f'O código local {local_code} também será usado pela linha '
+                    f'{reserved_local_codes[local_code]} desta planilha.'
+                )
+
+        automatic_problems = list(problems)
+        automatic_product = product
+        automatic_local_code = local_code
+
+        if decision_type == 'IGNORE':
+            result.update({
+                'action': 'IGNORAR',
+                'base_action': 'ERRO' if structural_errors else ('CONFLITO' if automatic_problems else ('ATUALIZAR' if product else 'CRIAR')),
+                'details': decision.get('reason') or ('Ignorado pelo usuário.'),
+                'product_id': None,
+                'local_code': automatic_local_code,
+                'stock_delta': '0',
+                'resolution': 'IGNORE',
+                'requires_resolution': bool(automatic_problems),
+            })
+            summary['ignored'] += 1
+            preview_rows.append(result)
+            continue
+
+        if decision_type == 'CREATE' and not structural_errors:
+            product = None
+            problems = []
+            local_code = str(decision.get('local_code') or '').strip()
+            if not local_code:
+                problems.append('Informe um código local para criar o produto.')
+            elif local_code in by_code:
+                problems.append(f'O código local {local_code} já pertence a {by_code[local_code].name}.')
+            existing_external = by_bling_id.get(row.get('bling_id')) or by_bling_code.get(row.get('bling_code'))
+            if existing_external:
+                problems.append(f'O identificador do Bling já pertence a {existing_external.name}.')
+            match_reason = 'decisão manual: importar como novo'
+        elif decision_type == 'LINK' and not structural_errors:
+            problems = []
+            try:
+                product = products_by_id.get(int(decision.get('product_id')))
+            except (TypeError, ValueError):
+                product = None
+            if not product:
+                problems.append('Selecione um produto local válido para vincular.')
+            else:
+                if product.bling_id not in (None, row.get('bling_id')):
+                    problems.append(f'{product.name} já está vinculado a outro ID do Bling.')
+                if product.bling_code not in (None, '', row.get('bling_code')):
+                    problems.append(f'{product.name} já está vinculado a outro código do Bling.')
+                local_code = product.code
+                match_reason = 'decisão manual: produto vinculado'
+
+        if not product and not problems and local_code in reserved_local_codes:
+            problems.append(
+                f'O código local {local_code} também será usado pela linha '
+                f'{reserved_local_codes[local_code]} desta planilha.'
+            )
+
+        if product and product.pk in matched_product_ids:
+            problems.append(f'Mais de uma linha foi associada ao produto local {product.name}.')
+        if product and not problems:
+            matched_product_ids.add(product.pk)
+
+        if problems:
+            result.update({
+                'action': 'PENDENTE',
+                'base_action': 'ERRO' if structural_errors else 'CONFLITO',
+                'details': ' '.join(problems),
+                'product_id': None,
+                'local_code': local_code,
+                'stock_delta': '0',
+                'resolution': decision_type if decision_type in {'CREATE', 'LINK'} else '',
+                'resolution_product_id': product.pk if product else decision.get('product_id'),
+                'resolution_local_code': decision.get('local_code') or f"BLING-{row.get('bling_code')}",
+                'requires_resolution': True,
+            })
+            summary['errors' if structural_errors else 'conflicts'] += 1
+            summary['pending'] += 1
+        elif product:
+            delta = Decimal(row['stock']) - product.current_stock
+            result.update({
+                'action': 'ATUALIZAR',
+                'base_action': 'CONFLITO' if automatic_problems else 'ATUALIZAR',
+                'details': f'Correspondência por {match_reason}: {product.name}.',
+                'product_id': product.pk,
+                'local_code': product.code,
+                'stock_delta': str(delta),
+                'resolution': decision_type if decision_type == 'LINK' else '',
+                'resolution_product_id': product.pk if decision_type == 'LINK' else None,
+                'resolution_local_code': '',
+                'requires_resolution': bool(automatic_problems),
+            })
+            summary['update'] += 1
+            if automatic_problems:
+                summary['resolved'] += 1
+            if delta:
+                summary['movements'] += 1
+        else:
+            desired_stock = Decimal(row['stock'])
+            result.update({
+                'action': 'CRIAR',
+                'base_action': 'CONFLITO' if automatic_problems else 'CRIAR',
+                'details': f'Novo produto com código local {local_code}.',
+                'product_id': None,
+                'local_code': local_code,
+                'stock_delta': str(desired_stock),
+                'resolution': decision_type if decision_type == 'CREATE' else '',
+                'resolution_product_id': None,
+                'resolution_local_code': local_code,
+                'requires_resolution': bool(automatic_problems),
+            })
+            summary['create'] += 1
+            if automatic_problems:
+                summary['resolved'] += 1
+            if local_code:
+                reserved_local_codes[local_code] = row['row_number']
+            if desired_stock:
+                summary['movements'] += 1
+
+        preview_rows.append(result)
+
+    summary['blocked'] = bool(summary['pending'])
+    summary['selected'] = summary['create'] + summary['update']
+    return {'rows': preview_rows, 'summary': summary}
+
+
+def _get_or_create_supplier(name):
+    if not name:
+        return None, False
+    supplier = Supplier.objects.filter(name__iexact=name).first()
+    if supplier:
+        return supplier, False
+    return Supplier.objects.create(name=name, client_type='PJ'), True
+
+
+def _get_or_create_category(name):
+    if not name:
+        return None, False
+    category = ProductCategory.objects.filter(name__iexact=name).first()
+    if category:
+        return category, False
+    return ProductCategory.objects.create(name=name), True
+
+
+def _audit_value(value):
+    if isinstance(value, Decimal):
+        return str(value)
+    if hasattr(value, 'pk'):
+        return str(value)
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def _change(field, description, old, new):
+    if isinstance(old, Decimal) or isinstance(new, Decimal):
+        try:
+            if Decimal(str(old)) == Decimal(str(new)):
+                return None
+        except Exception:
+            pass
+    old_value, new_value = _audit_value(old), _audit_value(new)
+    if old_value == new_value:
+        return None
+    return {
+        'campo': field,
+        'descricao': description,
+        'valor_anterior': old_value,
+        'valor_novo': new_value,
+    }
+
+
+def _apply_bling_import(import_history, user):
+    source_rows = import_history.preview_data.get('source_rows') or []
+    decisions = import_history.preview_data.get('decisions') or {}
+    preview = _build_bling_preview(source_rows, decisions)
+    if preview['summary']['blocked']:
+        import_history.status = ImportHistory.Status.BLOQUEADA
+        import_history.preview_data = {'source_rows': source_rows, 'decisions': decisions, **preview}
+        import_history.save(update_fields=['status', 'preview_data'])
+        return None, preview
+
+    created_count = updated_count = movements_count = 0
+    suppliers_created = categories_created = 0
+
+    for row in preview['rows']:
+        if row['action'] == 'IGNORAR':
+            ImportItem.objects.create(
+                import_history=import_history,
+                row_number=row['row_number'],
+                identifier=row['bling_code'] or row['name'],
+                action='Ignorado',
+                details=row['details'] or 'Linha ignorada pelo usuário durante a revisão.',
+            )
+            continue
+
+        supplier, supplier_created = _get_or_create_supplier(row.get('supplier_name'))
+        category, category_created = _get_or_create_category(row.get('category_name'))
+        suppliers_created += int(supplier_created)
+        categories_created += int(category_created)
+
+        product = Product.objects.filter(pk=row.get('product_id')).first() if row.get('product_id') else None
+        created = product is None
+        if created:
+            product = Product(code=row['local_code'], current_stock=Decimal('0'))
+
+        old_stock = product.current_stock
+        previous_last_import_id = product.last_import_id
+        field_values = {
+            'name': ('Nome', row['name']),
+            'bling_id': ('ID no Bling', row['bling_id']),
+            'bling_code': ('Código no Bling', row['bling_code']),
+            'supplier_code': ('Código no fornecedor', row.get('supplier_code') or None),
+            'supplier': ('Fornecedor', supplier),
+            'category': ('Categoria', category),
+            'barcode': ('GTIN/EAN', row.get('barcode') or None),
+            'unit_type': ('Unidade', row['unit_type']),
+            'type': ('Tipo', row['type']),
+            'default_unit_price': ('Preço de venda', Decimal(row['default_unit_price'])),
+            'preco_custo': ('Preço de custo', Decimal(row['preco_custo'])),
+            'min_stock': ('Estoque mínimo', Decimal(row['min_stock'])),
+            'max_stock': ('Estoque máximo', Decimal(row['max_stock'])),
+            'weight': ('Peso bruto', Decimal(row['weight'])),
+            'net_weight': ('Peso líquido', Decimal(row['net_weight'])),
+            'width': ('Largura', Decimal(row['width'])),
+            'height': ('Altura', Decimal(row['height'])),
+            'depth': ('Profundidade', Decimal(row['depth'])),
+            'ncm': ('NCM', row.get('ncm')),
+            'cest': ('CEST', row.get('cest')),
+            'origem_mercadoria': ('Origem da mercadoria', row['origem_mercadoria']),
+            'is_active': ('Ativo', row['is_active']),
+        }
+        changes = []
+        for field, (description, new_value) in field_values.items():
+            item = _change(field, description, None if created else getattr(product, field), new_value)
+            if item:
+                changes.append(item)
+        existing_external = product.external_data if isinstance(product.external_data, dict) else {}
+        product.name = row['name']
+        product.bling_id = row['bling_id']
+        product.bling_code = row['bling_code']
+        product.supplier_code = row.get('supplier_code') or None
+        product.supplier = supplier
+        product.category = category
+        product.barcode = row.get('barcode') or None
+        product.unit_type = row['unit_type']
+        product.type = row['type']
+        product.format = Product.Format.SIMPLES
+        product.default_unit_price = Decimal(row['default_unit_price'])
+        product.preco_custo = Decimal(row['preco_custo'])
+        product.min_stock = Decimal(row['min_stock'])
+        product.max_stock = Decimal(row['max_stock'])
+        product.weight = Decimal(row['weight'])
+        product.net_weight = Decimal(row['net_weight'])
+        product.width = Decimal(row['width'])
+        product.height = Decimal(row['height'])
+        product.depth = Decimal(row['depth'])
+        product.ncm = row.get('ncm')
+        product.cest = row.get('cest')
+        product.origem_mercadoria = row['origem_mercadoria']
+        product.is_active = row['is_active']
+        product.external_data = {**existing_external, **row['external_data']}
+        if created:
+            product.registration_source = Product.RegistrationSource.BLING
+            product.created_by = user
+            product.source_import = import_history
+        product.last_import = import_history
+        product.save()
+
+        desired_stock = Decimal(row['stock'])
+        delta = desired_stock - old_stock
+        if delta:
+            product.current_stock = desired_stock
+            product.save(update_fields=['current_stock'])
+            StockMovement.objects.create(
+                product=product,
+                quantity=abs(delta),
+                movement_type=(StockMovement.MovementType.ENTRADA if delta > 0 else StockMovement.MovementType.SAIDA),
+                reason=StockMovement.Reason.AJUSTE,
+                user=user,
+                import_history=import_history,
+                notes=f'Ajuste de saldo pela importação Bling ({import_history.filename})',
+                saldo_apos=desired_stock,
+            )
+            movements_count += 1
+            changes.append(_change('current_stock', 'Estoque', old_stock, desired_stock))
+
+        if not created and not changes:
+            product.last_import_id = previous_last_import_id
+            product.save(update_fields=['last_import', 'updated_at'])
+            ImportItem.objects.create(
+                import_history=import_history, row_number=row['row_number'],
+                identifier=row['bling_code'] or row['name'], product=product,
+                action='Ignorado', details='Nenhuma alteração detectada.', changes=[],
+            )
+            continue
+
+        ImportItem.objects.create(
+            import_history=import_history,
+            row_number=row['row_number'],
+            identifier=row['bling_code'] or row['name'],
+            product=product,
+            action='Criado' if created else 'Atualizado',
+            details=f"Dados Bling sincronizados. Estoque: {old_stock} -> {desired_stock}.",
+            changes=[item for item in changes if item],
+        )
+        created_count += int(created)
+        updated_count += int(not created)
+
+    import_history.created_count = created_count
+    import_history.updated_count = updated_count
+    import_history.movements_count = movements_count
+    import_history.status = ImportHistory.Status.CONCLUIDA
+    import_history.completed_at = timezone.now()
+    import_history.errors = ''
+    import_history.preview_data = {}
+    import_history.save(update_fields=[
+        'created_count', 'updated_count', 'movements_count', 'status', 'completed_at', 'errors', 'preview_data'
+    ])
+    return {
+        'created': created_count,
+        'updated': updated_count,
+        'movements': movements_count,
+        'suppliers': suppliers_created,
+        'categories': categories_created,
+        'ignored': preview['summary']['ignored'],
+    }, preview
+
+
+def _bling_decisions_from_post(request, source_rows):
+    ignored_rows = set(request.POST.getlist('ignored_rows'))
+    decisions = {}
+    for row in source_rows:
+        row_key = str(row['row_number'])
+        if row_key in ignored_rows:
+            decisions[row_key] = {
+                'decision': 'IGNORE',
+                'reason': 'Linha ignorada pelo usuário durante a revisão.',
+            }
+            continue
+
+        resolution = request.POST.get(f'resolution_{row_key}', '').upper()
+        if resolution == 'CREATE':
+            decisions[row_key] = {
+                'decision': 'CREATE',
+                'local_code': request.POST.get(f'local_code_{row_key}', '').strip(),
+            }
+        elif resolution == 'LINK':
+            decisions[row_key] = {
+                'decision': 'LINK',
+                'product_id': request.POST.get(f'product_id_{row_key}', '').strip(),
+            }
+    return decisions
+
+
+@login_required
+@user_passes_test(is_manager)
+def product_import_review(request, pk):
+    import_history = get_object_or_404(
+        ImportHistory,
+        pk=pk,
+        user=request.user,
+        operation_type=ImportHistory.OperationType.BLING,
+    )
+    if import_history.status == ImportHistory.Status.CONCLUIDA:
+        messages.info(request, 'Esta importação já foi concluída.')
+        return redirect('product_import_history_detail', pk=import_history.pk)
+
+    source_rows = import_history.preview_data.get('source_rows') or []
+    decisions = import_history.preview_data.get('decisions') or {}
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'discard':
+            filename = import_history.filename
+            import_history.delete()
+            messages.success(request, f'Prévia de {filename} descartada. Nenhum produto foi alterado.')
+            return redirect('product_import')
+
+        if action in {'save_decisions', 'confirm'}:
+            decisions = _bling_decisions_from_post(request, source_rows)
+
+        preview = _build_bling_preview(source_rows, decisions)
+        import_history.status = ImportHistory.Status.BLOQUEADA if preview['summary']['blocked'] else ImportHistory.Status.PRONTA
+        import_history.preview_data = {'source_rows': source_rows, 'decisions': decisions, **preview}
+        import_history.save(update_fields=['status', 'preview_data'])
+
+        if action in {'save_decisions', 'revalidate'}:
+            if preview['summary']['blocked']:
+                messages.warning(request, f"Ainda existem {preview['summary']['pending']} linha(s) aguardando decisão.")
+            else:
+                messages.success(request, 'Decisões salvas. A importação está pronta para confirmar.')
+            return redirect('product_import_review', pk=import_history.pk)
+
+        if action == 'confirm':
+            if preview['summary']['blocked']:
+                messages.error(
+                    request,
+                    f"Ainda existem {preview['summary']['pending']} linha(s) sem uma decisão válida. "
+                    'As escolhas preenchidas foram preservadas.'
+                )
+                return redirect('product_import_review', pk=import_history.pk)
+            try:
+                with transaction.atomic():
+                    locked_history = ImportHistory.objects.select_for_update().get(pk=import_history.pk)
+                    result, refreshed_preview = _apply_bling_import(locked_history, request.user)
+                    if result is None:
+                        messages.error(request, 'A conciliação mudou. Revise as pendências antes de confirmar.')
+                        return redirect('product_import_review', pk=import_history.pk)
+            except Exception as exc:
+                messages.error(request, f'Erro ao confirmar a importação do Bling: {exc}')
+                return redirect('product_import_review', pk=import_history.pk)
+
+            messages.success(
+                request,
+                f"Importação concluída: {result['created']} criados, {result['updated']} atualizados, "
+                f"{result['ignored']} ignorados e {result['movements']} ajustes de estoque."
+            )
+            return redirect('product_list')
+
+    preview = _build_bling_preview(source_rows, decisions)
+    if import_history.preview_data.get('summary') != preview['summary']:
+        import_history.status = ImportHistory.Status.BLOQUEADA if preview['summary']['blocked'] else ImportHistory.Status.PRONTA
+        import_history.preview_data = {'source_rows': source_rows, 'decisions': decisions, **preview}
+        import_history.save(update_fields=['status', 'preview_data'])
+
+    return render(request, 'services/product_import_review.html', {
+        'import_obj': import_history,
+        'preview': preview,
+        'products': Product.objects.order_by('name', 'code'),
+    })
+
 @login_required
 @user_passes_test(is_manager)
 def product_import(request):
@@ -329,6 +867,28 @@ def product_import(request):
             # --- PREVENÇÃO DE DUPLICIDADE (CHECKSUM) ---
             file_content = file.read()
             file_hash = hashlib.sha256(file_content).hexdigest()
+
+            if op_type == ImportHistory.OperationType.BLING:
+                existing_import = ImportHistory.objects.filter(file_hash=file_hash).first()
+                if existing_import and existing_import.status == ImportHistory.Status.CONCLUIDA:
+                    messages.error(request, 'Este arquivo já foi importado anteriormente.')
+                    return redirect('product_import')
+                try:
+                    source_rows = parse_bling_rows(file_content, filename)
+                    preview = _build_bling_preview(source_rows)
+                except Exception as exc:
+                    messages.error(request, f'Erro ao ler a planilha do Bling: {exc}')
+                    return redirect('product_import')
+
+                import_history = existing_import or ImportHistory(user=request.user, file_hash=file_hash)
+                import_history.user = request.user
+                import_history.filename = filename
+                import_history.operation_type = ImportHistory.OperationType.BLING
+                import_history.status = ImportHistory.Status.BLOQUEADA if preview['summary']['blocked'] else ImportHistory.Status.PRONTA
+                import_history.preview_data = {'source_rows': source_rows, 'decisions': {}, **preview}
+                import_history.errors = ''
+                import_history.save()
+                return redirect('product_import_review', pk=import_history.pk)
             
             if ImportHistory.objects.filter(file_hash=file_hash).exists():
                 messages.error(request, "Este arquivo (ou um conteúdo idêntico) já foi importado anteriormente. Operação cancelada para evitar duplicidade.")
@@ -354,20 +914,20 @@ def product_import(request):
                 return redirect('product_import')
 
             unit_map = {
-                'UN': Product.UnitType.UNIT,
-                'M': Product.UnitType.METER,
-                'M2': Product.UnitType.SQUARE_METER,
-                'L': Product.UnitType.LITER,
-                'KG': Product.UnitType.KILO,
+                'UN': Product.UnitType.UNIDADE,
+                'M': Product.UnitType.METRO,
+                'M2': Product.UnitType.M2,
+                'L': Product.UnitType.LITRO,
+                'KG': Product.UnitType.QUILO,
             }
 
             # Mapping for movement reasons
             reason_map = {
-                'COMPRA': StockMovement.Reason.PURCHASE,
-                'VENDA': StockMovement.Reason.SALE_OS,
-                'AJUSTE': StockMovement.Reason.ADJUSTMENT,
-                'PERDA': StockMovement.Reason.LOSS,
-                'DEVOLUCAO': StockMovement.Reason.RETURN,
+                'COMPRA': StockMovement.Reason.COMPRA,
+                'VENDA': StockMovement.Reason.VENDA_OS,
+                'AJUSTE': StockMovement.Reason.AJUSTE,
+                'PERDA': StockMovement.Reason.PERDA,
+                'DEVOLUCAO': StockMovement.Reason.DEVOLUCAO,
             }
 
             created_count = 0
@@ -379,7 +939,10 @@ def product_import(request):
                 audit = ImportHistory.objects.create(
                     user=request.user,
                     filename=f"[{op_type}] {filename}",
-                    file_hash=file_hash
+                    file_hash=file_hash,
+                    operation_type=op_type,
+                    status=ImportHistory.Status.CONCLUIDA,
+                    completed_at=timezone.now(),
                 )
 
                 for index, row in enumerate(data, start=2):
@@ -423,33 +986,32 @@ def product_import(request):
                             mov_type = StockMovement.MovementType.ENTRADA if tipo_str in ['ENTRADA', 'E'] else StockMovement.MovementType.SAIDA
                             
                             reason_str = str(row.get('motivo') or 'AJUSTE').upper().strip()
-                            reason = reason_map.get(reason_str, StockMovement.Reason.ADJUSTMENT)
+                            reason = reason_map.get(reason_str, StockMovement.Reason.AJUSTE)
                             
                             notes = row.get('notas') or f"Importação em massa ({filename})"
 
-                            old_stock = float(product.current_stock)
+                            old_stock = product.current_stock
+                            quantity = Decimal(str(qty))
                             if mov_type == StockMovement.MovementType.ENTRADA:
-                                product.increase_stock(
-                                    Decimal(str(qty)),
-                                    user=request.user,
-                                    reason=reason,
-                                    notes=notes
-                                )
+                                new_stock = old_stock + quantity
                             else:
-                                product.reduce_stock(
-                                    Decimal(str(qty)),
-                                    user=request.user,
-                                    reason=reason,
-                                    notes=notes
-                                )
+                                new_stock = old_stock - quantity
+                            product.current_stock = new_stock
+                            product.last_import = audit
+                            product.save(update_fields=['current_stock', 'last_import', 'updated_at'])
+                            StockMovement.objects.create(
+                                product=product, quantity=quantity, movement_type=mov_type,
+                                reason=reason, user=request.user, notes=notes,
+                                import_history=audit, saldo_apos=new_stock,
+                            )
 
                             ImportItem.objects.create(
                                 import_history=audit, row_number=index, identifier=identifier,
                                 product=product, action="Estoque", 
-                                details=f"{'Acrescentado' if mov_type == StockMovement.MovementType.ENTRADA else 'Removido'} {qty} ({reason_str}). Saldo: {old_stock} -> {product.current_stock}"
+                                details=f"{'Acrescentado' if mov_type == StockMovement.MovementType.ENTRADA else 'Removido'} {qty} ({reason_str}). Saldo: {old_stock} -> {new_stock}",
+                                changes=[_change('current_stock', 'Estoque', old_stock, new_stock)],
                             )
                             movements_count += 1
-                            updated_count += 1
 
                         else:
                             # --- OPERAÇÃO: GESTÃO DE CATÁLOGO ---
@@ -461,7 +1023,7 @@ def product_import(request):
                                 continue
                             
                             unit_str = str(row.get('unidade') or 'UN').upper().strip()
-                            unit_type = unit_map.get(unit_str, Product.UnitType.UNIT)
+                            unit_type = unit_map.get(unit_str, Product.UnitType.UNIDADE)
                             
                             try:
                                 price = float(str(row.get('preco_venda') or 0).replace(',', '.'))
@@ -472,32 +1034,51 @@ def product_import(request):
 
                             product, created = Product.objects.get_or_create(
                                 code=code,
-                                defaults={'name': name, 'unit_type': unit_type, 'default_unit_price': price, 'is_active': is_active}
+                                defaults={
+                                    'name': name, 'unit_type': unit_type,
+                                    'default_unit_price': price, 'is_active': is_active,
+                                    'registration_source': Product.RegistrationSource.CATALOG,
+                                    'created_by': request.user, 'source_import': audit,
+                                    'last_import': audit,
+                                }
                             )
 
                             if created:
+                                item_changes = [
+                                    _change('name', 'Nome', None, name),
+                                    _change('unit_type', 'Unidade', None, unit_type),
+                                    _change('default_unit_price', 'Preço de venda', None, Decimal(str(price))),
+                                    _change('is_active', 'Ativo', None, is_active),
+                                ]
                                 ImportItem.objects.create(
                                     import_history=audit, row_number=index, identifier=identifier,
-                                    product=product, action="Criado", details=f"Produto novo. Preço: {price}. Ativo: {is_active}"
+                                    product=product, action="Criado", details=f"Produto novo. Preço: {price}. Ativo: {is_active}",
+                                    changes=[change for change in item_changes if change],
                                 )
                                 created_count += 1
                             else:
-                                changes = []
-                                if product.name != name: changes.append(f"Nome: {product.name} -> {name}")
-                                if float(product.default_unit_price) != price: changes.append(f"Preço: {product.default_unit_price} -> {price}")
-                                if product.is_active != is_active: changes.append(f"Ativo: {product.is_active} -> {is_active}")
+                                changes = [change for change in [
+                                    _change('name', 'Nome', product.name, name),
+                                    _change('unit_type', 'Unidade', product.unit_type, unit_type),
+                                    _change('default_unit_price', 'Preço de venda', product.default_unit_price, Decimal(str(price))),
+                                    _change('is_active', 'Ativo', product.is_active, is_active),
+                                ] if change]
                                 
                                 product.name = name
                                 product.unit_type = unit_type
                                 product.default_unit_price = price
                                 product.is_active = is_active
-                                product.save()
+                                if changes:
+                                    product.last_import = audit
+                                    product.save()
                                 
                                 ImportItem.objects.create(
                                     import_history=audit, row_number=index, identifier=identifier,
-                                    product=product, action="Atualizado", details=", ".join(changes) if changes else "Nenhuma alteração detectada"
+                                    product=product, action="Atualizado" if changes else "Ignorado",
+                                    details="Campos do catálogo atualizados." if changes else "Nenhuma alteração detectada",
+                                    changes=changes,
                                 )
-                                updated_count += 1
+                                updated_count += int(bool(changes))
 
                     except Exception as e:
                         ImportItem.objects.create(
@@ -521,6 +1102,15 @@ def product_import(request):
     else:
         form = ProductImportForm()
     
+    preview_id = request.GET.get('preview')
+    if preview_id:
+        preview_history = ImportHistory.objects.filter(
+            pk=preview_id,
+            user=request.user,
+            operation_type=ImportHistory.OperationType.BLING,
+        ).first()
+        if preview_history:
+            return redirect('product_import_review', pk=preview_history.pk)
     return render(request, 'services/product_import.html', {'form': form})
 
 class ImportHistoryListView(LoginRequiredMixin, ManagerRequiredMixin, ListView):
@@ -529,6 +1119,12 @@ class ImportHistoryListView(LoginRequiredMixin, ManagerRequiredMixin, ListView):
     context_object_name = 'imports'
     paginate_by = 20
 
+    def get_queryset(self):
+        return super().get_queryset().select_related('user').annotate(
+            ignored_count=Count('items_logged', filter=Q(items_logged__action='Ignorado')),
+            error_count=Count('items_logged', filter=Q(items_logged__is_error=True)),
+        )
+
 class ImportHistoryDetailView(LoginRequiredMixin, ManagerRequiredMixin, DetailView):
     model = ImportHistory
     template_name = 'services/product_import_history_detail.html'
@@ -536,7 +1132,24 @@ class ImportHistoryDetailView(LoginRequiredMixin, ManagerRequiredMixin, DetailVi
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['items'] = self.object.items_logged.all().select_related('product')
+        items = self.object.items_logged.all().select_related('product')
+        action = self.request.GET.get('action', '')
+        search = self.request.GET.get('search', '').strip()
+        if action:
+            items = items.filter(action=action)
+        if search:
+            items = items.filter(Q(identifier__icontains=search) | Q(product__name__icontains=search) | Q(product__code__icontains=search))
+        context['items'] = items
+        all_items = self.object.items_logged.all()
+        context['ignored_count'] = all_items.filter(action='Ignorado').count()
+        context['error_count'] = all_items.filter(is_error=True).count()
+        context['impacted_products'] = Product.objects.filter(
+            importitem__import_history=self.object,
+            importitem__is_error=False,
+        ).exclude(importitem__action='Ignorado').distinct().order_by('name')
+        context['actions'] = all_items.order_by().values_list('action', flat=True).distinct()
+        context['selected_action'] = action
+        context['search'] = search
         return context
 
 
@@ -632,7 +1245,7 @@ def purchase_invoice_import_preview(request):
             return redirect('purchase_invoice_detail', pk=duplicate_invoice.pk)
 
         matched_items, _unmatched = match_products(parsed['items'])
-        created_products = create_missing_products(matched_items, supplier=supplier)
+        created_products = create_missing_products(matched_items, supplier=supplier, user=request.user)
 
         # Modo Bling: opt-in checkbox pra atualizar campos fiscais de produtos
         # já cadastrados (só preenche campos vazios — nunca sobrescreve
@@ -873,7 +1486,7 @@ def purchase_invoice_create(request):
                 matched_items, _unmatched = match_products(parsed['items'])
 
                 supplier, supplier_created = get_or_create_supplier_from_xml(parsed)
-                created_products = create_missing_products(matched_items, supplier=supplier)
+                created_products = create_missing_products(matched_items, supplier=supplier, user=request.user)
 
                 header_initial = {
                     'supplier': supplier.id if supplier else None,

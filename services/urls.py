@@ -85,6 +85,7 @@ urlpatterns = [
     path('produtos/', views_stock.ProductListView.as_view(), name='product_list'),
     path('produtos/novo/', views_stock.ProductCreateView.as_view(), name='product_create'),
     path('produtos/importar/', views_stock.product_import, name='product_import'),
+    path('produtos/importar/<int:pk>/revisar/', views_stock.product_import_review, name='product_import_review'),
     path('produtos/importar/modelo/', views_stock.product_import_template, name='product_import_template'),
     path('produtos/importar/historico/', views_stock.ImportHistoryListView.as_view(), name='product_import_history'),
     path('produtos/importar/historico/<int:pk>/', views_stock.ImportHistoryDetailView.as_view(), name='product_import_history_detail'),

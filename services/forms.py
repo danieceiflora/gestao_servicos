@@ -992,6 +992,7 @@ class ProductImportForm(forms.Form):
     OPERATION_CHOICES = [
         ('CATALOG', 'Gestão de Catálogo (Criar/Ativar/Inativar)'),
         ('STOCK', 'Atualização de Estoque (Ajuste de Saldo)'),
+        ('BLING', 'Importação completa do Bling (.xls)'),
     ]
     
     operation_type = forms.ChoiceField(
@@ -1002,8 +1003,26 @@ class ProductImportForm(forms.Form):
     file = forms.FileField(
         label="Arquivo (CSV ou Excel)",
         help_text="Selecione o arquivo correspondente ao modelo da operação escolhida.",
-        widget=forms.FileInput(attrs={'class': 'w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500', 'accept': '.csv, .xlsx'})
+        widget=forms.FileInput(attrs={'class': 'w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500', 'accept': '.csv,.xlsx,.xls'})
     )
+
+    def clean_file(self):
+        uploaded = self.cleaned_data['file']
+        extension = uploaded.name.lower().rsplit('.', 1)[-1] if '.' in uploaded.name else ''
+        if extension not in {'csv', 'xlsx', 'xls'}:
+            raise forms.ValidationError('Formato inválido. Envie um arquivo CSV, XLSX ou XLS.')
+        return uploaded
+
+    def clean(self):
+        cleaned_data = super().clean()
+        uploaded = cleaned_data.get('file')
+        operation_type = cleaned_data.get('operation_type')
+        if uploaded and uploaded.name.lower().endswith('.xls') and operation_type != 'BLING':
+            self.add_error(
+                'operation_type',
+                'Arquivos .xls exportados do Bling devem usar a operação “Importação completa do Bling”.'
+            )
+        return cleaned_data
 
 
 # --- SALES (PDV) FORMS ---

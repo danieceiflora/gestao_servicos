@@ -551,12 +551,33 @@ class ProductCategory(models.Model):
 
 
 class Product(models.Model):
+    class RegistrationSource(models.TextChoices):
+        MANUAL = 'MANUAL', 'Manual'
+        BLING = 'BLING', 'Bling'
+        CATALOG = 'CATALOG', 'Catálogo CSV/XLSX'
+        XML = 'XML', 'XML de nota'
+        LEGACY = 'LEGACY', 'Legado'
+
     class UnitType(models.TextChoices):
         UNIDADE = 'UNIDADE', 'Unidade (un)'
         METRO = 'METRO', 'Metro (mt)'
         M2 = 'M2', 'Metro Quadrado (m²)'
         LITRO = 'LITRO', 'Litro (lt)'
         QUILO = 'QUILO', 'Quilo (kg)'
+        PECA = 'PC', 'Peça (pc)'
+        CAIXA = 'CX', 'Caixa (cx)'
+        CENTO = 'CE', 'Cento (ce)'
+        CARTELA = 'CT', 'Cartela (ct)'
+        PAR = 'PR', 'Par (pr)'
+        PACOTE = 'PCT', 'Pacote (pct)'
+        POTE = 'PT', 'Pote (pt)'
+        ROLO = 'RL', 'Rolo (rl)'
+        MAO_OBRA = 'MO', 'Mão de obra (mo)'
+        BARRA = 'BR', 'Barra (br)'
+        JOGO = 'JO', 'Jogo (jo)'
+        HORA = 'HR', 'Hora (hr)'
+        TUBO = 'TB', 'Tubo (tb)'
+        SACO = 'SC', 'Saco (sc)'
 
     class Format(models.TextChoices):
         SIMPLES = 'SIMPLES', 'Simples'
@@ -569,7 +590,7 @@ class Product(models.Model):
         PRODUTO_ACABADO = 'PRODUTO_ACABADO', 'Produto acabado'
         MATERIA_PRIMA = 'MATERIA_PRIMA', 'Matéria prima'
 
-    name = models.CharField(max_length=255, unique=True, verbose_name="Produto")
+    name = models.CharField(max_length=255, verbose_name="Produto")
     category = models.ForeignKey(
         ProductCategory,
         on_delete=models.SET_NULL,
@@ -585,6 +606,9 @@ class Product(models.Model):
         verbose_name="Fornecedor Padrão"
     )
     code = models.CharField(max_length=60, unique=True, null=True, blank=True, verbose_name="Código")
+    bling_id = models.PositiveBigIntegerField(unique=True, null=True, blank=True, verbose_name="ID no Bling")
+    bling_code = models.CharField(max_length=60, unique=True, null=True, blank=True, verbose_name="Código no Bling")
+    supplier_code = models.CharField(max_length=60, null=True, blank=True, verbose_name="Código no Fornecedor")
     barcode = models.CharField(max_length=14, blank=True, null=True, verbose_name="Código de Barras (GTIN/EAN)")
     image = models.ImageField(upload_to='products/', null=True, blank=True, verbose_name="Imagem do Produto")
     unit_type = models.CharField(max_length=10, choices=UnitType.choices, default=UnitType.UNIDADE, verbose_name="Unidade de Venda")
@@ -623,15 +647,34 @@ class Product(models.Model):
     preco_venda_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Preço Venda Total")
 
     default_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço Padrão")
-    current_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Atual")
-    min_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Mínimo")
-    max_stock = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Estoque Máximo")
+    current_stock = models.DecimalField(max_digits=14, decimal_places=4, default=0, verbose_name="Estoque Atual")
+    min_stock = models.DecimalField(max_digits=14, decimal_places=4, default=0, verbose_name="Estoque Mínimo")
+    max_stock = models.DecimalField(max_digits=14, decimal_places=4, default=0, verbose_name="Estoque Máximo")
+    net_weight = models.DecimalField(max_digits=10, decimal_places=5, default=0, verbose_name="Peso Líquido (kg)")
     weight = models.DecimalField(max_digits=8, decimal_places=3, default=0, verbose_name="Peso Bruto (kg)")
     width = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Largura (cm)")
     height = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Altura (cm)")
     depth = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Profundidade (cm)")
+    external_data = models.JSONField(default=dict, blank=True, verbose_name="Dados Externos")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    registration_source = models.CharField(
+        max_length=10, choices=RegistrationSource.choices,
+        default=RegistrationSource.LEGACY, verbose_name="Origem do cadastro",
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='products_created', verbose_name="Cadastrado por",
+    )
+    source_import = models.ForeignKey(
+        'ImportHistory', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='products_created', verbose_name="Importação de origem",
+    )
+    last_import = models.ForeignKey(
+        'ImportHistory', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='products_last_affected', verbose_name="Última importação",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última alteração")
 
     def __str__(self):
         return self.name
@@ -653,7 +696,7 @@ class Product(models.Model):
                 product=self,
                 quantity=quantity,
                 movement_type=StockMovement.MovementType.SAIDA,
-                reason=reason or StockMovement.Reason.ADJUSTMENT,
+                reason=reason or StockMovement.Reason.AJUSTE,
                 user=user,
                 notes=notes,
                 service_order=service_order,
@@ -688,7 +731,7 @@ class Product(models.Model):
                 product=self,
                 quantity=quantity,
                 movement_type=StockMovement.MovementType.ENTRADA,
-                reason=reason or StockMovement.Reason.PURCHASE,
+                reason=reason or StockMovement.Reason.COMPRA,
                 user=user,
                 notes=notes,
                 service_order=service_order,
@@ -762,14 +805,30 @@ class ProductVariant(models.Model):
 
 
 class ImportHistory(models.Model):
+    class OperationType(models.TextChoices):
+        CATALOG = 'CATALOG', 'Gestão de Catálogo'
+        STOCK = 'STOCK', 'Atualização de Estoque'
+        BLING = 'BLING', 'Importação Bling'
+
+    class Status(models.TextChoices):
+        PENDENTE = 'PENDENTE', 'Pendente'
+        BLOQUEADA = 'BLOQUEADA', 'Bloqueada'
+        PRONTA = 'PRONTA', 'Pronta para confirmar'
+        CONCLUIDA = 'CONCLUIDA', 'Concluída'
+        FALHA = 'FALHA', 'Falha'
+
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Usuário")
     filename = models.CharField(max_length=255, verbose_name="Arquivo")
     file_hash = models.CharField(max_length=64, unique=True, null=True, blank=True, verbose_name="Hash do Arquivo (Prevenção Duplicidade)")
+    operation_type = models.CharField(max_length=10, choices=OperationType.choices, default=OperationType.CATALOG, verbose_name="Tipo de Operação")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.CONCLUIDA, verbose_name="Status")
+    preview_data = models.JSONField(default=dict, blank=True, verbose_name="Dados da Prévia")
     created_count = models.PositiveIntegerField(default=0, verbose_name="Produtos Criados")
     updated_count = models.PositiveIntegerField(default=0, verbose_name="Produtos Atualizados")
     movements_count = models.PositiveIntegerField(default=0, verbose_name="Movimentações Geradas")
     errors = models.TextField(blank=True, verbose_name="Erros/Alertas")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data/Hora")
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Conclusão")
 
     class Meta:
         verbose_name = "Histórico de Importação"
@@ -789,6 +848,7 @@ class ImportItem(models.Model):
     action = models.CharField(max_length=50, verbose_name="Ação")
     details = models.TextField(verbose_name="Detalhes da Alteração")
     is_error = models.BooleanField(default=False, verbose_name="É Erro?")
+    changes = models.JSONField(default=list, blank=True, verbose_name="Alterações estruturadas")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -811,14 +871,14 @@ class StockMovement(models.Model):
         DEVOLUCAO = 'DEVOLUCAO', 'Devolução'
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='movements', verbose_name="Produto")
-    quantity = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Quantidade")
+    quantity = models.DecimalField(max_digits=14, decimal_places=4, verbose_name="Quantidade")
     movement_type = models.CharField(max_length=10, choices=MovementType.choices, verbose_name="Tipo de Movimento")
     reason = models.CharField(max_length=20, choices=Reason.choices, verbose_name="Motivo")
     service_order = models.ForeignKey('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='stock_movements', verbose_name="Ordem de Serviço")
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Usuário")
     import_history = models.ForeignKey(ImportHistory, on_delete=models.SET_NULL, null=True, blank=True, related_name='movements', verbose_name="Origem (Importação)")
     notes = models.TextField(blank=True, verbose_name="Observações")
-    saldo_apos = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Saldo Após")
+    saldo_apos = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True, verbose_name="Saldo Após")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data/Hora")
 
     def __str__(self):

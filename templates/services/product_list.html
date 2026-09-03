@@ -96,6 +96,10 @@
                 <option value="low" {% if selected_status == 'low' %}selected{% endif %}>⚠️ Abaixo do mínimo</option>
                 <option value="zero" {% if selected_status == 'zero' %}selected{% endif %}>🔴 Zerados</option>
             </select>
+            <select name="source" class="px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium">
+                <option value="">Todas as origens</option>
+                {% for value, label in registration_sources %}<option value="{{ value }}" {% if selected_source == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
             <button type="submit" class="px-6 py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all text-sm">
                 Filtrar
             </button>
@@ -129,6 +133,7 @@
                         {% endif %}
                     </div>
                     <p class="text-xs text-slate-500 font-medium">{{ product.code|default:"Sem código" }} • {{ product.get_unit_type_display }}</p>
+                    <p class="mt-1 text-[10px] font-bold text-slate-500">{{ product.get_registration_source_display }}{% if product.last_import %} • importação #{{ product.last_import_id }}{% endif %}</p>
                 </div>
             </div>
             
@@ -179,6 +184,7 @@
                 <tr class="bg-slate-50/50 border-b border-slate-200">
                     <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest w-20">Foto</th>
                     <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Produto / SKU</th>
+                    <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Origem</th>
                     <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Unidade</th>
                     <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Saldo Atual</th>
                     <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Preço Venda</th>
@@ -203,6 +209,10 @@
                     <td class="px-6 py-4">
                         <a href="{% url 'product_edit' product.pk %}" class="font-bold text-slate-900 group-hover:text-blue-600 transition-colors hover:underline">{{ product.name }}</a>
                         <div class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{{ product.code|default:"---" }}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex px-2 py-1 rounded-md text-[10px] font-black uppercase bg-blue-50 text-blue-700">{{ product.get_registration_source_display }}</span>
+                        {% if product.last_import %}<a href="{% url 'product_import_history_detail' product.last_import_id %}" class="block mt-1 text-[10px] text-slate-400 hover:text-blue-600">Última: #{{ product.last_import_id }}</a>{% endif %}
                     </td>
                     <td class="px-6 py-4 text-center">
                         <span class="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">{{ product.get_unit_type_display }}</span>
@@ -252,7 +262,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="px-6 py-20 text-center">
+                    <td colspan="8" class="px-6 py-20 text-center">
                         <div class="flex flex-col items-center gap-4 text-slate-300">
                             <div class="p-6 bg-slate-50 rounded-full">
                                 <i data-lucide="box" class="h-12 w-12"></i>

@@ -324,7 +324,7 @@ def _update_product_fiscal(product, item):
     return [f for f in changed if f != 'tax_field']
 
 
-def create_missing_products(matched_items, supplier=None):
+def create_missing_products(matched_items, supplier=None, user=None):
     """Cadastra automaticamente, no catálogo, os produtos do XML que não
     casaram com nenhum produto existente (por código ou EAN). Preenche
     `item['product']` com o produto recém-criado. Retorna a lista de
@@ -350,6 +350,8 @@ def create_missing_products(matched_items, supplier=None):
             supplier=supplier,
             default_unit_price=item['unit_cost'],
             preco_custo=item['unit_cost'],
+            registration_source=Product.RegistrationSource.XML,
+            created_by=user,
             **fiscal_kwargs,
         )
         try:

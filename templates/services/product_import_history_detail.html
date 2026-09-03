@@ -15,6 +15,7 @@
                     <span class="px-2.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-black rounded-md uppercase tracking-wider">#{{ import_obj.id }}</span>
                 </div>
                 <p class="text-slate-500 text-sm font-medium">{{ import_obj.filename }} • {{ import_obj.created_at|date:"d/m/Y H:i" }}</p>
+                <p class="text-xs text-slate-400">{{ import_obj.get_operation_type_display }} • {{ import_obj.get_status_display }} • conclusão {{ import_obj.completed_at|date:"d/m/Y H:i"|default:"—" }} • {{ import_obj.user.get_full_name|default:import_obj.user.username|default:"Sistema" }}</p>
             </div>
         </div>
         
@@ -32,8 +33,21 @@
                 <p class="text-[10px] font-black text-slate-400 uppercase">Movimentos</p>
                 <p class="text-xl font-black text-slate-900">{{ import_obj.movements_count }}</p>
             </div>
+            <div class="text-center px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100"><p class="text-[10px] font-black text-slate-400 uppercase">Ignorados</p><p class="text-xl font-black">{{ ignored_count }}</p></div>
+            <div class="text-center px-4 py-2 bg-red-50 rounded-2xl border border-red-100"><p class="text-[10px] font-black text-red-400 uppercase">Erros</p><p class="text-xl font-black text-red-600">{{ error_count }}</p></div>
         </div>
     </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs font-black uppercase text-slate-400 mb-2">Produtos impactados</p>
+        <div class="flex flex-wrap gap-2">{% for product in impacted_products %}<a href="{% url 'product_stock_history' product.pk %}" class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold">{{ product.name }}</a>{% empty %}<span class="text-sm text-slate-400">Nenhum produto impactado.</span>{% endfor %}</div>
+    </div>
+
+    <form method="get" class="flex flex-wrap gap-3 bg-white rounded-2xl border border-slate-200 p-4">
+        <input name="search" value="{{ search }}" placeholder="Produto ou SKU" class="px-3 py-2 bg-slate-50 border rounded-xl text-sm">
+        <select name="action" class="px-3 py-2 bg-slate-50 border rounded-xl text-sm"><option value="">Todas as ações</option>{% for value in actions %}<option value="{{ value }}" {% if selected_action == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
+        <button class="px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold">Filtrar</button>
+    </form>
 
     <!-- Log Table -->
     <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
@@ -72,6 +86,7 @@
                         <p class="text-xs font-medium text-slate-600 leading-relaxed max-w-md">
                             {{ item.details }}
                         </p>
+                        {% if item.changes %}<details class="mt-2"><summary class="cursor-pointer text-xs font-bold text-blue-600">Ver {{ item.changes|length }} alteração(õ)</summary><div class="mt-2 space-y-1">{% for change in item.changes %}<p class="text-xs"><strong>{{ change.descricao }}</strong>: {{ change.valor_anterior|default_if_none:"—" }} → {{ change.valor_novo|default_if_none:"—" }}</p>{% endfor %}</div></details>{% endif %}
                     </td>
                     <td class="px-6 py-4">
                         {% if item.is_error %}
