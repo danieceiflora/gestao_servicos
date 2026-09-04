@@ -66,13 +66,22 @@ def sample_row(**overrides):
 
 
 class BlingParserTests(TestCase):
-    def test_xls_requires_bling_operation(self):
+    def test_form_rejects_removed_operation(self):
         form = ProductImportForm(
             data={'operation_type': 'CATALOG'},
             files={'file': SimpleUploadedFile('produtos.xls', b'xls')},
         )
         self.assertFalse(form.is_valid())
-        self.assertIn('Importação completa do Bling', form.errors['operation_type'][0])
+        self.assertIn('operation_type', form.errors)
+
+    def test_form_accepts_supported_bling_extensions(self):
+        for extension in ('csv', 'xlsx', 'xls'):
+            with self.subTest(extension=extension):
+                form = ProductImportForm(
+                    data={'operation_type': 'BLING'},
+                    files={'file': SimpleUploadedFile(f'produtos.{extension}', b'conteudo')},
+                )
+                self.assertTrue(form.is_valid(), form.errors)
 
     def test_brazilian_decimal_and_complete_mapping(self):
         self.assertEqual(str(decimal_from_brazilian('2.172,5350')), '2172.5350')
@@ -128,6 +137,32 @@ class BlingImportFlowTests(TestCase):
             'action': 'confirm',
             **data,
         })
+
+    def test_import_page_exposes_only_bling_flow(self):
+        response = self.client.get(self.url)
+
+        self.assertContains(response, 'Importação completa do Bling')
+        self.assertNotContains(response, 'Gestão de catálogo')
+        self.assertNotContains(response, 'Movimentação de estoque')
+        self.assertNotContains(response, 'Modelo CSV')
+
+    def test_forged_legacy_operation_is_rejected_without_writes(self):
+        upload = SimpleUploadedFile(
+            'bling.xlsx',
+            make_bling_xlsx([sample_row()]),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+
+        response = self.client.post(self.url, {
+            'action': 'preview',
+            'operation_type': 'CATALOG',
+            'file': upload,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Somente a importação completa do Bling está disponível.')
+        self.assertFalse(ImportHistory.objects.exists())
+        self.assertFalse(Product.objects.exists())
 
     def test_preview_does_not_write_and_confirmation_imports_all_data(self):
         history = self.upload_preview([sample_row()])
@@ -381,7 +416,7 @@ class BlingImportFlowTests(TestCase):
         self.assertContains(import_detail, 'Ver ')
 
 
-class CatalogAuditTests(TestCase):
+class ProductAuditTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username='catalog-manager', password='password123', role=User.Roles.MANAGER,
@@ -405,19 +440,16 @@ class CatalogAuditTests(TestCase):
         self.assertIsNotNone(product.created_at)
         self.assertIsNotNone(product.updated_at)
 
-    def test_catalog_creation_records_origin_user_and_structured_changes(self):
-        content = b'nome,codigo,unidade,preco_venda,ativo_sim_nao\nProduto CSV,CSV-1,UN,"12.50",S\n'
-        response = self.client.post(reverse('product_import'), {
-            'operation_type': 'CATALOG',
-            'file': SimpleUploadedFile('catalogo.csv', content, content_type='text/csv'),
-        })
-        self.assertRedirects(response, reverse('product_list'))
-        product = Product.objects.get(code='CSV-1')
-        history = ImportHistory.objects.get(operation_type=ImportHistory.OperationType.CATALOG)
-        item = ImportItem.objects.get(import_history=history)
-        self.assertEqual(product.registration_source, Product.RegistrationSource.CATALOG)
-        self.assertEqual(product.created_by, self.user)
-        self.assertEqual(product.source_import, history)
-        self.assertEqual(product.last_import, history)
-        self.assertTrue(item.changes)
-        self.assertTrue(all({'campo', 'descricao', 'valor_anterior', 'valor_novo'} <= set(change) for change in item.changes))
+    def test_legacy_catalog_history_remains_readable(self):
+        history = ImportHistory.objects.create(
+            user=self.user,
+            filename='catalogo-antigo.csv',
+            operation_type=ImportHistory.OperationType.CATALOG,
+            status=ImportHistory.Status.CONCLUIDA,
+        )
+
+        listing = self.client.get(reverse('product_import_history'))
+        detail = self.client.get(reverse('product_import_history_detail', args=[history.pk]))
+
+        self.assertContains(listing, 'Gestão de Catálogo')
+        self.assertContains(detail, 'Gestão de Catálogo')

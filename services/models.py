@@ -820,7 +820,7 @@ class ImportHistory(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Usuário")
     filename = models.CharField(max_length=255, verbose_name="Arquivo")
     file_hash = models.CharField(max_length=64, unique=True, null=True, blank=True, verbose_name="Hash do Arquivo (Prevenção Duplicidade)")
-    operation_type = models.CharField(max_length=10, choices=OperationType.choices, default=OperationType.CATALOG, verbose_name="Tipo de Operação")
+    operation_type = models.CharField(max_length=10, choices=OperationType.choices, default=OperationType.BLING, verbose_name="Tipo de Operação")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.CONCLUIDA, verbose_name="Status")
     preview_data = models.JSONField(default=dict, blank=True, verbose_name="Dados da Prévia")
     created_count = models.PositiveIntegerField(default=0, verbose_name="Produtos Criados")

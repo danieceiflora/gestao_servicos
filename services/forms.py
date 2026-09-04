@@ -990,15 +990,15 @@ class StockMovementForm(forms.ModelForm):
 
 class ProductImportForm(forms.Form):
     OPERATION_CHOICES = [
-        ('CATALOG', 'Gestão de Catálogo (Criar/Ativar/Inativar)'),
-        ('STOCK', 'Atualização de Estoque (Ajuste de Saldo)'),
         ('BLING', 'Importação completa do Bling (.xls)'),
     ]
     
     operation_type = forms.ChoiceField(
         label="Tipo de Operação",
         choices=OPERATION_CHOICES,
-        widget=forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500'})
+        initial='BLING',
+        widget=forms.HiddenInput(),
+        error_messages={'invalid_choice': 'Somente a importação completa do Bling está disponível.'},
     )
     file = forms.FileField(
         label="Arquivo (CSV ou Excel)",
@@ -1016,12 +1016,6 @@ class ProductImportForm(forms.Form):
     def clean(self):
         cleaned_data = super().clean()
         uploaded = cleaned_data.get('file')
-        operation_type = cleaned_data.get('operation_type')
-        if uploaded and uploaded.name.lower().endswith('.xls') and operation_type != 'BLING':
-            self.add_error(
-                'operation_type',
-                'Arquivos .xls exportados do Bling devem usar a operação “Importação completa do Bling”.'
-            )
         return cleaned_data
 
 
