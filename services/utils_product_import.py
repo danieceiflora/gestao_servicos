@@ -1,5 +1,6 @@
 import csv
 import io
+import logging
 import re
 import unicodedata
 from datetime import date, datetime
@@ -11,6 +12,7 @@ from .models import Product
 
 
 BLING_REQUIRED_HEADERS = {'id', 'codigo', 'descricao', 'preco', 'estoque'}
+logger = logging.getLogger(__name__)
 
 
 def normalize_header(value):
@@ -75,7 +77,22 @@ def read_spreadsheet(file_content, filename):
             import xlrd
         except ImportError as exc:
             raise ValueError('Suporte a XLS indisponível. Instale a dependência xlrd.') from exc
-        workbook = xlrd.open_workbook(file_contents=file_content)
+        xlrd_log = io.StringIO()
+        try:
+            workbook = xlrd.open_workbook(file_contents=file_content, logfile=xlrd_log)
+        except xlrd.compdoc.CompDocError as exc:
+            if 'Workbook corruption' not in str(exc):
+                raise
+            logger.warning(
+                'Planilha XLS %s possui inconsistência OLE; repetindo leitura em modo tolerante: %s',
+                filename,
+                exc,
+            )
+            workbook = xlrd.open_workbook(
+                file_contents=file_content,
+                logfile=xlrd_log,
+                ignore_workbook_corruption=True,
+            )
         sheet = workbook.sheet_by_index(0)
         if not sheet.nrows:
             return []

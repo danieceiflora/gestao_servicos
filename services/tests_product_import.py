@@ -1,14 +1,16 @@
 from io import BytesIO
 from decimal import Decimal
+from unittest.mock import ANY, MagicMock, call, patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from openpyxl import Workbook
+from xlrd.compdoc import CompDocError
 
 from .models import ImportHistory, ImportItem, Product, ProductCategory, StockMovement, Supplier, User
 from .forms import ProductImportForm
-from .utils_product_import import decimal_from_brazilian, parse_bling_rows
+from .utils_product_import import decimal_from_brazilian, parse_bling_rows, read_spreadsheet
 
 
 BLING_HEADERS = [
@@ -66,6 +68,53 @@ def sample_row(**overrides):
 
 
 class BlingParserTests(TestCase):
+    @staticmethod
+    def xls_workbook():
+        sheet = MagicMock()
+        sheet.nrows = 2
+        sheet.row_values.side_effect = [
+            ['ID', 'Código', 'Descrição', 'Preço', 'Estoque'],
+            [1, 'P-1', 'Produto', '10,00', '2,0000'],
+        ]
+        workbook = MagicMock()
+        workbook.sheet_by_index.return_value = sheet
+        return workbook
+
+    @patch('xlrd.open_workbook')
+    def test_xls_workbook_corruption_retries_in_tolerant_mode(self, open_workbook):
+        workbook = self.xls_workbook()
+        open_workbook.side_effect = [
+            CompDocError('Workbook corruption: seen[2] == 4'),
+            workbook,
+        ]
+
+        with self.assertLogs('services.utils_product_import', level='WARNING'):
+            rows = read_spreadsheet(b'xls-content', 'produtos.xls')
+
+        self.assertEqual(rows[0]['Código'], 'P-1')
+        self.assertEqual(open_workbook.call_args_list, [
+            call(file_contents=b'xls-content', logfile=ANY),
+            call(file_contents=b'xls-content', logfile=ANY, ignore_workbook_corruption=True),
+        ])
+
+    @patch('xlrd.open_workbook')
+    def test_xls_unrelated_compound_document_error_is_not_ignored(self, open_workbook):
+        open_workbook.side_effect = CompDocError('Not an OLE2 compound document')
+
+        with self.assertRaisesMessage(CompDocError, 'Not an OLE2 compound document'):
+            read_spreadsheet(b'invalid', 'produtos.xls')
+
+        open_workbook.assert_called_once_with(file_contents=b'invalid', logfile=ANY)
+
+    @patch('xlrd.open_workbook')
+    def test_valid_xls_uses_only_strict_read(self, open_workbook):
+        open_workbook.return_value = self.xls_workbook()
+
+        rows = read_spreadsheet(b'valid-xls', 'produtos.xls')
+
+        self.assertEqual(rows[0]['ID'], 1)
+        open_workbook.assert_called_once_with(file_contents=b'valid-xls', logfile=ANY)
+
     def test_form_rejects_removed_operation(self):
         form = ProductImportForm(
             data={'operation_type': 'CATALOG'},
