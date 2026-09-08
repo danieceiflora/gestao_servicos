@@ -2602,7 +2602,6 @@ def public_sale_pdf(request, token):
 def public_billing_page(request, token):
     from integracoes.models import SystemConfig
     from pagamentos.models import GatewayConfig, GatewayCharge
-    from django.conf import settings
     from django.urls import reverse
 
     billing = get_object_or_404(
@@ -2618,7 +2617,6 @@ def public_billing_page(request, token):
 
     gateway_methods_disabled = not gateway_config.pix_enabled and not gateway_config.boleto_enabled
     gateway_payment_available = pix_available or boleto_available
-    processor_name = getattr(settings, 'PAYMENT_PROCESSOR_NAME', '')
     active_static_pix_methods = list(
         PaymentMethod.objects.filter(
             ativo=True,
@@ -2653,7 +2651,7 @@ def public_billing_page(request, token):
             static_pix_key = payment_method.pix_key.strip()
 
         show_processor_disclosure = bool(
-            processor_name and (active_charge or (not is_paid and gateway_payment_available))
+            active_charge or (not is_paid and gateway_payment_available)
         )
         show_processor_notice = show_processor_notice or show_processor_disclosure
         installments_data.append({
@@ -2676,7 +2674,6 @@ def public_billing_page(request, token):
         'boleto_available': boleto_available,
         'has_cpf': has_cpf,
         'os_url': os_url,
-        'payment_processor_name': processor_name,
         'show_processor_notice': show_processor_notice,
     })
 

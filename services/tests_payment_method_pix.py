@@ -96,8 +96,8 @@ class PublicBillingStaticPixTests(TestCase):
 
         self.assertContains(response, 'financeiro@example.com')
         self.assertContains(response, 'Copiar chave PIX')
-        self.assertNotContains(response, 'Pagamento processado com segurança por')
-        self.assertNotContains(response, 'será processado por')
+        self.assertNotContains(response, 'Servicos_financeiros_Asaas-Reduzida-Positivo.svg')
+        self.assertNotContains(response, 'será processado pelo')
 
     def test_does_not_show_static_key_when_a_gateway_method_is_enabled(self):
         self.gateway.status = GatewayConfig.Status.APPROVED
@@ -109,7 +109,8 @@ class PublicBillingStaticPixTests(TestCase):
 
         self.assertNotContains(response, 'financeiro@example.com')
         self.assertContains(response, 'Boleto Bancário')
-        self.assertContains(response, 'Pagamento processado com segurança por')
+        self.assertContains(response, 'Servicos_financeiros_Asaas-Reduzida-Positivo.svg')
+        self.assertContains(response, 'instituição de pagamento autorizada a funcionar pelo Banco Central do Brasil')
 
     def test_missing_static_key_falls_back_to_contact_message(self):
         self.gateway.pix_enabled = False

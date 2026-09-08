@@ -35,6 +35,23 @@
   </div>
   {% endif %}
 
+  <!-- Identificação regulatória obrigatória na jornada de criação da subconta -->
+  <div class="rounded-xl bg-slate-900 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
+    <a href="https://asaas.com" target="_blank" rel="noopener noreferrer"
+       class="inline-flex shrink-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-900"
+       aria-label="Acessar o site oficial do Asaas">
+      <img src="https://baas.asaas.com/selos/Servicos_financeiros_Asaas-Reduzida-Negativo-Branco.svg?id=1ae9c823-8727-4a4f-8499-c990db2de512"
+           alt="Serviços financeiros prestados pelo Asaas" width="160" height="48"
+           class="inline-block w-40 h-12 object-contain">
+    </a>
+    <p class="text-xs leading-relaxed text-slate-300">
+      A conta de pagamento e os serviços financeiros são prestados pelo
+      <strong class="font-semibold text-white">ASAAS GESTÃO FINANCEIRA INSTITUIÇÃO DE PAGAMENTOS S.A.</strong>,
+      instituição de pagamento autorizada a funcionar pelo Banco Central do Brasil. Esta plataforma atua
+      exclusivamente como integradora tecnológica.
+    </p>
+  </div>
+
   <form method="post">
     {% csrf_token %}
 
