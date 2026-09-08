@@ -2602,6 +2602,7 @@ def public_sale_pdf(request, token):
 def public_billing_page(request, token):
     from integracoes.models import SystemConfig
     from pagamentos.models import GatewayConfig, GatewayCharge
+    from django.conf import settings
     from django.urls import reverse
 
     billing = get_object_or_404(
@@ -2617,6 +2618,9 @@ def public_billing_page(request, token):
 
     gateway_methods_disabled = not gateway_config.pix_enabled and not gateway_config.boleto_enabled
     gateway_payment_available = pix_available or boleto_available
+    payment_recipient_name = (
+        getattr(settings, 'PAYMENT_PROCESSOR_NAME', '') or ''
+    ).strip() or 'Gynbots Sistemas'
     active_static_pix_methods = list(
         PaymentMethod.objects.filter(
             ativo=True,
@@ -2674,6 +2678,7 @@ def public_billing_page(request, token):
         'boleto_available': boleto_available,
         'has_cpf': has_cpf,
         'os_url': os_url,
+        'payment_recipient_name': payment_recipient_name,
         'show_processor_notice': show_processor_notice,
     })
 

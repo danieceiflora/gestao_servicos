@@ -110,7 +110,21 @@ class PublicBillingStaticPixTests(TestCase):
         self.assertNotContains(response, 'financeiro@example.com')
         self.assertContains(response, 'Boleto Bancário')
         self.assertContains(response, 'Servicos_financeiros_Asaas-Reduzida-Positivo.svg')
+        self.assertContains(response, 'Nome do recebedor no banco')
+        self.assertContains(response, 'GynBots')
+        self.assertContains(response, 'Pagamento processado por')
         self.assertContains(response, 'instituição de pagamento autorizada a funcionar pelo Banco Central do Brasil')
+
+    @override_settings(PAYMENT_PROCESSOR_NAME='')
+    def test_gateway_disclosure_uses_recipient_fallback(self):
+        self.gateway.status = GatewayConfig.Status.APPROVED
+        self.gateway.pix_enabled = True
+        self.gateway.save(update_fields=['status', 'pix_enabled'])
+
+        response = self.client.get(self.url)
+
+        self.assertContains(response, 'Nome do recebedor no banco')
+        self.assertContains(response, 'Gynbots Sistemas')
 
     def test_missing_static_key_falls_back_to_contact_message(self):
         self.gateway.pix_enabled = False

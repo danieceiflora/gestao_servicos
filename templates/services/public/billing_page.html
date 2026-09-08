@@ -58,9 +58,31 @@
         {% endif %}
     </div>
 
-    <!-- Identificação regulatória do prestador BaaS (Resolução Conjunta nº 16/2025) -->
+    <!-- Papéis da cobrança e identificação regulatória do prestador BaaS -->
     {% if show_processor_notice %}
     <div class="bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm space-y-3">
+        <div>
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Antes de pagar</p>
+            <dl class="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
+                <div class="px-3 py-2.5 bg-slate-50 flex items-start justify-between gap-4">
+                    <dt class="text-xs text-slate-500">Serviço contratado de</dt>
+                    <dd class="text-xs font-bold text-slate-800 text-right">{{ config.company_name|default:"Empresa contratada" }}</dd>
+                </div>
+                <div class="px-3 py-2.5 flex items-start justify-between gap-4">
+                    <dt class="text-xs text-slate-500">Nome do recebedor no banco</dt>
+                    <dd class="text-xs font-bold text-slate-800 text-right">{{ payment_recipient_name }}</dd>
+                </div>
+                <div class="px-3 py-2.5 bg-slate-50 flex items-start justify-between gap-4">
+                    <dt class="text-xs text-slate-500">Pagamento processado por</dt>
+                    <dd class="text-xs font-bold text-slate-800 text-right">Asaas</dd>
+                </div>
+            </dl>
+            <p class="text-[11px] text-slate-500 leading-relaxed mt-2">
+                O nome <strong class="font-semibold text-slate-700">{{ payment_recipient_name }}</strong> poderá aparecer
+                no comprovante ou na tela do seu banco. Esta cobrança continua sendo referente ao serviço contratado
+                com <strong class="font-semibold text-slate-700">{{ config.company_name|default:"a empresa identificada acima" }}</strong>.
+            </p>
+        </div>
         <a href="https://asaas.com" target="_blank" rel="noopener noreferrer"
            class="inline-flex rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
            aria-label="Acessar o site oficial do Asaas">
@@ -73,7 +95,7 @@
                 Os serviços financeiros e de pagamentos desta página são prestados pelo
                 <strong class="font-bold text-slate-800">ASAAS GESTÃO FINANCEIRA INSTITUIÇÃO DE PAGAMENTOS S.A.</strong>,
                 instituição de pagamento autorizada a funcionar pelo Banco Central do Brasil.
-                <strong>{{ config.company_name|default:"Esta plataforma" }}</strong> atua como integradora tecnológica.
+                <strong>{{ payment_recipient_name }}</strong> atua exclusivamente como integradora tecnológica.
             </p>
             <p class="text-[11px] text-slate-500 leading-relaxed">
                 Suporte para operações financeiras Asaas:
@@ -226,12 +248,13 @@
                         </div>
                         <p class="text-sm text-slate-600 leading-relaxed">
                             O pagamento de <strong class="text-slate-800">R$ {{ inst.amount|floatformat:"2" }}</strong>
-                            referente a <strong class="text-slate-800">{{ billing.origem }}</strong>
-                            será processado pelo <strong class="text-slate-800">Asaas</strong>, instituição de
-                            pagamento autorizada a funcionar pelo Banco Central do Brasil.
+                            é referente ao serviço contratado com
+                            <strong class="text-slate-800">{{ config.company_name|default:"a empresa identificada nesta página" }}</strong>.
                         </p>
                         <p class="text-sm text-slate-600 leading-relaxed">
-                            O valor será creditado diretamente ao prestador após a confirmação do pagamento.
+                            No banco, o recebedor poderá aparecer como
+                            <strong class="text-slate-800">{{ payment_recipient_name }}</strong>. O pagamento é processado
+                            pelo <strong class="text-slate-800">Asaas</strong>.
                         </p>
                     </div>
                     <button
