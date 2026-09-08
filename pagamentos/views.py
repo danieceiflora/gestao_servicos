@@ -64,12 +64,28 @@ def gateway_config_view(request):
             except Exception:
                 pass
 
-        config.pix_enabled = 'pix_enabled' in request.POST
-        config.boleto_enabled = 'boleto_enabled' in request.POST
+        requested_pix = 'pix_enabled' in request.POST
+        requested_boleto = 'boleto_enabled' in request.POST
+        accepted_terms = 'fee_terms_accepted' in request.POST
 
         # webhook_token pode ser vazio intencionalmente (desabilitar validação)
         config.webhook_token = request.POST.get('webhook_token', '').strip()
 
+        requires_acceptance = action == 'create_subaccount' or requested_pix or requested_boleto
+        if requires_acceptance and not accepted_terms:
+            config.save()
+            messages.error(
+                request,
+                'Para ativar a integração, leia e marque a declaração de ciência das tarifas de comodidade.',
+            )
+            return redirect('pagamentos:gateway_config')
+
+        config.pix_enabled = requested_pix
+        config.boleto_enabled = requested_boleto
+        if accepted_terms:
+            config.accept_current_fee_terms(request.user)
+        elif not requested_pix and not requested_boleto:
+            config.clear_fee_terms_acceptance()
         config.save()
 
         if action == 'create_subaccount':
@@ -83,6 +99,10 @@ def gateway_config_view(request):
 
     context = {
         'config': config,
+        'fee_terms': {
+            key: value.replace('.', ',')
+            for key, value in config.current_fee_terms().items()
+        },
         'title': 'Gateway de Pagamentos — Asaas',
         'active_menu': 'integracoes',
     }

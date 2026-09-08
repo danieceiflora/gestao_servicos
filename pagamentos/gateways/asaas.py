@@ -18,22 +18,14 @@ PRODUCTION_URL = 'https://api.asaas.com/v3'
 # (pior cenário, assumindo que o desconto de antecipação será totalmente usado).
 #
 # PIX: regime híbrido —
-#   - valor com desconto < PIX_PERCENT_BREAKEVEN: taxa FIXA (MIN_SPLIT_MARGIN), via
-#     split fixedValue, para garantir o custo operacional mínimo (cobre a tarifa real
-#     do Asaas de ~R$1,99) em cobranças pequenas.
-#   - valor com desconto >= PIX_PERCENT_BREAKEVEN: split PERCENTUAL (PIX_PLATFORM_PERCENT),
-#     que escala automaticamente com o que o Asaas efetivamente receber.
+#   - calcula PIX_PLATFORM_PERCENT sobre o valor efetivo;
+#   - limita o resultado entre MIN_SPLIT_MARGIN e MAX_SPLIT_MARGIN;
+#   - usa split fixedValue para garantir os dois limites.
 # BOLETO: sempre taxa fixa (BOLETO_PLATFORM_FIXED), via split fixedValue.
-PIX_PLATFORM_PERCENT = Decimal('0.008')   # 0,80% retido pela master (repassa 99,20% à subconta)
-BOLETO_PLATFORM_FIXED = Decimal('2.50')   # R$ 2,50 fixo retido pela master
-
-# Piso mínimo de margem, em R$, garantido via taxa fixa quando o valor com desconto
-# não é suficiente para que a porcentagem cubra o custo operacional.
-MIN_SPLIT_MARGIN = Decimal('2.50')
-
-# Ponto de equilíbrio: acima deste valor (com desconto), 0,80% já supera MIN_SPLIT_MARGIN,
-# então o percentual passa a ser usado no lugar da taxa fixa.
-PIX_PERCENT_BREAKEVEN = MIN_SPLIT_MARGIN / PIX_PLATFORM_PERCENT  # R$ 312,50
+PIX_PLATFORM_PERCENT = settings.ASAAS_PIX_COMMODITY_PERCENT / Decimal('100')
+MIN_SPLIT_MARGIN = settings.ASAAS_PIX_COMMODITY_MINIMUM
+MAX_SPLIT_MARGIN = settings.ASAAS_PIX_COMMODITY_MAXIMUM
+BOLETO_PLATFORM_FIXED = settings.ASAAS_BOLETO_COMMODITY_FEE
 
 STATUS_MAP = {
     'PENDING': 'PENDING',
@@ -181,25 +173,23 @@ class AsaasGateway(BasePaymentGateway):
         Se wallet_id for fornecido, configura split com base no valor COM desconto
         (pior cenário, assumindo que o desconto de antecipação será totalmente usado):
 
-        - PIX com valor-com-desconto >= PIX_PERCENT_BREAKEVEN: split percentual
-          (PIX_PLATFORM_PERCENT), que escala automaticamente com o que o Asaas
-          efetivamente receber — nunca excede o valor recebido.
-        - Caso contrário (PIX abaixo do breakeven, ou Boleto): split fixedValue,
-          calculado sobre o valor-com-desconto, garantindo MIN_SPLIT_MARGIN /
-          BOLETO_PLATFORM_FIXED de margem mesmo se o desconto for usado.
+        - PIX: percentual configurável, limitado pelos valores mínimo e máximo.
+        - Boleto: tarifa fixa configurável.
+
+        O split usa fixedValue para que os limites do PIX sejam respeitados.
         """
         split_kwargs = None
         if wallet_id:
             discount_amount = self._discount_amount(data.amount, data.discount_type, data.discount_value)
             worst_case_value = data.amount - discount_amount
 
-            if data.method == 'PIX' and worst_case_value >= PIX_PERCENT_BREAKEVEN:
-                client_percent = (Decimal('1') - PIX_PLATFORM_PERCENT) * Decimal('100')
-                split_kwargs = {'percentualValue': float(round(client_percent, 2))}
+            if data.method == 'PIX':
+                calculated_margin = worst_case_value * PIX_PLATFORM_PERCENT
+                margin = min(max(calculated_margin, MIN_SPLIT_MARGIN), MAX_SPLIT_MARGIN)
             else:
-                fixed_margin = MIN_SPLIT_MARGIN if data.method == 'PIX' else BOLETO_PLATFORM_FIXED
-                client_amount = max(worst_case_value - fixed_margin, Decimal('0'))
-                split_kwargs = {'fixedValue': float(round(client_amount, 2))}
+                margin = BOLETO_PLATFORM_FIXED
+            client_amount = max(worst_case_value - margin, Decimal('0'))
+            split_kwargs = {'fixedValue': float(round(client_amount, 2))}
 
         customer_id = self._get_or_create_customer(
             data.customer_name, data.customer_document, data.customer_email

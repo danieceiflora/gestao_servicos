@@ -195,6 +195,52 @@
         </div>
       </div>
 
+      <!-- Ciência das tarifas de comodidade -->
+      <div class="px-5 py-5 space-y-4 bg-blue-50/60">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-800">Tarifas de comodidade</h3>
+          <p class="text-xs text-slate-600 leading-relaxed mt-1">
+            A utilização da integração de pagamentos está sujeita às tarifas abaixo, descontadas do valor
+            repassado em cada transação.
+          </p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="rounded-lg border border-blue-200 bg-white p-3">
+            <p class="text-xs font-semibold text-slate-800">PIX</p>
+            <p class="text-sm font-bold text-blue-700 mt-1">{{ fee_terms.pix_percent }}% por transação</p>
+            <p class="text-[11px] text-slate-500 mt-1">Mínimo de R$ {{ fee_terms.pix_minimum }} e máximo de R$ {{ fee_terms.pix_maximum }}.</p>
+          </div>
+          <div class="rounded-lg border border-blue-200 bg-white p-3">
+            <p class="text-xs font-semibold text-slate-800">Boleto bancário</p>
+            <p class="text-sm font-bold text-blue-700 mt-1">R$ {{ fee_terms.boleto_fee }} por transação</p>
+            <p class="text-[11px] text-slate-500 mt-1">Tarifa fixa para cada boleto processado.</p>
+          </div>
+        </div>
+        <p class="text-xs text-slate-600 leading-relaxed">
+          Essas tarifas remuneram a disponibilização, integração e operação digital dos meios de pagamento.
+          Elas não serão acrescentadas ao valor cobrado do seu cliente; serão descontadas do valor da transação
+          antes do repasse.
+        </p>
+        <label for="fee_terms_accepted" class="flex items-start gap-3 rounded-lg border border-blue-200 bg-white p-4 cursor-pointer">
+          <input type="checkbox" name="fee_terms_accepted" id="fee_terms_accepted"
+                 {% if config.has_current_fee_acceptance %}checked{% endif %}
+                 class="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+          <span class="text-xs text-slate-700 leading-relaxed">
+            Declaro que li e estou ciente das tarifas de comodidade apresentadas acima. Entendo que, caso os
+            valores sejam atualizados, será necessário realizar um novo aceite para continuar utilizando o gateway
+            de pagamentos.
+          </span>
+        </label>
+        {% if config.fee_terms_accepted_at and not config.has_current_fee_acceptance %}
+        <p class="text-xs font-medium text-amber-700">As tarifas foram atualizadas. Revise os valores e realize um novo aceite.</p>
+        {% elif config.has_current_fee_acceptance %}
+        <p class="text-[11px] text-emerald-700">
+          Aceite registrado em {{ config.fee_terms_accepted_at|date:"d/m/Y" }} às {{ config.fee_terms_accepted_at|time:"H:i" }}
+          {% if config.fee_terms_accepted_by %}por {{ config.fee_terms_accepted_by.get_full_name|default:config.fee_terms_accepted_by.username }}{% endif %}.
+        </p>
+        {% endif %}
+      </div>
+
     </div>
 
     <!-- Ações -->
@@ -206,8 +252,9 @@
       </button>
 
       {% if not config.wallet_id %}
-      <button type="submit" name="action" value="create_subaccount"
-              class="inline-flex items-center gap-2 bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+      <button type="submit" name="action" value="create_subaccount" id="btn-create-subaccount"
+              {% if not config.has_current_fee_acceptance %}disabled{% endif %}
+              class="inline-flex items-center gap-2 bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               onclick="return confirm('Isso enviará os dados para o Asaas e solicitará a criação da subconta. Confirma?')">
         <i data-lucide="send" class="h-4 w-4"></i>
         Abrir Subconta no Asaas
@@ -223,5 +270,19 @@
   </form>
 
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const acceptance = document.getElementById('fee_terms_accepted');
+    const createButton = document.getElementById('btn-create-subaccount');
+    if (!acceptance || !createButton) return;
+
+    const syncCreateButton = function () {
+      createButton.disabled = !acceptance.checked;
+    };
+    acceptance.addEventListener('change', syncCreateButton);
+    syncCreateButton();
+  });
+</script>
 
 {% endblock %}

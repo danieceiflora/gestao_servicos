@@ -1,4 +1,6 @@
 from django.db import models
+from django.conf import settings
+from django.utils import timezone
 from decimal import Decimal
 
 
@@ -155,6 +157,18 @@ class GatewayConfig(models.Model):
                   'O Asaas envia este valor no header asaas-access-token.',
     )
 
+    fee_terms_accepted_at = models.DateTimeField(
+        'Aceite das tarifas em', null=True, blank=True, editable=False,
+    )
+    fee_terms_accepted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='gateway_fee_terms_acceptances', editable=False,
+        verbose_name='Aceite das tarifas por',
+    )
+    fee_terms_snapshot = models.JSONField(
+        'Tarifas aceitas', default=dict, blank=True, editable=False,
+    )
+
     # Split — margem retida pela plataforma
     platform_split_type = models.CharField('Tipo de Split', max_length=10,
                                            choices=SplitType.choices, default=SplitType.PERCENT)
@@ -178,7 +192,7 @@ class GatewayConfig(models.Model):
 
     @property
     def is_active(self):
-        return self.status == self.Status.APPROVED
+        return self.status == self.Status.APPROVED and self.has_current_fee_acceptance
 
     @property
     def is_sandbox(self):
@@ -188,6 +202,8 @@ class GatewayConfig(models.Model):
     @property
     def can_generate_charges(self):
         """Em produção exige APPROVED. Em sandbox libera se a subconta já foi criada."""
+        if not self.has_current_fee_acceptance:
+            return False
         if self.status == self.Status.APPROVED:
             return True
         if self.is_sandbox and self.wallet_id and self.status in [
@@ -195,6 +211,33 @@ class GatewayConfig(models.Model):
         ]:
             return True
         return False
+
+    @staticmethod
+    def current_fee_terms():
+        """Snapshot normalizado usado na tela, no aceite e na invalidação."""
+        return {
+            'pix_percent': str(settings.ASAAS_PIX_COMMODITY_PERCENT),
+            'pix_minimum': str(settings.ASAAS_PIX_COMMODITY_MINIMUM),
+            'pix_maximum': str(settings.ASAAS_PIX_COMMODITY_MAXIMUM),
+            'boleto_fee': str(settings.ASAAS_BOLETO_COMMODITY_FEE),
+        }
+
+    @property
+    def has_current_fee_acceptance(self):
+        return bool(
+            self.fee_terms_accepted_at
+            and self.fee_terms_snapshot == self.current_fee_terms()
+        )
+
+    def accept_current_fee_terms(self, user=None):
+        self.fee_terms_snapshot = self.current_fee_terms()
+        self.fee_terms_accepted_at = timezone.now()
+        self.fee_terms_accepted_by = user if getattr(user, 'is_authenticated', False) else None
+
+    def clear_fee_terms_acceptance(self):
+        self.fee_terms_snapshot = {}
+        self.fee_terms_accepted_at = None
+        self.fee_terms_accepted_by = None
 
 
 class GatewayCharge(models.Model):

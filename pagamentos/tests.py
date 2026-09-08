@@ -1,11 +1,97 @@
 import json
 from decimal import Decimal
+from datetime import date
 from unittest.mock import patch
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from pagamentos.gateways.asaas import AsaasGateway
+from pagamentos.gateways.base import ChargeData
+from pagamentos.models import GatewayConfig
 from integracoes.models import PlatformInvoice, PlatformSubscription, PlatformSubscriptionEvent
+from services.models import User
+
+
+class AsaasGatewayFeeTests(TestCase):
+    def _charge_payload(self, method, amount):
+        gateway = AsaasGateway()
+        data = ChargeData(
+            customer_name='Cliente', customer_document='12345678901', customer_email='',
+            description='Teste', amount=Decimal(amount), due_date=date.today(),
+            method=method, external_reference='test',
+        )
+        with patch.object(gateway, '_get_or_create_customer', return_value='cus_1'), \
+             patch.object(gateway, '_get', return_value={}), \
+             patch.object(gateway, '_post', return_value={
+                 'id': 'pay_1', 'status': 'PENDING', 'value': float(data.amount),
+             }) as mocked_post:
+            gateway.create_charge(data, wallet_id='wallet_client')
+        return mocked_post.call_args.args[1]
+
+    def test_pix_fee_respects_minimum(self):
+        payload = self._charge_payload('PIX', '100.00')
+        self.assertEqual(payload['split'][0]['fixedValue'], 97.50)
+
+    def test_pix_fee_uses_percentage_inside_range(self):
+        payload = self._charge_payload('PIX', '1000.00')
+        self.assertEqual(payload['split'][0]['fixedValue'], 992.00)
+
+    def test_pix_fee_respects_maximum(self):
+        payload = self._charge_payload('PIX', '2000.00')
+        self.assertEqual(payload['split'][0]['fixedValue'], 1990.00)
+
+    def test_boleto_uses_fixed_fee(self):
+        payload = self._charge_payload('BOLETO', '100.00')
+        self.assertEqual(payload['split'][0]['fixedValue'], 97.50)
+
+
+class GatewayFeeAcceptanceTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username='admin-fees', password='secret', phone='62999999999',
+        )
+        self.client.force_login(self.user)
+        self.config = GatewayConfig.load()
+        self.url = reverse('pagamentos:gateway_config')
+
+    def test_enabled_method_requires_acceptance(self):
+        self.config.status = GatewayConfig.Status.APPROVED
+        self.config.save(update_fields=['status'])
+        response = self.client.post(self.url, {'action': 'save', 'pix_enabled': 'on'}, follow=True)
+        self.config.refresh_from_db()
+
+        self.assertFalse(self.config.has_current_fee_acceptance)
+        self.assertFalse(self.config.can_generate_charges)
+        self.assertContains(response, 'marque a declaração de ciência')
+
+    @patch('pagamentos.views._handle_create_subaccount')
+    def test_subaccount_creation_requires_acceptance(self, mocked_create):
+        response = self.client.post(self.url, {'action': 'create_subaccount'}, follow=True)
+
+        mocked_create.assert_not_called()
+        self.assertContains(response, 'marque a declaração de ciência')
+
+    def test_acceptance_records_user_and_current_values(self):
+        self.client.post(self.url, {
+            'action': 'save', 'pix_enabled': 'on', 'fee_terms_accepted': 'on',
+        })
+        self.config.refresh_from_db()
+
+        self.assertTrue(self.config.has_current_fee_acceptance)
+        self.assertEqual(self.config.fee_terms_accepted_by, self.user)
+        self.assertIsNotNone(self.config.fee_terms_accepted_at)
+        self.assertEqual(self.config.fee_terms_snapshot, self.config.current_fee_terms())
+
+    @override_settings(ASAAS_PIX_COMMODITY_PERCENT=Decimal('1.00'))
+    def test_changed_fee_invalidates_previous_acceptance(self):
+        old_terms = dict(self.config.current_fee_terms())
+        old_terms['pix_percent'] = '0.80'
+        self.config.fee_terms_snapshot = old_terms
+        self.config.fee_terms_accepted_at = timezone.now()
+        self.config.save()
+
+        self.assertFalse(self.config.has_current_fee_acceptance)
 
 
 class AsaasGatewaySubscriptionTests(TestCase):

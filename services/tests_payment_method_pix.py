@@ -85,6 +85,8 @@ class PublicBillingStaticPixTests(TestCase):
             payment_method=self.method,
         )
         self.gateway = GatewayConfig.load()
+        self.gateway.accept_current_fee_terms()
+        self.gateway.save()
         self.url = reverse('public_billing_page', args=[self.billing.public_token])
 
     def test_shows_static_key_without_processor_when_all_methods_disabled(self):

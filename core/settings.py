@@ -1,8 +1,24 @@
 from pathlib import Path
 import os
+from decimal import Decimal, InvalidOperation
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _env_decimal(name, default, *, percentage=False):
+    """Lê valores monetários/percentuais do ambiente com validação estrita."""
+    raw = os.environ.get(name, default).strip().replace(',', '.')
+    if percentage:
+        raw = raw.removesuffix('%').strip()
+    try:
+        value = Decimal(raw)
+    except (InvalidOperation, ValueError) as exc:
+        raise ImproperlyConfigured(f'Valor inválido para {name}: {raw!r}') from exc
+    if value < 0:
+        raise ImproperlyConfigured(f'{name} não pode ser negativo.')
+    return value
 
 ##importar storages para usar o S3
 from storages.backends.s3boto3 import S3Boto3Storage
@@ -53,6 +69,17 @@ INSTALLED_APPS = [
 ASAAS_API_KEY = os.environ.get('ASAAS_API_KEY', '')
 ASAAS_ENVIRONMENT = os.environ.get('ASAAS_ENVIRONMENT', 'SANDBOX')  # SANDBOX ou PRODUCTION
 ASAAS_MASTER_WALLET_ID = os.environ.get('ASAAS_CLIENT_WALLET_ID', '')  # Wallet da conta master (recebe split das subcontas)
+
+# Tarifas de comodidade da integração. Os nomes em minúsculas são mantidos
+# por compatibilidade com o contrato de ambiente existente.
+ASAAS_PIX_COMMODITY_PERCENT = _env_decimal('tarifa_boleto_hibrido', '0.80%', percentage=True)
+ASAAS_PIX_COMMODITY_MINIMUM = _env_decimal('tarifa_minima_boleto_hibrido', '2.50')
+ASAAS_PIX_COMMODITY_MAXIMUM = _env_decimal('tarifa_maxima_boleto_hibrido', '10.00')
+ASAAS_BOLETO_COMMODITY_FEE = _env_decimal('tarifa_boleto_asaas', '2.50')
+if ASAAS_PIX_COMMODITY_MINIMUM > ASAAS_PIX_COMMODITY_MAXIMUM:
+    raise ImproperlyConfigured(
+        'tarifa_minima_boleto_hibrido não pode ser maior que tarifa_maxima_boleto_hibrido.'
+    )
 
 # --- ASAAS INVOICES (emissão de NFSe — fiscal/gateways/asaas.py) ---
 # Mesma conta Asaas de ASAAS_API_KEY acima, mas lida como par separado porque
