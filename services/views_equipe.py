@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.utils import timezone
 from django.http import JsonResponse
 import json
@@ -16,6 +16,26 @@ from .models import (
     MediaProcessingJob
 )
 from .utils_media import save_upload_for_processing
+from .forms import TechnicianAppSettingsForm
+from integracoes.models import SystemConfig
+
+
+@login_required
+@user_passes_test(lambda user: user.is_staff)
+def technician_app_settings(request):
+    config = SystemConfig.load()
+    form = TechnicianAppSettingsForm(
+        request.POST if request.method == 'POST' else None,
+        instance=config,
+    )
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Configurações do app do técnico salvas.')
+        return redirect('technician_app_settings')
+    return render(request, 'services/equipe/offline_settings.html', {
+        'form': form,
+        'title': 'Configurações do App do Técnico',
+    })
 
 def get_collaborator_tasks(user):
     """Retorna apenas as etapas (tasks) em que o usuário logado está alocado."""

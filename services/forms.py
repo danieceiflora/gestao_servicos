@@ -9,6 +9,7 @@ from .models import (
     Sale, SaleItem, Supplier, PaymentMethod, Expense, ProductComposition, ExpenseInstallment,
     FinanceSettings, SaleSettings, ProductVariant, PurchaseInvoice, PurchaseInvoiceItem
 )
+from integracoes.models import SystemConfig
 
 
 def _safe_localtime(value):
@@ -1326,3 +1327,16 @@ class SaleSettingsForm(forms.ModelForm):
                 'class': 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 pr-8',
             }),
         }
+
+
+class TechnicianAppSettingsForm(forms.ModelForm):
+    technician_can_view_order_values = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded',
+        }),
+    )
+
+    class Meta:
+        model = SystemConfig
+        fields = ['technician_can_view_order_values']

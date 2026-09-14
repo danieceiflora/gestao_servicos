@@ -104,6 +104,7 @@ urlpatterns = [
     path('termos-de-servico/', views.terms_of_service, name='terms_of_service'),
     
     # --- VISÃO EQUIPE / COLABORADORES ---
+    path('configuracoes/app-tecnico/', views_equipe.technician_app_settings, name='technician_app_settings'),
     path('equipe/inicio/', views_equipe.equipe_dashboard, name='equipe_dashboard'),
     path('equipe/tarefas/', views_equipe.equipe_task_list, name='equipe_task_list'),
     path('equipe/etapa/<uuid:task_id>/', views_equipe.equipe_task_detail, name='equipe_task_detail'),

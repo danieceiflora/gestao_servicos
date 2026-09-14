@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestao-servicos-v7'; // Subimos a versão para aplicar as correções
+const CACHE_NAME = 'gestao-servicos-v8';
 
 // 🔓 Adicione aqui os caminhos das telas/menus principais que o técnico acessa
 const ASSETS_TO_CACHE = [

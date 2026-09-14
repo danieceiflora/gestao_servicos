@@ -57,6 +57,9 @@ class SystemConfigAdmin(admin.ModelAdmin):
             'fields': ('pix_key', 'pix_bank', 'pix_recipient'),
             'description': 'Estes dados serão enviados aos clientes nos templates de cobrança.'
         }),
+        ('App do Técnico', {
+            'fields': ('technician_can_view_order_values',),
+        }),
     )
 
     def has_add_permission(self, request):

@@ -400,6 +400,8 @@ const OfflineApp = {
             prop = order ? await db.properties.get(order.client_property_id) : null;
             client = prop ? await db.clients.get(prop.client_id) : null;
         }
+        const storedConfig = await db.settings.get('config');
+        const canViewOrderValues = storedConfig?.value?.technician_can_view_order_values !== false;
 
         const tplDetail = document.getElementById('tpl-task-detail').content.cloneNode(true);
         const root = tplDetail.querySelector('.detail-root');
@@ -412,12 +414,12 @@ const OfflineApp = {
 
         await this._initInfoTab(root, task, order, prop, client, taskId, isMaintenance);
         if (!isMaintenance) {
-            await this._initItemsTab(root, task, order);
+            await this._initItemsTab(root, task, order, canViewOrderValues);
             await this._initChecklistTab(root, task, taskId);
         }
         await this._initMediaTab(root, task, taskId);
         await this._initOccurrencesTab(root, task, taskId);
-        await this._initSignatureTab(root, task, taskId, order);
+        await this._initSignatureTab(root, task, taskId, order, canViewOrderValues);
         await this._initHistoryTab(root, task, taskId);
 
         root.querySelector('#btn-back').addEventListener('click', () => {
@@ -624,7 +626,7 @@ const OfflineApp = {
         }
     },
 
-    async _initItemsTab(root, task, order) {
+    async _initItemsTab(root, task, order, canViewOrderValues = true) {
         const panel = root.querySelector('#tab-panel-itens');
         const items = await db.task_items.where('task_id').equals(String(task.id)).toArray();
 
@@ -639,7 +641,9 @@ const OfflineApp = {
             return;
         }
 
-        const total = items.reduce((acc, i) => acc + parseFloat(i.total_price || 0), 0);
+        const total = canViewOrderValues
+            ? items.reduce((acc, i) => acc + parseFloat(i.total_price || 0), 0)
+            : 0;
 
         panel.innerHTML = `
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -655,10 +659,10 @@ const OfflineApp = {
                         </div>
                     `).join('')}
                 </div>
-                <div class="px-4 py-3 border-t border-slate-100 flex justify-between items-center bg-slate-50/60">
+                ${canViewOrderValues ? `<div class="px-4 py-3 border-t border-slate-100 flex justify-between items-center bg-slate-50/60">
                     <span class="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</span>
                     <span class="text-sm font-extrabold text-slate-900">R$ ${total.toFixed(2).replace('.', ',')}</span>
-                </div>
+                </div>` : ''}
             </div>
         `;
     },
@@ -784,7 +788,7 @@ const OfflineApp = {
         }
     },
 
-    async _initSignatureTab(root, task, taskId, order) {
+    async _initSignatureTab(root, task, taskId, order, canViewOrderValues = true) {
         const panel = root.querySelector('#tab-panel-assinatura');
         const isCompleted = task.status === 'CONCLUIDO';
 
@@ -844,6 +848,7 @@ const OfflineApp = {
 
         // Estado EM_ANDAMENTO: formulário de conclusão inline
         const balanceDue = order ? parseFloat(order.balance_due || 0) : 0;
+        const hasBalanceDue = canViewOrderValues ? balanceDue > 0 : Boolean(order?.has_balance_due);
         this._sigPadInited = false;
 
         panel.innerHTML = `
@@ -903,11 +908,11 @@ const OfflineApp = {
                 </div>
 
                 <!-- Pagamento (se houver saldo) -->
-                ${balanceDue > 0 ? `
+                ${hasBalanceDue ? `
                 <div id="sig-payment-section" class="space-y-3 pt-4 border-t border-slate-100">
                     <div class="flex items-center justify-between">
                         <h4 class="text-xs font-bold text-slate-700 uppercase tracking-widest">Recebimento <span class="normal-case font-normal text-slate-400">(opcional)</span></h4>
-                        <span class="text-sm font-black text-red-600">R$ ${balanceDue.toFixed(2).replace('.', ',')}</span>
+                        ${canViewOrderValues ? `<span class="text-sm font-black text-red-600">R$ ${balanceDue.toFixed(2).replace('.', ',')}</span>` : ''}
                     </div>
                     <div id="sig-payment-methods-grid" class="grid grid-cols-3 gap-2">
                         <!-- Injetado via JS -->
@@ -916,7 +921,7 @@ const OfflineApp = {
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Valor Recebido</label>
                         <div class="relative">
                             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">R$</span>
-                            <input type="number" step="0.01" id="sig-payment-amount" class="w-full pl-10 pr-4 py-4 rounded-2xl bg-slate-50 border-2 border-slate-100 text-lg font-black text-slate-900 focus:border-blue-500 transition-all outline-none" value="${balanceDue.toFixed(2)}" placeholder="0,00">
+                            <input type="number" step="0.01" id="sig-payment-amount" class="w-full pl-10 pr-4 py-4 rounded-2xl bg-slate-50 border-2 border-slate-100 text-lg font-black text-slate-900 focus:border-blue-500 transition-all outline-none" value="${canViewOrderValues ? balanceDue.toFixed(2) : ''}" placeholder="0,00">
                         </div>
                     </div>
                 </div>` : ''}
@@ -984,7 +989,7 @@ const OfflineApp = {
         if (btnClear) btnClear.onclick = () => { if (this.signaturePad) this.signaturePad.clear(); };
 
         // Pagamento
-        if (balanceDue > 0) {
+        if (hasBalanceDue) {
             const methodsGrid = panel.querySelector('#sig-payment-methods-grid');
             const detailsEl = panel.querySelector('#sig-payment-details');
             if (methodsGrid && detailsEl) await this._initPaymentGrid(methodsGrid, detailsEl);

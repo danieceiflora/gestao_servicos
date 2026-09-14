@@ -68,6 +68,13 @@ class SystemConfig(models.Model):
     # Configurações Financeiras
     billing_default_due_days = models.PositiveIntegerField('Dias Padrão para Vencimento', default=1, help_text='Prazo padrão em dias para o primeiro vencimento após a conclusão do serviço/venda.')
 
+    # Configurações do App do Técnico
+    technician_can_view_order_values = models.BooleanField(
+        'Técnicos podem visualizar valores das OSs',
+        default=True,
+        help_text='Permite exibir preços, totais e saldo das ordens de serviço no app do técnico.',
+    )
+
     # Configurações Diretas da Meta (WhatsApp Cloud API)
     meta_waba_id = models.CharField('WhatsApp Business Account ID', max_length=100, blank=True, null=True, help_text='Necessário para buscar definições de templates diretamente na Meta')
     meta_phone_number_id = models.CharField('WhatsApp Phone Number ID', max_length=100, blank=True, null=True, help_text='ID do número de telefone na API da Meta')

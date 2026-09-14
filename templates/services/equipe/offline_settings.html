@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900">Configurações do App do Técnico</h1>
+        <p class="text-sm text-slate-500 mt-1">Controle quais informações comerciais ficam disponíveis para a equipe técnica.</p>
+    </div>
+
+    <form method="post" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        {% csrf_token %}
+        <div class="p-6">
+            <label class="flex items-start gap-3 cursor-pointer">
+                {{ form.technician_can_view_order_values }}
+                <span>
+                    <span class="block text-sm font-semibold text-slate-700">Permitir que técnicos visualizem valores das OSs</span>
+                    <span class="block text-xs text-slate-500 mt-1 leading-relaxed">
+                        Quando desativado, preços de produtos e serviços, totais dos itens, valor total, valor pago e saldo da OS não serão enviados ao app do técnico.
+                        O registro manual de recebimentos continuará disponível, sem mostrar ou preencher o saldo da OS.
+                    </span>
+                </span>
+            </label>
+            {% if form.technician_can_view_order_values.errors %}
+            <p class="text-xs text-red-500 mt-2">{{ form.technician_can_view_order_values.errors|striptags }}</p>
+            {% endif %}
+        </div>
+        <div class="border-t border-slate-200 bg-slate-50 p-4 sm:px-6 flex justify-end">
+            <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 h-10 px-6">
+                <i data-lucide="save" class="h-4 w-4 mr-2"></i>
+                Salvar Configurações
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

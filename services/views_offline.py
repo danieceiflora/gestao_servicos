@@ -209,6 +209,7 @@ def api_tecnico_bootstrap(request):
 
         # Configurações do Sistema
         sys_config = SystemConfig.load()
+        can_view_order_values = sys_config.technician_can_view_order_values
 
         data = {
             'sync_token': now.isoformat(),
@@ -240,9 +241,12 @@ def api_tecnico_bootstrap(request):
                     'client_property_id': str(o.client_property_id),
                     'description': o.description,
                     'technical_notes': o.technical_notes,
-                    'total_value': str(o.total_value),
-                    'total_paid': str(o.total_paid),
-                    'balance_due': str(o.balance_due),
+                    'has_balance_due': o.balance_due > 0,
+                    **({
+                        'total_value': str(o.total_value),
+                        'total_paid': str(o.total_paid),
+                        'balance_due': str(o.balance_due),
+                    } if can_view_order_values else {}),
                 } for o in orders
             ],
             'properties': [
@@ -301,16 +305,16 @@ def api_tecnico_bootstrap(request):
                 {
                     'id': s.id,
                     'name': s.name,
-                    'base_price': str(s.base_price),
                     'unit': s.unit_of_measure,
+                    **({'base_price': str(s.base_price)} if can_view_order_values else {}),
                 } for s in services
             ],
             'products': [
                 {
                     'id': prod.id,
                     'name': prod.name,
-                    'price': str(prod.default_unit_price),
                     'unit': prod.unit_type,
+                    **({'price': str(prod.default_unit_price)} if can_view_order_values else {}),
                 } for prod in products
             ],
             'payment_methods': [
@@ -319,7 +323,7 @@ def api_tecnico_bootstrap(request):
                     'descricao': pm.descricao,
                 } for pm in payment_methods
             ],
-            'billings': [
+            'billings': ([
                 {
                     'id': str(b.id),
                     'service_order_id': str(b.service_order_id),
@@ -328,8 +332,8 @@ def api_tecnico_bootstrap(request):
                     'total_amount': str(b.total_amount),
                     'discount': str(b.discount),
                 } for b in billings
-            ],
-            'installments': [
+            ] if can_view_order_values else []),
+            'installments': ([
                 {
                     'id': inst.id,
                     'billing_id': str(inst.billing_id),
@@ -338,7 +342,7 @@ def api_tecnico_bootstrap(request):
                     'amount': str(inst.amount),
                     'status': inst.status,
                 } for inst in installments
-            ],
+            ] if can_view_order_values else []),
             'task_items': [
                 {
                     'id': item.id,
@@ -346,14 +350,17 @@ def api_tecnico_bootstrap(request):
                     'description': item.description or (item.product.name if item.product else '') or (item.service.name if item.service else ''),
                     'product_code': item.product.code if item.product else None,
                     'quantity': str(item.quantity),
-                    'unit_price': str(item.unit_price),
-                    'total_price': str(item.total_price),
+                    **({
+                        'unit_price': str(item.unit_price),
+                        'total_price': str(item.total_price),
+                    } if can_view_order_values else {}),
                 } for item in task_items
             ],
             'config': {
                 'company_name': sys_config.company_name,
                 'pix_key': sys_config.pix_key,
                 'pix_bank': sys_config.pix_bank,
+                'technician_can_view_order_values': can_view_order_values,
             },
             'maintenance_visits': [
                 {
