@@ -817,7 +817,7 @@ def sale_detail(request, number):
                     sale.save()
 
                     messages.success(request, f"Venda #{sale.number} atualizada com sucesso!")
-                    return redirect('sale_detail', number=sale.number)
+                    return redirect('sale_list')
             except Exception as e:
                 import traceback
                 print(traceback.format_exc())

@@ -154,14 +154,6 @@
             </a>
             {% endif %}
 
-            {# Botão Salvar Rascunho — apenas quando pode editar #}
-            {% if not is_detail or can_edit %}
-            <button type="submit" form="sale-form" name="save_as_draft" value="1"
-                    class="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-md transition-colors flex items-center gap-2">
-                <i data-lucide="file-edit" class="w-4 h-4"></i> SALVAR RASCUNHO
-            </button>
-            {% endif %}
-
             {% if not is_detail or can_edit %}
             <button type="submit" form="sale-form" id="submit-btn" class="bg-slate-900 text-white px-5 py-2 rounded-md font-bold text-xs hover:bg-slate-800 transition-all flex items-center gap-2 shadow-sm active:scale-[0.98]">
                 <i data-lucide="check-circle" class="w-4 h-4"></i>

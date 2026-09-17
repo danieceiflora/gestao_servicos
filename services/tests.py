@@ -205,6 +205,7 @@ class SaleStatusSaveTests(TestCase):
 		response = self.client.post(reverse('sale_detail', args=[sale.number]), payload)
 
 		self.assertEqual(response.status_code, 302)
+		self.assertEqual(response.url, reverse('sale_list'))
 		sale.refresh_from_db()
 		self.assertEqual(sale.status, Sale.Status.RASCUNHO)
 		self.assertFalse(sale.stock_reduced)
