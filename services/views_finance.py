@@ -32,6 +32,13 @@ from .models import Billing, Installment
 def is_manager(user):
     return user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
 
+
+def _sale_target_status(request, form):
+    """Resolve a intenção de salvamento sem sobrescrever o status selecionado."""
+    if request.POST.get('save_as_draft') == '1':
+        return Sale.Status.RASCUNHO
+    return form.cleaned_data['status']
+
 @login_required
 @user_passes_test(is_manager)
 def payment_method_list(request):
@@ -667,10 +674,16 @@ def sale_create(request):
         if form.is_valid() and formset.is_valid():
             try:
                 with transaction.atomic():
-                    is_draft = request.POST.get('save_as_draft') == '1'
+                    target_status = _sale_target_status(request, form)
+                    is_draft = target_status == Sale.Status.RASCUNHO
 
                     sale = form.save(commit=False)
                     sale.user = request.user
+                    # A primeira gravação existe apenas para obter a PK usada pelo
+                    # formset. Mantê-la como rascunho evita estoque/cobrança antes
+                    # de itens, total e parcelas estarem prontos.
+                    sale.status = Sale.Status.RASCUNHO
+                    sale.stock_reduced = False
                     sale.save()
 
                     formset.instance = sale
@@ -689,7 +702,7 @@ def sale_create(request):
                             )
 
                     sale.total_amount = total - sale.discount + sale.surcharge
-                    sale.status = Sale.Status.RASCUNHO if is_draft else Sale.Status.FINALIZADA
+                    sale.status = target_status
                     sale.stock_reduced = not is_draft
 
                     if not is_draft:
@@ -704,8 +717,10 @@ def sale_create(request):
 
                     sale.save()
 
-                    action = "salvo como rascunho" if is_draft else "realizada com sucesso"
-                    messages.success(request, f"Venda #{sale.number} {action}!")
+                    messages.success(
+                        request,
+                        f"Venda #{sale.number} salva como {sale.get_status_display()}!",
+                    )
                     if is_draft:
                         return redirect('sale_detail', number=sale.number)
                     if request.POST.get('save_and_new') == '1':
@@ -755,7 +770,8 @@ def sale_detail(request, number):
         if form.is_valid() and formset.is_valid():
             try:
                 with transaction.atomic():
-                    is_draft = request.POST.get('save_as_draft') == '1'
+                    target_status = _sale_target_status(request, form)
+                    is_draft = target_status == Sale.Status.RASCUNHO
 
                     if sale.stock_reduced:
                         for item in sale.items.all():
@@ -768,7 +784,6 @@ def sale_detail(request, number):
                             )
 
                     sale = form.save(commit=False)
-                    sale.save()
 
                     formset.instance = sale
                     items = formset.save()
@@ -786,7 +801,7 @@ def sale_detail(request, number):
                             )
 
                     sale.total_amount = total - sale.discount + sale.surcharge
-                    sale.status = Sale.Status.RASCUNHO if is_draft else Sale.Status.FINALIZADA
+                    sale.status = target_status
                     sale.stock_reduced = not is_draft
 
                     if not is_draft:
@@ -898,6 +913,7 @@ def sale_duplicate(request, number):
             client=original.client,
             user=request.user,
             status=Sale.Status.RASCUNHO,
+            sale_type=original.sale_type,
             discount=original.discount,
             surcharge=original.surcharge,
             indicador_presenca=original.indicador_presenca,

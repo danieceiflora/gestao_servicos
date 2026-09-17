@@ -1,6 +1,6 @@
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
-from .models import ServiceOrder, ServiceOrderTask, Sale, Occurrence, FinanceSettings
+from .models import ServiceOrder, ServiceOrderTask, Sale, Occurrence, FinanceSettings, SaleSettings
 from .utils.finance import create_billing_for_task, create_billing_for_sale, resolve_charge_config_for_payment_method
 import logging
 
@@ -83,17 +83,34 @@ def handle_task_completion(sender, instance, created, **kwargs):
             )
 
 
+@receiver(pre_save, sender=Sale)
+def capture_sale_previous_status(sender, instance, **kwargs):
+    """Guarda o status persistido para detectar uma transição real no post_save."""
+    if not instance.pk:
+        instance._previous_status = None
+        return
+    instance._previous_status = sender.objects.filter(pk=instance.pk).values_list(
+        'status', flat=True
+    ).first()
+
+
 @receiver(post_save, sender=Sale)
 def handle_sale_creation(sender, instance, created, **kwargs):
     """
-    Gera (ou atualiza) o billing/parcelas de uma venda finalizada.
+    Gera o billing/parcelas quando a venda entra no status configurado.
     Views que já coletaram parcelas customizadas do POST devem anexá-las à
     instância antes do save final, via _pending_installments_data /
     _pending_charge_config — evita criar o billing padrão aqui e recriá-lo
     de novo na view logo em seguida (dupla-criação que gerava Installment
     fantasma e erro de notificação CRIAR ao comitar a transação).
     """
-    if instance.status != Sale.Status.FINALIZADA:
+    settings = SaleSettings.get()
+    trigger_status = settings.billing_trigger_status
+    if trigger_status == SaleSettings.BillingTrigger.MANUAL:
+        return
+    if instance.status != trigger_status:
+        return
+    if getattr(instance, '_previous_status', None) == trigger_status:
         return
 
     installments_data = getattr(instance, '_pending_installments_data', None)

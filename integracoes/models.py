@@ -117,9 +117,22 @@ class NotificationConfig(models.Model):
         ('PAGAMENTO_INTEGRAL', 'Pagamento Integral Registrado'),
     ]
 
+    SALE_TYPE_CHOICES = [
+        ('PRESENCIAL', 'Venda presencial'),
+        ('DISTANCIA', 'Venda à distância'),
+    ]
+
     name = models.CharField('Nome da Regra/Descrição', max_length=100)
     model_name = models.CharField('Modelo', max_length=50, choices=MODEL_CHOICES)
     event_type = models.CharField('Evento Gatilho', max_length=20, choices=EVENT_CHOICES)
+    sale_type_filter = models.CharField(
+        'Filtro por Tipo de Venda',
+        max_length=20,
+        choices=SALE_TYPE_CHOICES,
+        blank=True,
+        default='',
+        help_text='Deixe vazio para disparar em todos os tipos de venda.',
+    )
     
     # Filtros de Status (apenas para EVENT_TYPE == 'MUDANCA_STATUS')
     from_status = models.CharField(

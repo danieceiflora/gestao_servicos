@@ -25,6 +25,13 @@ from services.models import ServiceOrder, ServiceOrderTask, Sale, Billing, Insta
 logger = logging.getLogger(__name__)
 
 
+def _normalize_sale_type_filter(model_name, value):
+    if model_name != 'Sale':
+        return ''
+    valid_values = {choice[0] for choice in NotificationConfig.SALE_TYPE_CHOICES}
+    return value if value in valid_values else ''
+
+
 def _dig(container, *path):
     current = container
     for key in path:
@@ -729,6 +736,9 @@ def notification_config_create(request):
     if request.method == 'POST':
         name = request.POST.get('name')
         model_name = request.POST.get('model_name')
+        sale_type_filter = _normalize_sale_type_filter(
+            model_name, request.POST.get('sale_type_filter', '')
+        )
         event_type = request.POST.get('event_type')
         from_status = request.POST.get('from_status')
         to_status = request.POST.get('to_status')
@@ -760,6 +770,7 @@ def notification_config_create(request):
         else:
             config = NotificationConfig.objects.create(
                 name=name, model_name=model_name, event_type=event_type,
+                sale_type_filter=sale_type_filter,
                 from_status=from_status, to_status=to_status,
                 template_name=template_name, recipient_type=recipient_type,
                 fixed_phone=fixed_phone, phone_field_path=phone_path,
@@ -786,6 +797,7 @@ def notification_config_create(request):
         'model_choices': NotificationConfig.MODEL_CHOICES,
         'event_choices': NotificationConfig.EVENT_CHOICES,
         'recipient_choices': NotificationConfig.RECIPIENT_CHOICES,
+        'sale_type_choices': NotificationConfig.SALE_TYPE_CHOICES,
     })
 
 @login_required
@@ -817,6 +829,9 @@ def notification_config_edit(request, pk):
         else:
             config.name = request.POST.get('name')
             config.model_name = request.POST.get('model_name')
+            config.sale_type_filter = _normalize_sale_type_filter(
+                config.model_name, request.POST.get('sale_type_filter', '')
+            )
             config.event_type = request.POST.get('event_type')
             config.from_status = request.POST.get('from_status')
             config.to_status = request.POST.get('to_status')
@@ -858,6 +873,7 @@ def notification_config_edit(request, pk):
         'model_choices': NotificationConfig.MODEL_CHOICES,
         'event_choices': NotificationConfig.EVENT_CHOICES,
         'recipient_choices': NotificationConfig.RECIPIENT_CHOICES,
+        'sale_type_choices': NotificationConfig.SALE_TYPE_CHOICES,
         'variables': config.variables.all().order_by('index')
     })
 

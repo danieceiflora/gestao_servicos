@@ -62,6 +62,11 @@
                     <!-- Gatilho -->
                     <div class="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-500">
                         <span class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{{ config.get_model_name_display }}</span>
+                        {% if config.model_name == 'Sale' %}
+                        <span class="px-1.5 py-0.5 bg-violet-50 rounded text-violet-700 font-medium">
+                            {% if config.sale_type_filter %}{{ config.get_sale_type_filter_display }}{% else %}Todas as vendas{% endif %}
+                        </span>
+                        {% endif %}
                         <i data-lucide="arrow-right" class="h-3 w-3 text-slate-300 shrink-0"></i>
                         <span>{{ config.get_event_type_display }}</span>
                         {% if config.event_type == 'MUDANCA_STATUS' and config.to_status %}

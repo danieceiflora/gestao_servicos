@@ -12,8 +12,75 @@ from integracoes.views import (
     _is_chatwoot_outgoing_message,
     _resolve_order_status_from_budget_decision,
 )
-from integracoes.models import PlatformSubscription, PlatformInvoice
-from services.models import ServiceOrder, User
+from integracoes.models import NotificationConfig, PlatformSubscription, PlatformInvoice
+from integracoes.utils import dispatch_dynamic_notification
+from services.models import Sale, ServiceOrder, User
+
+
+class SaleNotificationTypeFilterTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='vendedor-filtro', password='x')
+        self.sale = Sale.objects.create(
+            user=self.user,
+            status=Sale.Status.RASCUNHO,
+            sale_type=Sale.SaleType.PRESENCIAL,
+        )
+
+    def _create_config(self, sale_type_filter=''):
+        return NotificationConfig.objects.create(
+            name='Finalização de venda',
+            model_name='Sale',
+            event_type='MUDANCA_STATUS',
+            to_status=Sale.Status.RASCUNHO,
+            sale_type_filter=sale_type_filter,
+            template_name='venda_finalizada',
+            recipient_type='FIXED',
+            fixed_phone='5511999999999',
+        )
+
+    @patch('integracoes.utils.ChatwootClient')
+    def test_distance_rule_does_not_start_chatwoot_for_in_person_sale(self, chatwoot_cls):
+        self._create_config(Sale.SaleType.DISTANCIA)
+
+        dispatch_dynamic_notification(
+            self.sale,
+            'MUDANCA_STATUS',
+            old_status=Sale.Status.PRONTO,
+        )
+
+        chatwoot_cls.assert_not_called()
+
+    @patch('integracoes.utils.ChatwootClient')
+    def test_distance_rule_sends_for_distance_sale(self, chatwoot_cls):
+        self.sale.sale_type = Sale.SaleType.DISTANCIA
+        self.sale.save(update_fields=['sale_type'])
+        self._create_config(Sale.SaleType.DISTANCIA)
+        chatwoot = chatwoot_cls.return_value
+        chatwoot.create_contact.return_value = {'id': 10}
+        chatwoot.get_or_create_conversation.return_value = {'id': 20}
+
+        dispatch_dynamic_notification(
+            self.sale,
+            'MUDANCA_STATUS',
+            old_status=Sale.Status.PRONTO,
+        )
+
+        chatwoot.send_template.assert_called_once()
+
+    @patch('integracoes.utils.ChatwootClient')
+    def test_unfiltered_rule_sends_for_in_person_sale(self, chatwoot_cls):
+        self._create_config()
+        chatwoot = chatwoot_cls.return_value
+        chatwoot.create_contact.return_value = {'id': 10}
+        chatwoot.get_or_create_conversation.return_value = {'id': 20}
+
+        dispatch_dynamic_notification(
+            self.sale,
+            'MUDANCA_STATUS',
+            old_status=Sale.Status.PRONTO,
+        )
+
+        chatwoot.send_template.assert_called_once()
 
 
 @override_settings(WEBHOOK_SHARED_SECRET='test-shared-secret')

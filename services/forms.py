@@ -1026,7 +1026,7 @@ class SaleForm(forms.ModelForm):
     class Meta:
         model = Sale
         fields = [
-            'client', 'status', 'discount', 'surcharge',
+            'client', 'status', 'sale_type', 'discount', 'surcharge',
             'indicador_presenca', 'modalidade_frete', 'forma_pagamento_sefaz',
             'external_po_number', 'delivery_date', 'commission_rate',
             'notes_internal', 'notes_customer',
@@ -1036,6 +1036,7 @@ class SaleForm(forms.ModelForm):
         widgets = {
             'client': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white search-select'}),
             'status': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'sale_type': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'discount': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
             'surcharge': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
             'indicador_presenca': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
@@ -1058,6 +1059,13 @@ class SaleForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Cancelamento possui fluxo próprio, responsável por estornar estoque e
+        # cancelar cobranças. Não pode ser aplicado como uma edição comum.
+        if not self.instance.pk or self.instance.status != Sale.Status.CANCELADO:
+            self.fields['status'].choices = [
+                choice for choice in self.fields['status'].choices
+                if choice[0] != Sale.Status.CANCELADO
+            ]
         self.fields['discount'].required = False
         self.fields['surcharge'].required = False
         self.fields['commission_rate'].required = False

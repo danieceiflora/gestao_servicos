@@ -1,5 +1,5 @@
 import logging
-from django.db.models import Model
+from django.db.models import Model, Q
 from .models import NotificationConfig, NotificationVariable
 from .chatwoot_client import ChatwootClient
 
@@ -311,6 +311,11 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
         event_type=event_type,
         is_active=True
     )
+
+    if model_name == 'Sale':
+        configs = configs.filter(
+            Q(sale_type_filter='') | Q(sale_type_filter=instance.sale_type)
+        )
     
     if not configs.exists():
         return

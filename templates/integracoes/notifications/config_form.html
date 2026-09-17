@@ -89,6 +89,18 @@
                     <div class="h-10 bg-slate-100 rounded w-full"></div>
                 </div>
             </div>
+
+            <div id="sale_type_filter_field" class="space-y-2 {% if config.model_name != 'Sale' %}hidden{% endif %}">
+                <label class="text-sm font-bold text-slate-700">Tipo de venda</label>
+                <select name="sale_type_filter" id="sale_type_filter"
+                        class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    <option value="">Todas as vendas</option>
+                    {% for val, label in sale_type_choices %}
+                    <option value="{{ val }}" {% if config.sale_type_filter == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-slate-500">Use este filtro para, por exemplo, não enviar a mensagem de finalização em vendas presenciais.</p>
+            </div>
         </div>
 
         <!-- Bloco 3: Destinatário -->
@@ -198,6 +210,8 @@
         const statusFields = document.getElementById('status_fields');
         const paymentEventHint = document.getElementById('payment_event_hint');
         const modelSelect = document.getElementById('model_select');
+        const saleTypeFilterField = document.getElementById('sale_type_filter_field');
+        const saleTypeFilter = document.getElementById('sale_type_filter');
         const templateSelect = document.getElementById('template_select');
         const recipientTypeSelect = document.getElementById('recipient_type_select');
         const fixedPhoneField = document.getElementById('fixed_phone_field');
@@ -244,9 +258,17 @@
             if (isExpense && typeof lucide !== 'undefined') lucide.createIcons();
         }
 
+        function toggleSaleTypeFilter() {
+            const isSale = modelSelect.value === 'Sale';
+            saleTypeFilterField.classList.toggle('hidden', !isSale);
+            saleTypeFilter.disabled = !isSale;
+            if (!isSale) saleTypeFilter.value = '';
+        }
+
         eventSelect.addEventListener('change', toggleStatusFields);
         recipientTypeSelect.addEventListener('change', toggleRecipientFields);
         modelSelect.addEventListener('change', toggleExpenseHint);
+        modelSelect.addEventListener('change', toggleSaleTypeFilter);
 
         // Bloqueia o envio se alguma variável exigida pelo template ficou em branco —
         // mensagem enviada com parâmetro faltando falha no WhatsApp. Validação real (que
@@ -281,6 +303,7 @@
         toggleStatusFields();
         toggleRecipientFields();
         toggleExpenseHint();
+        toggleSaleTypeFilter();
 
         // Garantir que campos carregados via HTMX respeitem o estado de desativado
         document.body.addEventListener('htmx:afterSwap', function(evt) {

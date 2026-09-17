@@ -1336,6 +1336,10 @@ class Sale(models.Model):
         CARTAO_DEBITO = 'CARTAO_DEBITO', 'Cartão de Débito'
         CARTAO_CREDITO = 'CARTAO_CREDITO', 'Cartão de Crédito'
 
+    class SaleType(models.TextChoices):
+        PRESENCIAL = 'PRESENCIAL', 'Venda presencial'
+        DISTANCIA = 'DISTANCIA', 'Venda à distância'
+
     public_token = models.UUIDField(
         default=uuid.uuid4,
         unique=True,
@@ -1347,6 +1351,12 @@ class Sale(models.Model):
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
     user = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="Vendedor")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RASCUNHO, verbose_name="Status")
+    sale_type = models.CharField(
+        max_length=20,
+        choices=SaleType.choices,
+        default=SaleType.PRESENCIAL,
+        verbose_name="Tipo de Venda",
+    )
     
     # Dados Fiscais da Venda
     indicador_presenca = models.IntegerField(default=1, verbose_name="Indicador de Presença", choices=[

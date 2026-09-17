@@ -101,7 +101,7 @@
             {# Busca textual #}
             <div class="flex-1 relative">
                 <input type="text" name="q" value="{{ q|default:'' }}"
-                       placeholder="Buscar por ID, cliente, vendedor ou PO..."
+                       placeholder="Buscar por ID, cliente ou vendedor..."
                        class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all font-medium text-slate-700">
                 <svg class="absolute left-3 top-2.5 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -172,8 +172,6 @@
                         <th class="px-5 py-3.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Data</th>
                         <th class="px-5 py-3.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cliente</th>
                         <th class="px-5 py-3.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Vendedor</th>
-                        <th class="px-5 py-3.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">PO Cliente</th>
-                        <th class="px-5 py-3.5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Prazo Entrega</th>
                         <th class="px-5 py-3.5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Total</th>
                         <th class="px-5 py-3.5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Status</th>
                         <th class="px-5 py-3.5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Ações</th>
@@ -193,12 +191,6 @@
                         </td>
                         <td class="px-5 py-3.5 text-sm text-slate-500">
                             {{ sale.user.get_full_name|default:sale.user.username }}
-                        </td>
-                        <td class="px-5 py-3.5 text-sm text-slate-500 font-mono">
-                            {{ sale.external_po_number|default:"—" }}
-                        </td>
-                        <td class="px-5 py-3.5 text-sm text-slate-500 whitespace-nowrap">
-                            {{ sale.delivery_date|date:"d/m/Y"|default:"—" }}
                         </td>
                         <td class="px-5 py-3.5 text-sm font-black text-slate-900 text-right whitespace-nowrap">
                             R$ {{ sale.total_amount|floatformat:2 }}
@@ -226,33 +218,30 @@
                             {% endif %}
                         </td>
                         <td class="px-5 py-3.5 text-right">
-                            <div class="flex items-center justify-end gap-2">
-                                <a href="{% url 'sale_detail' number=sale.number %}"
-                                   class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                    </svg>
-                                    Ver/Editar
-                                </a>
-                                {# Duplicar via POST para preservar CSRF #}
-                                <form action="{% url 'sale_duplicate' number=sale.number %}" method="POST" class="inline">
-                                    {% csrf_token %}
-                                    <button type="submit"
-                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                                            title="Duplicar venda">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                        </svg>
-                                        Duplicar
-                                    </button>
-                                </form>
-                            </div>
+                            <details class="inline-block text-left">
+                                <summary style="list-style: none;" class="inline-flex cursor-pointer select-none items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200">
+                                    Ações
+                                    <i data-lucide="chevron-down" class="h-3.5 w-3.5"></i>
+                                </summary>
+                                <div class="mt-2 min-w-36 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                                    <a href="{% url 'sale_detail' number=sale.number %}" class="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                        <i data-lucide="eye" class="h-3.5 w-3.5"></i>
+                                        Ver/Editar
+                                    </a>
+                                    <form action="{% url 'sale_duplicate' number=sale.number %}" method="POST" class="border-t border-slate-100">
+                                        {% csrf_token %}
+                                        <button type="submit" class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-blue-700 hover:bg-blue-50">
+                                            <i data-lucide="copy" class="h-3.5 w-3.5"></i>
+                                            Duplicar
+                                        </button>
+                                    </form>
+                                </div>
+                            </details>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="px-6 py-16 text-center">
+                        <td colspan="7" class="px-6 py-16 text-center">
                             <div class="flex flex-col items-center gap-3">
                                 <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
                                     <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -282,7 +271,7 @@
                 {% if sales %}
                 <tfoot>
                     <tr class="bg-slate-900 text-white">
-                        <td colspan="6" class="px-5 py-4 text-xs font-bold uppercase tracking-widest text-slate-400 text-right">
+                        <td colspan="4" class="px-5 py-4 text-xs font-bold uppercase tracking-widest text-slate-400 text-right">
                             Total filtrado (vendas finalizadas):
                         </td>
                         <td class="px-5 py-4 text-right text-base font-black whitespace-nowrap">
@@ -303,10 +292,25 @@
                     <span class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold {% if sale.status == 'FINALIZADA' %}bg-green-100 text-green-800{% elif sale.status == 'CANCELADO' %}bg-red-100 text-red-800{% elif sale.status == 'RASCUNHO' %}bg-amber-100 text-amber-800{% else %}bg-blue-100 text-blue-800{% endif %}">{{ sale.get_status_display }}</span>
                 </div>
                 <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3"><span class="text-xs text-slate-500">Total</span><strong class="text-base text-slate-900">R$ {{ sale.total_amount|floatformat:2 }}</strong></div>
-                <div class="mt-3 grid grid-cols-2 gap-2">
-                    <a href="{% url 'sale_detail' number=sale.number %}" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-900 px-3 text-xs font-bold text-white">Ver/Editar</a>
-                    <form action="{% url 'sale_duplicate' number=sale.number %}" method="POST">{% csrf_token %}<button type="submit" class="min-h-11 w-full rounded-xl bg-blue-50 px-3 text-xs font-bold text-blue-700">Duplicar</button></form>
-                </div>
+                <details class="mt-3">
+                    <summary style="list-style: none;" class="flex min-h-11 cursor-pointer select-none items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white">
+                        Ações
+                        <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                    </summary>
+                    <div class="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                        <a href="{% url 'sale_detail' number=sale.number %}" class="flex min-h-11 items-center gap-2 px-4 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                            <i data-lucide="eye" class="h-4 w-4"></i>
+                            Ver/Editar
+                        </a>
+                        <form action="{% url 'sale_duplicate' number=sale.number %}" method="POST" class="border-t border-slate-100">
+                            {% csrf_token %}
+                            <button type="submit" class="flex min-h-11 w-full items-center gap-2 px-4 text-left text-xs font-bold text-blue-700 hover:bg-blue-50">
+                                <i data-lucide="copy" class="h-4 w-4"></i>
+                                Duplicar
+                            </button>
+                        </form>
+                    </div>
+                </details>
             </article>
             {% empty %}<div class="p-8 text-center text-sm text-slate-500">Nenhuma venda encontrada.</div>{% endfor %}
         </div>
