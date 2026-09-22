@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Controle de Caixa{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  {% url 'pos_home' as pos_home_url %}
+  {% include 'components/ui/page_header.html' with title='Controle de Caixa' subtitle='Acompanhe sessões, conferências e divergências por operador.' icon='landmark' back_url=pos_home_url back_label='Voltar ao PDV' %}
+
+  <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    {% include 'components/ui/metric_card.html' with label='Caixas abertos' value=stats.open icon='door-open' tone='emerald' %}
+    {% include 'components/ui/metric_card.html' with label='Aguardando aprovação' value=stats.pending icon='clock-3' tone='amber' %}
+    {% include 'components/ui/metric_card.html' with label='Caixas fechados' value=stats.closed icon='circle-check' tone='blue' %}
+    {% include 'components/ui/metric_card.html' with label='Com divergência' value=stats.divergent icon='triangle-alert' tone='red' %}
+  </section>
+
+  <section class="ui-card">
+    <div class="ui-card-header"><div><h2 class="ui-card-title">Sessões recentes</h2><p class="ui-card-subtitle">Últimas 100 sessões, da mais recente para a mais antiga.</p></div><span class="ui-badge bg-slate-100 text-slate-600">{{ sessions|length }} registro{{ sessions|length|pluralize }}</span></div>
+    {% if sessions %}
+    <div class="hidden overflow-x-auto lg:block">
+      <table class="ui-table min-w-[980px]">
+        <thead><tr><th>Caixa e operador</th><th>Período</th><th>Status</th><th>Conferência</th><th>Aprovação</th><th class="text-right">Ações</th></tr></thead>
+        <tbody>{% for session in sessions %}<tr>
+          <td><div class="flex items-center gap-3"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500"><i data-lucide="monitor" class="h-4 w-4"></i></span><div><strong class="block text-sm text-slate-900">{{ session.register.name }}</strong><span class="text-xs text-slate-500">{{ session.operator.get_full_name|default:session.operator.username }}</span></div></div></td>
+          <td><p class="font-medium text-slate-700">{{ session.opened_at|date:'d/m/Y H:i' }}</p>{% if session.closed_at %}<p class="mt-1 text-xs text-slate-400">até {{ session.closed_at|date:'d/m/Y H:i' }}</p>{% else %}<p class="mt-1 text-xs text-emerald-600">Sessão em andamento</p>{% endif %}<p class="mt-1 text-xs text-slate-400">Fundo: R$ {{ session.opening_amount|floatformat:2 }}</p></td>
+          <td>{% include 'components/ui/session_status_badge.html' with status=session.status label=session.get_status_display %}{% if session.total_difference %}<span class="mt-2 flex w-fit items-center gap-1 text-xs font-semibold text-red-600"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>Divergência</span>{% endif %}</td>
+          <td class="min-w-72">{% for count in session.closing_counts.all %}<div class="flex items-center justify-between gap-4 border-b border-slate-100 py-1.5 last:border-0"><span class="truncate text-xs font-medium text-slate-600">{{ count.payment_method|default:'Dinheiro' }}</span><span class="whitespace-nowrap text-right text-xs"><span class="text-slate-400">R$ {{ count.expected_amount|floatformat:2 }}</span><strong class="ml-2 {% if count.difference %}text-red-600{% else %}text-emerald-600{% endif %}">{% if count.difference > 0 %}+{% endif %}R$ {{ count.difference|floatformat:2 }}</strong></span></div>{% empty %}<span class="text-xs text-slate-400">Ainda não conferido</span>{% endfor %}{% if session.closing_counts.all %}<div class="mt-2 flex items-center justify-between rounded-lg bg-slate-50 px-2.5 py-2 text-xs"><span class="font-semibold text-slate-500">Diferença total</span><strong class="{% if session.total_difference %}text-red-600{% else %}text-emerald-600{% endif %}">{% if session.total_difference > 0 %}+{% endif %}R$ {{ session.total_difference|floatformat:2 }}</strong></div>{% endif %}</td>
+          <td>{% if session.approved_by %}<p class="text-xs font-semibold text-slate-700">{{ session.approved_by.get_full_name|default:session.approved_by.username }}</p><p class="mt-1 text-xs text-slate-400">{{ session.approved_at|date:'d/m/Y H:i' }}</p>{% else %}<span class="text-xs text-slate-400">—</span>{% endif %}</td>
+          <td class="text-right">{% include 'components/ui/session_actions.html' with session=session %}</td>
+        </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+
+    <div class="divide-y divide-slate-100 lg:hidden">{% for session in sessions %}
+      <article class="space-y-4 p-4 sm:p-5">
+        <div class="flex items-start justify-between gap-3"><div class="flex min-w-0 items-center gap-3"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500"><i data-lucide="monitor" class="h-5 w-5"></i></span><div class="min-w-0"><h3 class="truncate text-sm font-bold text-slate-900">{{ session.register.name }}</h3><p class="truncate text-xs text-slate-500">{{ session.operator.get_full_name|default:session.operator.username }}</p></div></div>{% include 'components/ui/session_status_badge.html' with status=session.status label=session.get_status_display %}</div>
+        <dl class="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-xs"><div><dt class="font-semibold text-slate-400">Abertura</dt><dd class="mt-1 text-slate-700">{{ session.opened_at|date:'d/m/Y H:i' }}</dd></div><div><dt class="font-semibold text-slate-400">Fundo inicial</dt><dd class="mt-1 text-slate-700">R$ {{ session.opening_amount|floatformat:2 }}</dd></div>{% if session.closed_at %}<div><dt class="font-semibold text-slate-400">Fechamento</dt><dd class="mt-1 text-slate-700">{{ session.closed_at|date:'d/m/Y H:i' }}</dd></div>{% endif %}<div><dt class="font-semibold text-slate-400">Diferença</dt><dd class="mt-1 font-bold {% if session.total_difference %}text-red-600{% else %}text-emerald-600{% endif %}">{% if session.total_difference > 0 %}+{% endif %}R$ {{ session.total_difference|floatformat:2 }}</dd></div></dl>
+        {% if session.closing_counts.all %}<details class="rounded-xl border border-slate-200 bg-white [&>summary::-webkit-details-marker]:hidden"><summary class="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-semibold text-slate-600">Ver conferência <i data-lucide="chevron-down" class="h-4 w-4"></i></summary><div class="space-y-2 border-t border-slate-100 p-3">{% for count in session.closing_counts.all %}<div class="flex items-center justify-between text-xs"><span>{{ count.payment_method|default:'Dinheiro' }}</span><span><span class="text-slate-400">R$ {{ count.expected_amount|floatformat:2 }}</span><strong class="ml-2 {% if count.difference %}text-red-600{% else %}text-emerald-600{% endif %}">{% if count.difference > 0 %}+{% endif %}R$ {{ count.difference|floatformat:2 }}</strong></span></div>{% endfor %}</div></details>{% endif %}
+        <div class="flex justify-end">{% include 'components/ui/session_actions.html' with session=session %}</div>
+      </article>
+    {% endfor %}</div>
+    {% else %}{% include 'components/ui/empty_state.html' with icon='landmark' title='Nenhuma sessão de caixa' description='As sessões aparecerão aqui assim que um operador abrir o primeiro caixa.' %}{% endif %}
+  </section>
+</div>
+{% endblock %}

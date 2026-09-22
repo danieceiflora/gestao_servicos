@@ -48,6 +48,26 @@ class ServiceOrderListViewTest(TestCase):
         response = self.client_obj.get(reverse('service_order_list'))
         self.assertEqual(response.status_code, 200)
 
+    def test_layout_separates_header_and_labeled_filter_panel(self):
+        response = self.client_obj.get(reverse('service_order_list'), {
+            'q': 'João',
+            'status': self.order1.status,
+            'filter': 'needs_scheduling',
+            'date_from': '2026-01-01',
+            'date_to': '2026-12-31',
+        })
+
+        content = response.content.decode()
+        self.assertContains(response, '<header class="ui-page-header">', html=False)
+        self.assertContains(response, '<section class="ui-card">', html=False)
+        self.assertLess(content.index('ui-page-header'), content.index('Filtros de consulta'))
+        self.assertContains(response, 'for="order-search"')
+        self.assertContains(response, 'for="order-status"')
+        self.assertContains(response, 'for="order-date-from"')
+        self.assertContains(response, 'for="order-date-to"')
+        self.assertContains(response, 'name="filter" value="needs_scheduling"')
+        self.assertNotContains(response, 'onchange="this.form.submit()"')
+
     def test_search_by_client_name(self):
         response = self.client_obj.get(reverse('service_order_list'), {'q': 'João'})
         self.assertEqual(len(response.context['orders']), 1)

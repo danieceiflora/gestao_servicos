@@ -737,6 +737,7 @@
 
 {% block extra_js %}
 <script>
+    const REPEATED_ITEM_BEHAVIOR = '{{ repeated_item_behavior|escapejs }}';
     const formsetContainer = document.getElementById('formset-container');
     const emptyFormTemplate = document.getElementById('empty-form').innerHTML;
     const totalFormsInput = document.getElementById('id_items-TOTAL_FORMS');
@@ -903,15 +904,17 @@
         const cost = element.dataset.cost || '0.00';
 
         const existingSelects = formsetContainer.querySelectorAll('select[name$="-product"]');
-        for (let select of existingSelects) {
-            const row = select.closest('.item-row');
-            if (select.value === id && !row.classList.contains('hidden')) {
-                const qtyInput = row.querySelector('input[name$="-quantity"]');
-                qtyInput.value = (parseFloat(qtyInput.value) + 1).toFixed(2);
-                updateTotals();
-                productSearch.value = '';
-                searchResults.classList.add('hidden');
-                return;
+        if (REPEATED_ITEM_BEHAVIOR === 'SUM_QUANTITY') {
+            for (let select of existingSelects) {
+                const row = select.closest('.item-row');
+                if (select.value === id && !row.classList.contains('hidden')) {
+                    const qtyInput = row.querySelector('input[name$="-quantity"]');
+                    qtyInput.value = (parseFloat(qtyInput.value) + 1).toFixed(2);
+                    updateTotals();
+                    productSearch.value = '';
+                    searchResults.classList.add('hidden');
+                    return;
+                }
             }
         }
 

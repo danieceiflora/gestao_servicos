@@ -248,9 +248,13 @@
             form.addEventListener('submit', function(e) {
                 const btn = e.submitter && e.submitter.type === 'submit' ? e.submitter : form.querySelector('button[type="submit"]');
                 if (btn) {
-                    btn.disabled = true;
-                    btn.innerHTML = `<i data-lucide="loader-2" class="h-5 w-5 animate-spin"></i> Aguarde...`;
-                    lucide.createIcons();
+                    // Um botão desabilitado não participa dos dados enviados. Adiar o
+                    // estado de loading preserva name/value do submitter no POST.
+                    window.setTimeout(() => {
+                        btn.disabled = true;
+                        btn.innerHTML = `<i data-lucide="loader-2" class="h-5 w-5 animate-spin"></i> Aguarde...`;
+                        lucide.createIcons();
+                    }, 0);
                 }
             });
         });

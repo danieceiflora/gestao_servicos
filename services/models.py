@@ -1036,7 +1036,7 @@ class Billing(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     public_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     number = models.PositiveIntegerField(unique=True, null=True, blank=True, verbose_name="Número da Cobrança")
-    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='billings', verbose_name="Cliente")
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='billings', null=True, blank=True, verbose_name="Cliente")
     
     sale = models.OneToOneField('Sale', on_delete=models.SET_NULL, null=True, blank=True, related_name='billing', verbose_name="Venda")
     service_order = models.ForeignKey('ServiceOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='billings', verbose_name="Ordem de Serviço")
@@ -1261,6 +1261,11 @@ class ProviderType(models.TextChoices):
     CREDIARIO = 'CREDIARIO', 'Crediário'
 
 class PaymentMethod(models.Model):
+    class PosBehavior(models.TextChoices):
+        RECEIVED_NOW = 'RECEIVED_NOW', 'Recebido no ato'
+        RECEIVABLE = 'RECEIVABLE', 'Conta a receber'
+        DISABLED = 'DISABLED', 'Não disponível no PDV'
+
     class PixType(models.TextChoices):
         STATIC = 'STATIC', 'Estático'
         DYNAMIC = 'DYNAMIC', 'Dinâmico'
@@ -1294,6 +1299,10 @@ class PaymentMethod(models.Model):
         verbose_name="Chave PIX",
         help_text="Obrigatória para métodos PIX estáticos.",
     )
+    pos_behavior = models.CharField(
+        max_length=20, choices=PosBehavior.choices, default=PosBehavior.RECEIVED_NOW,
+        verbose_name='Comportamento no PDV',
+    )
 
     class Meta:
         verbose_name = "Método de Pagamento"
@@ -1314,12 +1323,20 @@ class SalePayment(models.Model):
     data_previsao = models.DateField(verbose_name="Previsão de Recebimento")
     is_gateway_auto = models.BooleanField(default=False, verbose_name="Baixa Automática (Gateway)",
                                           help_text='True quando gerado automaticamente pelo webhook do gateway')
+    amount_tendered = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name='Valor Recebido')
+    change_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Troco')
+    operator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='pos_payments', verbose_name='Operador')
+    cash_session = models.ForeignKey('CashSession', on_delete=models.PROTECT, null=True, blank=True, related_name='payments', verbose_name='Sessão de Caixa')
 
     class Meta:
         verbose_name = "Pagamento da Venda/OS"
         verbose_name_plural = "Pagamentos de Vendas/OS"
 
 class Sale(models.Model):
+    class Origin(models.TextChoices):
+        ADMIN = 'ADMIN', 'Administrativo'
+        POS = 'POS', 'Frente de Caixa'
+
     class Status(models.TextChoices):
         ATENDIDO = 'ATENDIDO', 'Atendido'
         CANCELADO = 'CANCELADO', 'Cancelado'
@@ -1357,6 +1374,8 @@ class Sale(models.Model):
         default=SaleType.PRESENCIAL,
         verbose_name="Tipo de Venda",
     )
+    origin = models.CharField(max_length=10, choices=Origin.choices, default=Origin.ADMIN, db_index=True, verbose_name='Origem')
+    cash_session = models.ForeignKey('CashSession', on_delete=models.PROTECT, null=True, blank=True, related_name='sales', verbose_name='Sessão de Caixa')
     
     # Dados Fiscais da Venda
     indicador_presenca = models.IntegerField(default=1, verbose_name="Indicador de Presença", choices=[
@@ -1572,6 +1591,93 @@ class SaleReturnItem(models.Model):
     class Meta:
         verbose_name = "Item da Devolução"
         verbose_name_plural = "Itens da Devolução"
+
+
+# --- FRENTE DE CAIXA ---
+
+class CashRegister(models.Model):
+    class ClosingMode(models.TextChoices):
+        BLIND = 'BLIND', 'Fechamento cego'
+        ASSISTED = 'ASSISTED', 'Fechamento assistido'
+
+    code = models.CharField(max_length=30, unique=True, verbose_name='Código')
+    name = models.CharField(max_length=100, verbose_name='Nome')
+    closing_mode = models.CharField(max_length=10, choices=ClosingMode.choices, default=ClosingMode.ASSISTED, verbose_name='Modo de fechamento')
+    is_active = models.BooleanField(default=True, verbose_name='Ativo')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Caixa'
+        verbose_name_plural = 'Caixas'
+        ordering = ['name']
+        permissions = [
+            ('operate_pos', 'Pode operar o frente de caixa'),
+            ('manage_pos_registers', 'Pode gerenciar caixas'),
+            ('view_pos_reports', 'Pode visualizar relatórios do caixa'),
+            ('approve_pos_closing', 'Pode aprovar e reabrir fechamentos'),
+        ]
+
+    def __str__(self):
+        return f'{self.code} — {self.name}'
+
+
+class CashSession(models.Model):
+    class Status(models.TextChoices):
+        OPEN = 'OPEN', 'Aberto'
+        PENDING_APPROVAL = 'PENDING_APPROVAL', 'Aguardando aprovação'
+        CLOSED = 'CLOSED', 'Fechado'
+
+    register = models.ForeignKey(CashRegister, on_delete=models.PROTECT, related_name='sessions', verbose_name='Caixa')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='cash_sessions', verbose_name='Operador')
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN, db_index=True)
+    opening_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Fundo inicial')
+    opened_at = models.DateTimeField(auto_now_add=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_cash_sessions')
+    closing_notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-opened_at']
+        constraints = [models.UniqueConstraint(fields=['register', 'operator'], condition=models.Q(status='OPEN'), name='unique_open_register_operator')]
+
+    def __str__(self):
+        return f'{self.register} — {self.operator} — {self.get_status_display()}'
+
+
+class CashMovement(models.Model):
+    class MovementType(models.TextChoices):
+        OPENING = 'OPENING', 'Abertura'
+        SALE = 'SALE', 'Venda'
+        SUPPLY = 'SUPPLY', 'Suprimento'
+        WITHDRAWAL = 'WITHDRAWAL', 'Sangria'
+        REFUND = 'REFUND', 'Devolução'
+        ADJUSTMENT = 'ADJUSTMENT', 'Ajuste'
+
+    session = models.ForeignKey(CashSession, on_delete=models.PROTECT, related_name='movements')
+    movement_type = models.CharField(max_length=15, choices=MovementType.choices)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Valor líquido')
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT, null=True, blank=True)
+    sale = models.ForeignKey(Sale, on_delete=models.PROTECT, null=True, blank=True, related_name='cash_movements')
+    sale_return = models.ForeignKey(SaleReturn, on_delete=models.PROTECT, null=True, blank=True, related_name='cash_movements')
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='cash_movements')
+    notes = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class CashClosingCount(models.Model):
+    session = models.ForeignKey(CashSession, on_delete=models.CASCADE, related_name='closing_counts')
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT, null=True, blank=True)
+    expected_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    declared_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    difference = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['session', 'payment_method'], name='unique_closing_method')]
 
 
 # --- ORDENS DE SERVIÇO ---
@@ -2377,11 +2483,21 @@ class SaleSettings(models.Model):
         VENDA_AGENCIADA = 'VENDA_AGENCIADA', 'Venda Agenciada'
         FINALIZADA = 'FINALIZADA', 'Finalizada'
 
+    class RepeatedItemBehavior(models.TextChoices):
+        SEPARATE_LINES = 'SEPARATE_LINES', 'Criar uma nova linha'
+        SUM_QUANTITY = 'SUM_QUANTITY', 'Somar à quantidade da linha existente'
+
     billing_trigger_status = models.CharField(
         max_length=20,
         choices=BillingTrigger.choices,
         default=BillingTrigger.FINALIZADA,
         verbose_name="Gerar cobrança automática quando a venda atingir o status",
+    )
+    repeated_item_behavior = models.CharField(
+        max_length=20,
+        choices=RepeatedItemBehavior.choices,
+        default=RepeatedItemBehavior.SEPARATE_LINES,
+        verbose_name="Ao adicionar o mesmo produto",
     )
 
     class Meta:

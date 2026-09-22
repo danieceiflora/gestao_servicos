@@ -1106,7 +1106,7 @@ class PaymentMethodForm(forms.ModelForm):
         model = PaymentMethod
         fields = [
             'descricao', 'tipo_provedor', 'tarifa_porcentagem',
-            'tarifa_minima', 'tarifa_fixa', 'prazo_recebimento', 'codigo_sefaz', 'ativo',
+            'tarifa_minima', 'tarifa_fixa', 'prazo_recebimento', 'codigo_sefaz', 'ativo', 'pos_behavior',
             'integra_gateway', 'pix_type', 'pix_key',
         ]
         widgets = {
@@ -1118,6 +1118,7 @@ class PaymentMethodForm(forms.ModelForm):
             'prazo_recebimento': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'codigo_sefaz': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: 03'}),
             'ativo': forms.CheckboxInput(attrs={'class': 'h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded'}),
+            'pos_behavior': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'integra_gateway': forms.CheckboxInput(attrs={'class': 'switch-checkbox peer sr-only'}),
             'pix_type': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'pix_key': forms.TextInput(attrs={
@@ -1329,9 +1330,12 @@ class FinanceSettingsForm(forms.ModelForm):
 class SaleSettingsForm(forms.ModelForm):
     class Meta:
         model = SaleSettings
-        fields = ['billing_trigger_status']
+        fields = ['billing_trigger_status', 'repeated_item_behavior']
         widgets = {
             'billing_trigger_status': forms.Select(attrs={
+                'class': 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 pr-8',
+            }),
+            'repeated_item_behavior': forms.Select(attrs={
                 'class': 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 pr-8',
             }),
         }

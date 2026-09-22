@@ -1,0 +1,4 @@
+{% if status == 'OPEN' %}<span class="ui-badge bg-emerald-50 text-emerald-700"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>{{ label }}</span>
+{% elif status == 'PENDING_APPROVAL' %}<span class="ui-badge bg-amber-50 text-amber-700"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>{{ label }}</span>
+{% elif status == 'CLOSED' %}<span class="ui-badge bg-slate-100 text-slate-600"><span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>{{ label }}</span>
+{% else %}<span class="ui-badge bg-slate-100 text-slate-600">{{ label }}</span>{% endif %}

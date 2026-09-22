@@ -1,0 +1,10 @@
+{% if user.is_manager or perms.services.approve_pos_closing %}
+  {% if session.status == 'PENDING_APPROVAL' %}
+  <div class="inline-flex flex-wrap justify-end gap-2">
+    <form method="post" action="{% url 'pos_session_action' session.pk %}">{% csrf_token %}<input type="hidden" name="action" value="approve"><button type="submit" class="ui-button ui-button-success" onclick="return confirm('Aprovar definitivamente o fechamento deste caixa?')"><i data-lucide="check" class="h-4 w-4"></i>Aprovar</button></form>
+    <form method="post" action="{% url 'pos_session_action' session.pk %}">{% csrf_token %}<input type="hidden" name="action" value="reopen"><button type="submit" class="ui-button ui-button-secondary" onclick="return confirm('Reabrir esta sessão? A conferência atual será descartada.')"><i data-lucide="rotate-ccw" class="h-4 w-4"></i>Reabrir</button></form>
+  </div>
+  {% elif session.status == 'CLOSED' %}
+  <form method="post" action="{% url 'pos_session_action' session.pk %}" class="inline-flex justify-end">{% csrf_token %}<input type="hidden" name="action" value="reopen"><button type="submit" class="ui-button ui-button-secondary" onclick="return confirm('Reabrir esta sessão? A conferência atual será descartada.')"><i data-lucide="rotate-ccw" class="h-4 w-4"></i>Reabrir</button></form>
+  {% else %}<span class="text-xs text-slate-400">Sem ações disponíveis</span>{% endif %}
+{% endif %}

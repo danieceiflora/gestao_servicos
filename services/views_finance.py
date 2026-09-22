@@ -749,6 +749,7 @@ def sale_create(request):
         'title': 'Nova Venda (PDV)',
         'products': Product.objects.filter(is_active=True),
         'clients': Client.objects.all().order_by('name'),
+        'repeated_item_behavior': SaleSettings.get().repeated_item_behavior,
     }
     context.update(_charge_config_panel_context(PaymentMethod.objects.filter(ativo=True), due_days))
     return render(request, 'services/sale_form.html', context)
@@ -857,6 +858,7 @@ def sale_detail(request, number):
         'title': f'Venda #{sale.number}',
         'products': Product.objects.filter(is_active=True),
         'clients': Client.objects.all().order_by('name'),
+        'repeated_item_behavior': SaleSettings.get().repeated_item_behavior,
         'initial_installments': initial_installments,
         'returns': sale.returns.all().prefetch_related('items__sale_item__product') if hasattr(sale, 'returns') else [],
         'nfe_config': nfe_config,
@@ -1061,8 +1063,13 @@ def sale_return_create(request, number):
                 if qty <= 0:
                     continue
                 sale_item = sale.items.get(pk=item_id)
-                if qty > sale_item.quantity:
-                    messages.error(request, f"Quantidade de devolução para {sale_item.product.name} excede a quantidade vendida.")
+                already_returned = SaleReturnItem.objects.filter(
+                    sale_item=sale_item,
+                    sale_return__status__in=[SaleReturn.Status.PENDENTE, SaleReturn.Status.APROVADA],
+                ).aggregate(total=Sum('quantity'))['total'] or Decimal('0')
+                available_to_return = sale_item.quantity - already_returned
+                if qty > available_to_return:
+                    messages.error(request, f"Quantidade de devolução para {sale_item.product.name} excede o saldo disponível ({available_to_return}).")
                     return redirect('sale_return_create', number=number)
                 refund = (sale_item.unit_price - sale_item.discount / sale_item.quantity) * qty
                 items_to_return.append((sale_item, qty, refund, str(item_id) in restocks))

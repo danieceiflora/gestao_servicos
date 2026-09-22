@@ -28,14 +28,6 @@
         </a>
     </div>
 
-    {% if messages %}
-    <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        {% for message in messages %}window.showToast("{{ message|escapejs }}", "{{ message.tags|escapejs }}");{% endfor %}
-    });
-    </script>
-    {% endif %}
-
     <form method="POST" class="space-y-4">
         {% csrf_token %}
 
@@ -84,6 +76,33 @@
                         </p>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        {# Inclusão de itens #}
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+                <h2 class="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                    <i data-lucide="list-plus" class="w-4 h-4"></i>
+                    Inclusão de itens
+                </h2>
+                <p class="text-xs text-slate-500 mt-1">Define como produtos repetidos entram na venda administrativa e no PDV.</p>
+            </div>
+            <div class="p-6 space-y-2">
+                <label for="{{ form.repeated_item_behavior.id_for_label }}"
+                       class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    Ao adicionar o mesmo produto
+                </label>
+                <div class="relative">
+                    {{ form.repeated_item_behavior }}
+                </div>
+                {% if form.repeated_item_behavior.errors %}
+                <p class="text-xs text-red-500 font-medium">{{ form.repeated_item_behavior.errors.0 }}</p>
+                {% endif %}
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                    Em <strong class="text-slate-600">Criar uma nova linha</strong>, cada inclusão mantém quantidade,
+                    preço, desconto e subtotal independentes. A opção de somar preserva o carrinho compacto.
+                </p>
             </div>
         </div>
 

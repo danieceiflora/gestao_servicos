@@ -36,6 +36,13 @@
                     {% if form.tipo_provedor.errors %}<p class="text-xs text-rose-500">{{ form.tipo_provedor.errors.0 }}</p>{% endif %}
                 </div>
 
+                <div class="space-y-1.5">
+                    <label class="text-sm font-semibold text-slate-700">Comportamento no PDV</label>
+                    {{ form.pos_behavior }}
+                    {% if form.pos_behavior.errors %}<p class="text-xs text-rose-500">{{ form.pos_behavior.errors.0 }}</p>{% endif %}
+                    <p class="text-[10px] text-slate-400">Defina se o valor é recebido no caixa, fica a receber ou não aparece no PDV.</p>
+                </div>
+
                 <!-- Configuração específica de PIX -->
                 <div id="pix-type-field" class="space-y-1.5 hidden">
                     <label class="text-sm font-semibold text-slate-700">Tipo de PIX</label>

@@ -7,8 +7,20 @@ from . import views_offline
 from . import views_stock
 from . import views_maintenance
 from . import views_bi
+from . import views_pos
 
 urlpatterns = [
+    # --- FRENTE DE CAIXA ---
+    path('pdv/', views_pos.pos_home, name='pos_home'),
+    path('pdv/abrir/', views_pos.pos_open, name='pos_open'),
+    path('pdv/produtos/', views_pos.pos_product_search, name='pos_product_search'),
+    path('pdv/vendas/salvar/', views_pos.pos_save_sale, name='pos_save_sale'),
+    path('pdv/vendas/<int:pk>/cancelar/', views_pos.pos_cancel_sale, name='pos_cancel_sale'),
+    path('pdv/movimentacao/', views_pos.pos_movement, name='pos_movement'),
+    path('pdv/fechar/', views_pos.pos_close, name='pos_close'),
+    path('pdv/vendas/<int:number>/comprovante/', views_pos.pos_receipt, name='pos_receipt'),
+    path('pdv/sessoes/', views_pos.pos_sessions, name='pos_sessions'),
+    path('pdv/sessoes/<int:pk>/acao/', views_pos.pos_session_action, name='pos_session_action'),
     path('cadastro/', views.public_client_registration, name='public_client_registration'),
     path('cadastro/verificar/', views.public_client_check_document, name='public_client_check_document'),
     path('clientes/convidar/', views.send_registration_invite, name='send_registration_invite'),

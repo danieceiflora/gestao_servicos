@@ -1497,8 +1497,22 @@ def api_get_properties(request):
 
 @login_required
 def api_get_clients(request):
-    clients = Client.objects.all().order_by('name')
-    return JsonResponse([{'id': str(c.id), 'name': c.name} for c in clients], safe=False)
+    term = request.GET.get('q', '').strip()
+    clients = Client.objects.all()
+    if term:
+        clients = clients.filter(
+            Q(name__icontains=term) |
+            Q(trade_name__icontains=term) |
+            Q(cpf__icontains=term) |
+            Q(cnpj__icontains=term)
+        )
+    clients = clients.order_by('name')[:30]
+    return JsonResponse([{
+        'id': str(c.id),
+        'name': c.display_name,
+        'document': c.document or '',
+        'type': c.get_client_type_display(),
+    } for c in clients], safe=False)
 
 
 # ============ GERENCIAMENTO DE ITENS DA OS ============

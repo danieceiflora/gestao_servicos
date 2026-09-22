@@ -9,8 +9,13 @@ from .models import (
     ChecklistResponseMedia, Sale, SaleItem, Supplier, PaymentMethod, SalePayment,
     FinancialCategory, BankAccount, Expense, ExpenseInstallment, ExpenseAttachment,
     RecurrenceRule, FinanceSettings, Billing, Installment,
-    PurchaseInvoice, PurchaseInvoiceItem,
+    PurchaseInvoice, PurchaseInvoiceItem, CashRegister, CashSession, CashMovement, CashClosingCount,
 )
+
+admin.site.register(CashRegister)
+admin.site.register(CashSession)
+admin.site.register(CashMovement)
+admin.site.register(CashClosingCount)
 
 
 @admin.register(PaymentMethod)

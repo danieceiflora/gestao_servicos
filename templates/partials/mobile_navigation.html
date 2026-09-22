@@ -17,24 +17,28 @@
                 <a href="{% url 'service_order_calendar' %}" class="mobile-nav-link {% if 'calendar' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="calendar"></i><span>Agenda</span></a>
                 {% if not user.is_manager %}
                 <a href="{% url 'equipe_task_list' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'equipe_task_list' %}mobile-nav-link-active{% endif %}"><i data-lucide="list-checks"></i><span>Tarefas</span></a>
-                {% else %}
-                <a href="{% url 'service_order_list' %}" class="mobile-nav-link {% if 'service_order' in request.resolver_match.url_name or 'order_' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="clipboard-list"></i><span>Ordens de Serviço</span></a>
                 {% endif %}
             </div>
 
             {% if perms.services.view_client or perms.services.view_professional or user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
             <section class="mobile-nav-group"><h2 class="mobile-nav-label">Operacional</h2>
+                {% if user.is_manager %}<a href="{% url 'service_order_list' %}" class="mobile-nav-link {% if 'service_order' in request.resolver_match.url_name or 'order_' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="clipboard-list"></i><span>Ordens de Serviço</span></a>{% endif %}
                 {% if perms.services.view_client %}<a href="{% url 'client_list' %}" class="mobile-nav-link {% if 'client' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="users"></i><span>Clientes</span></a>{% endif %}
                 {% if perms.services.view_professional %}<a href="{% url 'professional_list' %}" class="mobile-nav-link {% if 'professional' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="hard-hat"></i><span>Equipe</span></a>{% endif %}
                 {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}<a href="{% url 'occurrence_list' %}" class="mobile-nav-link {% if 'occurrence' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="alert-triangle"></i><span>Ocorrências</span></a>{% endif %}
             </section>
             {% endif %}
 
-            {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
+            {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser or perms.services.operate_pos %}
             <section class="mobile-nav-group"><h2 class="mobile-nav-label">Estoque e vendas</h2>
+                {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
                 <a href="{% url 'product_list' %}" class="mobile-nav-link {% if 'product' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="package"></i><span>Produtos</span></a>
                 <a href="{% url 'purchase_invoice_list' %}" class="mobile-nav-link {% if 'purchase_invoice' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="file-down"></i><span>Notas de Entrada</span></a>
+                {% endif %}
+                {% if user.is_manager or perms.services.operate_pos %}<a href="{% url 'pos_home' %}" class="mobile-nav-link {% if 'pos_' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="scan-line"></i><span>Frente de Caixa</span></a>{% endif %}
+                {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
                 <a href="{% url 'sale_list' %}" class="mobile-nav-link {% if 'sale' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="shopping-cart"></i><span>Vendas</span></a>
+                {% endif %}
             </section>
             {% endif %}
 

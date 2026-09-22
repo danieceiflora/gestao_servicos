@@ -32,6 +32,10 @@ def is_manager(user):
     return user.is_superuser or user.role in [User.Roles.ADMIN, User.Roles.MANAGER]
 
 
+def can_emit_nfce(user):
+    return is_manager(user) or user.has_perm('services.operate_pos')
+
+
 def _get_gateway(config: NFeConfig) -> FocusNFeGateway:
     """Focus está aposentada por enquanto — só segue em uso aqui para consultar/
     cancelar NFe/NFCe emitidas no passado (novas emissões desse tipo estão
@@ -328,7 +332,7 @@ def emit_nfe(request, number):
 
 
 @login_required
-@user_passes_test(is_manager)
+@user_passes_test(can_emit_nfce)
 @require_POST
 def emit_nfce(request, number):
     return _emit_sale_document(request, number, 'NFCE')
