@@ -184,7 +184,7 @@ const generateExpenseCheckbox = document.querySelector('[name="generate_expense"
 const expenseDueDateWrapper = document.getElementById('expense-due-date-wrapper');
 
 function fmtCurrency(n) {
-    return 'R$ ' + Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return formatBRL(n);
 }
 
 function updateRowSubtotal(row) {

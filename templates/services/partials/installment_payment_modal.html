@@ -1,4 +1,4 @@
-{% load static %}
+{% load static l10n %}
 <div id="installment-payment-modal-content">
 
     {% if payment_just_added %}
@@ -145,7 +145,7 @@
                     <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">R$</span>
                         <input type="text" name="amount"
-                               value="{{ installment.amount_remaining|floatformat:2 }}"
+                               value="{{ installment.amount_remaining|unlocalize }}"
                                placeholder="0,00"
                                required
                                class="flex h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
@@ -237,7 +237,7 @@
                           hx-swap="outerHTML"
                           class="space-y-3">
                         {% csrf_token %}
-                        <input type="hidden" name="amount" value="{{ installment.amount_remaining|floatformat:2 }}">
+                        <input type="hidden" name="amount" value="{{ installment.amount_remaining|unlocalize }}">
                         <div>
                             <label class="text-xs font-medium text-amber-800 block mb-1">Motivo <span class="text-red-500">*</span></label>
                             <input type="text" name="discount_reason"

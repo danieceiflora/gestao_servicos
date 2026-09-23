@@ -6,6 +6,7 @@ from django.utils import timezone
 from .utils.pdf_generator import CompletionPDFGenerator
 from integracoes.chatwoot_client import ChatwootClient
 from integracoes.models import SystemConfig
+from core.formatting import format_money_br
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +135,7 @@ def run_payment_request_workflow(service_order_id):
             logger.info(f"Enviando template {template_name} para OS #{service_order.number}")
             
             # Formatação de valores
-            total_value_float = float(service_order.balance_due)
-            total_value_str = f"{total_value_float:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            total_value_str = format_money_br(service_order.balance_due)
             
             # Variáveis do Corpo (4 variáveis conforme solicitado)
             # 1. numero os, 2. valor do serviço, 3. chave pix, 4. Banco + Destinatario

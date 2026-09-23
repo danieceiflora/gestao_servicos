@@ -938,7 +938,7 @@
             emptyRow.querySelector('input[name$="-discount"]').value = "0.00";
             // Exibir custo
             const costEl = emptyRow.querySelector('.cost-display');
-            if (costEl) costEl.textContent = parseFloat(cost) > 0 ? 'R$ ' + parseFloat(cost).toFixed(2).replace('.', ',') : '—';
+            if (costEl) costEl.textContent = parseFloat(cost) > 0 ? formatBRL(cost) : '—';
         } else {
             const formIdx = parseInt(totalFormsInput.value);
             const newRowHtml = emptyFormTemplate.replace(/__prefix__/g, formIdx);
@@ -954,7 +954,7 @@
             newRow.querySelector('input[name$="-discount"]').value = "0.00";
             // Exibir custo
             const costEl = newRow.querySelector('.cost-display');
-            if (costEl) costEl.textContent = parseFloat(cost) > 0 ? 'R$ ' + parseFloat(cost).toFixed(2).replace('.', ',') : '—';
+            if (costEl) costEl.textContent = parseFloat(cost) > 0 ? formatBRL(cost) : '—';
 
             formsetContainer.appendChild(newRow);
             totalFormsInput.value = formIdx + 1;
@@ -1005,7 +1005,7 @@
             }
 
             const itemSubtotal = Math.max(0, (qty * price) - itemDiscount);
-            row.querySelector('.subtotal-display').textContent = `R$ ${itemSubtotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            row.querySelector('.subtotal-display').textContent = formatBRL(itemSubtotal);
             subtotal += itemSubtotal;
 
             // Margem por linha
@@ -1032,9 +1032,9 @@
         const globalSurcharge = parseFloat(surchargeInput.value) || 0;
         globalTotal = Math.max(0, subtotal - globalDiscount + globalSurcharge);
 
-        document.getElementById('display-subtotal-quick').textContent = `R$ ${subtotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-        document.getElementById('display-total-quick').textContent = `R$ ${globalTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-        document.getElementById('display-total-final').textContent = `R$ ${globalTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+        document.getElementById('display-subtotal-quick').textContent = formatBRL(subtotal);
+        document.getElementById('display-total-quick').textContent = formatBRL(globalTotal);
+        document.getElementById('display-total-final').textContent = formatBRL(globalTotal);
 
         noItemsMsg.classList.toggle('hidden', rows.length > 0);
         updateCommission();

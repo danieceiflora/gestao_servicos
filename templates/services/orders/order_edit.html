@@ -1103,7 +1103,7 @@
             const clientText   = clientEl?.options[clientEl.selectedIndex]?.text || '—';
             const propertyText = propertyEl?.options[propertyEl.selectedIndex]?.text || '—';
             const description  = descEl?.value || '—';
-            const valueText    = valueEl?.value ? 'R$ ' + parseFloat(valueEl.value).toLocaleString('pt-BR', {minimumFractionDigits:2}) : '—';
+            const valueText    = valueEl?.value ? formatBRL(valueEl.value) : '—';
             const originText   = originEl?.value ? new Date(originEl.value + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 
             // Build tasks summary

@@ -12,6 +12,7 @@ from datetime import timedelta, datetime
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import django.utils.timezone
 import logging
+from core.formatting import format_money_br
 from core.tz_utils import safe_make_aware
 from .notifications import queue_push_notification
 from django.http import HttpResponse, JsonResponse
@@ -1632,10 +1633,10 @@ def order_item_add(request, order_id):
                     try:
                         order_total = order.total_value
                         balance_due = order.balance_due
-                        order_total_display = f'{order_total:.2f}'.replace('.', ',')
-                        estimated_value_display = f'{order.estimated_value:.2f}'.replace('.', ',')
-                        balance_due_display = f'{balance_due:.2f}'.replace('.', ',')
-                        task_billing_updates = {str(t.id): f'{t.billing_value:.2f}'.replace('.', ',') for t in order.tasks.all()}
+                        order_total_display = format_money_br(order_total)
+                        estimated_value_display = format_money_br(order.estimated_value)
+                        balance_due_display = format_money_br(balance_due)
+                        task_billing_updates = {str(t.id): format_money_br(t.billing_value) for t in order.tasks.all()}
                     except Exception as e:
                         print(f"Erro ao calcular total da order: {e}")
                         order_total_display = "0,00"
@@ -1659,8 +1660,8 @@ def order_item_add(request, order_id):
                             'origin_is_task': bool(item.task),
                             'task_scheduled': item.task.scheduled_at.strftime('%d/%m/%Y %H:%M') if item.task and item.task.scheduled_at else '',
                             'quantity_display': str(quantity_display).replace('.', ','),
-                            'unit_price_display': f'{item.unit_price:.2f}'.replace('.', ','),
-                            'total_price_display': f'{item_total:.2f}'.replace('.', ','),
+                            'unit_price_display': format_money_br(item.unit_price),
+                            'total_price_display': format_money_br(item_total),
                         },
                         'order_total_display': order_total_display,
                         'estimated_value_display': estimated_value_display,
@@ -1738,10 +1739,10 @@ def order_item_delete(request, item_id):
         
         if is_ajax:
             try:
-                order_total_display = f'{order.total_value:.2f}'.replace('.', ',')
-                estimated_value_display = f'{order.estimated_value:.2f}'.replace('.', ',')
-                balance_due_display = f'{order.balance_due:.2f}'.replace('.', ',')
-                task_billing_updates = {str(t.id): f'{t.billing_value:.2f}'.replace('.', ',') for t in order.tasks.all()}
+                order_total_display = format_money_br(order.total_value)
+                estimated_value_display = format_money_br(order.estimated_value)
+                balance_due_display = format_money_br(order.balance_due)
+                task_billing_updates = {str(t.id): format_money_br(t.billing_value) for t in order.tasks.all()}
             except Exception as e:
                 print(f"Erro ao calcular total da order: {e}")
                 order_total_display = "0,00"
@@ -1798,14 +1799,14 @@ def order_item_update(request, item_id):
                 'item': {
                     'id': item.id,
                     'quantity_display': f'{item.quantity:.2f}'.replace('.', ','),
-                    'unit_price_display': f'{item.unit_price:.2f}'.replace('.', ','),
-                    'total_price_display': f'{item.total_price:.2f}'.replace('.', ','),
+                    'unit_price_display': format_money_br(item.unit_price),
+                    'total_price_display': format_money_br(item.total_price),
                 },
-                'order_total_display': f'{order.total_value:.2f}'.replace('.', ','),
-                'estimated_value_display': f'{order.estimated_value:.2f}'.replace('.', ','),
-                'balance_due_display': f'{order.balance_due:.2f}'.replace('.', ','),
+                'order_total_display': format_money_br(order.total_value),
+                'estimated_value_display': format_money_br(order.estimated_value),
+                'balance_due_display': format_money_br(order.balance_due),
                 'balance_due_positive': bool(order.balance_due > 0),
-                'task_billing_updates': {str(t.id): f'{t.billing_value:.2f}'.replace('.', ',') for t in order.tasks.all()},
+                'task_billing_updates': {str(t.id): format_money_br(t.billing_value) for t in order.tasks.all()},
             })
         except (InvalidOperation, TypeError, ValueError) as e:
             return JsonResponse({'success': False, 'message': 'Valores inválidos.'}, status=400)
@@ -1828,7 +1829,7 @@ def order_payment_add(request, order_id):
             payment = form.save(commit=False)
             payment.order = order
             payment.save()
-            amount_display = f'{payment.amount:.2f}'.replace('.', ',')
+            amount_display = format_money_br(payment.amount)
             messages.success(request, f'Pagamento de R$ {amount_display} registrado com sucesso!')
             return redirect('service_order_detail', order_id=order.id)
     else:
@@ -2088,7 +2089,7 @@ def service_order_send_budget(request, order_id):
             response = None
             if cw.config.chatwoot_budget_template:
                 if order.estimated_value:
-                    value_display = f"{order.estimated_value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    value_display = format_money_br(order.estimated_value)
                 else:
                     value_display = "0,00"
                 variables = [str(order.number), value_display]

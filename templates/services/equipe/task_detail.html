@@ -455,7 +455,7 @@
                                 {% for payment in order.payments.all %}
                                 <div class="p-3 flex items-center justify-between">
                                     <div class="flex-1">
-                                        <p class="text-sm font-bold text-slate-700">R$ {{ payment.amount }}</p>
+                                        <p class="text-sm font-bold text-slate-700">R$ {{ payment.amount|money_br }}</p>
                                         <p class="text-[10px] text-slate-500">{{ payment.get_payment_method_display }} • {{ payment.paid_at|date:"d/m H:i" }}</p>
                                         {% if payment.status == 'PENDENTE' %}
                                             <span class="text-[9px] font-black uppercase px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full border border-amber-200">Pendente</span>

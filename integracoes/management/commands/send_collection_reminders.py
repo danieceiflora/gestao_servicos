@@ -10,7 +10,10 @@ from integracoes.models import (
     CollectionInstallmentState, CollectionLog,
 )
 from integracoes.chatwoot_client import ChatwootClient
-from integracoes.utils import resolve_field_path, get_client_phone, select_next_collection_step
+from integracoes.utils import (
+    format_notification_value, get_client_phone, resolve_field_path,
+    select_next_collection_step,
+)
 from services.models import Installment
 
 logger = logging.getLogger(__name__)
@@ -178,9 +181,9 @@ class Command(BaseCommand):
         variables = []
         for var in step.variables.filter(component='BODY').order_by('index'):
             val = resolve_field_path(installment, var.field_path)
-            if hasattr(val, 'strftime'):
-                val = val.strftime('%d/%m/%Y')
-            variables.append(str(val) if val is not None else '')
+            variables.append(format_notification_value(
+                installment, var.field_path, val, date_format='%d/%m/%Y',
+            ))
         return variables
 
     def _resolve_button_data(self, step, installment):

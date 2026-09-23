@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from core.formatting import format_money_br
 from .models import (
     User, Client, ClientPhone, ClientEmail, Property,
     ProfessionalRole, Professional, WorkSchedule, WorkScheduleDay,
@@ -169,7 +170,7 @@ class ProfessionalAdmin(admin.ModelAdmin):
     )
 
     def base_salary_display(self, obj):
-        return f"R$ {obj.base_salary:,.2f}"
+        return format_money_br(obj.base_salary, include_symbol=True)
     base_salary_display.short_description = "Salário Base"
 
 class ServiceItemInline(admin.TabularInline):
@@ -213,7 +214,7 @@ class ServiceOrderAdmin(admin.ModelAdmin):
     client_name.short_description = "Cliente"
 
     def total_value_display(self, obj):
-        return f"R$ {obj.total_value:,.2f}"
+        return format_money_br(obj.total_value, include_symbol=True)
     total_value_display.short_description = "Valor Total"
 
 

@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from core.formatting import format_money_br
 from integracoes.models import SystemConfig
 from services.models import Installment, PaymentMethod, User
 from .gateways.asaas import AsaasGateway
@@ -318,7 +319,7 @@ def installment_update(request, installment_pk):
 
     already_paid = installment.get_total_paid()
     if new_amount < already_paid:
-        messages.error(request, f'O valor não pode ser menor que o já recebido (R$ {already_paid}).')
+        messages.error(request, f'O valor não pode ser menor que o já recebido ({format_money_br(already_paid, include_symbol=True)}).')
         return redirect('billing_detail', pk=installment.billing_id)
 
     active_charge = installment.gateway_charges.filter(

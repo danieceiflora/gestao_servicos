@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 
+from core.formatting import format_money_br
+
 
 def _local_today():
     """timezone.localdate() explode com USE_TZ=False (naive datetime) — este
@@ -609,7 +611,7 @@ class PlatformSubscription(models.Model):
 
     @property
     def value_reais(self):
-        return f'{self.value_cents / 100:.2f}'.replace('.', ',')
+        return format_money_br(self.value_cents / 100)
 
     # Intervalo aproximado de cada ciclo, no vocabulário do Asaas — usado só
     # para projeção estimada dos próximos vencimentos (ver estimated_next_due_dates).
@@ -712,7 +714,7 @@ class PlatformInvoice(models.Model):
 
     @property
     def value_reais(self):
-        return f'{self.value_cents / 100:.2f}'.replace('.', ',')
+        return format_money_br(self.value_cents / 100)
 
     @property
     def is_overdue(self):

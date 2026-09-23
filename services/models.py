@@ -6,6 +6,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from decimal import Decimal, ROUND_HALF_UP
 import uuid
+from core.formatting import format_money_br
 from core.tz_utils import local_today
 from .utils import fiscal_logic
 from integracoes.models import SystemConfig
@@ -2742,7 +2743,7 @@ class InstallmentPayment(models.Model):
         ordering = ['payment_date', 'created_at']
 
     def __str__(self):
-        return f"Baixa R$ {self.amount} em {self.payment_date}"
+        return f"Baixa {format_money_br(self.amount, include_symbol=True)} em {self.payment_date}"
 
 
 class PaymentAttachment(models.Model):

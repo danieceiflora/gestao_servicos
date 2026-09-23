@@ -8,6 +8,7 @@ import json
 from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from core.formatting import format_money_br
 from .notifications import queue_push_notification
 from core.tz_utils import local_today
 from .models import (
@@ -487,7 +488,7 @@ def equipe_task_add_payment(request, task_id):
                 notes=f"[Registrado pelo Técnico]: {notes}" if notes else "Registrado pelo técnico"
             )
             
-            messages.success(request, f'Pagamento de R$ {amount} registrado com sucesso! Aguarde a baixa pelo financeiro.')
+            messages.success(request, f'Pagamento de {format_money_br(amount, include_symbol=True)} registrado com sucesso! Aguarde a baixa pelo financeiro.')
             
         except Exception as e:
             messages.error(request, f'Erro ao registrar pagamento: {str(e)}')

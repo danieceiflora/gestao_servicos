@@ -1313,10 +1313,9 @@ document.addEventListener('DOMContentLoaded', function() {
         feedback.classList.add('border', isError ? 'bg-red-50' : 'bg-green-50', isError ? 'text-red-700' : 'text-green-700', isError ? 'border-red-200' : 'border-green-200');
     }
 
-    function formatCurrencyBR(value) { return Number(value || 0).toFixed(2).replace('.', ','); }
+    function formatCurrencyBR(value) { return formatMoneyBR(value); }
     function parseDecimal(value) {
-        if (!value) return 0;
-        return parseFloat(String(value).trim().replace(',', '.').replace(/[^0-9.-]/g, '')) || 0;
+        return parseDisplayNumber(value);
     }
     function closeSuggestions() { suggestions.classList.add('hidden'); suggestions.innerHTML = ''; }
     function updateTotal() {
@@ -1393,7 +1392,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="js-item-quantity-display">${item.quantity_display}</span>
                     <input type="number" step="0.01" class="hidden js-item-quantity-input w-20 px-2 py-1 text-sm border rounded" value="${item.quantity_display.replace(',', '.')}">
                 </td>
-                <td class="px-5 py-3.5 text-right text-slate-500 tabular-nums">R$ <span class="js-item-unit-price-display">${item.unit_price_display}</span><input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="${item.unit_price_display.replace(',', '.')}"></td>
+                <td class="px-5 py-3.5 text-right text-slate-500 tabular-nums">R$ <span class="js-item-unit-price-display">${item.unit_price_display}</span><input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="${parseDisplayNumber(item.unit_price_display).toFixed(2)}"></td>
                 <td class="px-5 py-3.5 text-right font-bold text-slate-900 tabular-nums">R$ <span class="js-item-total-price-display">${item.total_price_display}</span></td>
                 <td class="px-5 py-3.5 text-center">
                     <div class="flex items-center justify-center gap-0.5">
@@ -1423,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <span class="js-item-quantity-display">${item.quantity_display}</span>
                         <input type="number" step="0.01" class="hidden js-item-quantity-input w-20 px-2 py-1 text-sm border rounded" value="${item.quantity_display.replace(',', '.')}">
                     </td>
-                    <td class="px-5 py-3.5 text-right text-slate-500 tabular-nums">R$ <span class="js-item-unit-price-display">${item.unit_price_display}</span><input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="${item.unit_price_display.replace(',', '.')}"></td>
+                    <td class="px-5 py-3.5 text-right text-slate-500 tabular-nums">R$ <span class="js-item-unit-price-display">${item.unit_price_display}</span><input type="number" step="0.01" class="hidden js-item-unit-price-input w-24 px-2 py-1 text-sm border rounded text-right" value="${parseDisplayNumber(item.unit_price_display).toFixed(2)}"></td>
                     <td class="px-5 py-3.5 text-right font-bold text-slate-900 tabular-nums">R$ <span class="js-item-total-price-display">${item.total_price_display}</span></td>
                     <td class="px-5 py-3.5 text-center">
                         <div class="flex items-center justify-center gap-0.5">
@@ -1499,7 +1498,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 row.querySelectorAll('.js-item-quantity-display,.js-item-unit-price-display,.js-edit-item,.js-delete-item').forEach(el => el.classList.remove('hidden'));
                 row.querySelectorAll('.js-item-quantity-input,.js-item-unit-price-input,.js-save-item,.js-cancel-edit,.js-edit-actions').forEach(el => el.classList.add('hidden'));
                 const qtyDisplay = row.querySelector('.js-item-quantity-display').textContent.replace(',', '.');
-                const priceDisplay = row.querySelector('.js-item-unit-price-display').textContent.replace(',', '.');
+                const priceDisplay = parseDisplayNumber(row.querySelector('.js-item-unit-price-display').textContent).toFixed(2);
                 row.querySelector('.js-item-quantity-input').value = qtyDisplay;
                 row.querySelector('.js-item-unit-price-input').value = priceDisplay;
             });

@@ -7,7 +7,7 @@ from django.utils import timezone
 from core.tz_utils import local_today
 from integracoes.models import ScheduledReminder, ScheduledReminderLog
 from integracoes.chatwoot_client import ChatwootClient
-from integracoes.utils import resolve_field_path, get_client_phone
+from integracoes.utils import format_notification_value, get_client_phone, resolve_field_path
 from services.models import Installment
 
 logger = logging.getLogger(__name__)
@@ -153,9 +153,9 @@ class Command(BaseCommand):
         variables = []
         for var in reminder.variables.filter(component='BODY').order_by('index'):
             val = resolve_field_path(installment, var.field_path)
-            if hasattr(val, 'strftime'):
-                val = val.strftime('%d/%m/%Y')
-            variables.append(str(val) if val is not None else '')
+            variables.append(format_notification_value(
+                installment, var.field_path, val, date_format='%d/%m/%Y',
+            ))
         return variables
 
     def _resolve_button_data(self, reminder, installment):

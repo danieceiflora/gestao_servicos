@@ -9,6 +9,7 @@ from reportlab.lib.units import cm
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 from django.conf import settings
 from django.utils import timezone
+from core.formatting import format_money_br
 from integracoes.models import SystemConfig
 
 class BasePDFGenerator:
@@ -230,8 +231,7 @@ class BasePDFGenerator:
         canvas.restoreState()
 
     def _format_currency(self, value):
-        if value is None: value = 0
-        return f"R$ {value:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+        return format_money_br(0 if value is None else value, include_symbol=True)
 
     def _section_title(self, text):
         data = [[Paragraph(text.upper(), self.styles['SectionHeaderText'])]]

@@ -131,6 +131,7 @@ TEMPLATES = [
         'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
+            'builtins': ['services.templatetags.money_tags'],
             'context_processors': [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
@@ -201,6 +202,7 @@ LANGUAGE_CODE = 'pt-br'
 TIME_ZONE = 'America/Sao_Paulo'
 
 USE_I18N = True
+USE_THOUSAND_SEPARATOR = True
 
 # Em produção (DEBUG=False), salva horário local (America/Sao_Paulo) direto no banco.
 # Em desenvolvimento (DEBUG=True), mantém o padrão Django (UTC no banco).

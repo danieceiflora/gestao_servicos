@@ -661,7 +661,7 @@ const OfflineApp = {
                 </div>
                 ${canViewOrderValues ? `<div class="px-4 py-3 border-t border-slate-100 flex justify-between items-center bg-slate-50/60">
                     <span class="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</span>
-                    <span class="text-sm font-extrabold text-slate-900">R$ ${total.toFixed(2).replace('.', ',')}</span>
+                    <span class="text-sm font-extrabold text-slate-900">${formatBRL(total)}</span>
                 </div>` : ''}
             </div>
         `;
@@ -839,7 +839,7 @@ const OfflineApp = {
                     ${task.payment_method && task.payment_amount ? `
                     <div class="pt-3 border-t border-slate-50 flex items-center gap-2">
                         <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${task.payment_method}</span>
-                        <p class="text-sm font-bold text-slate-900">R$ ${parseFloat(task.payment_amount).toFixed(2).replace('.', ',')}</p>
+                        <p class="text-sm font-bold text-slate-900">${formatBRL(task.payment_amount)}</p>
                     </div>` : ''}
                 </div>
             `;
@@ -912,7 +912,7 @@ const OfflineApp = {
                 <div id="sig-payment-section" class="space-y-3 pt-4 border-t border-slate-100">
                     <div class="flex items-center justify-between">
                         <h4 class="text-xs font-bold text-slate-700 uppercase tracking-widest">Recebimento <span class="normal-case font-normal text-slate-400">(opcional)</span></h4>
-                        ${canViewOrderValues ? `<span class="text-sm font-black text-red-600">R$ ${balanceDue.toFixed(2).replace('.', ',')}</span>` : ''}
+                        ${canViewOrderValues ? `<span class="text-sm font-black text-red-600">${formatBRL(balanceDue)}</span>` : ''}
                     </div>
                     <div id="sig-payment-methods-grid" class="grid grid-cols-3 gap-2">
                         <!-- Injetado via JS -->

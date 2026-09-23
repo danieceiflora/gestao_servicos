@@ -34,7 +34,7 @@
     </div>
 
     <!-- KPI Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
             <div class="h-10 w-10 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
                 <i data-lucide="package" class="h-5 w-5 text-blue-500"></i>
@@ -50,7 +50,7 @@
             </div>
             <div>
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor em Estoque</p>
-                <p class="text-lg font-black text-slate-900">R$ {{ kpi_valor_total|floatformat:0 }}</p>
+                <p class="text-lg font-black text-slate-900">R$ {{ kpi_valor_total|money_br }}</p>
             </div>
         </div>
         <div class="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
@@ -151,7 +151,7 @@
                 </div>
                 <div class="text-right">
                     <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Custo unit.</p>
-                    <p class="text-lg font-black text-slate-900">R$ {{ product.preco_custo }}</p>
+                    <p class="text-lg font-black text-slate-900">R$ {{ product.preco_custo|money_br }}</p>
                     {% if product.min_stock > 0 %}
                     <p class="text-[9px] text-slate-400">Mín: {{ product.min_stock }}</p>
                     {% endif %}
@@ -238,8 +238,8 @@
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="inline-flex flex-col items-end">
-                            <span class="text-sm font-black text-slate-900">R$ {{ product.default_unit_price }}</span>
-                            <span class="text-[9px] text-slate-400">Custo: R$ {{ product.preco_custo }}</span>
+                            <span class="text-sm font-black text-slate-900">R$ {{ product.default_unit_price|money_br }}</span>
+                            <span class="text-[9px] text-slate-400">Custo: R$ {{ product.preco_custo|money_br }}</span>
                         </div>
                     </td>
                     <td class="px-6 py-4 text-center text-[10px] font-black uppercase">

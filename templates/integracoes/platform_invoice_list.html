@@ -27,7 +27,7 @@
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div class="flex items-center gap-3">
           <span class="text-sm font-semibold text-slate-900">Vencimento {{ invoice.due_date|date:"d/m/Y" }}</span>
-          <span class="text-sm text-slate-500">R$ {{ invoice.value_reais }}</span>
+          <span class="text-sm text-slate-500">R$ {{ invoice.value_reais|money_br }}</span>
         </div>
 
         {% if invoice.status == 'PAGA' %}

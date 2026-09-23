@@ -1,5 +1,6 @@
 import logging
 from django.db.models import Model, Q
+from core.formatting import format_money_br
 from .models import NotificationConfig, NotificationVariable
 from .chatwoot_client import ChatwootClient
 
@@ -152,6 +153,22 @@ CURATED_FIELDS = {
     ],
 }
 
+# Apenas caminhos inequivocamente monetários. Decimais de quantidade e
+# percentuais devem continuar com sua semântica original nas notificações.
+MONETARY_NOTIFICATION_FIELDS = {
+    'ServiceOrder': {'total_value', 'balance_due', 'discount', 'estimated_value'},
+    'ServiceOrderTask': {'billing_value', 'service_order.total_value', 'service_order.balance_due'},
+    'Sale': {'total_amount', 'discount', 'surcharge'},
+    'Billing': {'total_amount', 'discount', 'get_remaining_balance', 'get_total_paid'},
+    'Installment': {
+        'amount', 'get_total_paid', 'get_remaining_balance', 'discount_amount',
+        'discounted_amount', 'billing.sale.total_amount', 'billing.sale.discount',
+        'editable_gateway_charge.discounted_amount',
+        'editable_gateway_charge.discount_amount',
+    },
+    'ExpenseInstallment': {'amount', 'amount_paid', 'amount_remaining'},
+}
+
 # Adiciona campos globais a todos os modelos
 for _model_key in list(CURATED_FIELDS.keys()):
     CURATED_FIELDS[_model_key] = CURATED_FIELDS[_model_key] + CONFIG_FIELDS
@@ -236,6 +253,17 @@ def resolve_field_path(instance, path):
             return None
             
     return current
+
+
+def format_notification_value(instance, path, value, date_format='%d/%m/%Y %H:%M'):
+    if value is None:
+        return ''
+    model_name = instance.__class__.__name__
+    if path in MONETARY_NOTIFICATION_FIELDS.get(model_name, set()):
+        return format_money_br(value)
+    if hasattr(value, 'strftime'):
+        return value.strftime(date_format)
+    return str(value)
 
 def get_client_phone(client_obj):
     """
@@ -350,9 +378,7 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
         variables = []
         for var in config.variables.filter(component='BODY').order_by('index'):
             val = resolve_field_path(instance, var.field_path)
-            if hasattr(val, 'strftime'):
-                val = val.strftime('%d/%m/%Y %H:%M')
-            variables.append(str(val) if val is not None else "")
+            variables.append(format_notification_value(instance, var.field_path, val))
 
         # Variáveis de botão (sufixo de URL dinâmica)
         btn_url_params = {}
@@ -446,9 +472,7 @@ def dispatch_manual_message(trigger: str, instance, phone: str, contact_name: st
     variables = []
     for var in config.variables.filter(component='BODY').order_by('index'):
         val = resolve_field_path(instance, var.field_path)
-        if hasattr(val, 'strftime'):
-            val = val.strftime('%d/%m/%Y %H:%M')
-        variables.append(str(val) if val is not None else '')
+        variables.append(format_notification_value(instance, var.field_path, val))
 
     btn_url_params = {}
     for var in config.variables.filter(component='BUTTON').order_by('index'):

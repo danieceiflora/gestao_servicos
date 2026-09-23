@@ -43,7 +43,7 @@ Opcionalmente: suggested_value (valor de referência fixo; ignorado se window.ge
                         data-interest="{{ cfg.interest_monthly }}"
                         data-due-days="{{ cfg.due_days }}"
                         data-discount-type="{{ cfg.discount_type }}"
-                        data-discount-value="{{ cfg.discount_value }}"
+                        data-discount-value="{{ cfg.discount_value|unlocalize }}"
                         data-discount-days="{{ cfg.discount_due_days }}"
                         data-fine-type="{{ cfg.fine_type }}"
                         data-fine-value="{{ cfg.fine_value }}"
@@ -355,7 +355,7 @@ function getConfigMethodId() {
     }
 
     function fmt(n) {
-        return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return formatBRL(n);
     }
 
     function parseAmt(val) {
@@ -545,7 +545,7 @@ function getConfigMethodId() {
     if (!sel) return;
 
     function fmtMoney(v) {
-        return 'R$ ' + parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return formatBRL(v);
     }
 
     function infoItem(label, value, colorClass) {

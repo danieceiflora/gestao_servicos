@@ -38,7 +38,7 @@
       {% endif %}
 
       {% if subscription.value_cents %}
-      <span class="text-sm text-slate-500">Valor da mensalidade: <strong class="text-slate-900">R$ {{ subscription.value_reais }}</strong></span>
+      <span class="text-sm text-slate-500">Valor da mensalidade: <strong class="text-slate-900">R$ {{ subscription.value_reais|money_br }}</strong></span>
       {% endif %}
     </div>
 

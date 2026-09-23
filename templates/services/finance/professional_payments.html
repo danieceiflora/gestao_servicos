@@ -1,5 +1,5 @@
 {% extends layout_base|default:"base.html" %}
-{% load static %}
+{% load static l10n %}
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
@@ -122,13 +122,13 @@
                                 </span>
                             </td>
                             <td class="p-4 text-right">
-                                <div class="text-sm font-black text-slate-900">R$ {{ payment.amount }}</div>
+                                <div class="text-sm font-black text-slate-900">R$ {{ payment.amount|money_br }}</div>
                             </td>
                             <td class="p-4 text-center">
                                 <div class="flex items-center justify-center gap-1">
                                     {% if status_filter == 'PENDENTE' %}
                                         {% if is_manager %}
-                                            <button type="button" onclick="confirmPayment('{{ payment.id }}', '{{ payment.amount }}', '{{ payment.order.number }}')" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dar Baixa Individual">
+                                            <button type="button" onclick="confirmPayment('{{ payment.id }}', '{{ payment.amount|unlocalize }}', '{{ payment.order.number }}')" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dar Baixa Individual">
                                                 <i data-lucide="check-circle" class="h-5 w-5"></i>
                                             </button>
                                         {% else %}
@@ -219,7 +219,7 @@
     });
 
     function confirmPayment(id, amount, os) {
-        if (confirm(`Deseja dar baixa no pagamento de R$ ${amount} da OS #${os}?`)) {
+        if (confirm(`Deseja dar baixa no pagamento de ${formatBRL(amount)} da OS #${os}?`)) {
             const form = document.getElementById('individual-confirm-form');
             form.action = `/finance/professional-payments/${id}/confirm/`;
             form.submit();

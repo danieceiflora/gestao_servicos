@@ -9,6 +9,7 @@ from decimal import Decimal
 from datetime import datetime, date
 import json
 import calendar as _cal
+from core.formatting import format_money_br
 from core.tz_utils import local_today, safe_make_aware
 from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory, SaleReturn, SaleReturnItem, ProductVariant, SaleSettings, ServiceOrder, Billing, Installment
 from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet, FinanceSettingsForm, SaleSettingsForm
@@ -442,9 +443,9 @@ def export_finance_pdf(grouped_data, month, year):
                 Paragraph(item['client_name'], styles['Normal']),
                 Paragraph(item['address'], styles['Normal']),
                 item['role'],
-                f"R$ {item['task_value']:,.2f}",
+                format_money_br(item['task_value'], include_symbol=True),
                 f"{item['comm_rate']}%",
-                f"R$ {item['commission_value']:,.2f}"
+                format_money_br(item['commission_value'], include_symbol=True)
             ])
         
         table = Table(table_data, repeatRows=1, colWidths=[60, 40, 140, 180, 100, 80, 60, 80])
@@ -465,9 +466,9 @@ def export_finance_pdf(grouped_data, month, year):
         
         # Professional Totals
         summary_data = [
-            ['Total Comissão', f"R$ {data['total_commission']:,.2f}"],
-            ['Salário Base', f"R$ {data['base_salary']:,.2f}"],
-            ['TOTAL GERAL', f"R$ {(data['total_commission'] + data['base_salary']):,.2f}"]
+            ['Total Comissão', format_money_br(data['total_commission'], include_symbol=True)],
+            ['Salário Base', format_money_br(data['base_salary'], include_symbol=True)],
+            ['TOTAL GERAL', format_money_br(data['total_commission'] + data['base_salary'], include_symbol=True)]
         ]
         summary_table = Table(summary_data, colWidths=[150, 100])
         summary_table.setStyle(TableStyle([
@@ -567,7 +568,7 @@ def finance_confirm_payment(request, payment_id):
         payment.confirmed_at = timezone.now()
         payment.confirmed_by = request.user
         payment.save()
-        messages.success(request, f'Pagamento de R$ {payment.amount} (OS #{payment.order.number}) baixado com sucesso.')
+        messages.success(request, f'Pagamento de {format_money_br(payment.amount, include_symbol=True)} (OS #{payment.order.number}) baixado com sucesso.')
         
     return redirect('finance_professional_payments')
 
@@ -1024,9 +1025,9 @@ def sale_export_csv(request):
             sale.created_at.strftime('%d/%m/%Y %H:%M'),
             sale.client.display_name if sale.client else 'Consumidor Final',
             sale.user.get_full_name() or sale.user.username,
-            str(sale.total_amount).replace('.', ','),
-            str(sale.discount).replace('.', ','),
-            str(sale.surcharge).replace('.', ','),
+            format_money_br(sale.total_amount),
+            format_money_br(sale.discount),
+            format_money_br(sale.surcharge),
             sale.get_status_display(),
             sale.external_po_number or '',
             sale.delivery_date.strftime('%d/%m/%Y') if sale.delivery_date else '',
@@ -1462,7 +1463,7 @@ def installment_pay(request, pk):
         if installment.status == Installment.Status.PAGO:
             _cancel_pending_gateway_charges(installment)
 
-        messages.success(request, f"Pagamento de R$ {total_this_time} registrado para a parcela {installment.installment_number}!")
+        messages.success(request, f"Pagamento de {format_money_br(total_this_time, include_symbol=True)} registrado para a parcela {installment.installment_number}!")
 
     return redirect('billing_detail', pk=installment.billing.id)
 

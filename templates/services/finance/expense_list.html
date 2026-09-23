@@ -521,7 +521,7 @@
 
             const [year, month, day] = e.due_date.split('-');
             const dateFmt = `${day}/${month}/${year}`;
-            const amountFmt = 'R$ ' + parseFloat(e.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            const amountFmt = formatBRL(e.amount);
             const rowClass = e.type === 'projected' ? 'bg-slate-50/60' : '';
             const labelBadge = (e.installment_label && e.installment_label !== '—')
                 ? `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">${e.installment_label}</span>`
@@ -571,7 +571,7 @@
 
         const totalReal = entries.filter(e => e.type === 'real').reduce((s, e) => s + parseFloat(e.amount), 0);
         const totalProjected = entries.filter(e => e.type === 'projected').reduce((s, e) => s + parseFloat(e.amount), 0);
-        const fmt = v => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+        const fmt = v => formatBRL(v);
 
         container.innerHTML = `
         <div class="overflow-x-auto">

@@ -170,7 +170,7 @@ new Chart(document.getElementById('chartRevExp'), {
             y: {
                 beginAtZero: true,
                 grid: { color: '#f1f5f9' },
-                ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') }
+                ticks: { callback: v => formatBRL(v) }
             },
             x: { grid: { display: false } }
         }
@@ -200,7 +200,7 @@ if (tcValues.length > 0) {
                 x: {
                     beginAtZero: true,
                     grid: { color: '#f1f5f9' },
-                    ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') }
+                    ticks: { callback: v => formatBRL(v) }
                 },
                 y: { grid: { display: false }, ticks: { font: { size: 11 } } }
             }

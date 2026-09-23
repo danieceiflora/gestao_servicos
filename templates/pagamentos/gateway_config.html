@@ -208,11 +208,11 @@
           <div class="rounded-lg border border-blue-200 bg-white p-3">
             <p class="text-xs font-semibold text-slate-800">PIX</p>
             <p class="text-sm font-bold text-blue-700 mt-1">{{ fee_terms.pix_percent }}% por transação</p>
-            <p class="text-[11px] text-slate-500 mt-1">Mínimo de R$ {{ fee_terms.pix_minimum }} e máximo de R$ {{ fee_terms.pix_maximum }}.</p>
+            <p class="text-[11px] text-slate-500 mt-1">Mínimo de R$ {{ fee_terms.pix_minimum|money_br }} e máximo de R$ {{ fee_terms.pix_maximum|money_br }}.</p>
           </div>
           <div class="rounded-lg border border-blue-200 bg-white p-3">
             <p class="text-xs font-semibold text-slate-800">Boleto bancário</p>
-            <p class="text-sm font-bold text-blue-700 mt-1">R$ {{ fee_terms.boleto_fee }} por transação</p>
+            <p class="text-sm font-bold text-blue-700 mt-1">R$ {{ fee_terms.boleto_fee|money_br }} por transação</p>
             <p class="text-[11px] text-slate-500 mt-1">Tarifa fixa para cada boleto processado.</p>
           </div>
         </div>

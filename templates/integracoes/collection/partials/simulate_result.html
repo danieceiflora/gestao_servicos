@@ -37,7 +37,7 @@
             {{ r.client.display_name|default:"—" }}
           </td>
           <td class="px-4 py-3 text-slate-600">
-            Parc. {{ r.installment.installment_number }} — R$ {{ r.installment.amount }}
+            Parc. {{ r.installment.installment_number }} — R$ {{ r.installment.amount|money_br }}
           </td>
           <td class="px-4 py-3 text-slate-600">
             {{ r.installment.due_date|date:"d/m/Y" }}
