@@ -12,6 +12,8 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
+from core.tz_utils import local_today
+
 from .models import (
     CashClosingCount, CashMovement, CashRegister, CashSession, Client,
     Installment, PaymentMethod, Product, ProductVariant, Sale, SaleItem,
@@ -167,7 +169,7 @@ def _save_cart(payload, session, user, finalize):
         change = tendered - amount if method.tipo_provedor == 'DINHEIRO' else Decimal('0')
         if tendered < amount or (method.tipo_provedor != 'DINHEIRO' and tendered != amount):
             raise ValueError(f'Valor recebido inválido para {method.descricao}.')
-        installments.append({'amount': amount, 'due_date': timezone.localdate(), 'payment_method_id': method.pk})
+        installments.append({'amount': amount, 'due_date': local_today(), 'payment_method_id': method.pk})
         resolved.append((method, amount, tendered, change))
     sale._pending_installments_data = installments
     sale.status = Sale.Status.FINALIZADA
@@ -189,7 +191,7 @@ def _save_cart(payload, session, user, finalize):
                 venda=sale, installment=inst, metodo_pagamento=method, valor_bruto=amount,
                 valor_tarifa=fee, valor_liquido=amount-fee, amount_tendered=tendered,
                 change_amount=change, operator=user, cash_session=session,
-                data_previsao=timezone.localdate() + timedelta(days=method.prazo_recebimento),
+                data_previsao=local_today() + timedelta(days=method.prazo_recebimento),
             )
             inst.status, inst.paid_at = Installment.Status.PAGO, timezone.now()
             inst.save(update_fields=['status', 'paid_at'])

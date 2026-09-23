@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from decimal import Decimal
@@ -361,6 +361,19 @@ class PosCheckoutTests(TestCase):
         self.assertEqual(payment.amount_tendered, Decimal('30'))
         self.assertEqual(sale.cash_movements.get().amount, Decimal('20'))
         self.assertEqual(sale.billing.status, Billing.Status.PAGO)
+
+    @override_settings(USE_TZ=False)
+    def test_finalize_works_with_production_naive_datetimes(self):
+        response = self.client.post(
+            reverse('pos_save_sale'),
+            data=json.dumps(self._payload()),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        sale = Sale.objects.get(number=response.json()['number'])
+        self.assertEqual(sale.status, Sale.Status.FINALIZADA)
+        self.assertEqual(sale.billing.installments.get().due_date, timezone.now().date())
 
     def test_rejects_payment_total_different_from_sale(self):
         payload = self._payload(payments=[{'method_id': self.cash.pk, 'amount': '19', 'tendered': '19'}])
