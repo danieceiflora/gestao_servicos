@@ -28,7 +28,26 @@ class PublicPolicyPagesTests(TestCase):
 	def test_terms_of_service_page_loads(self):
 		response = self.client.get(reverse('terms_of_service'))
 		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, 'Termos de Serviço')
+		self.assertContains(response, 'Termos de Uso')
+		self.assertContains(response, 'ASAAS GESTÃO FINANCEIRA INSTITUIÇÃO DE PAGAMENTO S.A.')
+		self.assertContains(response, '19.540.550/0001-21')
+
+	def test_terms_identify_configured_integrator(self):
+		config = SystemConfig.load()
+		config.company_name = 'Integradora Teste Ltda.'
+		config.company_cnpj = '12.345.678/0001-90'
+		config.save(update_fields=['company_name', 'company_cnpj'])
+
+		response = self.client.get(reverse('terms_of_service'))
+
+		self.assertContains(response, 'Integradora Teste Ltda.')
+		self.assertContains(response, '12.345.678/0001-90')
+
+	def test_login_exposes_public_policy_links(self):
+		response = self.client.get(reverse('login'))
+
+		self.assertContains(response, reverse('terms_of_service'))
+		self.assertContains(response, reverse('privacy_policy'))
 
 
 class TechnicianAppSettingsTests(TestCase):

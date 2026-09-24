@@ -77,7 +77,7 @@ def gateway_config_view(request):
             config.save()
             messages.error(
                 request,
-                'Para ativar a integração, leia e marque a declaração de ciência das tarifas de comodidade.',
+                'Para ativar a integração, leia e aceite os Termos de Uso e as tarifas de comodidade.',
             )
             return redirect('pagamentos:gateway_config')
 
@@ -103,7 +103,9 @@ def gateway_config_view(request):
         'fee_terms': {
             key: value.replace('.', ',')
             for key, value in config.current_fee_terms().items()
+            if key != 'terms_version'
         },
+        'terms_version': config.TERMS_VERSION,
         'title': 'Gateway de Pagamentos — Asaas',
         'active_menu': 'integracoes',
     }

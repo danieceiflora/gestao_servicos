@@ -90,6 +90,8 @@ class BillingChargeConfig(models.Model):
 class GatewayConfig(models.Model):
     """Singleton — configuração do gateway de pagamento para esta instância."""
 
+    TERMS_VERSION = '2026-09-24'
+
     class Environment(models.TextChoices):
         SANDBOX = 'SANDBOX', 'Sandbox (Testes)'
         PRODUCTION = 'PRODUCTION', 'Produção'
@@ -214,8 +216,9 @@ class GatewayConfig(models.Model):
 
     @staticmethod
     def current_fee_terms():
-        """Snapshot normalizado usado na tela, no aceite e na invalidação."""
+        """Snapshot versionado usado na tela, no aceite e na invalidação."""
         return {
+            'terms_version': GatewayConfig.TERMS_VERSION,
             'pix_percent': str(settings.ASAAS_PIX_COMMODITY_PERCENT),
             'pix_minimum': str(settings.ASAAS_PIX_COMMODITY_MINIMUM),
             'pix_maximum': str(settings.ASAAS_PIX_COMMODITY_MAXIMUM),

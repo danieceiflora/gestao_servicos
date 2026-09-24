@@ -55,6 +55,13 @@ class GatewayFeeAcceptanceTests(TestCase):
         self.config = GatewayConfig.load()
         self.url = reverse('pagamentos:gateway_config')
 
+    def test_gateway_displays_terms_link_and_current_version(self):
+        response = self.client.get(self.url)
+
+        self.assertContains(response, reverse('terms_of_service'))
+        self.assertContains(response, GatewayConfig.TERMS_VERSION)
+        self.assertContains(response, 'ASAAS GESTÃO FINANCEIRA INSTITUIÇÃO DE PAGAMENTO S.A.')
+
     def test_enabled_method_requires_acceptance(self):
         self.config.status = GatewayConfig.Status.APPROVED
         self.config.save(update_fields=['status'])
@@ -63,14 +70,14 @@ class GatewayFeeAcceptanceTests(TestCase):
 
         self.assertFalse(self.config.has_current_fee_acceptance)
         self.assertFalse(self.config.can_generate_charges)
-        self.assertContains(response, 'marque a declaração de ciência')
+        self.assertContains(response, 'aceite os Termos de Uso')
 
     @patch('pagamentos.views._handle_create_subaccount')
     def test_subaccount_creation_requires_acceptance(self, mocked_create):
         response = self.client.post(self.url, {'action': 'create_subaccount'}, follow=True)
 
         mocked_create.assert_not_called()
-        self.assertContains(response, 'marque a declaração de ciência')
+        self.assertContains(response, 'aceite os Termos de Uso')
 
     def test_acceptance_records_user_and_current_values(self):
         self.client.post(self.url, {
@@ -82,6 +89,19 @@ class GatewayFeeAcceptanceTests(TestCase):
         self.assertEqual(self.config.fee_terms_accepted_by, self.user)
         self.assertIsNotNone(self.config.fee_terms_accepted_at)
         self.assertEqual(self.config.fee_terms_snapshot, self.config.current_fee_terms())
+        self.assertEqual(
+            self.config.fee_terms_snapshot['terms_version'],
+            GatewayConfig.TERMS_VERSION,
+        )
+
+    def test_acceptance_without_terms_version_is_invalid(self):
+        legacy_snapshot = dict(self.config.current_fee_terms())
+        legacy_snapshot.pop('terms_version')
+        self.config.fee_terms_snapshot = legacy_snapshot
+        self.config.fee_terms_accepted_at = timezone.now()
+        self.config.save()
+
+        self.assertFalse(self.config.has_current_fee_acceptance)
 
     @override_settings(ASAAS_PIX_COMMODITY_PERCENT=Decimal('1.00'))
     def test_changed_fee_invalidates_previous_acceptance(self):

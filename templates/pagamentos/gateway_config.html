@@ -46,7 +46,7 @@
     </a>
     <p class="text-xs leading-relaxed text-slate-300">
       A conta de pagamento e os serviços financeiros são prestados pelo
-      <strong class="font-semibold text-white">ASAAS GESTÃO FINANCEIRA INSTITUIÇÃO DE PAGAMENTOS S.A.</strong>,
+      <strong class="font-semibold text-white">ASAAS GESTÃO FINANCEIRA INSTITUIÇÃO DE PAGAMENTO S.A.</strong>,
       instituição de pagamento autorizada a funcionar pelo Banco Central do Brasil. Esta plataforma atua
       exclusivamente como integradora tecnológica.
     </p>
@@ -195,10 +195,10 @@
         </div>
       </div>
 
-      <!-- Ciência das tarifas de comodidade -->
+      <!-- Aceite dos Termos de Uso e tarifas de comodidade -->
       <div class="px-5 py-5 space-y-4 bg-blue-50/60">
         <div>
-          <h3 class="text-sm font-semibold text-slate-800">Tarifas de comodidade</h3>
+          <h3 class="text-sm font-semibold text-slate-800">Termos de Uso e tarifas de comodidade</h3>
           <p class="text-xs text-slate-600 leading-relaxed mt-1">
             A utilização da integração de pagamentos está sujeita às tarifas abaixo, descontadas do valor
             repassado em cada transação.
@@ -226,16 +226,19 @@
                  {% if config.has_current_fee_acceptance %}checked{% endif %}
                  class="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
           <span class="text-xs text-slate-700 leading-relaxed">
-            Declaro que li e estou ciente das tarifas de comodidade apresentadas acima. Entendo que, caso os
-            valores sejam atualizados, será necessário realizar um novo aceite para continuar utilizando o gateway
-            de pagamentos.
+            Declaro que li e aceito os
+            <a href="{% url 'terms_of_service' %}" target="_blank" rel="noopener noreferrer"
+               class="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900">Termos de Uso</a>
+            (versão {{ terms_version }}) e estou ciente das tarifas de comodidade apresentadas acima. Entendo que,
+            caso os Termos ou os valores sejam atualizados, será necessário realizar um novo aceite para continuar
+            utilizando o gateway de pagamentos.
           </span>
         </label>
         {% if config.fee_terms_accepted_at and not config.has_current_fee_acceptance %}
-        <p class="text-xs font-medium text-amber-700">As tarifas foram atualizadas. Revise os valores e realize um novo aceite.</p>
+        <p class="text-xs font-medium text-amber-700">Os Termos de Uso ou as tarifas foram atualizados. Revise as condições e realize um novo aceite.</p>
         {% elif config.has_current_fee_acceptance %}
         <p class="text-[11px] text-emerald-700">
-          Aceite registrado em {{ config.fee_terms_accepted_at|date:"d/m/Y" }} às {{ config.fee_terms_accepted_at|time:"H:i" }}
+          Aceite dos Termos de Uso e tarifas registrado em {{ config.fee_terms_accepted_at|date:"d/m/Y" }} às {{ config.fee_terms_accepted_at|time:"H:i" }}
           {% if config.fee_terms_accepted_by %}por {{ config.fee_terms_accepted_by.get_full_name|default:config.fee_terms_accepted_by.username }}{% endif %}.
         </p>
         {% endif %}

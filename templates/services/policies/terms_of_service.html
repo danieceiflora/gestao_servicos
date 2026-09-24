@@ -1,14 +1,18 @@
 {% extends 'base_root.html' %}
 
-{% block title %}Termos de Serviço - Gestão de Serviços{% endblock %}
+{% block title %}Termos de Uso - {{ SYSTEM_CONFIG.company_name|default:"Gestão de Serviços" }}{% endblock %}
 
 {% block layout %}
 <main class="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
     <section class="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm sm:p-10">
-            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Gestão de Serviços</p>
-            <h1 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Termos de Serviço</h1>
-            <p class="mt-4 max-w-2xl text-sm leading-6 text-slate-600">Ao usar o sistema, o usuário concorda com as regras descritas abaixo para acesso, uso e responsabilidade sobre os dados inseridos.</p>
+            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">{{ SYSTEM_CONFIG.company_name|default:"Gestão de Serviços" }}</p>
+            <h1 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Termos de Uso</h1>
+            <p class="mt-4 max-w-2xl text-sm leading-6 text-slate-600">Ao acessar ou utilizar a plataforma, o usuário declara que leu e concorda com as condições abaixo.</p>
+            <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
+                <p><strong class="text-slate-800">Responsável pela plataforma:</strong> {{ SYSTEM_CONFIG.company_name|default:"empresa responsável pela plataforma" }}{% if SYSTEM_CONFIG.company_cnpj %}, CNPJ {{ SYSTEM_CONFIG.company_cnpj }}{% endif %}.</p>
+                <p class="mt-1"><strong class="text-slate-800">Versão vigente:</strong> 2026-09-24.</p>
+            </div>
 
             <div class="mt-8 space-y-8 text-sm leading-7 text-slate-700">
                 <section>
@@ -27,13 +31,35 @@
                 </section>
 
                 <section>
-                    <h2 class="text-lg font-semibold text-slate-900">4. Disponibilidade do serviço</h2>
+                    <h2 class="text-lg font-semibold text-slate-900">4. Prestação de serviços financeiros</h2>
+                    <p class="mt-2">Os serviços financeiros e de pagamentos disponibilizados por meio desta plataforma, incluindo abertura e manutenção de conta de pagamento, processamento de transações, emissão de boletos, transferências, pagamentos e demais movimentações de valores, são prestados pelo <strong>ASAAS GESTÃO FINANCEIRA INSTITUIÇÃO DE PAGAMENTO S.A.</strong>, CNPJ 19.540.550/0001-21, instituição de pagamento autorizada a funcionar pelo Banco Central do Brasil.</p>
+                    <p class="mt-3">A {{ SYSTEM_CONFIG.company_name|default:"empresa responsável pela plataforma" }} atua exclusivamente como integradora tecnológica e distribuidora da experiência do produto, não sendo instituição financeira ou de pagamento e não realizando intermediação financeira em nome próprio.</p>
+                    <p class="mt-3">O cliente declara ciência de que o relacionamento financeiro e de pagamentos, assim como a responsabilidade regulatória pelos serviços descritos acima, são do Asaas, nos termos da regulamentação vigente. A utilização desses serviços também está sujeita aos <a href="https://central.ajuda.asaas.com/hc/pt-br/articles/32096847160859-Termos-e-Condi%C3%A7%C3%B5es-de-Uso" target="_blank" rel="noopener noreferrer" class="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900">Termos e Condições de Uso do Asaas</a>.</p>
+                </section>
+
+                <section>
+                    <h2 class="text-lg font-semibold text-slate-900">5. Tarifas e condições de pagamento</h2>
+                    <p class="mt-2">A utilização dos meios de pagamento poderá estar sujeita às tarifas apresentadas na configuração do gateway antes da ativação. O aceite registra a versão destes Termos e os valores vigentes. Alterações posteriores exigirão novo aceite para continuidade da utilização do gateway.</p>
+                </section>
+
+                <section>
+                    <h2 class="text-lg font-semibold text-slate-900">6. Disponibilidade do serviço</h2>
                     <p class="mt-2">A plataforma é fornecida conforme disponibilidade técnica e pode sofrer interrupções para manutenção, correção de falhas, atualizações ou causas externas fora do controle da organização.</p>
                 </section>
 
                 <section>
-                    <h2 class="text-lg font-semibold text-slate-900">5. Alterações</h2>
-                    <p class="mt-2">Estes termos podem ser atualizados periodicamente para refletir mudanças legais, operacionais ou de segurança. A continuidade do uso após a atualização indica aceitação dos novos termos.</p>
+                    <h2 class="text-lg font-semibold text-slate-900">7. Privacidade e dados pessoais</h2>
+                    <p class="mt-2">O tratamento de dados pessoais relacionado à plataforma observa a <a href="{% url 'privacy_policy' %}" class="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900">Política de Privacidade</a>. Os dados necessários à prestação dos serviços financeiros poderão ser compartilhados com o Asaas para cadastro, análise, processamento das operações e cumprimento de obrigações legais e regulatórias.</p>
+                </section>
+
+                <section>
+                    <h2 class="text-lg font-semibold text-slate-900">8. Alterações</h2>
+                    <p class="mt-2">Estes Termos podem ser atualizados para refletir mudanças legais, regulatórias, operacionais ou de segurança. Quando a alteração afetar as condições do gateway de pagamentos, será solicitado um novo aceite antes da continuidade de seu uso.</p>
+                </section>
+
+                <section>
+                    <h2 class="text-lg font-semibold text-slate-900">9. Contato</h2>
+                    <p class="mt-2">Em caso de dúvidas sobre estes Termos, entre em contato com {{ SYSTEM_CONFIG.company_name|default:"a empresa responsável pela plataforma" }} pelos canais oficiais{% if SYSTEM_CONFIG.company_phone %}, telefone {{ SYSTEM_CONFIG.company_phone }}{% endif %}{% if SYSTEM_CONFIG.company_website %} ou pelo site <a href="{{ SYSTEM_CONFIG.company_website }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900">{{ SYSTEM_CONFIG.company_website }}</a>{% endif %}.</p>
                 </section>
             </div>
         </div>
