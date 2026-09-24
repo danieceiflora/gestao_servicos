@@ -507,7 +507,7 @@ def dispatch_manual_message(trigger: str, instance, phone: str, contact_name: st
 
         btn_data = None
         if btn_url_params:
-            btn_data = [{'type': 'url', 'parameter': btn_url_params[k]} for k in sorted(btn_url_params)]
+            btn_data = {'type': 'url_suffix', 'params': btn_url_params}
 
         cw.send_template(
             conversation_id=conversation['id'],

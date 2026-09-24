@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import json
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import mock_open, patch
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -13,6 +13,7 @@ from integracoes.views import (
     _resolve_order_status_from_budget_decision,
 )
 from integracoes.models import NotificationConfig, PlatformSubscription, PlatformInvoice
+from integracoes.chatwoot_client import ChatwootClient
 from integracoes.utils import dispatch_dynamic_notification
 from services.models import Sale, ServiceOrder, User
 
@@ -82,6 +83,114 @@ class SaleNotificationTypeFilterTests(TestCase):
 
         chatwoot.send_template.assert_called_once()
 
+
+class ChatwootTemplateButtonHistoryTests(TestCase):
+    def setUp(self):
+        self.client_api = ChatwootClient()
+
+    def _template(self, buttons):
+        return {
+            'name': 'template_link',
+            'language': 'pt_BR',
+            'category': 'UTILITY',
+            'components': [
+                {'type': 'BODY', 'text': 'Olá {{1}}'},
+                {'type': 'BUTTONS', 'buttons': buttons},
+            ],
+        }
+
+    def _send(self, template, **kwargs):
+        response = type('Response', (), {
+            'status_code': 200,
+            'text': '{}',
+            'json': lambda self: {'id': 99},
+        })()
+        with patch.object(self.client_api, 'get_templates', return_value=[template]), \
+                patch('integracoes.chatwoot_client.requests.post', return_value=response) as post, \
+                patch('builtins.open', mock_open()):
+            result = self.client_api.send_template(
+                conversation_id=10,
+                template_name='template_link',
+                variables=['Cliente'],
+                **kwargs,
+            )
+        return result, post.call_args.kwargs['json']
+
+    def test_dynamic_url_is_clickable_in_history_and_sends_only_suffix(self):
+        template = self._template([
+            {'type': 'URL', 'text': 'Visualizar', 'url': 'https://app.exemplo.com/venda/{{1}}'},
+        ])
+
+        result, payload = self._send(
+            template,
+            button_data={'type': 'url_suffix', 'params': {0: 'token-123'}},
+        )
+
+        self.assertEqual(result, {'id': 99})
+        self.assertIn('Visualizar: https://app.exemplo.com/venda/token-123', payload['content'])
+        self.assertEqual(
+            payload['content_attributes']['template_params']['processed_params']['buttons'],
+            [{'type': 'url', 'parameter': 'token-123'}],
+        )
+
+    def test_full_url_parameter_is_not_duplicated_and_custom_content_gets_link(self):
+        template = self._template([
+            {'type': 'URL', 'text': 'Abrir pedido', 'url': 'https://app.exemplo.com/pedido/{{1}}?origem=whatsapp'},
+        ])
+        full_url = 'https://app.exemplo.com/pedido/abc?origem=whatsapp'
+
+        _, payload = self._send(
+            template,
+            content='Pedido disponível',
+            button_data={'type': 'url_suffix', 'params': {'0': full_url}},
+        )
+
+        self.assertIn(f'Abrir pedido: {full_url}', payload['content'])
+        self.assertNotIn('pedido/https://', payload['content'])
+        self.assertEqual(
+            payload['content_attributes']['template_params']['processed_params']['buttons'],
+            [{'type': 'url', 'parameter': 'abc'}],
+        )
+
+    def test_multiple_dynamic_buttons_keep_template_order(self):
+        template = self._template([
+            {'type': 'URL', 'text': 'Pedido', 'url': 'https://app.exemplo.com/pedido/{{1}}'},
+            {'type': 'URL', 'text': 'Pagamento', 'url': 'https://app.exemplo.com/pagar/{{1}}'},
+        ])
+
+        _, payload = self._send(
+            template,
+            button_data={'type': 'url_suffix', 'params': {1: 'pag-2', 0: 'ped-1'}},
+        )
+
+        self.assertLess(payload['content'].index('Pedido:'), payload['content'].index('Pagamento:'))
+        self.assertEqual(
+            payload['content_attributes']['template_params']['processed_params']['buttons'],
+            [
+                {'type': 'url', 'parameter': 'ped-1'},
+                {'type': 'url', 'parameter': 'pag-2'},
+            ],
+        )
+
+    def test_static_url_and_non_url_button_keep_readable_history(self):
+        template = self._template([
+            {'type': 'URL', 'text': 'Portal', 'url': 'https://app.exemplo.com/portal'},
+            {'type': 'QUICK_REPLY', 'text': 'Confirmar'},
+        ])
+
+        _, payload = self._send(template)
+
+        self.assertIn('Portal: https://app.exemplo.com/portal', payload['content'])
+        self.assertIn('[Botão: Confirmar]', payload['content'])
+
+    def test_unresolved_dynamic_url_keeps_textual_fallback(self):
+        template = self._template([
+            {'type': 'URL', 'text': 'Visualizar', 'url': 'https://app.exemplo.com/venda/{{1}}'},
+        ])
+
+        _, payload = self._send(template)
+
+        self.assertIn('[Botão: Visualizar]', payload['content'])
 
 @override_settings(WEBHOOK_SHARED_SECRET='test-shared-secret')
 class WebhooksAuthTests(TestCase):

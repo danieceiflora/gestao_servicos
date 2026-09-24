@@ -368,6 +368,31 @@ class ChatwootClient:
         except:
             return None
 
+    @staticmethod
+    def _resolve_url_button(template_url, raw_parameter):
+        """Retorna (URL completa para o histórico, parâmetro para o Chatwoot)."""
+        template_url = str(template_url or '').strip()
+        raw_parameter = None if raw_parameter is None else str(raw_parameter).strip()
+        placeholder = re.search(r"\{\{\s*\d+\s*\}\}", template_url)
+
+        if not placeholder:
+            return (template_url or None), raw_parameter
+        if not raw_parameter:
+            return None, raw_parameter
+
+        static_prefix = template_url[:placeholder.start()]
+        static_suffix = template_url[placeholder.end():]
+        if re.match(r'^https?://', raw_parameter, flags=re.IGNORECASE):
+            outgoing_parameter = raw_parameter
+            if static_prefix and raw_parameter.startswith(static_prefix):
+                outgoing_parameter = raw_parameter[len(static_prefix):]
+                if static_suffix and outgoing_parameter.endswith(static_suffix):
+                    outgoing_parameter = outgoing_parameter[:-len(static_suffix)]
+            return raw_parameter, outgoing_parameter
+
+        full_url = template_url[:placeholder.start()] + raw_parameter + template_url[placeholder.end():]
+        return full_url, raw_parameter
+
     def send_template(self, conversation_id, template_name, variables=None, attachment=None, content=None, header_variables=None, button_data=None):
         """
         Envia um template HSM (via WhatsApp) suportando cabeçalho, corpo e botões (PIX/Order Details).
@@ -392,19 +417,13 @@ class ChatwootClient:
             suffix = content[1:]
             content = None
 
+        content_generated = not content
         if not content:
             if template_def:
                 body_comp = next((c for c in template_def.get('components', []) if c['type'] == 'BODY'), None)
                 content = body_comp['text'] if body_comp else f"Template: {template_name}"
                 for key, value in body_params.items():
                     content = content.replace(f"{{{{{key}}}}}", str(value))
-                
-                # Renderizar botões no conteúdo para o histórico
-                buttons_comp = next((c for c in template_def.get('components', []) if c['type'] == 'BUTTONS'), None)
-                if buttons_comp:
-                    for btn in buttons_comp.get('buttons', []):
-                        btn_text = btn.get('text', '')
-                        content += f"\n\n[Botão: {btn_text}]"
             else:
                 content = f"Enviando template {template_name}..."
         
@@ -453,6 +472,20 @@ class ChatwootClient:
                         content_attributes["template_params"]["processed_params"]["header"][str(i+1)] = str(val)
 
             # 2. Botões no processed_params
+            buttons_comp = next(
+                (c for c in (template_def or {}).get('components', []) if c.get('type') == 'BUTTONS'),
+                None,
+            )
+            template_buttons = buttons_comp.get('buttons', []) if buttons_comp else []
+            resolved_url_buttons = {}
+
+            for idx, btn in enumerate(template_buttons):
+                if str(btn.get('type', '')).upper() != 'URL':
+                    continue
+                full_url, _ = self._resolve_url_button(btn.get('url', ''), None)
+                if full_url:
+                    resolved_url_buttons[idx] = (btn.get('text') or 'Abrir link', full_url)
+
             if button_data:
                 content_attributes["template_params"]["processed_params"]["buttons"] = []
                 b_type = button_data.get('type')
@@ -500,25 +533,55 @@ class ChatwootClient:
                     # [{"type": "url", "parameter": "<sufixo_dinamico>"}]
                     # O template já contém a parte fixa da URL; só o sufixo muda.
                     # Se o campo mapeado retornou a URL completa, strip do prefixo fixo automaticamente.
-                    buttons_comp = next(
-                        (c for c in (template_def or {}).get('components', []) if c['type'] == 'BUTTONS'),
-                        None
-                    )
                     # Ordena por índice para manter a ordem correta na lista
                     for btn_idx in sorted(button_data.get('params', {}).keys(), key=int):
+                        idx = int(btn_idx)
                         suffix = str(button_data['params'][btn_idx])
-                        if buttons_comp:
-                            btns = buttons_comp.get('buttons', [])
-                            idx = int(btn_idx)
-                            if idx < len(btns) and btns[idx].get('type') == 'URL':
-                                btn_url = btns[idx].get('url', '')
-                                static_prefix = btn_url.split('{{1}}')[0] if '{{1}}' in btn_url else ''
-                                if static_prefix and suffix.startswith(static_prefix):
-                                    suffix = suffix[len(static_prefix):]
+                        if idx < len(template_buttons) and str(template_buttons[idx].get('type', '')).upper() == 'URL':
+                            btn = template_buttons[idx]
+                            full_url, suffix = self._resolve_url_button(btn.get('url', ''), suffix)
+                            if full_url:
+                                resolved_url_buttons[idx] = (btn.get('text') or 'Abrir link', full_url)
+                            else:
+                                logger.warning(
+                                    "URL do botão não pôde ser resolvida. template=%s indice=%s",
+                                    template_name, idx,
+                                )
+                        elif re.match(r'^https?://', suffix, flags=re.IGNORECASE):
+                            resolved_url_buttons[idx] = ('Abrir link', suffix)
                         content_attributes["template_params"]["processed_params"]["buttons"].append({
                             "type": "url",
                             "parameter": suffix,
                         })
+
+            # O Chatwoot não torna o botão do template clicável no histórico.
+            # Incluímos a URL completa no conteúdo exibido aos atendentes.
+            history_lines = []
+            for idx, btn in enumerate(template_buttons):
+                label = btn.get('text') or 'Abrir link'
+                if str(btn.get('type', '')).upper() == 'URL':
+                    resolved = resolved_url_buttons.get(idx)
+                    if resolved:
+                        _, full_url = resolved
+                        if full_url not in content:
+                            history_lines.append(f"{label}: {full_url}")
+                    else:
+                        history_lines.append(f"[Botão: {label}]")
+                        logger.warning(
+                            "Botão URL sem endereço completo no histórico. template=%s indice=%s",
+                            template_name, idx,
+                        )
+                elif content_generated:
+                    history_lines.append(f"[Botão: {label}]")
+
+            if not template_buttons:
+                for idx in sorted(resolved_url_buttons):
+                    label, full_url = resolved_url_buttons[idx]
+                    if full_url not in content:
+                        history_lines.append(f"{label}: {full_url}")
+
+            if history_lines:
+                content += "\n\n" + "\n".join(history_lines)
 
             # Payload final do Chatwoot
             payload = {
