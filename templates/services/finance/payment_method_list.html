@@ -39,6 +39,7 @@
                         <td class="px-6 py-4">
                             <div class="font-medium text-slate-900">{{ method.descricao }}</div>
                             <div class="text-xs text-slate-400">SEFAZ: {{ method.codigo_sefaz }}</div>
+                            <div class="text-xs text-slate-500">Link público: {{ method.public_billing_enabled|yesno:"Sim,Não" }} · PDV: {{ method.get_pos_behavior_display }}</div>
                         </td>
                         <td class="px-6 py-4 text-center">
                             <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">

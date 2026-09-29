@@ -3066,6 +3066,10 @@
   .text-\[13px\] {
     font-size: 13px;
   }
+  .leading-5 {
+    --tw-leading: calc(var(--spacing) * 5);
+    line-height: calc(var(--spacing) * 5);
+  }
   .leading-6 {
     --tw-leading: calc(var(--spacing) * 6);
     line-height: calc(var(--spacing) * 6);
@@ -3427,6 +3431,9 @@
   }
   .underline {
     text-decoration-line: underline;
+  }
+  .decoration-blue-300 {
+    text-decoration-color: var(--color-blue-300);
   }
   .underline-offset-2 {
     text-underline-offset: 2px;

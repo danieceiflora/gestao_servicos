@@ -1393,6 +1393,10 @@ def billing_detail(request, pk):
 def installment_pay(request, pk):
     """Dá baixa manual em uma parcela, suportando múltiplos meios de pagamento."""
     installment = get_object_or_404(Installment, pk=pk)
+    from services.payment_channels import public_generation_blocked
+    if public_generation_blocked(installment.billing):
+        messages.error(request, 'Conclua este recebimento pelo PDV.')
+        return redirect('billing_detail', pk=installment.billing_id)
     
     if request.method == 'POST':
         # Recebe listas de métodos e valores do formulário
@@ -2624,6 +2628,7 @@ def public_sale_pdf(request, token):
 # ── PÁGINA PÚBLICA DE PAGAMENTO ──────────────────────────────────────────────
 
 def public_billing_page(request, token):
+    from services.payment_channels import public_methods, public_generation_blocked
     from integracoes.models import SystemConfig
     from pagamentos.models import GatewayConfig, GatewayCharge
     from django.conf import settings
@@ -2636,18 +2641,22 @@ def public_billing_page(request, token):
     config = SystemConfig.objects.first()
     gateway_config = GatewayConfig.load()
 
-    pix_available = gateway_config.can_generate_charges and gateway_config.pix_enabled
-    boleto_available = gateway_config.can_generate_charges and gateway_config.boleto_enabled
-    has_cpf = bool(billing.client.document)
+    allowed_methods = public_methods(gateway_config)
+    pos_pending = public_generation_blocked(billing)
+    if pos_pending:
+        allowed_methods = allowed_methods.none()
+    online_methods = list(allowed_methods.filter(integra_gateway=True))
+    pix_available = any(m.tipo_provedor == 'PIX' for m in online_methods)
+    boleto_available = any(m.tipo_provedor == 'BOLETO' for m in online_methods)
+    has_cpf = bool(billing.client and billing.client.document)
 
-    gateway_methods_disabled = not gateway_config.pix_enabled and not gateway_config.boleto_enabled
+    gateway_methods_disabled = not online_methods
     gateway_payment_available = pix_available or boleto_available
     payment_recipient_name = (
         getattr(settings, 'PAYMENT_PROCESSOR_NAME', '') or ''
     ).strip() or 'Gynbots Sistemas'
     active_static_pix_methods = list(
-        PaymentMethod.objects.filter(
-            ativo=True,
+        allowed_methods.filter(
             tipo_provedor='PIX',
             pix_type=PaymentMethod.PixType.STATIC,
         ).order_by('pk')[:2]
@@ -2673,6 +2682,8 @@ def public_billing_page(request, token):
             gateway_methods_disabled
             and payment_method
             and payment_method.ativo
+            and payment_method.public_billing_enabled
+            and not pos_pending
             and payment_method.tipo_provedor == 'PIX'
             and payment_method.pix_type == PaymentMethod.PixType.STATIC
         ):
@@ -2700,6 +2711,8 @@ def public_billing_page(request, token):
         'config': config,
         'pix_available': pix_available,
         'boleto_available': boleto_available,
+        'public_payment_methods': online_methods,
+        'pos_pending': pos_pending,
         'has_cpf': has_cpf,
         'os_url': os_url,
         'payment_recipient_name': payment_recipient_name,
@@ -2708,6 +2721,7 @@ def public_billing_page(request, token):
 
 
 def public_billing_generate_charge(request, token):
+    from services.payment_channels import public_methods, public_generation_blocked
     if request.method != 'POST':
         return HttpResponse(status=405)
 
@@ -2733,6 +2747,24 @@ def public_billing_generate_charge(request, token):
         return _error('Parcela não encontrada.')
 
     gateway_config = GatewayConfig.load()
+    if public_generation_blocked(billing):
+        return _error('Este pagamento está sendo atendido no caixa.')
+    if billing.status in (Billing.Status.PAGO, Billing.Status.CANCELADO) or installment.status in (
+        Installment.Status.PAGO, Installment.Status.CANCELADO,
+    ):
+        return _error('Esta parcela não está disponível para nova cobrança.')
+    eligible = public_methods(gateway_config).filter(integra_gateway=True)
+    payment_method_id = request.POST.get('payment_method_id', '')
+    if payment_method_id:
+        if not payment_method_id.isdigit():
+            return _error('Método de pagamento inválido.')
+        selected_method = eligible.filter(pk=payment_method_id).first()
+    else:
+        matches = list(eligible.filter(tipo_provedor=method)[:2])
+        selected_method = matches[0] if len(matches) == 1 else None
+    if not selected_method:
+        return _error('Método de pagamento não disponível neste link. Atualize a página.')
+    method = selected_method.tipo_provedor
     if not gateway_config.can_generate_charges:
         return _error('Pagamento online não disponível no momento.')
     if method == 'PIX' and not gateway_config.pix_enabled:
@@ -2748,12 +2780,15 @@ def public_billing_generate_charge(request, token):
         return render(request, 'services/public/partials/charge_result.html', {'charge': existing})
 
     client = billing.client
+    if not client:
+        return _error('Entre em contato para completar o cadastro do cliente.')
     client_doc = client.document or cpf_input
     client_doc = ''.join(filter(str.isdigit, client_doc))
     if not client_doc:
         return render(request, 'services/public/partials/charge_result.html', {
             'need_cpf': True,
             'method': method,
+            'payment_method_id': selected_method.pk,
             'task_id': str(installment.pk),  # partial usa task_id como identificador DOM
             'generate_url': request.path,
         })
@@ -2797,6 +2832,7 @@ def public_billing_generate_charge(request, token):
 
             charge = GatewayCharge.objects.create(
                 installment=installment,
+                payment_method=selected_method,
                 config=gateway_config,
                 external_id=result.external_id,
                 method=method,

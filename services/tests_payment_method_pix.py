@@ -21,6 +21,7 @@ class PaymentMethodPixFormTests(TestCase):
             'prazo_recebimento': '0',
             'codigo_sefaz': '17',
             'ativo': 'on',
+            'pos_behavior': PaymentMethod.PosBehavior.RECEIVED_NOW,
             'integra_gateway': 'on',
             'pix_type': PaymentMethod.PixType.STATIC,
             'pix_key': ' financeiro@example.com ',
@@ -67,6 +68,7 @@ class PublicBillingStaticPixTests(TestCase):
         self.client_record = Client.objects.create(name='Cliente PIX')
         self.method = PaymentMethod.objects.create(
             descricao='PIX estático',
+            public_billing_enabled=True,
             tipo_provedor='PIX',
             codigo_sefaz='17',
             integra_gateway=False,
@@ -102,6 +104,8 @@ class PublicBillingStaticPixTests(TestCase):
         self.assertNotContains(response, 'será processado pelo')
 
     def test_does_not_show_static_key_when_a_gateway_method_is_enabled(self):
+        PaymentMethod.objects.create(descricao='Boleto Bancário', tipo_provedor='BOLETO',
+                                     codigo_sefaz='15', integra_gateway=True, public_billing_enabled=True)
         self.gateway.status = GatewayConfig.Status.APPROVED
         self.gateway.pix_enabled = False
         self.gateway.boleto_enabled = True
@@ -119,6 +123,9 @@ class PublicBillingStaticPixTests(TestCase):
 
     @override_settings(PAYMENT_PROCESSOR_NAME='')
     def test_gateway_disclosure_uses_recipient_fallback(self):
+        PaymentMethod.objects.create(descricao='PIX dinâmico', tipo_provedor='PIX',
+                                     codigo_sefaz='17', pix_type='DYNAMIC', integra_gateway=True,
+                                     public_billing_enabled=True)
         self.gateway.status = GatewayConfig.Status.APPROVED
         self.gateway.pix_enabled = True
         self.gateway.save(update_fields=['status', 'pix_enabled'])
@@ -159,6 +166,7 @@ class PublicBillingStaticPixTests(TestCase):
         self.installment.save(update_fields=['payment_method'])
         PaymentMethod.objects.create(
             descricao='Outro PIX estático',
+            public_billing_enabled=True,
             tipo_provedor='PIX',
             codigo_sefaz='17',
             ativo=True,

@@ -1,4 +1,5 @@
 from django.urls import path
+from . import views_pos_payments
 from . import views
 from . import notifications
 from . import views_equipe
@@ -12,6 +13,12 @@ from . import views_pos
 urlpatterns = [
     # --- FRENTE DE CAIXA ---
     path('pdv/', views_pos.pos_home, name='pos_home'),
+    path('pdv/recebimentos/iniciar/', views_pos_payments.start, name='pos_payment_start'),
+    path('pdv/recebimentos/recuperar/<uuid:key>/', views_pos_payments.recover, name='pos_payment_recover'),
+    path('pdv/recebimentos/<int:pk>/', views_pos_payments.status, name='pos_payment_status'),
+    path('pdv/recebimentos/<int:pk>/verificar/', views_pos_payments.verify, name='pos_payment_verify'),
+    path('pdv/recebimentos/<int:pk>/substituir/', views_pos_payments.replace, name='pos_payment_replace'),
+    path('pdv/recebimentos/<int:pk>/cancelar/', views_pos_payments.cancel, name='pos_payment_cancel'),
     path('pdv/abrir/', views_pos.pos_open, name='pos_open'),
     path('pdv/produtos/', views_pos.pos_product_search, name='pos_product_search'),
     path('pdv/vendas/salvar/', views_pos.pos_save_sale, name='pos_save_sale'),

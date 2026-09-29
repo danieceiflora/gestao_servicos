@@ -19,6 +19,7 @@ from .models import (
     Installment, PaymentMethod, Product, ProductVariant, Sale, SaleItem,
     SalePayment, SaleSettings, StockMovement,
 )
+from .payment_channels import pos_methods
 
 
 def _can_operate(user):
@@ -31,7 +32,10 @@ def _can_manage(user):
 
 def _money(value, default='0'):
     try:
-        return Decimal(str(value if value not in (None, '') else default).replace(',', '.')).quantize(Decimal('0.01'))
+        amount = Decimal(str(value if value not in (None, '') else default).replace(',', '.')).quantize(Decimal('0.01'))
+        if not amount.is_finite():
+            raise ValueError('Valor monetário inválido.')
+        return amount
     except (InvalidOperation, ValueError):
         raise ValueError('Valor monetário inválido.')
 
@@ -61,7 +65,8 @@ def pos_home(request):
     return render(request, 'services/pos/index.html', {
         'session': session,
         'registers': CashRegister.objects.filter(is_active=True),
-        'payment_methods': PaymentMethod.objects.filter(ativo=True).exclude(pos_behavior=PaymentMethod.PosBehavior.DISABLED),
+        'payment_methods': pos_methods(),
+        'pending_checkout_id': session.sales.filter(status=Sale.Status.AGUARDANDO_PAGAMENTO).values_list('pk', flat=True).first() if session else None,
         'clients': Client.objects.order_by('name'),
         'drafts': drafts, 'draft_payloads': draft_payloads,
         'repeated_item_behavior': sale_settings.repeated_item_behavior,
@@ -108,6 +113,8 @@ def pos_product_search(request):
 
 
 def _save_cart(payload, session, user, finalize):
+    if session.sales.filter(status=Sale.Status.AGUARDANDO_PAGAMENTO).exists():
+        raise ValueError('Conclua o recebimento pendente antes de alterar ou iniciar outra venda.')
     items_data = payload.get('items') or []
     if not items_data:
         raise ValueError('Adicione ao menos um produto.')
@@ -162,6 +169,10 @@ def _save_cart(payload, session, user, finalize):
     resolved = []
     for row in payments:
         method = PaymentMethod.objects.get(pk=row['method_id'], ativo=True)
+        if method.pos_behavior == PaymentMethod.PosBehavior.WAIT_GATEWAY or (
+            method.tipo_provedor == 'PIX' and method.pix_type == PaymentMethod.PixType.DYNAMIC
+        ):
+            raise ValueError('Use o recebimento integrado para gerar e confirmar este PIX.')
         if method.pos_behavior == PaymentMethod.PosBehavior.DISABLED:
             raise ValueError(f'{method.descricao} não está disponível no PDV.')
         amount = _money(row.get('amount'))
@@ -286,7 +297,7 @@ def pos_close(request):
         if not session:
             messages.error(request, 'Sessão não encontrada.')
             return redirect('pos_home')
-        if session.sales.filter(status=Sale.Status.RASCUNHO).exists():
+        if session.sales.filter(status__in=[Sale.Status.RASCUNHO, Sale.Status.AGUARDANDO_PAGAMENTO]).exists():
             messages.error(request, 'Finalize ou cancele as comandas pendentes antes de fechar.')
             return redirect('pos_home')
         for row in _expected_by_method(session):
@@ -306,6 +317,8 @@ def pos_receipt(request, number):
     sale = get_object_or_404(Sale.objects.prefetch_related('items__product', 'payments__metodo_pagamento'), number=number, origin=Sale.Origin.POS)
     if sale.user_id != request.user.id and not _can_manage(request.user):
         return HttpResponseForbidden('Você não tem permissão para acessar este comprovante.')
+    if sale.pos_checkout_key and sale.status != Sale.Status.FINALIZADA:
+        return HttpResponseForbidden('O comprovante estará disponível após concluir o recebimento.')
     from fiscal.models import NFeConfig
     return render(request, 'services/pos/receipt.html', {'sale': sale, 'nfe_config': NFeConfig.load()})
 

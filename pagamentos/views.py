@@ -175,6 +175,10 @@ def _handle_refresh_status(request, config: GatewayConfig):
 @require_POST
 def installment_create_charge(request, installment_pk):
     installment = get_object_or_404(Installment, pk=installment_pk)
+    from services.payment_channels import public_generation_blocked
+    if public_generation_blocked(installment.billing):
+        messages.error(request, 'Conclua este recebimento pelo PDV.')
+        return redirect('billing_detail', pk=installment.billing_id)
     method = request.POST.get('method', 'PIX').upper()
 
     if method not in ['PIX', 'BOLETO']:
@@ -280,6 +284,10 @@ def installment_update(request, installment_pk):
     from core.tz_utils import local_today
 
     installment = get_object_or_404(Installment, pk=installment_pk)
+    from services.payment_channels import public_generation_blocked
+    if public_generation_blocked(installment.billing):
+        messages.error(request, 'Conclua este recebimento pelo PDV.')
+        return redirect('billing_detail', pk=installment.billing_id)
 
     if installment.status in [Installment.Status.PAGO, Installment.Status.CANCELADO]:
         messages.error(request, 'Não é possível editar uma parcela paga ou cancelada.')
@@ -394,6 +402,10 @@ def installment_update(request, installment_pk):
 def installment_cancel_charge(request, charge_pk):
     charge = get_object_or_404(GatewayCharge, pk=charge_pk)
     billing_pk = charge.installment.billing_id
+    from services.payment_channels import public_generation_blocked
+    if public_generation_blocked(charge.installment.billing):
+        messages.error(request, 'Cancele ou substitua este pagamento pelo PDV.')
+        return redirect('billing_detail', pk=billing_pk)
 
     try:
         gw = _get_gateway()
@@ -459,6 +471,25 @@ def asaas_webhook(request):
             return JsonResponse({'ok': True})
 
         charge = GatewayCharge.objects.filter(external_id=external_id).first()
+        if not charge and payload.get('payment', {}).get('externalReference'):
+            # A webhook can arrive before the create-charge HTTP response is persisted.
+            import uuid
+            from .models import PosChargeAttempt
+            from .gateways.base import ChargeResult
+            from services.pos_payments import _adopt_result
+            try:
+                reference = uuid.UUID(payload['payment']['externalReference'])
+            except (ValueError, TypeError, AttributeError):
+                reference = None
+            attempt = PosChargeAttempt.objects.filter(reference=reference).first() if reference else None
+            if attempt:
+                payment = payload['payment']
+                charge = _adopt_result(attempt.pk, ChargeResult(
+                    external_id=external_id, status=normalized['status'] or 'PENDING',
+                    method=payment.get('billingType', 'PIX'), amount=Decimal(str(payment['value'])),
+                    due_date=attempt.installment.due_date,
+                    net_value=Decimal(str(payment['netValue'])) if payment.get('netValue') is not None else None,
+                ))
         if not charge:
             # Não é uma cobrança de cliente — pode ser uma fatura manual ou a
             # assinatura recorrente da própria plataforma (mesmo webhook,
@@ -477,15 +508,8 @@ def asaas_webhook(request):
             logger.info(f'Webhook Asaas ignorado (evento não mapeado): {external_id} → {normalized["event"]}')
             return JsonResponse({'ok': True})
 
-        charge.status = normalized['status']
-        if normalized.get('payment_date'):
-            charge.paid_at = timezone.now()
-        if normalized.get('net_value'):
-            charge.net_value = Decimal(str(normalized['net_value']))
-        charge.save()
-
-        if normalized['status'] in ['RECEIVED', 'CONFIRMED']:
-            _auto_baixa_installment(charge)
+        from pagamentos.settlement import apply_charge_status
+        apply_charge_status(charge.pk, normalized['status'], normalized.get('net_value'))
 
         logger.info(f'Webhook Asaas processado: {external_id} → {normalized["status"]}')
     except Exception as e:
@@ -581,41 +605,8 @@ def _handle_platform_subscription_webhook(external_id: str, normalized: dict, pa
 
 
 def _auto_baixa_installment(charge: GatewayCharge):
-    from services.models import Installment as Inst, Billing, SalePayment, PaymentMethod
-    from decimal import Decimal as D
-
-    installment = charge.installment
-    installment.status = Inst.Status.PAGO
-    installment.paid_at = timezone.now()
-    installment.save(update_fields=['status', 'paid_at'])
-
-    # Cria SalePayment para que get_total_paid() / saldo devedor reflitam o recebimento
-    method_label = 'PIX' if charge.method == 'PIX' else 'Boleto'
-    payment_method = (
-        PaymentMethod.objects.filter(descricao__icontains=method_label, ativo=True).first()
-        or PaymentMethod.objects.filter(ativo=True).first()
-    )
-    if payment_method:
-        valor_liquido = charge.net_value if charge.net_value else charge.amount
-        valor_tarifa = max(charge.amount - valor_liquido, D('0.00'))
-        SalePayment.objects.create(
-            installment=installment,
-            metodo_pagamento=payment_method,
-            valor_bruto=charge.amount,
-            valor_tarifa=valor_tarifa,
-            valor_liquido=valor_liquido,
-            data_pagamento=timezone.now(),
-            data_previsao=timezone.now().date(),
-            is_gateway_auto=True,
-        )
-    else:
-        logger.warning('_auto_baixa_installment: nenhum PaymentMethod ativo encontrado; '
-                       'SalePayment não criado para charge %s', charge.external_id)
-
-    billing = installment.billing
-    if not billing.installments.exclude(status=Inst.Status.PAGO).exists():
-        billing.status = Billing.Status.PAGO
-        billing.save(update_fields=['status'])
+    from pagamentos.settlement import apply_charge_status
+    return apply_charge_status(charge.pk, charge.status, charge.net_value)
 
 
 # --- REGRAS DE COBRANÇA ---

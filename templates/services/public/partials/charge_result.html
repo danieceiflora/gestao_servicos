@@ -1,4 +1,13 @@
-{% if error %}
+{% if need_cpf %}
+<form hx-post="{{ generate_url }}" hx-target="closest div[id^='payment-area-']" hx-swap="innerHTML" class="space-y-3">
+    {% csrf_token %}
+    <input type="hidden" name="installment_id" value="{{ task_id }}">
+    <input type="hidden" name="method" value="{{ method }}">
+    <input type="hidden" name="payment_method_id" value="{{ payment_method_id }}">
+    <label class="block text-sm">CPF/CNPJ <input name="cpf" required maxlength="18" class="w-full rounded-xl border p-3"></label>
+    <button type="submit" class="w-full rounded-xl bg-slate-900 text-white p-3">Gerar cobrança</button>
+</form>
+{% elif error %}
 <div class="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500 flex-none mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>

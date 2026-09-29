@@ -104,6 +104,8 @@ def handle_sale_creation(sender, instance, created, **kwargs):
     de novo na view logo em seguida (dupla-criação que gerava Installment
     fantasma e erro de notificação CRIAR ao comitar a transação).
     """
+    if instance.origin == Sale.Origin.POS and instance.pos_checkout_key:
+        return  # O recebimento integrado mantém suas próprias parcelas, inclusive ao finalizar.
     settings = SaleSettings.get()
     trigger_status = settings.billing_trigger_status
     if trigger_status == SaleSettings.BillingTrigger.MANUAL:

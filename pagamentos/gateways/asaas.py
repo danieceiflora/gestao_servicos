@@ -7,7 +7,7 @@ from django.conf import settings
 from django.utils import timezone as dj_timezone
 
 from core.tz_utils import safe_make_aware, local_today
-from .base import BasePaymentGateway, SubaccountData, SubaccountResult, ChargeData, ChargeResult
+from .base import BasePaymentGateway, SubaccountData, SubaccountResult, ChargeData, ChargeResult, ChargeRejected
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,8 @@ class AsaasGateway(BasePaymentGateway):
                     detail = '; '.join(msgs)
             except Exception:
                 pass
+            if resp.status_code in (400, 401, 403, 422):
+                raise ChargeRejected(f'Asaas {resp.status_code}: {detail}')
             raise Exception(f'Asaas {resp.status_code}: {detail}')
 
     # (connect_timeout, read_timeout) — Asaas sandbox pode ser lento para responder
@@ -317,14 +319,25 @@ class AsaasGateway(BasePaymentGateway):
         if result.get('dueDate'):
             due = datetime.strptime(result['dueDate'], '%Y-%m-%d').date()
         billing_type = result.get('billingType', '')
-        return ChargeResult(
+        charge = ChargeResult(
             external_id=external_id,
-            status=STATUS_MAP.get(result.get('status', ''), 'PENDING'),
+            status='CANCELLED' if result.get('deleted') else STATUS_MAP.get(result.get('status', ''), 'PENDING'),
             method='PIX' if billing_type == 'PIX' else 'BOLETO',
             amount=Decimal(str(result.get('value', 0))),
             due_date=due,
             boleto_url=result.get('bankSlipUrl', ''),
+            invoice_url=result.get('invoiceUrl', ''),
+            net_value=Decimal(str(result['netValue'])) if result.get('netValue') is not None else None,
         )
+        self._populate_charge_artifacts(charge, external_id, billing_type, result)
+        return charge
+
+    def find_charge_by_reference(self, reference):
+        result = self._get('payments', params={'externalReference': str(reference), 'limit': 2})
+        matches = result.get('data', [])
+        if len(matches) > 1:
+            raise ValueError('Mais de uma cobrança encontrada. Verifique a conciliação no gateway.')
+        return self.get_charge(matches[0]['id']) if matches else None
 
     def cancel_charge(self, external_id: str) -> bool:
         result = self._delete(f'payments/{external_id}')

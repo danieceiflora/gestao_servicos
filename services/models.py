@@ -1156,6 +1156,7 @@ class Installment(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE, verbose_name="Status")
 
     paid_at = models.DateTimeField(null=True, blank=True, verbose_name="Pago em")
+    pos_payment_behavior = models.CharField(max_length=20, blank=True, default='')
     notes = models.TextField(blank=True, null=True, verbose_name="Observações")
 
     # Snapshot da BillingChargeConfig no momento da criação da parcela — ver
@@ -1266,6 +1267,7 @@ class PaymentMethod(models.Model):
         RECEIVED_NOW = 'RECEIVED_NOW', 'Recebido no ato'
         RECEIVABLE = 'RECEIVABLE', 'Conta a receber'
         DISABLED = 'DISABLED', 'Não disponível no PDV'
+        WAIT_GATEWAY = 'WAIT_GATEWAY', 'Aguardar confirmação do gateway'
 
     class PixType(models.TextChoices):
         STATIC = 'STATIC', 'Estático'
@@ -1279,6 +1281,7 @@ class PaymentMethod(models.Model):
     prazo_recebimento = models.IntegerField(default=0, verbose_name="Prazo de Recebimento (dias)")
     codigo_sefaz = models.CharField(max_length=2, verbose_name="Código SEFAZ")
     ativo = models.BooleanField(default=True, verbose_name="Ativo")
+    public_billing_enabled = models.BooleanField(default=False, verbose_name='Disponível no link público de cobrança')
     integra_gateway = models.BooleanField(
         default=False, verbose_name="Integra com Gateway de Pagamento",
         help_text="Marque apenas se este método for de fato processado automaticamente pelo "
@@ -1313,6 +1316,8 @@ class PaymentMethod(models.Model):
         return self.descricao
 
 class SalePayment(models.Model):
+    gateway_charge = models.OneToOneField('pagamentos.GatewayCharge', null=True, blank=True,
+                                         on_delete=models.PROTECT, related_name='settlement')
     venda = models.ForeignKey('Sale', on_delete=models.CASCADE, related_name='payments', null=True, blank=True, verbose_name="Venda")
     os = models.ForeignKey('ServiceOrder', on_delete=models.CASCADE, related_name='sale_payments', null=True, blank=True, verbose_name="Ordem de Serviço")
     installment = models.ForeignKey(Installment, on_delete=models.SET_NULL, null=True, blank=True, related_name='actual_payments', verbose_name="Parcela")
@@ -1347,6 +1352,7 @@ class Sale(models.Model):
         VENDA_AGENCIADA = 'VENDA_AGENCIADA', 'Venda Agenciada'
         RASCUNHO = 'RASCUNHO', 'Rascunho'
         FINALIZADA = 'FINALIZADA', 'Finalizada'
+        AGUARDANDO_PAGAMENTO = 'AGUARDANDO_PAGAMENTO', 'Aguardando pagamento'
 
     class PaymentMethod(models.TextChoices):
         DINHEIRO = 'DINHEIRO', 'Dinheiro'
@@ -1376,6 +1382,7 @@ class Sale(models.Model):
         verbose_name="Tipo de Venda",
     )
     origin = models.CharField(max_length=10, choices=Origin.choices, default=Origin.ADMIN, db_index=True, verbose_name='Origem')
+    pos_checkout_key = models.UUIDField(null=True, blank=True, unique=True, editable=False)
     cash_session = models.ForeignKey('CashSession', on_delete=models.PROTECT, null=True, blank=True, related_name='sales', verbose_name='Sessão de Caixa')
     
     # Dados Fiscais da Venda

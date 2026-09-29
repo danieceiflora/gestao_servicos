@@ -100,6 +100,14 @@
                     <label for="{{ form.ativo.id_for_label }}" class="text-sm font-semibold text-slate-700">Método Ativo</label>
                 </div>
 
+                <div class="md:col-span-2 space-y-1.5">
+                    <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                        {{ form.public_billing_enabled }} Disponível no link público de cobrança
+                    </label>
+                    <p class="text-xs text-slate-400">Permite ao cliente escolher este método. Cobranças já emitidas continuam disponíveis.</p>
+                    {% if form.public_billing_enabled.errors %}<p class="text-xs text-rose-500">{{ form.public_billing_enabled.errors.0 }}</p>{% endif %}
+                </div>
+
                 <!-- Integra com Gateway -->
                 <div class="md:col-span-2 pt-2 border-t border-slate-100 mt-2">
                     <label for="{{ form.integra_gateway.id_for_label }}" class="flex items-start gap-3 cursor-pointer select-none pt-4">
@@ -133,6 +141,7 @@
         const provider = document.getElementById('{{ form.tipo_provedor.id_for_label }}');
         const pixType = document.getElementById('{{ form.pix_type.id_for_label }}');
         const gateway = document.getElementById('{{ form.integra_gateway.id_for_label }}');
+        const behavior = document.getElementById('{{ form.pos_behavior.id_for_label }}');
         const pixTypeField = document.getElementById('pix-type-field');
         const pixKeyField = document.getElementById('pix-key-field');
 
@@ -144,6 +153,11 @@
 
             if (isPix && pixType && pixType.value && gateway) {
                 gateway.checked = pixType.value === 'DYNAMIC';
+            }
+            const isDynamic = isPix && pixType && pixType.value === 'DYNAMIC';
+            if (behavior && behavior.value !== 'DISABLED') {
+                if (isDynamic) behavior.value = 'WAIT_GATEWAY';
+                else if (behavior.value === 'WAIT_GATEWAY') behavior.value = 'RECEIVED_NOW';
             }
         }
 

@@ -5,6 +5,10 @@ from datetime import date
 from typing import Optional
 
 
+class ChargeRejected(Exception):
+    """The gateway explicitly rejected the request without creating a charge."""
+
+
 @dataclass
 class SubaccountData:
     name: str
@@ -66,6 +70,7 @@ class ChargeResult:
     boleto_bank_slip_url: str = ''
     invoice_url: str = ''
     invoice_number: str = ''
+    net_value: Optional[Decimal] = None
 
 
 class BasePaymentGateway(ABC):

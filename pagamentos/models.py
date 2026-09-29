@@ -2,6 +2,23 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from decimal import Decimal
+import uuid
+
+
+class PosChargeAttempt(models.Model):
+    """Durable intent written before calling the gateway; never retry an uncertain POST."""
+    class State(models.TextChoices):
+        PROCESSING = 'PROCESSING', 'Gerando'
+        UNKNOWN = 'UNKNOWN', 'Aguardando verificação'
+        REJECTED = 'REJECTED', 'Não emitida'
+        CREATED = 'CREATED', 'Emitida'
+
+    reference = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    installment = models.OneToOneField('services.Installment', on_delete=models.PROTECT, related_name='pos_attempt')
+    charge = models.OneToOneField('GatewayCharge', null=True, blank=True, on_delete=models.PROTECT)
+    state = models.CharField(max_length=12, choices=State.choices, default=State.PROCESSING)
+    started_at = models.DateTimeField(default=timezone.now)
+    message = models.CharField(max_length=255, blank=True)
 
 
 class BillingChargeConfig(models.Model):
@@ -271,6 +288,8 @@ class GatewayCharge(models.Model):
         verbose_name='Configuração',
     )
     gateway = models.CharField('Gateway', max_length=20, default='ASAAS')
+    payment_method = models.ForeignKey('services.PaymentMethod', null=True, blank=True,
+                                       on_delete=models.PROTECT, related_name='charges')
     external_id = models.CharField('ID Externo', max_length=100, unique=True,
                                    help_text='ID da cobrança no gateway')
     method = models.CharField('Método', max_length=10, choices=Method.choices)
