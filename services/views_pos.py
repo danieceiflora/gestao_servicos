@@ -3,6 +3,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Q, Sum
@@ -49,6 +50,20 @@ def _cash_method():
 
 
 @login_required
+def pos_settings(request):
+    if not _can_manage(request.user):
+        return HttpResponseForbidden('Você não tem permissão para configurar o PDV.')
+    from .forms_pos import PosSettingsForm
+    config = SaleSettings.get()
+    form = PosSettingsForm(request.POST if request.method == 'POST' else None, instance=config)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Configurações do PDV salvas.')
+        return redirect('pos_settings')
+    return render(request, 'services/pos/settings.html', {'form': form})
+
+
+@login_required
 def pos_home(request):
     if not _can_operate(request.user):
         return HttpResponseForbidden('Você não tem permissão para acessar o Frente de Caixa.')
@@ -57,6 +72,7 @@ def pos_home(request):
     draft_payloads = [{
         'id': sale.pk, 'number': sale.number, 'client_id': str(sale.client_id or ''),
         'client_name': sale.client.display_name if sale.client else '',
+        'uses_default_pos_client': sale.uses_default_pos_client,
         'discount': str(sale.discount), 'surcharge': str(sale.surcharge),
         'items': [{'product_id': i.product_id, 'variant_id': i.variant_id, 'name': str(i.variant or i.product),
                    'quantity': str(i.quantity), 'price': str(i.unit_price), 'discount': str(i.discount)} for i in sale.items.all()],
@@ -126,7 +142,23 @@ def _save_cart(payload, session, user, finalize):
             raise ValueError('Comanda não encontrada ou não pode mais ser alterada.')
         sale.items.all().delete()
     client_id = payload.get('client_id') or None
-    client = Client.objects.filter(pk=client_id).first() if client_id else None
+    uses_default = False
+    if client_id:
+        try:
+            client = Client.objects.filter(pk=client_id).first()
+        except (ValidationError, ValueError, TypeError):
+            client = None
+        if client is None:
+            raise ValueError('Cliente selecionado não encontrado. Selecione novamente.')
+    elif sale and sale.uses_default_pos_client:
+        client = sale.client
+        uses_default = True
+    elif sale and sale.client_id is None:
+        # Existing anonymous drafts keep their original association.
+        client = None
+    else:
+        client = SaleSettings.get().pos_default_client
+        uses_default = client is not None
     discount = _money(payload.get('discount'))
     surcharge = _money(payload.get('surcharge'))
     if not sale:
@@ -135,6 +167,7 @@ def _save_cart(payload, session, user, finalize):
                                    cash_session=session, stock_reduced=False)
     else:
         sale.client = client
+    sale.uses_default_pos_client = uses_default
     subtotal = Decimal('0')
     saved_items = []
     for row in items_data:

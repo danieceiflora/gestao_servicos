@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Configurações do PDV{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-2xl space-y-6">
+    <div><a href="{% url 'pos_home' %}" class="text-sm text-blue-600">Voltar ao PDV</a><h1 class="mt-3 text-2xl font-bold">Configurações do PDV</h1></div>
+    <form method="post" class="ui-card space-y-5 p-6">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="space-y-2">
+            <label for="client-filter" class="block text-sm font-semibold">Buscar cliente</label>
+            <input type="search" id="client-filter" class="w-full rounded-xl border p-3" placeholder="Nome, CPF ou CNPJ" autocomplete="off">
+            <label for="{{ form.pos_default_client.id_for_label }}" class="block text-sm font-semibold">Consumidor padrão</label>
+            {{ form.pos_default_client }}
+            <div role="alert" class="text-sm text-red-600">{{ form.pos_default_client.errors }}</div>
+            <p class="text-sm text-slate-500">Usado em novas vendas do PDV sem cliente identificado. Cadastre nome e CPF/CNPJ para gerar PIX integrado. Clientes escolhidos pelo operador têm prioridade.</p>
+            <p class="text-sm text-slate-500">A alteração não modifica comandas existentes. Deixe vazio para não usar um consumidor padrão.</p>
+            <a href="{% url 'client_create' %}" target="_blank" rel="noopener" class="inline-block text-sm text-blue-600">Cadastrar novo cliente</a>
+        </div>
+        <button type="submit" class="ui-button ui-button-primary">Salvar configurações</button>
+    </form>
+</div>
+<script>
+(() => {
+    const select = document.getElementById('id_pos_default_client');
+    const options = Array.from(select.options).map(option => ({value: option.value, text: option.text}));
+    const normalize = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    document.getElementById('client-filter').addEventListener('input', event => {
+        const selected = select.value;
+        const query = normalize(event.target.value);
+        select.replaceChildren();
+        options.filter(option => !option.value || option.value === selected || normalize(option.text).includes(query)
+            || (query.replace(/\D/g, '').length >= 3 && option.text.replace(/\D/g, '').includes(query.replace(/\D/g, ''))))
+            .forEach(option => select.add(new Option(option.text, option.value, false, option.value === selected)));
+    });
+})();
+</script>
+{% endblock %}

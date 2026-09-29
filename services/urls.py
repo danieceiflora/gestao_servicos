@@ -12,6 +12,7 @@ from . import views_pos
 
 urlpatterns = [
     # --- FRENTE DE CAIXA ---
+    path('pdv/configuracoes/', views_pos.pos_settings, name='pos_settings'),
     path('pdv/', views_pos.pos_home, name='pos_home'),
     path('pdv/recebimentos/iniciar/', views_pos_payments.start, name='pos_payment_start'),
     path('pdv/recebimentos/recuperar/<uuid:key>/', views_pos_payments.recover, name='pos_payment_recover'),

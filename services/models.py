@@ -1372,6 +1372,7 @@ class Sale(models.Model):
     )
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     number = models.PositiveIntegerField(unique=True, null=True, blank=True, verbose_name="Número da Venda")
+    uses_default_pos_client = models.BooleanField(default=False, verbose_name='Consumidor padrão do PDV')
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
     user = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="Vendedor")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RASCUNHO, verbose_name="Status")
@@ -2506,6 +2507,11 @@ class SaleSettings(models.Model):
         choices=RepeatedItemBehavior.choices,
         default=RepeatedItemBehavior.SEPARATE_LINES,
         verbose_name="Ao adicionar o mesmo produto",
+    )
+
+    pos_default_client = models.ForeignKey(
+        Client, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='+', verbose_name='Consumidor padrão do PDV',
     )
 
     class Meta:

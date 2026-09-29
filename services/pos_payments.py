@@ -49,7 +49,7 @@ def resolve_payment(row, client):
             raise ValueError('PIX integrado não está disponível. Verifique o método e o gateway.')
         document = ''.join(filter(str.isdigit, (client.document or '') if client else ''))
         if len(document) not in (11, 14):
-            raise ValueError('Selecione um cliente cadastrado com CPF/CNPJ para gerar o PIX.')
+            raise ValueError('Para gerar o PIX, configure o consumidor padrão em Configurações do PDV ou selecione um cliente com CPF/CNPJ.' if not client else 'O cliente vinculado à venda precisa de CPF/CNPJ para gerar o PIX. Atualize o cadastro.')
     return method, amount, tendered, behavior
 
 

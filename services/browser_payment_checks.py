@@ -83,6 +83,26 @@ class PaymentBrowserChecks(PaymentFixtures, StaticLiveServerTestCase):
         self.assertEqual(self.gateway.create_charge.call_count, 1)
         self.assertEqual(self.page_errors, [])
 
+    def test_default_consumer_settings_and_pix_without_identification(self):
+        self.page.goto(self.live_server_url + reverse('pos_settings'))
+        self.page.locator('#client-filter').fill('Cliente PIX')
+        self.page.locator('#id_pos_default_client').select_option(str(self.customer.pk))
+        self.page.get_by_role('button', name='Salvar configurações').click()
+        expect(self.page.locator('#id_pos_default_client')).to_have_value(str(self.customer.pk))
+        self.page.goto(self.live_server_url + reverse('pos_home'))
+        self.page.locator('#product-search').fill('Produto')
+        self.page.locator('#product-results button').first.click()
+        expect(self.page.locator('#client')).to_have_value('')
+        self.page.get_by_role('button', name='Receber F9').click()
+        self.set_row(0, self.pix, '150')
+        self.page.get_by_role('button', name='Finalizar venda', exact=True).click()
+        expect(self.page.get_by_label('PIX copia e cola')).to_have_value('pix-test-code')
+        data = self.gateway.create_charge.call_args.args[0]
+        self.assertEqual(data.customer_document, self.customer.document)
+        self.assertEqual(data.customer_name, self.customer.name)
+        self.assertEqual(self.alerts, [])
+        self.assertEqual(self.page_errors, [])
+
     def test_replace_only_unpaid_part(self):
         self.begin_mixed()
         self.gateway.get_charge.return_value = self.result()
