@@ -19,8 +19,11 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Main Form -->
         <div class="lg:col-span-2 space-y-6">
-            <form method="post" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <form id="template-edit-form" method="post" enctype="multipart/form-data" data-retry="{{ retry|yesno:'true,false' }}" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 {% csrf_token %}
+                {% if form.errors %}<div role="alert" class="p-4 bg-red-50 text-red-700">{{ form.non_field_errors }}{% for field in form %}{% for error in field.errors %}<p>{{ field.label }}: {{ error }}</p>{% endfor %}{% endfor %}</div>{% endif %}
+                <input type="hidden" name="buttons" id="buttons-json">
+                <input type="hidden" name="body_examples" id="body-examples-json">
                 <div class="p-6 space-y-8">
                     <!-- Category Selection -->
                     <div class="space-y-3">
@@ -28,56 +31,35 @@
                             <i data-lucide="tag" class="h-4 w-4 text-slate-400"></i>
                             Categoria do Modelo
                         </label>
-                        <select name="category" id="category" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-700">
-                            <option value="MARKETING" {% if template.category == 'MARKETING' %}selected{% endif %}>Marketing</option>
-                            <option value="UTILITY" {% if template.category == 'UTILITY' %}selected{% endif %}>Utilidade</option>
-                            <option value="AUTHENTICATION" {% if template.category == 'AUTHENTICATION' %}selected{% endif %}>Autenticação</option>
+                        <select name="category" id="category" {% if category_locked %}disabled{% endif %} class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-700">
+                            <option value="MARKETING" {% if editor_state.category == 'MARKETING' %}selected{% endif %}>Marketing</option>
+                            <option value="UTILITY" {% if editor_state.category == 'UTILITY' %}selected{% endif %}>Utilidade</option>
+                            <option value="AUTHENTICATION" {% if editor_state.category == 'AUTHENTICATION' %}selected{% endif %}>Autenticação</option>
                         </select>
                     </div>
 
-                    <!-- Header (Info Only for now) -->
-                    {% if header_format == 'TEXT' %}
-                    <div class="space-y-3">
-                        <label class="text-sm font-bold text-slate-700 flex items-center gap-2">
-                            <i data-lucide="heading" class="h-4 w-4 text-slate-400"></i>
-                            Cabeçalho (Texto)
-                        </label>
-                        <div class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 text-sm">
-                            {{ header_text }}
-                        </div>
-                        {% if '{{1}}' in header_text %}
-                        <div class="space-y-2 pl-4 border-l-2 border-blue-200">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase">Exemplo para {1}</label>
-                            <input type="text" name="header_example" id="header_example" value="{{ header_example }}" oninput="updatePreview()" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-blue-500" placeholder="Ex: João">
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% elif header_format != '' %}
-                    <div class="space-y-3">
-                        <label class="text-sm font-bold text-slate-700 flex items-center gap-2">
-                            <i data-lucide="file-type" class="h-4 w-4 text-slate-400"></i>
-                            Cabeçalho ({{ header_format }})
-                        </label>
-                        <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-4">
-                            <div class="h-12 w-12 bg-white rounded-lg flex items-center justify-center text-blue-500 border border-slate-100 shadow-sm">
-                                {% if header_format == 'IMAGE' %}<i data-lucide="image" class="h-6 w-6"></i>
-                                {% elif header_format == 'VIDEO' %}<i data-lucide="video" class="h-6 w-6"></i>
-                                {% elif header_format == 'DOCUMENT' %}<i data-lucide="file-text" class="h-6 w-6"></i>
-                                {% endif %}
-                            </div>
-                            <div>
-                                <p class="text-sm font-bold text-slate-700">Mídia Configurada</p>
-                                <p class="text-[10px] text-slate-400 uppercase font-mono">Tipo: {{ header_format }}</p>
+                    <fieldset class="space-y-3" {% if header_locked %}disabled{% endif %}>
+                        <legend class="text-sm font-bold text-slate-700">Cabeçalho</legend>
+                        {% if header_locked %}<p class="text-sm text-amber-700">Este cabeçalho especial será preservado sem alterações.</p>{% endif %}
+                        <label for="header_type" class="text-sm">Tipo de cabeçalho</label>
+                        <select name="header_type" id="header_type" class="w-full px-4 py-2 border border-slate-200 rounded-lg">
+                            <option value="NONE">Sem cabeçalho</option><option value="TEXT">Texto</option>
+                            <option value="IMAGE">Imagem</option><option value="VIDEO">Vídeo</option><option value="DOCUMENT">Documento PDF</option>
+                        </select>
+                        <div id="header-text-fields" class="space-y-3" hidden>
+                            <label for="header_text" class="text-sm">Texto do cabeçalho</label>
+                            <input name="header_text" id="header_text" maxlength="60" class="w-full px-4 py-2 border border-slate-200 rounded-lg">
+                            <div id="header-example-field" hidden>
+                                <label for="header_example" class="text-sm">Exemplo da variável do cabeçalho</label>
+                                <input name="header_example" id="header_example" class="w-full px-4 py-2 border border-slate-200 rounded-lg">
                             </div>
                         </div>
-                        {% if header_example %}
-                        <div class="px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg">
-                            <p class="text-[10px] text-blue-600 font-bold uppercase mb-1">Handle de Exemplo:</p>
-                            <p class="text-[10px] text-blue-400 font-mono break-all">{{ header_example }}</p>
+                        <div id="header-media-fields" class="space-y-2" hidden>
+                            <label for="header_file" class="text-sm">Arquivo de exemplo para análise da Meta</label>
+                            <input type="file" name="header_file" id="header_file" class="w-full text-sm">
+                            <p id="media-help" class="text-xs text-slate-500"></p>
                         </div>
-                        {% endif %}
-                    </div>
-                    {% endif %}
+                    </fieldset>
 
                     <!-- Body Content -->
                     <div class="space-y-3">
@@ -85,15 +67,15 @@
                             <i data-lucide="align-left" class="h-4 w-4 text-slate-400"></i>
                             Conteúdo da Mensagem (Corpo)
                         </label>
-                        <textarea name="body_text" id="body_text" rows="6" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-700 resize-none" placeholder="Digite o conteúdo principal...">{{ body_text }}</textarea>
+                        <textarea name="body_text" id="body_text" rows="6" maxlength="1024" {% if body_locked %}readonly{% endif %} class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-700 resize-none" placeholder="Digite o conteúdo principal...">{{ editor_state.body_text }}</textarea>
                         
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-4">
                                 <span class="text-[11px] font-bold text-slate-400 uppercase">Inserir Variável:</span>
                                 <div class="flex gap-2">
-                                    <button type="button" onclick="insertVariable('{{1}}')" class="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded text-[10px] font-mono font-bold transition-colors">{% templatetag openvariable %}1{% templatetag closevariable %}</button>
-                                    <button type="button" onclick="insertVariable('{{2}}')" class="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded text-[10px] font-mono font-bold transition-colors">{% templatetag openvariable %}2{% templatetag closevariable %}</button>
-                                    <button type="button" onclick="insertVariable('{{3}}')" class="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded text-[10px] font-mono font-bold transition-colors">{% templatetag openvariable %}3{% templatetag closevariable %}</button>
+                                    <button type="button" data-insert-variable="1" {% if body_locked %}disabled{% endif %} class="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded text-[10px] font-mono font-bold transition-colors">{% templatetag openvariable %}1{% templatetag closevariable %}</button>
+                                    <button type="button" data-insert-variable="2" {% if body_locked %}disabled{% endif %} class="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded text-[10px] font-mono font-bold transition-colors">{% templatetag openvariable %}2{% templatetag closevariable %}</button>
+                                    <button type="button" data-insert-variable="3" {% if body_locked %}disabled{% endif %} class="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded text-[10px] font-mono font-bold transition-colors">{% templatetag openvariable %}3{% templatetag closevariable %}</button>
                                 </div>
                             </div>
                             <span id="char-count" class="text-[11px] font-bold text-slate-400">0 / 1024</span>
@@ -106,50 +88,19 @@
                                 Exemplos das Variáveis
                             </h4>
                             <div id="examples-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {% for example_val in body_examples %}
-                                <div class="space-y-1">
-                                    <label class="text-[10px] font-bold text-slate-500 uppercase">Exemplo para {{ forloop.counter }}</label>
-                                    <input type="text" name="body_examples[]" value="{{ example_val }}" oninput="updatePreview()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" placeholder="Digite um valor de exemplo..." required>
-                                </div>
-                                {% endfor %}
+
                             </div>
                         </div>
                     </div>
 
-                    <!-- Buttons Preview -->
-                    {% if buttons %}
-                    <div class="space-y-3">
-                        <label class="text-sm font-bold text-slate-700 flex items-center gap-2">
-                            <i data-lucide="mouse-pointer-2" class="h-4 w-4 text-slate-400"></i>
-                            Botões Configurados
-                        </label>
-                        <div class="grid grid-cols-1 gap-3">
-                            {% for btn in buttons %}
-                            <div class="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl group hover:border-blue-200 transition-colors">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-8 w-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-slate-400">
-                                        {% if btn.type == 'QUICK_REPLY' %}
-                                            <i data-lucide="reply" class="h-4 w-4"></i>
-                                        {% elif btn.type == 'URL' %}
-                                            <i data-lucide="link" class="h-4 w-4"></i>
-                                        {% else %}
-                                            <i data-lucide="phone" class="h-4 w-4"></i>
-                                        {% endif %}
-                                    </div>
-                                    <div>
-                                        <p class="text-sm font-bold text-slate-700">{{ btn.text }}</p>
-                                        <p class="text-[10px] text-slate-400 font-mono uppercase">{{ btn.type }}</p>
-                                    </div>
-                                </div>
-                                {% if btn.url %}
-                                <span class="text-[10px] text-slate-400 font-mono max-w-[200px] truncate">{{ btn.url }}</span>
-                                {% endif %}
-                            </div>
-                            {% endfor %}
-                        </div>
-                        <p class="text-[11px] text-amber-600 font-medium">Nota: A alteração de botões deve ser feita no Gerenciador da Meta para garantir compatibilidade.</p>
-                    </div>
-                    {% endif %}
+                    <section class="space-y-3">
+                        <h2 class="text-sm font-bold text-slate-700">Botões de ação</h2>
+                        {% if buttons_locked %}<p class="text-sm text-amber-700">Este template contém botões especiais. O conjunto será preservado sem alterações.</p>{% endif %}
+                        <div id="button-editor" class="space-y-3" data-locked="{{ buttons_locked|yesno:'true,false' }}"></div>
+                        {% if not buttons_locked %}<button type="button" id="add-button" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg">Adicionar botão</button>{% endif %}
+                    </section>
+                    <p class="text-xs text-amber-700">Ao alterar variáveis ou a ordem dos botões, revise os mapeamentos das automações que utilizam este template.</p>
+                    <p class="text-xs text-slate-500">As alterações estão sujeitas às regras e à revisão da Meta.</p>
                 </div>
 
                 <!-- Form Actions -->
@@ -206,13 +157,7 @@
 
                             <!-- Buttons in Preview -->
                             <div id="preview-buttons" class="border-t border-slate-100 divide-y divide-slate-100 hidden bg-slate-50/50">
-                                {% for btn in buttons %}
-                                <div class="p-2.5 text-center text-sm font-semibold text-blue-500 flex items-center justify-center gap-2">
-                                    {% if btn.type == 'URL' %}<i data-lucide="external-link" class="h-3 w-3"></i>{% endif %}
-                                    {% if btn.type == 'PHONE_NUMBER' %}<i data-lucide="phone" class="h-3 w-3"></i>{% endif %}
-                                    {{ btn.text }}
-                                </div>
-                                {% endfor %}
+
                             </div>
                         </div>
                     </div>
@@ -234,169 +179,7 @@
     </div>
 </div>
 
-<script>
-    {% verbatim %}
-    const bodyInput = document.getElementById('body_text');
-    const previewBody = document.getElementById('preview-body');
-    const charCount = document.getElementById('char-count');
-    const examplesList = document.getElementById('examples-list');
-    const submitBtn = document.getElementById('submit-btn');
-    const initialContent = bodyInput.value;
-    const initialCategory = document.getElementById('category').value;
-
-    function checkChanges() {
-        const currentContent = bodyInput.value;
-        const currentCategory = document.getElementById('category').value;
-        const hasChanges = currentContent !== initialContent || currentCategory !== initialCategory;
-        
-        // Verifica também se os inputs de exemplo mudaram (opcional, mas recomendado)
-        const exampleInputs = document.getElementsByName('body_examples[]');
-        let examplesChanged = false;
-        // Aqui poderíamos guardar os valores iniciais dos exemplos também se necessário
-        
-        submitBtn.disabled = !hasChanges;
-    }
-
-    function updatePreview() {
-        const text = bodyInput.value;
-        charCount.textContent = `${text.length} / 1024`;
-        
-        if (text.length > 1024) {
-            charCount.classList.add('text-red-500');
-        } else {
-            charCount.classList.remove('text-red-500');
-        }
-
-        // Re-generate example fields if variables change
-        const vars = text.match(/\{\{\d+\}\}/g) || [];
-        const currentExamplesInputs = document.getElementsByName('body_examples[]');
-        const currentExamples = Array.from(currentExamplesInputs).map(i => i.value);
-        
-        // Atualiza Preview do Corpo com substituição por exemplos (entre colchetes se preenchido)
-        let processedText = text;
-        vars.forEach((v, index) => {
-            const val = currentExamples[index] || '';
-            const replacement = val ? `[${val}]` : v;
-            // Substitui apenas a primeira ocorrência para manter a ordem correta caso haja repetidas
-            processedText = processedText.replace(v, replacement);
-        });
-        previewBody.textContent = processedText || 'Sua mensagem aparecerá aqui...';
-
-        // Preview do Header (se houver variável)
-        const headerExampleInput = document.getElementById('header_example');
-        const headerPreview = document.getElementById('preview-header');
-        if (headerPreview && headerPreview.dataset.originalText) {
-            const hText = headerPreview.dataset.originalText;
-            const hExample = headerExampleInput ? headerExampleInput.value : '';
-            headerPreview.textContent = hExample ? hText.replace('{{1}}', `[${hExample}]`) : hText;
-        }
-        
-        let html = '';
-        vars.forEach((v, index) => {
-            const num = v.replace(/\{|\}/g, '');
-            const val = currentExamples[index] || '';
-            html += `
-                <div class="space-y-1 animate-in fade-in zoom-in duration-200">
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Exemplo para {{${num}}}</label>
-                    <input type="text" name="body_examples[]" value="${val}" oninput="updatePreview()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" placeholder="Digite o valor real que substituirá {{${num}}}" required>
-                </div>
-            `;
-        });
-        
-        if (vars.length > 0) {
-            document.getElementById('body-examples-container').classList.remove('hidden');
-        } else {
-            document.getElementById('body-examples-container').classList.add('hidden');
-        }
-        
-        // Só atualiza a lista de inputs se o número de variáveis mudar para não perder o foco enquanto digita o exemplo
-        if (vars.length !== currentExamplesInputs.length) {
-            examplesList.innerHTML = html;
-        }
-
-        checkChanges();
-    }
-
-    function insertVariable(variable) {
-        const start = bodyInput.selectionStart;
-        const end = bodyInput.selectionEnd;
-        const text = bodyInput.value;
-        const before = text.substring(0, start);
-        const after  = text.substring(end, text.length);
-        bodyInput.value = before + variable + after;
-        bodyInput.focus();
-        bodyInput.selectionStart = bodyInput.selectionEnd = start + variable.length;
-        updatePreview();
-    }
-
-    bodyInput.addEventListener('input', updatePreview);
-    document.getElementById('category').addEventListener('change', checkChanges);
-
-    document.querySelector('form').addEventListener('submit', function(e) {
-        const confirmMsg = 'Atenção: Após enviado para revisão, este modelo ficará PENDENTE até a aprovação da Meta. \n\n' +
-                         'Durante este período e nas próximas 24 horas após a aprovação, não será possível realizar novas edições. \n\n' +
-                         'Deseja prosseguir com o envio?';
-        
-        if (!confirm(confirmMsg)) {
-            e.preventDefault();
-        }
-    });
-    {% endverbatim %}
-</script>
-
 {{ template|json_script:"template-data" }}
-
-<script>
-    const templateData = JSON.parse(document.getElementById('template-data').textContent);
-    
-    templateData.components.forEach(comp => {
-        if (comp.type === 'HEADER' && comp.format === 'TEXT') {
-            const h = document.getElementById('preview-header');
-            if (h) {
-                h.textContent = comp.text;
-                h.dataset.originalText = comp.text; // Guarda o original para substituição
-                h.classList.remove('hidden');
-            }
-        } else if (comp.type === 'HEADER' && (comp.format === 'IMAGE' || comp.format === 'VIDEO' || comp.format === 'DOCUMENT')) {
-            const h = document.getElementById('preview-header-media');
-            if (h) {
-                h.classList.remove('hidden');
-                // Ajustar ícone se for documento
-                if (comp.format === 'DOCUMENT') {
-                    h.innerHTML = '<i data-lucide="file-text" class="h-8 w-8 text-slate-300"></i>';
-                } else if (comp.format === 'VIDEO') {
-                    h.innerHTML = '<i data-lucide="video" class="h-8 w-8 text-slate-300"></i>';
-                }
-            }
-        }
-        
-        if (comp.type === 'FOOTER') {
-            const f = document.getElementById('preview-footer');
-            if (f) {
-                f.textContent = comp.text;
-                f.classList.remove('hidden');
-            }
-        }
-
-        if (comp.type === 'BUTTONS') {
-            const b = document.getElementById('preview-buttons');
-            if (b) b.classList.remove('hidden');
-        }
-    });
-
-    // Run preview once
-    updatePreview();
-    
-    // Lucide Icons
-    lucide.createIcons();
-</script>
-
-<style>
-    /* WhatsApp style animations */
-    .animate-in {
-        animation-duration: 0.3s;
-        animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-        animation-fill-mode: both;
-    }
-</style>
+{{ editor_state|json_script:"editor-state" }}
+<script src="{% static 'js/whatsapp-template-edit.js' %}" defer></script>
 {% endblock %}

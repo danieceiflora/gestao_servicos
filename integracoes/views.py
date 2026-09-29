@@ -8,6 +8,9 @@ from datetime import datetime
 from decimal import Decimal
 import requests
 from django.conf import settings
+from django.core.paginator import Paginator
+from django.core.exceptions import ValidationError
+from .template_editor import TemplateEditForm, initial_state, error_message
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -505,6 +508,9 @@ class MetaCloudAPI:
             while next_url:
                 response = requests.get(next_url, headers=headers, params=next_params, timeout=10)
                 data = response.json()
+                if data.get("error"):
+                    return {"error": data["error"], "data": []}
+                response.raise_for_status()
                 all_templates.extend(data.get("data", []))
                 next_url = data.get("paging", {}).get("next")
                 next_params = None  # URL "next" já inclui os params
@@ -530,9 +536,10 @@ class MetaCloudAPI:
             "Content-Type": "application/json"
         }
         data = {
-            "category": category,
             "components": components
         }
+        if category is not None:
+            data["category"] = category
         try:
             response = requests.post(url, headers=headers, json=data, timeout=10)
             return response.json()
@@ -1146,7 +1153,7 @@ def whatsapp_template_list(request):
     error = result.get('error')
 
     if error:
-        messages.error(request, f"Erro ao sincronizar templates com a Meta: {error}")
+        messages.error(request, f"Erro ao sincronizar templates com a Meta: {error_message(error)}")
 
     # Converte string ISO 8601 de última edição para datetime
     from django.utils.dateparse import parse_datetime
@@ -1167,10 +1174,25 @@ def whatsapp_template_list(request):
     from django.utils import timezone as dj_timezone
     last_sync = dj_timezone.now()
 
+    query = request.GET.get('q', '').strip()
+    labels = {
+        'UTILITY': 'Utilitário Utilidade', 'MARKETING': 'Marketing', 'AUTHENTICATION': 'Autenticação',
+        'APPROVED': 'Aprovado', 'PENDING': 'Pendente', 'PENDING_REVIEW': 'Pendente',
+        'REJECTED': 'Rejeitado', 'PAUSED': 'Pausado', 'PENDING_DELETION': 'Ag. Exclusão',
+        'IN_APPEAL': 'Em Recurso', 'DISABLED': 'Desabilitado',
+    }
+    def normalize(value):
+        return ''.join(c for c in unicodedata.normalize('NFKD', str(value).casefold()) if not unicodedata.combining(c))
+    if query:
+        needle = normalize(query)
+        templates = [t for t in templates if needle in normalize(' '.join(
+            [str(t.get(k, '')) for k in ('name', 'id', 'language', 'category', 'status')]
+            + [labels.get(t.get('category'), ''), labels.get(t.get('status'), '')]))]
+    templates.sort(key=lambda t: tuple(str(t.get(k, '')).casefold() for k in ('name', 'language', 'id')))
+    page = Paginator(templates, 20).get_page(request.GET.get('page'))
     return render(request, 'integracoes/whatsapp_template_list.html', {
-        'templates': templates,
-        'config': config,
-        'last_sync': last_sync,
+        'templates': page, 'page_obj': page, 'query': query,
+        'config': config, 'last_sync': last_sync if not error else None, 'sync_error': bool(error),
     })
 
 @login_required
@@ -1290,98 +1312,49 @@ def whatsapp_template_edit(request, template_id):
     config = SystemConfig.load()
     api = MetaCloudAPI(config.meta_waba_id, config.meta_access_token)
     
-    # 1. Buscar estado atual do template
     template = api.get_template(template_id)
     if 'error' in template:
-        messages.error(request, f"Erro ao buscar template: {template['error'].get('message', 'Erro desconhecido')}")
+        messages.error(request, f"Erro ao buscar template: {error_message(template['error'])}")
         return redirect('integracoes:whatsapp_template_list')
 
+    state = initial_state(template)
+    form = TemplateEditForm(request.POST if request.method == 'POST' else None,
+                            request.FILES if request.method == 'POST' else None, template=template)
     if request.method == 'POST':
-        category = request.POST.get('category')
-        body_text = request.POST.get('body_text')
-        
-        # Extrair exemplos do POST
-        body_examples = request.POST.getlist('body_examples[]')
-        header_example = request.POST.get('header_example')
-        
-        # Reconstruir componentes
-        new_components = []
-        for comp in template.get('components', []):
-            new_comp = comp.copy()
-            
-            if comp['type'] == 'BODY':
-                new_comp['text'] = body_text
-                if body_examples:
-                    # A Meta espera um array de arrays para o body_text
-                    new_comp['example'] = {"body_text": [body_examples]}
-                elif 'example' in new_comp:
-                    del new_comp['example']
-            
-            elif comp['type'] == 'HEADER' and comp.get('format') == 'TEXT':
-                # Preservar texto do header ou permitir edição simples se implementado futuramente
-                if header_example:
-                    new_comp['example'] = {"header_text": [header_example]}
-            
-            # Botões e outros componentes são mantidos como estão (ou editados via POST se adicionarmos campos)
-            new_components.append(new_comp)
-        
-        result = api.update_template(template_id, category, new_components)
-        
-        if 'error' in result:
-            messages.error(request, f"Erro ao atualizar: {result['error'].get('message', 'Erro desconhecido')}")
-        else:
-            messages.success(request, f"Template '{template.get('name')}' enviado para revisão.")
-            return redirect('integracoes:whatsapp_template_list')
-
-    # Extrair dados para o template
-    body_text = ""
-    body_examples = []
-    header_text = ""
-    header_example = ""
-    header_format = ""
-    buttons = []
-
-    for comp in template.get('components', []):
-        if comp['type'] == 'BODY':
-            body_text = comp.get('text', "")
-            # Extrair exemplos existentes
-            example_data = comp.get('example', {}).get('body_text', [])
-            if example_data and isinstance(example_data[0], list):
-                body_examples = example_data[0]
-        
-        elif comp['type'] == 'HEADER':
-            header_format = comp.get('format', "")
-            header_text = comp.get('text', "")
-            
-            # Tenta extrair exemplo baseado no formato
-            example_obj = comp.get('example', {})
-            if header_format == 'TEXT':
-                example_data = example_obj.get('header_text', [])
-                if example_data:
-                    header_example = example_data[0]
-            elif header_format in ['IMAGE', 'VIDEO', 'DOCUMENT']:
-                example_data = example_obj.get('header_handle', [])
-                if example_data:
-                    header_example = example_data[0]
-                
-        elif comp['type'] == 'BUTTONS':
-            buttons = comp.get('buttons', [])
-
-    # Identificar quantas variáveis existem no body para gerar campos de exemplo
-    body_vars_count = len(re.findall(r"\{\{\d+\}\}", body_text))
-    # Garantir que a lista de exemplos tenha o tamanho correto
-    while len(body_examples) < body_vars_count:
-        body_examples.append("")
+        if form.is_valid():
+            try:
+                components = form.components(api)
+                category = form.cleaned_data['category']
+                result = api.update_template(template_id, category if category != template.get('category') else None, components)
+                if result.get('error'):
+                    messages.error(request, f"Erro ao atualizar: {error_message(result['error'])}")
+                elif result.get('success') is True:
+                    messages.success(request, f"Template '{template.get('name')}' enviado para revisão.")
+                    return redirect('integracoes:whatsapp_template_list')
+                else:
+                    messages.error(request, 'A Meta não confirmou a atualização. Tente novamente.')
+            except ValidationError as exc:
+                form.add_error(None, exc)
+        for key in state:
+            if form.fields[key].disabled:
+                continue
+            if key in ('buttons', 'body_examples'):
+                try:
+                    value = json.loads(request.POST.get(key, '[]'))
+                    if isinstance(value, list) and (key != 'buttons' or all(isinstance(b, dict) for b in value)):
+                        state[key] = value
+                except (ValueError, TypeError):
+                    pass
+            else:
+                state[key] = request.POST.get(key, '')
+        if request.FILES.get('header_file'):
+            messages.warning(request, 'Selecione novamente o arquivo de exemplo antes de reenviar.')
 
     return render(request, 'integracoes/whatsapp_template_edit.html', {
-        'template': template,
-        'body_text': body_text,
-        'body_examples': body_examples[:body_vars_count],
-        'header_text': header_text,
-        'header_example': header_example,
-        'header_format': header_format,
-        'buttons': buttons,
-        'config': config
+        'template': template, 'editor_state': state, 'form': form,
+        'header_locked': form.header_locked, 'buttons_locked': form.buttons_locked,
+        'body_locked': form.authentication, 'category_locked': form.fields['category'].disabled,
+        'retry': request.method == 'POST', 'config': config,
     })
 
 @login_required
