@@ -1,5 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
+from django.views.decorators.http import require_POST
+from .sale_cancellation import cancel_sale, has_receipts, guard_installment_payment, lock_open_installment
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum, Q, F, Avg, Count
 from django.db import transaction
@@ -856,6 +858,7 @@ def sale_detail(request, number):
         'formset': formset,
         'can_edit': can_edit,
         'is_detail': True,
+        'sale_has_receipts': has_receipts(sale),
         'title': f'Venda #{sale.number}',
         'products': Product.objects.filter(is_active=True),
         'clients': Client.objects.all().order_by('name'),
@@ -870,41 +873,15 @@ def sale_detail(request, number):
 
 @login_required
 @user_passes_test(is_manager)
+@require_POST
 def sale_cancel(request, number):
     sale = get_object_or_404(Sale, number=number)
-    
-    if sale.status == Sale.Status.CANCELADO:
-        messages.warning(request, "Esta venda já está cancelada.")
-        return redirect('sale_detail', number=sale.number)
-        
-    if request.method == 'POST':
-        try:
-            with transaction.atomic():
-                # Reverter Estoque apenas se já tinha sido baixado
-                if sale.stock_reduced:
-                    for item in sale.items.all():
-                        target = item.variant if item.variant else item.product
-                        target.increase_stock(
-                            item.quantity,
-                            user=request.user,
-                            reason=StockMovement.Reason.DEVOLUCAO,
-                            notes=f"Estorno Venda Cancelada: #{sale.number}"
-                        )
-
-                sale.status = Sale.Status.CANCELADO
-                sale.stock_reduced = False
-                sale.save()
-
-                # Cancelar Billing se existir
-                if hasattr(sale, 'billing'):
-                    sale.billing.status = Billing.Status.CANCELADO
-                    sale.billing.save()
-                    sale.billing.installments.update(status=Installment.Status.CANCELADO)
-
-                messages.success(request, "Venda cancelada e estoque estornado com sucesso!")
-        except Exception as e:
-            messages.error(request, f"Erro ao cancelar venda: {str(e)}")
-            
+    try:
+        result = cancel_sale(sale.pk, request.user)
+        (messages.success if result.success else messages.error)(request, result.message)
+    except Exception:
+        logger.exception('Erro ao cancelar venda %s', sale.pk)
+        messages.error(request, 'Não foi possível concluir o cancelamento. Tente novamente para reconciliar as cobranças.')
     return redirect('sale_detail', number=sale.number)
 
 @login_required
@@ -1390,6 +1367,7 @@ def billing_detail(request, pk):
 
 @login_required
 @user_passes_test(is_manager)
+@guard_installment_payment
 def installment_pay(request, pk):
     """Dá baixa manual em uma parcela, suportando múltiplos meios de pagamento."""
     installment = get_object_or_404(Installment, pk=pk)
@@ -2804,7 +2782,7 @@ def public_billing_generate_charge(request, token):
             # Trava a parcela e refaz a checagem dentro da transação — evita que o cliente
             # (nesta página pública) e o staff (pelo admin) gerem 2 cobranças quase ao mesmo
             # tempo para a mesma parcela.
-            locked_installment = Installment.objects.select_for_update().get(pk=installment.pk)
+            locked_installment = lock_open_installment(installment.pk)
             existing = locked_installment.gateway_charges.filter(
                 status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
                             GatewayCharge.Status.CONFIRMED, GatewayCharge.Status.OVERDUE]

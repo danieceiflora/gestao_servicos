@@ -137,8 +137,9 @@
             </a>
             {% endif %}
 
-            {% if is_detail and sale.status != 'CANCELADO' %}
-            <form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="return confirm('Tem certeza que deseja cancelar esta venda? O estoque será estornado.')">
+            {% if sale_has_receipts and sale.status != 'CANCELADO' %}<p class="text-sm text-amber-700">Venda com recebimentos: trate a devolução/estorno antes de cancelar.</p>{% endif %}
+            {% if is_detail and sale.status != 'CANCELADO' and not sale_has_receipts %}
+            <form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="if(this.dataset.busy)return false;if(!confirm('Cancelar a venda, a conta a receber e as cobranças abertas no gateway? O estoque será estornado se houver baixa.'))return false;this.dataset.busy='true';this.setAttribute('aria-busy','true');const button=this.querySelector('button');button.disabled=true;button.textContent='Cancelando…';">
                 {% csrf_token %}
                 <button type="submit" class="px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-100 rounded-md transition-colors flex items-center gap-2">
                     <i data-lucide="trash-2" class="w-4 h-4"></i> CANCELAR VENDA

@@ -21,8 +21,9 @@
             </h1>
         </div>
         <div class="flex gap-2">
-            {% if sale.status == 'CONCLUIDO' %}
-            <form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="return confirm('Tem certeza que deseja cancelar esta venda? O estoque será estornado.')">
+            {% if sale_has_receipts and sale.status != 'CANCELADO' %}<p class="text-sm text-amber-700">Venda com recebimentos: trate a devolução/estorno antes de cancelar.</p>{% endif %}
+            {% if sale.status != 'CANCELADO' and not sale_has_receipts %}
+            <form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="if(this.dataset.busy)return false;if(!confirm('Cancelar a venda, a conta a receber e as cobranças abertas no gateway? O estoque será estornado se houver baixa.'))return false;this.dataset.busy='true';this.setAttribute('aria-busy','true');const button=this.querySelector('button');button.disabled=true;button.textContent='Cancelando…';">
                 {% csrf_token %}
                 <button type="submit" class="inline-flex items-center px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors shadow-sm">
                     <i data-lucide="x-circle" class="w-4 h-4 mr-2"></i>

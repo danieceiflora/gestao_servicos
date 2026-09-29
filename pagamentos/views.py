@@ -1,3 +1,4 @@
+from services.sale_cancellation import lock_open_installment
 import json
 import logging
 from datetime import datetime
@@ -222,7 +223,7 @@ def installment_create_charge(request, installment_pk):
             # Trava a parcela e refaz a checagem de cobrança ativa dentro da transação —
             # evita que duas requisições concorrentes (ex: staff pelo admin e cliente pela
             # página pública, quase ao mesmo tempo) criem 2 cobranças duplicadas no gateway.
-            locked_installment = Installment.objects.select_for_update().get(pk=installment.pk)
+            locked_installment = lock_open_installment(installment.pk)
             existing = locked_installment.gateway_charges.filter(
                 status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
                             GatewayCharge.Status.CONFIRMED]
@@ -338,7 +339,7 @@ def installment_update(request, installment_pk):
 
     try:
         with transaction.atomic():
-            locked = Installment.objects.select_for_update().get(pk=installment.pk)
+            locked = lock_open_installment(installment.pk)
 
             # Aplica as edições ANTES de montar charge_kwargs — assim, se houver
             # cobrança ativa no gateway, ela já é atualizada com os novos termos.
@@ -676,7 +677,7 @@ def auto_create_charges_for_billing(billing):
                 # Trava a parcela e refaz a checagem dentro da transação — evita duplicar a
                 # cobrança caso o staff gere manualmente (admin) quase ao mesmo tempo do disparo
                 # automático, ou caso este método seja chamado mais de uma vez para o mesmo billing.
-                locked_installment = Installment.objects.select_for_update().get(pk=installment.pk)
+                locked_installment = lock_open_installment(installment.pk)
                 if locked_installment.gateway_charges.filter(
                     status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
                                 GatewayCharge.Status.CONFIRMED]

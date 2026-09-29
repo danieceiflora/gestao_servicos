@@ -1,16 +1,16 @@
 {% extends 'base_root.html' %}
 
-{% block title %}Termos de Uso - {{ SYSTEM_CONFIG.company_name|default:"Gestão de Serviços" }}{% endblock %}
+{% block title %}Termos de Uso - GYNBOTS{% endblock %}
 
 {% block layout %}
 <main class="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
     <section class="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm sm:p-10">
-            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">{{ SYSTEM_CONFIG.company_name|default:"Gestão de Serviços" }}</p>
+            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">GYNBOTS</p>
             <h1 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Termos de Uso</h1>
             <p class="mt-4 max-w-2xl text-sm leading-6 text-slate-600">Ao acessar ou utilizar a plataforma, o usuário declara que leu e concorda com as condições abaixo.</p>
             <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
-                <p><strong class="text-slate-800">Responsável pela plataforma:</strong> {{ SYSTEM_CONFIG.company_name|default:"empresa responsável pela plataforma" }}{% if SYSTEM_CONFIG.company_cnpj %}, CNPJ {{ SYSTEM_CONFIG.company_cnpj }}{% endif %}.</p>
+                <p><strong class="text-slate-800">Responsável pela plataforma:</strong> GYNBTOS DESENVOLVIMENTO DE SISTEMAS LTDA, CNPJ 67.281.479/0001-52.</p>
                 <p class="mt-1"><strong class="text-slate-800">Versão vigente:</strong> 2026-09-24.</p>
             </div>
 
@@ -33,13 +33,15 @@
                 <section>
                     <h2 class="text-lg font-semibold text-slate-900">4. Prestação de serviços financeiros</h2>
                     <p class="mt-2">Os serviços financeiros e de pagamentos disponibilizados por meio desta plataforma, incluindo abertura e manutenção de conta de pagamento, processamento de transações, emissão de boletos, transferências, pagamentos e demais movimentações de valores, são prestados pelo <strong>ASAAS GESTÃO FINANCEIRA INSTITUIÇÃO DE PAGAMENTO S.A.</strong>, CNPJ 19.540.550/0001-21, instituição de pagamento autorizada a funcionar pelo Banco Central do Brasil.</p>
-                    <p class="mt-3">A {{ SYSTEM_CONFIG.company_name|default:"empresa responsável pela plataforma" }} atua exclusivamente como integradora tecnológica e distribuidora da experiência do produto, não sendo instituição financeira ou de pagamento e não realizando intermediação financeira em nome próprio.</p>
+                    <p class="mt-3">A GYNBTOS DESENVOLVIMENTO DE SISTEMAS LTDA atua exclusivamente como integradora tecnológica e distribuidora da experiência do produto, não sendo instituição financeira ou de pagamento e não realizando intermediação financeira em nome próprio.</p>
                     <p class="mt-3">O cliente declara ciência de que o relacionamento financeiro e de pagamentos, assim como a responsabilidade regulatória pelos serviços descritos acima, são do Asaas, nos termos da regulamentação vigente. A utilização desses serviços também está sujeita aos <a href="https://central.ajuda.asaas.com/hc/pt-br/articles/32096847160859-Termos-e-Condi%C3%A7%C3%B5es-de-Uso" target="_blank" rel="noopener noreferrer" class="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900">Termos e Condições de Uso do Asaas</a>.</p>
                 </section>
 
                 <section>
-                    <h2 class="text-lg font-semibold text-slate-900">5. Tarifas e condições de pagamento</h2>
-                    <p class="mt-2">A utilização dos meios de pagamento poderá estar sujeita às tarifas apresentadas na configuração do gateway antes da ativação. O aceite registra a versão destes Termos e os valores vigentes. Alterações posteriores exigirão novo aceite para continuidade da utilização do gateway.</p>
+                    <h2 class="text-lg font-semibold text-slate-900">5. Assinatura, tarifas e condições de pagamento</h2>
+                    <p class="mt-2">O sistema é fornecido mediante assinatura mensal no valor de <strong>R$ 600,00 (seiscentos reais)</strong>, com pagamento devido até o <strong>dia 10 de cada mês</strong>.</p>
+                    <p class="mt-3">O atraso no pagamento por período superior a <strong>15 (quinze) dias após o vencimento</strong> poderá ocasionar a interrupção dos serviços e do acesso ao sistema.</p>
+                    <p class="mt-3">A utilização dos meios de pagamento poderá estar sujeita às tarifas apresentadas na configuração do gateway antes da ativação. O aceite registra a versão destes Termos e os valores vigentes. Alterações posteriores exigirão novo aceite para continuidade da utilização do gateway.</p>
                 </section>
 
                 <section>
@@ -59,7 +61,7 @@
 
                 <section>
                     <h2 class="text-lg font-semibold text-slate-900">9. Contato</h2>
-                    <p class="mt-2">Em caso de dúvidas sobre estes Termos, entre em contato com {{ SYSTEM_CONFIG.company_name|default:"a empresa responsável pela plataforma" }} pelos canais oficiais{% if SYSTEM_CONFIG.company_phone %}, telefone {{ SYSTEM_CONFIG.company_phone }}{% endif %}{% if SYSTEM_CONFIG.company_website %} ou pelo site <a href="{{ SYSTEM_CONFIG.company_website }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900">{{ SYSTEM_CONFIG.company_website }}</a>{% endif %}.</p>
+                    <p class="mt-2">Em caso de dúvidas sobre estes Termos, entre em contato com a GYNBTOS DESENVOLVIMENTO DE SISTEMAS LTDA pelos canais oficiais da GYNBOTS.</p>
                 </section>
             </div>
         </div>

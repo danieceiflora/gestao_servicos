@@ -23,6 +23,8 @@ def apply_charge_status(charge_id, status, net_value=None):
     # A delayed pending/cancelled event cannot undo a confirmed receipt.
     if charge.status in PAID and status not in (*PAID, GatewayCharge.Status.REFUNDED):
         return charge
+    if charge.status == GatewayCharge.Status.CANCELLED and status in (GatewayCharge.Status.PENDING, GatewayCharge.Status.OVERDUE):
+        return charge  # A delayed event cannot make a cancelled charge payable again.
     charge.status = status
     if net_value is not None:
         charge.net_value = Decimal(str(net_value))
