@@ -14,19 +14,8 @@ logger = logging.getLogger(__name__)
 SANDBOX_URL = 'https://api-sandbox.asaas.com/v3'
 PRODUCTION_URL = 'https://api.asaas.com/v3'
 
-# Margem retida pela plataforma master, calculada sempre sobre o valor COM desconto
-# (pior cenário, assumindo que o desconto de antecipação será totalmente usado).
-#
-# PIX: regime híbrido —
-#   - calcula PIX_PLATFORM_PERCENT sobre o valor efetivo;
-#   - limita o resultado entre MIN_SPLIT_MARGIN e MAX_SPLIT_MARGIN;
-#   - usa split fixedValue para garantir os dois limites.
-# BOLETO: sempre taxa fixa (BOLETO_PLATFORM_FIXED), via split fixedValue.
-PIX_PLATFORM_PERCENT = settings.ASAAS_PIX_COMMODITY_PERCENT / Decimal('100')
-MIN_SPLIT_MARGIN = settings.ASAAS_PIX_COMMODITY_MINIMUM
-MAX_SPLIT_MARGIN = settings.ASAAS_PIX_COMMODITY_MAXIMUM
-BOLETO_PLATFORM_FIXED = settings.ASAAS_BOLETO_COMMODITY_FEE
-
+# A margem usa o catálogo do ambiente e o valor com o maior desconto possível.
+# O split fixedValue preserva os limites configurados para cada produto.
 STATUS_MAP = {
     'PENDING': 'PENDING',
     'RECEIVED': 'RECEIVED',
@@ -78,6 +67,9 @@ class AsaasGateway(BasePaymentGateway):
         resp = requests.get(url, headers=self._headers(api_key), params=params, timeout=self._TIMEOUT)
         self._raise_for_status(resp)
         return resp.json()
+
+    def get_paid_split(self, split_id):
+        return self._get(f'payments/splits/paid/{split_id}')
 
     def _post(self, path, data, api_key: str = None):
         url = f'{self.base_url}/{path.lstrip("/")}'
@@ -175,21 +167,23 @@ class AsaasGateway(BasePaymentGateway):
         Se wallet_id for fornecido, configura split com base no valor COM desconto
         (pior cenário, assumindo que o desconto de antecipação será totalmente usado):
 
-        - PIX: percentual configurável, limitado pelos valores mínimo e máximo.
-        - Boleto: tarifa fixa configurável.
+        - PIX e boleto: percentual sujeito ao mínimo e máximo do catálogo.
 
-        O split usa fixedValue para que os limites do PIX sejam respeitados.
+        O split usa fixedValue para respeitar os limites de ambos os produtos.
         """
         split_kwargs = None
         if wallet_id:
             discount_amount = self._discount_amount(data.amount, data.discount_type, data.discount_value)
             worst_case_value = data.amount - discount_amount
 
-            if data.method == 'PIX':
-                calculated_margin = worst_case_value * PIX_PLATFORM_PERCENT
-                margin = min(max(calculated_margin, MIN_SPLIT_MARGIN), MAX_SPLIT_MARGIN)
-            else:
-                margin = BOLETO_PLATFORM_FIXED
+            from services.payment_fees import calculate_fee
+            product = settings.INTEGRATED_PAYMENT_PRODUCTS[
+                'ASAAS_PIX' if data.method == 'PIX' else 'ASAAS_BOLETO'
+            ]
+            margin = calculate_fee(worst_case_value, {
+                'percent': str(product['percent']), 'minimum': str(product['minimum']),
+                'maximum': str(product['maximum']), 'fixed': '0',
+            })
             client_amount = max(worst_case_value - margin, Decimal('0'))
             split_kwargs = {'fixedValue': float(round(client_amount, 2))}
 
@@ -414,6 +408,7 @@ class AsaasGateway(BasePaymentGateway):
         }
         return {
             'event': event,
+            'split_id': (payload.get('additionalInfo') or {}).get('splitId', ''),
             'external_id': payment.get('id', ''),
             # None = evento que não altera o status da cobrança (ex: PAYMENT_CREATED,
             # PAYMENT_UPDATED, PAYMENT_CHECKOUT_VIEWED...). O Asaas envia dezenas de eventos

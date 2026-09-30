@@ -3,6 +3,7 @@ from django.db import models
 from django.db.models import Sum, F
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from decimal import Decimal, ROUND_HALF_UP
 import uuid
@@ -1277,7 +1278,9 @@ class PaymentMethod(models.Model):
     tipo_provedor = models.CharField(max_length=20, choices=ProviderType.choices, verbose_name="Tipo de Provedor")
     tarifa_porcentagem = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Tarifa (%)")
     tarifa_minima = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Tarifa Mínima (R$)", help_text="Se a tarifa percentual resultar em valor menor que este, aplica este mínimo.")
+    tarifa_maxima = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Tarifa Máxima (R$)", help_text="Zero significa sem limite.")
     tarifa_fixa = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Tarifa Fixa (R$)")
+    integrated_product = models.CharField(max_length=40, blank=True, default='', verbose_name='Produto integrado')
     prazo_recebimento = models.IntegerField(default=0, verbose_name="Prazo de Recebimento (dias)")
     codigo_sefaz = models.CharField(max_length=2, verbose_name="Código SEFAZ")
     ativo = models.BooleanField(default=True, verbose_name="Ativo")
@@ -1312,6 +1315,26 @@ class PaymentMethod(models.Model):
         verbose_name = "Método de Pagamento"
         verbose_name_plural = "Métodos de Pagamento"
 
+    def clean(self):
+        super().clean()
+        if not self.integra_gateway:
+            return
+        from services.payment_fees import product_terms
+        product = product_terms(self.integrated_product)
+        if not product or product['provider'] != self.tipo_provedor:
+            raise ValidationError({'integrated_product': 'Selecione um produto integrado compatível.'})
+        errors = {}
+        for field, key in (
+            ('tarifa_porcentagem', 'percent'), ('tarifa_minima', 'minimum'),
+            ('tarifa_maxima', 'maximum'),
+        ):
+            if getattr(self, field) != product[key]:
+                errors[field] = 'A tarifa deste produto é definida no ambiente.'
+        if self.tarifa_fixa != 0:
+            errors['tarifa_fixa'] = 'A tarifa deste produto é definida no ambiente.'
+        if errors:
+            raise ValidationError(errors)
+
     def __str__(self):
         return self.descricao
 
@@ -1325,6 +1348,9 @@ class SalePayment(models.Model):
     valor_bruto = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Bruto")
     valor_tarifa = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Tarifa")
     valor_liquido = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Líquido")
+    fee_status = models.CharField(max_length=12, choices=[('UNKNOWN', 'Não verificado'), ('ESTIMATED', 'Estimado'), ('CONFIRMED', 'Confirmado')], default='CONFIRMED', verbose_name='Situação da tarifa')
+    fee_terms = models.JSONField(default=dict, blank=True, verbose_name='Regra de tarifa aplicada')
+    gateway_split_id = models.CharField(max_length=100, blank=True, default='', verbose_name='ID do split conciliado')
     data_pagamento = models.DateTimeField(default=timezone.now, verbose_name="Data do Pagamento")
     data_previsao = models.DateField(verbose_name="Previsão de Recebimento")
     is_gateway_auto = models.BooleanField(default=False, verbose_name="Baixa Automática (Gateway)",
@@ -1467,6 +1493,12 @@ class Sale(models.Model):
 
     def __str__(self):
         return f"Venda #{self.number} - {self.get_status_display()}"
+
+    @property
+    def can_print_receipt(self):
+        return self.status in (self.Status.FINALIZADA, self.Status.ATENDIDO, self.Status.RECEBIDO) and (
+            not self.pos_checkout_key or self.status == self.Status.FINALIZADA
+        )
 
     @property
     def public_page_path(self):

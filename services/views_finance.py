@@ -602,6 +602,22 @@ def finance_bulk_confirm_payments(request):
 
 @login_required
 @user_passes_test(is_manager)
+def sale_receipt(request, number):
+    sale = get_object_or_404(
+        Sale.objects.select_related('client', 'user').prefetch_related('items__product', 'items__variant', 'payments__metodo_pagamento'),
+        number=number,
+    )
+    if not sale.can_print_receipt:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden('O cupom está disponível apenas para vendas concluídas, sem recebimento integrado pendente.')
+    from fiscal.models import NFeConfig
+    return render(request, 'services/pos/receipt.html', {
+        'sale': sale, 'nfe_config': NFeConfig.load(), 'receipt_back_route': 'sale_list',
+    })
+
+
+@login_required
+@user_passes_test(is_manager)
 def sale_list(request):
     sales = Sale.objects.all().select_related('client', 'user').order_by('-created_at')
 
@@ -1404,14 +1420,18 @@ def installment_pay(request, pk):
                     pass
             
             # Cria o registro de pagamento real
+            from services.payment_fees import calculate_fee, terms_for_method
+            fee_terms = terms_for_method(method)
+            fee = calculate_fee(amt_decimal, fee_terms)
             SalePayment.objects.create(
                 venda=installment.billing.sale,
                 os=installment.billing.service_order,
                 installment=installment,
                 metodo_pagamento=method,
                 valor_bruto=amt_decimal,
-                valor_tarifa=Decimal('0.00'), # TODO: Calcular tarifa se necessário
-                valor_liquido=amt_decimal,     # TODO: Calcular líquido
+                valor_tarifa=fee,
+                valor_liquido=amt_decimal - fee,
+                fee_terms=fee_terms,
                 data_pagamento=pay_date,
                 data_previsao=timezone.now().date() # TODO: Usar prazo do método
             )

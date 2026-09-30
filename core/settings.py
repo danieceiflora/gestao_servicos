@@ -70,16 +70,24 @@ ASAAS_API_KEY = os.environ.get('ASAAS_API_KEY', '')
 ASAAS_ENVIRONMENT = os.environ.get('ASAAS_ENVIRONMENT', 'SANDBOX')  # SANDBOX ou PRODUCTION
 ASAAS_MASTER_WALLET_ID = os.environ.get('ASAAS_CLIENT_WALLET_ID', '')  # Wallet da conta master (recebe split das subcontas)
 
-# Tarifas de comodidade da integração. Os nomes em minúsculas são mantidos
-# por compatibilidade com o contrato de ambiente existente.
-ASAAS_PIX_COMMODITY_PERCENT = _env_decimal('tarifa_boleto_hibrido', '0.80%', percentage=True)
-ASAAS_PIX_COMMODITY_MINIMUM = _env_decimal('tarifa_minima_boleto_hibrido', '2.50')
-ASAAS_PIX_COMMODITY_MAXIMUM = _env_decimal('tarifa_maxima_boleto_hibrido', '10.00')
-ASAAS_BOLETO_COMMODITY_FEE = _env_decimal('tarifa_boleto_asaas', '2.50')
-if ASAAS_PIX_COMMODITY_MINIMUM > ASAAS_PIX_COMMODITY_MAXIMUM:
-    raise ImproperlyConfigured(
-        'tarifa_minima_boleto_hibrido não pode ser maior que tarifa_maxima_boleto_hibrido.'
-    )
+# Tarifas de comodidade dos dois produtos integrados, configuradas separadamente.
+INTEGRATED_PAYMENT_PRODUCTS = {
+    'ASAAS_PIX': {
+        'label': 'PIX copia e cola', 'provider': 'PIX',
+        'percent': _env_decimal('ASAAS_PIX_FEE_PERCENT', '0.80'),
+        'minimum': _env_decimal('ASAAS_PIX_FEE_MINIMUM', '2.50'),
+        'maximum': _env_decimal('ASAAS_PIX_FEE_MAXIMUM', '10.00'),
+    },
+    'ASAAS_BOLETO': {
+        'label': 'Boleto híbrido', 'provider': 'BOLETO',
+        'percent': _env_decimal('ASAAS_BOLETO_FEE_PERCENT', '0.80'),
+        'minimum': _env_decimal('ASAAS_BOLETO_FEE_MINIMUM', '2.50'),
+        'maximum': _env_decimal('ASAAS_BOLETO_FEE_MAXIMUM', '10.00'),
+    },
+}
+for _product in INTEGRATED_PAYMENT_PRODUCTS.values():
+    if _product['maximum'] and _product['minimum'] > _product['maximum']:
+        raise ImproperlyConfigured('Tarifa mínima do produto integrado excede a máxima.')
 
 # --- ASAAS INVOICES (emissão de NFSe — fiscal/gateways/asaas.py) ---
 # Mesma conta Asaas de ASAAS_API_KEY acima, mas lida como par separado porque

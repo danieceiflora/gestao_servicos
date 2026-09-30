@@ -2,6 +2,7 @@ import json
 from decimal import Decimal
 from datetime import date
 from unittest.mock import patch
+from django.conf import settings
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -14,12 +15,12 @@ from services.models import User
 
 
 class AsaasGatewayFeeTests(TestCase):
-    def _charge_payload(self, method, amount):
+    def _charge_payload(self, method, amount, **charge_options):
         gateway = AsaasGateway()
         data = ChargeData(
             customer_name='Cliente', customer_document='12345678901', customer_email='',
             description='Teste', amount=Decimal(amount), due_date=date.today(),
-            method=method, external_reference='test',
+            method=method, external_reference='test', **charge_options,
         )
         with patch.object(gateway, '_get_or_create_customer', return_value='cus_1'), \
              patch.object(gateway, '_get', return_value={}), \
@@ -29,21 +30,31 @@ class AsaasGatewayFeeTests(TestCase):
             gateway.create_charge(data, wallet_id='wallet_client')
         return mocked_post.call_args.args[1]
 
-    def test_pix_fee_respects_minimum(self):
-        payload = self._charge_payload('PIX', '100.00')
-        self.assertEqual(payload['split'][0]['fixedValue'], 97.50)
+    def test_both_products_respect_minimum_percentage_and_maximum(self):
+        for method in ('PIX', 'BOLETO'):
+            for amount, expected in (
+                ('100.00', 97.50), ('1000.00', 992.00), ('2000.00', 1990.00),
+            ):
+                with self.subTest(method=method, amount=amount):
+                    payload = self._charge_payload(method, amount)
+                    self.assertEqual(payload['split'][0]['fixedValue'], expected)
 
-    def test_pix_fee_uses_percentage_inside_range(self):
-        payload = self._charge_payload('PIX', '1000.00')
-        self.assertEqual(payload['split'][0]['fixedValue'], 992.00)
+    def test_boleto_discount_uses_discounted_value_without_extra_fixed_fee(self):
+        payload = self._charge_payload(
+            'BOLETO', '1000.00', discount_type='FIXED', discount_value=Decimal('100.00'),
+        )
+        self.assertEqual(payload['split'][0]['fixedValue'], 892.80)
 
-    def test_pix_fee_respects_maximum(self):
-        payload = self._charge_payload('PIX', '2000.00')
-        self.assertEqual(payload['split'][0]['fixedValue'], 1990.00)
-
-    def test_boleto_uses_fixed_fee(self):
-        payload = self._charge_payload('BOLETO', '100.00')
-        self.assertEqual(payload['split'][0]['fixedValue'], 97.50)
+    def test_catalog_override_controls_issuance(self):
+        catalog = {
+            'ASAAS_PIX': {'percent': Decimal('3'), 'minimum': Decimal('0'),
+                          'maximum': Decimal('0')},
+            'ASAAS_BOLETO': {'percent': Decimal('4'), 'minimum': Decimal('0'),
+                             'maximum': Decimal('0')},
+        }
+        with override_settings(INTEGRATED_PAYMENT_PRODUCTS=catalog):
+            self.assertEqual(self._charge_payload('PIX', '100')['split'][0]['fixedValue'], 97.00)
+            self.assertEqual(self._charge_payload('BOLETO', '100')['split'][0]['fixedValue'], 96.00)
 
 
 class GatewayFeeAcceptanceTests(TestCase):
@@ -61,6 +72,9 @@ class GatewayFeeAcceptanceTests(TestCase):
         self.assertContains(response, reverse('terms_of_service'))
         self.assertContains(response, GatewayConfig.TERMS_VERSION)
         self.assertContains(response, 'ASAAS GESTÃO FINANCEIRA INSTITUIÇÃO DE PAGAMENTO S.A.')
+        self.assertContains(response, 'PIX copia e cola')
+        self.assertContains(response, 'Boleto híbrido')
+        self.assertNotContains(response, 'parcela fixa de R$')
 
     def test_enabled_method_requires_acceptance(self):
         self.config.status = GatewayConfig.Status.APPROVED
@@ -103,15 +117,33 @@ class GatewayFeeAcceptanceTests(TestCase):
 
         self.assertFalse(self.config.has_current_fee_acceptance)
 
-    @override_settings(ASAAS_PIX_COMMODITY_PERCENT=Decimal('1.00'))
-    def test_changed_fee_invalidates_previous_acceptance(self):
-        old_terms = dict(self.config.current_fee_terms())
-        old_terms['pix_percent'] = '0.80'
-        self.config.fee_terms_snapshot = old_terms
+    def test_previous_fixed_fee_acceptance_requires_renewal(self):
+        previous_terms = dict(self.config.current_fee_terms())
+        previous_terms['boleto_fee'] = '2.50'
+        self.config.fee_terms_snapshot = previous_terms
         self.config.fee_terms_accepted_at = timezone.now()
+        self.config.status = GatewayConfig.Status.APPROVED
         self.config.save()
 
-        self.assertFalse(self.config.has_current_fee_acceptance)
+        self.assertFalse(self.config.can_generate_charges)
+
+    def test_changed_fee_invalidates_previous_acceptance(self):
+        self.config.status = GatewayConfig.Status.APPROVED
+        self.config.accept_current_fee_terms(self.user)
+        self.config.save()
+        self.assertTrue(self.config.can_generate_charges)
+
+        catalog = {code: dict(product) for code, product in settings.INTEGRATED_PAYMENT_PRODUCTS.items()}
+        catalog['ASAAS_BOLETO']['percent'] = Decimal('0.90')
+        with override_settings(INTEGRATED_PAYMENT_PRODUCTS=catalog):
+            self.assertFalse(self.config.has_current_fee_acceptance)
+            self.assertFalse(self.config.can_generate_charges)
+            self.client.post(self.url, {
+                'action': 'save', 'boleto_enabled': 'on', 'fee_terms_accepted': 'on',
+            })
+            self.config.refresh_from_db()
+            self.assertTrue(self.config.has_current_fee_acceptance)
+            self.assertTrue(self.config.can_generate_charges)
 
 
 class AsaasGatewaySubscriptionTests(TestCase):

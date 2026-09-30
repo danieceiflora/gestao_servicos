@@ -230,10 +230,13 @@ def _save_cart(payload, session, user, finalize):
     for method, amount, tendered, change in resolved:
         inst = installments_by_method[method.pk].pop(0)
         if method.pos_behavior == PaymentMethod.PosBehavior.RECEIVED_NOW:
-            fee = max(amount * method.tarifa_porcentagem / Decimal('100'), method.tarifa_minima) + method.tarifa_fixa
+            from services.payment_fees import calculate_fee, terms_for_method
+            fee_terms = terms_for_method(method)
+            fee = calculate_fee(amount, fee_terms)
             payment = SalePayment.objects.create(
                 venda=sale, installment=inst, metodo_pagamento=method, valor_bruto=amount,
                 valor_tarifa=fee, valor_liquido=amount-fee, amount_tendered=tendered,
+                fee_terms=fee_terms,
                 change_amount=change, operator=user, cash_session=session,
                 data_previsao=local_today() + timedelta(days=method.prazo_recebimento),
             )
@@ -347,7 +350,7 @@ def pos_close(request):
 
 @login_required
 def pos_receipt(request, number):
-    sale = get_object_or_404(Sale.objects.prefetch_related('items__product', 'payments__metodo_pagamento'), number=number, origin=Sale.Origin.POS)
+    sale = get_object_or_404(Sale.objects.select_related('client', 'user').prefetch_related('items__product', 'items__variant', 'payments__metodo_pagamento'), number=number, origin=Sale.Origin.POS)
     if sale.user_id != request.user.id and not _can_manage(request.user):
         return HttpResponseForbidden('Você não tem permissão para acessar este comprovante.')
     if sale.pos_checkout_key and sale.status != Sale.Status.FINALIZADA:

@@ -234,12 +234,16 @@ class GatewayConfig(models.Model):
     @staticmethod
     def current_fee_terms():
         """Snapshot versionado usado na tela, no aceite e na invalidação."""
+        pix = settings.INTEGRATED_PAYMENT_PRODUCTS['ASAAS_PIX']
+        boleto = settings.INTEGRATED_PAYMENT_PRODUCTS['ASAAS_BOLETO']
         return {
             'terms_version': GatewayConfig.TERMS_VERSION,
-            'pix_percent': str(settings.ASAAS_PIX_COMMODITY_PERCENT),
-            'pix_minimum': str(settings.ASAAS_PIX_COMMODITY_MINIMUM),
-            'pix_maximum': str(settings.ASAAS_PIX_COMMODITY_MAXIMUM),
-            'boleto_fee': str(settings.ASAAS_BOLETO_COMMODITY_FEE),
+            'pix_percent': str(pix['percent']),
+            'pix_minimum': str(pix['minimum']),
+            'pix_maximum': str(pix['maximum']),
+            'boleto_percent': str(boleto['percent']),
+            'boleto_minimum': str(boleto['minimum']),
+            'boleto_maximum': str(boleto['maximum']),
         }
 
     @property

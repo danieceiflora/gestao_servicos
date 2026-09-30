@@ -11,6 +11,7 @@ from . import views_bi
 from . import views_pos
 
 urlpatterns = [
+    path('vendas/<int:number>/cupom/', views_finance.sale_receipt, name='sale_receipt'),
     # --- FRENTE DE CAIXA ---
     path('pdv/configuracoes/', views_pos.pos_settings, name='pos_settings'),
     path('pdv/', views_pos.pos_home, name='pos_home'),

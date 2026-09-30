@@ -17,6 +17,7 @@ class PaymentMethodPixFormTests(TestCase):
             'tipo_provedor': 'PIX',
             'tarifa_porcentagem': '0',
             'tarifa_minima': '0',
+            'tarifa_maxima': '0',
             'tarifa_fixa': '0',
             'prazo_recebimento': '0',
             'codigo_sefaz': '17',
@@ -45,6 +46,8 @@ class PaymentMethodPixFormTests(TestCase):
             pix_type=PaymentMethod.PixType.DYNAMIC,
             pix_key='chave-nao-utilizada',
             integra_gateway='',
+            integrated_product='ASAAS_PIX',
+            tarifa_porcentagem='0.80', tarifa_minima='2.50', tarifa_maxima='10.00',
         ))
         self.assertTrue(form.is_valid(), form.errors)
         method = form.save()
@@ -55,6 +58,7 @@ class PaymentMethodPixFormTests(TestCase):
         form = PaymentMethodForm(data=self.base_data(
             tipo_provedor='DINHEIRO',
             codigo_sefaz='01',
+            integra_gateway='',
         ))
         self.assertTrue(form.is_valid(), form.errors)
         method = form.save()

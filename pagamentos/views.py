@@ -503,6 +503,25 @@ def asaas_webhook(request):
                 logger.warning(f'Webhook Asaas: cobrança não encontrada para ID {external_id}')
             return JsonResponse({'ok': True})
 
+        if normalized['event'] == 'PAYMENT_SPLIT_DONE':
+            split_id = normalized.get('split_id')
+            if not split_id:
+                logger.warning('Split concluído sem splitId para cobrança %s', external_id)
+                return JsonResponse({'ok': False, 'error': 'splitId ausente'}, status=422)
+            split = gw.get_paid_split(split_id)
+            received = split.get('totalValue', split.get('value'))
+            split_payment_id = (split.get('payment') or {}).get('id') or split.get('paymentId')
+            if (split.get('status') != 'DONE' or split_payment_id != external_id
+                    or split.get('walletId') != charge.config.wallet_id or received is None):
+                logger.warning('Split %s não corresponde à cobrança/carteira %s', split_id, external_id)
+                return JsonResponse({'ok': False, 'error': 'split divergente'}, status=422)
+            from pagamentos.settlement import apply_charge_status, confirm_split
+            if charge.status not in (GatewayCharge.Status.RECEIVED, GatewayCharge.Status.CONFIRMED):
+                apply_charge_status(charge.pk, GatewayCharge.Status.RECEIVED, normalized.get('net_value'))
+            if not confirm_split(charge.pk, split_id, received):
+                return JsonResponse({'ok': False, 'error': 'repasse não conciliado'}, status=409)
+            return JsonResponse({'ok': True})
+
         if not normalized['status']:
             # Evento que o sistema não mapeia para uma mudança de status (ex: PAYMENT_CREATED,
             # PAYMENT_UPDATED, PAYMENT_CHECKOUT_VIEWED) — não sobrescreve o status da cobrança.
@@ -515,6 +534,8 @@ def asaas_webhook(request):
         logger.info(f'Webhook Asaas processado: {external_id} → {normalized["status"]}')
     except Exception as e:
         logger.exception(f'Erro ao processar webhook Asaas: {e}')
+        if isinstance(locals().get('payload'), dict) and payload.get('event') == 'PAYMENT_SPLIT_DONE':
+            return JsonResponse({'ok': False, 'error': 'falha temporária na conciliação'}, status=503)
 
     return JsonResponse({'ok': True})
 

@@ -228,7 +228,12 @@
                                         <i data-lucide="eye" class="h-3.5 w-3.5"></i>
                                         Ver/Editar
                                     </a>
-                                    <form action="{% url 'sale_duplicate' number=sale.number %}" method="POST" class="border-t border-slate-100">
+                                    {% if sale.can_print_receipt %}
+                        <a href="{% url 'sale_receipt' sale.number %}" target="_blank" rel="noopener" class="flex min-h-11 items-center gap-2 px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                            <i data-lucide="printer" class="h-4 w-4"></i> Imprimir cupom não fiscal
+                        </a>
+                        {% endif %}
+                        <form action="{% url 'sale_duplicate' number=sale.number %}" method="POST" class="border-t border-slate-100">
                                         {% csrf_token %}
                                         <button type="submit" class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-blue-700 hover:bg-blue-50">
                                             <i data-lucide="copy" class="h-3.5 w-3.5"></i>
@@ -302,6 +307,11 @@
                             <i data-lucide="eye" class="h-4 w-4"></i>
                             Ver/Editar
                         </a>
+                        {% if sale.can_print_receipt %}
+                        <a href="{% url 'sale_receipt' sale.number %}" target="_blank" rel="noopener" class="flex min-h-11 items-center gap-2 px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                            <i data-lucide="printer" class="h-4 w-4"></i> Imprimir cupom não fiscal
+                        </a>
+                        {% endif %}
                         <form action="{% url 'sale_duplicate' number=sale.number %}" method="POST" class="border-t border-slate-100">
                             {% csrf_token %}
                             <button type="submit" class="flex min-h-11 w-full items-center gap-2 px-4 text-left text-xs font-bold text-blue-700 hover:bg-blue-50">

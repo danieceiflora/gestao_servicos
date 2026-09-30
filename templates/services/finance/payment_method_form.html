@@ -82,6 +82,13 @@
 
                 <!-- Tarifa Fixa -->
                 <div class="space-y-1.5">
+                    <label class="text-sm font-semibold text-slate-700">Tarifa Máxima (R$)</label>
+                    {{ form.tarifa_maxima }}
+                    {% if form.tarifa_maxima.errors %}<p class="text-xs text-rose-500">{{ form.tarifa_maxima.errors.0 }}</p>{% endif %}
+                    <p class="text-[10px] text-slate-400">Limite da tarifa percentual; zero desativa o limite.</p>
+                </div>
+
+                <div class="space-y-1.5">
                     <label class="text-sm font-semibold text-slate-700">Tarifa Fixa por Venda (R$)</label>
                     {{ form.tarifa_fixa }}
                     {% if form.tarifa_fixa.errors %}<p class="text-xs text-rose-500">{{ form.tarifa_fixa.errors.0 }}</p>{% endif %}
@@ -123,6 +130,12 @@
                     </label>
                     {% if form.integra_gateway.errors %}<p class="text-xs text-rose-500 mt-1">{{ form.integra_gateway.errors.0 }}</p>{% endif %}
                 </div>
+                <div id="integrated-product-field" class="md:col-span-2 space-y-1.5 hidden">
+                    <label class="text-sm font-semibold text-slate-700">Produto integrado</label>
+                    {{ form.integrated_product }}
+                    {% if form.integrated_product.errors %}<p class="text-xs text-rose-500">{{ form.integrated_product.errors.0 }}</p>{% endif %}
+                    <p class="text-xs text-slate-500">As tarifas do produto vêm do ambiente e não podem ser alteradas aqui.</p>
+                </div>
             </div>
         </div>
 
@@ -136,6 +149,7 @@
     </form>
 </div>
 
+{{ form.product_catalog|json_script:"payment-product-catalog" }}
 <script>
     (function () {
         const provider = document.getElementById('{{ form.tipo_provedor.id_for_label }}');
@@ -144,6 +158,21 @@
         const behavior = document.getElementById('{{ form.pos_behavior.id_for_label }}');
         const pixTypeField = document.getElementById('pix-type-field');
         const pixKeyField = document.getElementById('pix-key-field');
+        const product = document.getElementById('{{ form.integrated_product.id_for_label }}');
+        const catalog = JSON.parse(document.getElementById('payment-product-catalog').textContent);
+        const feeFields = ['tarifa_porcentagem', 'tarifa_minima', 'tarifa_maxima', 'tarifa_fixa'];
+        function syncProduct() {
+            const integrated = gateway && gateway.checked;
+            document.getElementById('integrated-product-field').classList.toggle('hidden', !integrated);
+            for (const option of product.options) option.hidden = !!(catalog[option.value] && catalog[option.value].provider !== provider.value);
+            if (integrated && catalog[product.value] && catalog[product.value].provider !== provider.value) product.value = '';
+            for (const name of feeFields) {
+                const input = document.getElementById('id_' + name);
+                if (integrated && catalog[product.value]) input.value = name === 'tarifa_fixa' ? '0' : catalog[product.value][name];
+                input.readOnly = !!integrated;
+                input.classList.toggle('bg-slate-100', !!integrated);
+            }
+        }
 
         function syncPixFields() {
             const isPix = provider && provider.value === 'PIX';
@@ -159,10 +188,13 @@
                 if (isDynamic) behavior.value = 'WAIT_GATEWAY';
                 else if (behavior.value === 'WAIT_GATEWAY') behavior.value = 'RECEIVED_NOW';
             }
+            syncProduct();
         }
 
         if (provider) provider.addEventListener('change', syncPixFields);
         if (pixType) pixType.addEventListener('change', syncPixFields);
+        if (gateway) gateway.addEventListener('change', syncProduct);
+        if (product) product.addEventListener('change', syncProduct);
         syncPixFields();
     })();
 </script>

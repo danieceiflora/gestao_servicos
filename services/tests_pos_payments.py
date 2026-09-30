@@ -69,6 +69,20 @@ class PaymentFixtures:
 
 
 class PosPixTests(PaymentFixtures, TestCase):
+    def test_manual_pos_payment_uses_fee_snapshot(self):
+        self.cash.tarifa_porcentagem = Decimal('2')
+        self.cash.tarifa_minima = Decimal('2.50')
+        self.cash.tarifa_maxima = Decimal('10')
+        self.cash.tarifa_fixa = Decimal('1')
+        self.cash.save()
+        sale = self.start(self.payload(payments=[
+            {'method_id': self.cash.pk, 'amount': '150', 'tendered': '150'},
+        ]))
+        payment = sale.payments.get()
+        self.assertEqual(payment.valor_tarifa, Decimal('4.00'))
+        self.assertEqual(payment.valor_liquido, Decimal('146.00'))
+        self.assertEqual(payment.fee_terms['maximum'], '10.00')
+
     def test_mixed_payment_waits_then_settles_once_and_reduces_stock_once(self):
         sale = self.start()
         self.assertEqual(sale.status, 'AGUARDANDO_PAGAMENTO')

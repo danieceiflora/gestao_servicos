@@ -55,10 +55,13 @@ def resolve_payment(row, client):
 
 def record_manual(inst, sale, tendered):
     method = inst.payment_method
-    fee = max(inst.amount * method.tarifa_porcentagem / Decimal('100'), method.tarifa_minima) + method.tarifa_fixa
+    from services.payment_fees import calculate_fee, terms_for_method
+    fee_terms = terms_for_method(method)
+    fee = calculate_fee(inst.amount, fee_terms)
     payment = SalePayment.objects.create(
         venda=sale, installment=inst, metodo_pagamento=method, valor_bruto=inst.amount,
         valor_tarifa=fee, valor_liquido=inst.amount-fee, amount_tendered=tendered,
+        fee_terms=fee_terms,
         change_amount=tendered-inst.amount if method.tipo_provedor == 'DINHEIRO' else Decimal('0'),
         operator=sale.user, cash_session=sale.cash_session,
         data_previsao=local_today() + timedelta(days=method.prazo_recebimento),

@@ -1102,18 +1102,33 @@ SaleItemFormSet = inlineformset_factory(
 )
 
 class PaymentMethodForm(forms.ModelForm):
+    integrated_product = forms.ChoiceField(label='Produto integrado', required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from django.conf import settings
+        self.product_catalog = {code: {
+            'provider': item['provider'],
+            'tarifa_porcentagem': str(item['percent']), 'tarifa_minima': str(item['minimum']),
+            'tarifa_maxima': str(item['maximum']),
+        } for code, item in settings.INTEGRATED_PAYMENT_PRODUCTS.items()}
+        self.fields['integrated_product'].choices = [('', 'Selecione um produto')] + [
+            (code, item['label']) for code, item in settings.INTEGRATED_PAYMENT_PRODUCTS.items()
+        ]
+
     class Meta:
         model = PaymentMethod
         fields = [
             'descricao', 'tipo_provedor', 'tarifa_porcentagem',
-            'tarifa_minima', 'tarifa_fixa', 'prazo_recebimento', 'codigo_sefaz', 'ativo', 'pos_behavior',
-            'integra_gateway', 'pix_type', 'pix_key', 'public_billing_enabled',
+            'tarifa_minima', 'tarifa_maxima', 'tarifa_fixa', 'prazo_recebimento', 'codigo_sefaz', 'ativo', 'pos_behavior',
+            'integra_gateway', 'integrated_product', 'pix_type', 'pix_key', 'public_billing_enabled',
         ]
         widgets = {
             'descricao': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: Cartão de Crédito Visa'}),
             'tipo_provedor': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'tarifa_porcentagem': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
             'tarifa_minima': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
+            'tarifa_maxima': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
             'tarifa_fixa': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
             'prazo_recebimento': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'codigo_sefaz': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'placeholder': 'Ex: 03'}),
@@ -1162,6 +1177,32 @@ class PaymentMethodForm(forms.ModelForm):
             (provider_type == 'BOLETO' and cleaned_data.get('integra_gateway'))
         ):
             self.add_error('public_billing_enabled', 'Disponível apenas para PIX ou boleto integrado.')
+
+        from services.payment_fees import product_terms
+        if cleaned_data.get('integra_gateway'):
+            code = cleaned_data.get('integrated_product')
+            terms = product_terms(code)
+            if not terms or terms['provider'] != provider_type:
+                self.add_error('integrated_product', 'Selecione um produto integrado compatível com o provedor.')
+            else:
+                for field, key in (
+                    ('tarifa_porcentagem', 'percent'), ('tarifa_minima', 'minimum'),
+                    ('tarifa_maxima', 'maximum'),
+                ):
+                    posted = cleaned_data.get(field)
+                    if posted is not None and posted != terms[key]:
+                        self.add_error(field, 'A tarifa deste produto é definida no ambiente.')
+                    cleaned_data[field] = terms[key]
+                if cleaned_data.get('tarifa_fixa') not in (None, 0):
+                    self.add_error('tarifa_fixa', 'A tarifa deste produto é definida no ambiente.')
+                cleaned_data['tarifa_fixa'] = 0
+        else:
+            cleaned_data['integrated_product'] = ''
+            for field in ('tarifa_porcentagem', 'tarifa_minima', 'tarifa_maxima', 'tarifa_fixa'):
+                if cleaned_data.get(field) is not None and cleaned_data[field] < 0:
+                    self.add_error(field, 'A tarifa não pode ser negativa.')
+            if cleaned_data.get('tarifa_maxima') and cleaned_data.get('tarifa_minima', 0) > cleaned_data['tarifa_maxima']:
+                self.add_error('tarifa_maxima', 'A tarifa máxima deve ser maior que a mínima.')
 
         return cleaned_data
 
