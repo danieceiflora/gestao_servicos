@@ -1,9 +1,11 @@
 import json
 from decimal import Decimal
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import patch
 from django.conf import settings
 from django.test import TestCase, override_settings
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 
@@ -55,6 +57,40 @@ class AsaasGatewayFeeTests(TestCase):
         with override_settings(INTEGRATED_PAYMENT_PRODUCTS=catalog):
             self.assertEqual(self._charge_payload('PIX', '100')['split'][0]['fixedValue'], 97.00)
             self.assertEqual(self._charge_payload('BOLETO', '100')['split'][0]['fixedValue'], 96.00)
+
+    def test_boleto_fetches_pix_and_barcode_artifacts(self):
+        gateway = AsaasGateway()
+        data = ChargeData(
+            customer_name='Cliente', customer_document='12345678901', customer_email='',
+            description='Boleto híbrido', amount=Decimal('100.00'), due_date=date.today(),
+            method='BOLETO', external_reference='test',
+        )
+        with patch.object(gateway, '_get_or_create_customer', return_value='cus_1'), \
+             patch.object(gateway, '_post', return_value={
+                 'id': 'pay_1', 'status': 'PENDING', 'value': 100.0,
+             }), patch.object(gateway, '_get', side_effect=lambda path: {
+                 'payments/pay_1/pixQrCode': {'payload': 'pix-copia-e-cola'},
+                 'payments/pay_1/identificationField': {'identificationField': 'linha-digitavel'},
+             }[path]) as mocked_get:
+            result = gateway.create_charge(data)
+
+        self.assertEqual(result.pix_copy_paste, 'pix-copia-e-cola')
+        self.assertEqual(result.boleto_barcode, 'linha-digitavel')
+        self.assertEqual(mocked_get.call_count, 2)
+
+    def test_boleto_result_shows_separate_copy_fields(self):
+        charge = SimpleNamespace(
+            pk=42, method='BOLETO', pix_copy_paste='pix-copia-e-cola',
+            boleto_barcode='linha-digitavel', due_date=date.today(),
+        )
+        html = render_to_string('services/public/partials/charge_result.html', {'charge': charge})
+
+        self.assertIn('id="boleto-pix-code-42"', html)
+        self.assertIn('id="boleto-barcode-42"', html)
+        self.assertIn('pix-copia-e-cola', html)
+        self.assertIn('linha-digitavel', html)
+        self.assertIn('Copiar código PIX', html)
+        self.assertIn('Copiar linha digitável', html)
 
 
 class GatewayFeeAcceptanceTests(TestCase):

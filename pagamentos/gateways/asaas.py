@@ -237,19 +237,16 @@ class AsaasGateway(BasePaymentGateway):
         return charge
 
     def _populate_charge_artifacts(self, charge: ChargeResult, charge_id: str, billing_type: str, result: dict):
-        """Preenche QR Code PIX ou linha digitável do boleto a partir da resposta do
-        Asaas — usado após criar ou atualizar uma cobrança (o Asaas regenera esses
-        artefatos quando a data/valor mudam)."""
-        if billing_type == 'PIX':
-            try:
-                pix = self._get(f'payments/{charge_id}/pixQrCode')
-                charge.pix_qrcode = pix.get('encodedImage', '')
-                charge.pix_copy_paste = pix.get('payload', '')
-                if pix.get('expirationDate'):
-                    charge.pix_expiration_date = safe_make_aware(datetime.fromisoformat(pix['expirationDate']))
-            except Exception:
-                logger.warning(f'Não foi possível obter QR Code PIX para {charge_id}')
-        else:
+        """Atualiza o PIX e, para boletos, a linha digitável após criar ou alterar a cobrança."""
+        try:
+            pix = self._get(f'payments/{charge_id}/pixQrCode')
+            charge.pix_qrcode = pix.get('encodedImage', '')
+            charge.pix_copy_paste = pix.get('payload', '')
+            if pix.get('expirationDate'):
+                charge.pix_expiration_date = safe_make_aware(datetime.fromisoformat(pix['expirationDate']))
+        except Exception:
+            logger.warning(f'Não foi possível obter QR Code PIX para {charge_id}')
+        if billing_type == 'BOLETO':
             charge.boleto_url = result.get('bankSlipUrl', '')
             try:
                 ident = self._get(f'payments/{charge_id}/identificationField')

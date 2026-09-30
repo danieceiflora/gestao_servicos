@@ -390,6 +390,34 @@
         if (btn) btn.textContent = method === 'PIX' ? 'Gerar código PIX' : 'Gerar boleto';
     }
 
+    function copyChargeCode(codeId, feedbackId) {
+        var codeElement = document.getElementById(codeId);
+        var feedback = document.getElementById(feedbackId);
+        if (!codeElement) return;
+        var code = codeElement.textContent.trim();
+        var copied = function () {
+            if (!feedback) return;
+            feedback.classList.remove('hidden');
+            window.setTimeout(function () { feedback.classList.add('hidden'); }, 2500);
+        };
+        var fallback = function () {
+            var input = document.createElement('textarea');
+            input.value = code;
+            input.setAttribute('readonly', '');
+            input.style.position = 'fixed';
+            input.style.opacity = '0';
+            document.body.appendChild(input);
+            input.select();
+            if (document.execCommand('copy')) copied();
+            document.body.removeChild(input);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(code).then(copied, fallback);
+        } else {
+            fallback();
+        }
+    }
+
     function copyStaticPixKey(instId) {
         var keyElement = document.getElementById('pix-key-' + instId);
         var label = document.getElementById('pix-copy-label-' + instId);
