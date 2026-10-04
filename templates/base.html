@@ -183,12 +183,13 @@
                 </div>
                 {% endif %}
 
-                {% if user.is_staff %}
+                {% if user.is_staff or user.is_manager %}
                 <div class="relative group">
-                    <button type="button" class="text-sm font-medium {% if 'pagamentos' in request.path or 'whatsapp' in request.path or 'admin' in request.path %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
+                    <button type="button" class="text-sm font-medium {% if 'pagamentos' in request.path or 'whatsapp' in request.path or 'admin' in request.path or request.resolver_match.url_name == 'sale_settings' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 transition-colors flex items-center gap-1 py-4">
                         <i data-lucide="settings" class="h-4 w-4"></i> Configurações <i data-lucide="chevron-down" class="h-3 w-3"></i>
                     </button>
                     <div class="absolute right-0 top-full -mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-2">
+                        {% if user.is_staff %}
                         <a href="{% url 'admin:index' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
                             <i data-lucide="shield-check" class="h-4 w-4 text-slate-400"></i>
                             Admin
@@ -197,6 +198,12 @@
                             <i data-lucide="smartphone" class="h-4 w-4 text-blue-500"></i>
                             App do Técnico
                         </a>
+                        {% endif %}
+                        <a href="{% url 'sale_settings' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
+                            <i data-lucide="shopping-cart" class="h-4 w-4 text-slate-400"></i>
+                            Configurações de Vendas
+                        </a>
+                        {% if user.is_staff %}
                         <!-- Gateway de Pagamentos -->
                         <p class="px-4 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Integrações</p>
                         <a href="{% url 'pagamentos:gateway_config' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-b border-slate-50">
@@ -229,6 +236,7 @@
                             <i data-lucide="bell" class="h-4 w-4 text-slate-400"></i>
                             Lembretes Agendados
                         </a>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}

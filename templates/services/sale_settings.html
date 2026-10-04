@@ -31,6 +31,35 @@
     <form method="POST" class="space-y-4">
         {% csrf_token %}
 
+        {# Padrões de novas vendas #}
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+                <h2 class="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                    <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                    Padrões de novas vendas
+                </h2>
+                <p class="text-xs text-slate-500 mt-1">Essas escolhas preenchem novas vendas e podem ser alteradas em cada venda.</p>
+            </div>
+            <div class="p-6 space-y-5">
+                <div class="space-y-2">
+                    <label for="{{ form.default_sale_type.id_for_label }}" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tipo padrão de venda</label>
+                    {{ form.default_sale_type }}
+                    {% if form.default_sale_type.errors %}<p class="text-xs text-red-500 font-medium">{{ form.default_sale_type.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="space-y-2">
+                    <label for="{{ form.default_sale_status.id_for_label }}" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status padrão</label>
+                    {{ form.default_sale_status }}
+                    {% if form.default_sale_status.errors %}<p class="text-xs text-red-500 font-medium">{{ form.default_sale_status.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="space-y-2">
+                    <label for="{{ form.default_charge_config.id_for_label }}" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Regra padrão para gerar cobranças</label>
+                    {{ form.default_charge_config }}
+                    {% if form.default_charge_config.errors %}<p class="text-xs text-red-500 font-medium">{{ form.default_charge_config.errors.0 }}</p>{% endif %}
+                    <p class="text-[11px] text-slate-400 leading-relaxed">A regra ativa escolhida será pré-selecionada no financeiro das novas vendas.</p>
+                </div>
+            </div>
+        </div>
+
         {# Cobrança Automática #}
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/50">

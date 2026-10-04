@@ -1382,10 +1382,26 @@ class FinanceSettingsForm(forms.ModelForm):
 
 
 class SaleSettingsForm(forms.ModelForm):
+    default_sale_status = forms.ChoiceField(
+        choices=[choice for choice in Sale.Status.choices if choice[0] != Sale.Status.CANCELADO],
+        widget=forms.Select(attrs={
+            'class': 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 pr-8',
+        }),
+    )
+
     class Meta:
         model = SaleSettings
-        fields = ['billing_trigger_status', 'repeated_item_behavior']
+        fields = [
+            'default_sale_type', 'default_sale_status', 'default_charge_config',
+            'billing_trigger_status', 'repeated_item_behavior',
+        ]
         widgets = {
+            'default_sale_type': forms.Select(attrs={
+                'class': 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 pr-8',
+            }),
+            'default_charge_config': forms.Select(attrs={
+                'class': 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 pr-8',
+            }),
             'billing_trigger_status': forms.Select(attrs={
                 'class': 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 pr-8',
             }),
@@ -1393,6 +1409,11 @@ class SaleSettingsForm(forms.ModelForm):
                 'class': 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 pr-8',
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['default_charge_config'].queryset = self.fields['default_charge_config'].queryset.filter(is_active=True)
+        self.fields['default_charge_config'].empty_label = 'Sem regra'
 
 
 class TechnicianAppSettingsForm(forms.ModelForm):

@@ -173,6 +173,17 @@ class SaleStatusSaveTests(TestCase):
 		payload.update(extra)
 		return payload
 
+	def _settings_payload(self, **extra):
+		payload = {
+			'default_sale_type': Sale.SaleType.PRESENCIAL,
+			'default_sale_status': Sale.Status.RASCUNHO,
+			'default_charge_config': '',
+			'billing_trigger_status': SaleSettings.BillingTrigger.FINALIZADA,
+			'repeated_item_behavior': SaleSettings.RepeatedItemBehavior.SEPARATE_LINES,
+		}
+		payload.update(extra)
+		return payload
+
 	def test_main_save_respects_draft_status(self):
 		response = self.client.post(
 			reverse('sale_create'),
@@ -220,17 +231,33 @@ class SaleStatusSaveTests(TestCase):
 		self.assertEqual(response.context['repeated_item_behavior'], 'SUM_QUANTITY')
 		self.assertContains(response, "const REPEATED_ITEM_BEHAVIOR = 'SUM_QUANTITY'")
 
+	def test_settings_page_and_navigation_expose_all_defaults(self):
+		response = self.client.get(reverse('sale_settings'))
+		for field in (
+			'default_sale_type', 'default_sale_status', 'default_charge_config',
+			'billing_trigger_status', 'repeated_item_behavior',
+		):
+			with self.subTest(field=field):
+				self.assertContains(response, f'name="{field}"')
+		self.assertContains(response, reverse('sale_settings'), count=2)
+		self.assertNotContains(response, 'Django Admin')
+
+		response = self.client.get(reverse('sale_list'), {'q': 'Cliente & Venda'})
+		self.assertContains(response, reverse('sale_settings'))
+		self.assertContains(response, 'q=Cliente+%26+Venda')
+		self.assertContains(response, 'NOVA VENDA')
+
 	def test_default_sale_type_setting_applies_to_new_sales_only(self):
 		settings = SaleSettings.get()
 		self.assertEqual(settings.default_sale_type, Sale.SaleType.PRESENCIAL)
 		response = self.client.get(reverse('sale_create'))
 		self.assertEqual(response.context['form']['sale_type'].value(), Sale.SaleType.PRESENCIAL)
-		self.assertContains(response, 'Configurações')
+		self.assertNotContains(response, 'id="btn-tab-settings"')
 
-		response = self.client.post(reverse('sale_default_type_setting'), {
-			'default_sale_type': Sale.SaleType.DISTANCIA,
-		})
-		self.assertEqual(response.status_code, 200)
+		response = self.client.post(reverse('sale_settings'), self._settings_payload(
+			default_sale_type=Sale.SaleType.DISTANCIA,
+		))
+		self.assertRedirects(response, reverse('sale_settings'))
 		self.assertFalse(Sale.objects.exists())
 		settings.refresh_from_db()
 		self.assertEqual(settings.default_sale_type, Sale.SaleType.DISTANCIA)
@@ -242,23 +269,28 @@ class SaleStatusSaveTests(TestCase):
 		self.assertEqual(response.context['form']['sale_type'].value(), Sale.SaleType.PRESENCIAL)
 
 	def test_default_sale_type_setting_rejects_invalid_value(self):
-		response = self.client.post(reverse('sale_default_type_setting'), {
-			'default_sale_type': 'INVALIDO',
-		})
-		self.assertEqual(response.status_code, 400)
+		response = self.client.post(reverse('sale_settings'), self._settings_payload(
+			default_sale_type='INVALIDO',
+		))
+		self.assertEqual(response.status_code, 200)
+		self.assertIn('default_sale_type', response.context['form'].errors)
 		self.assertEqual(SaleSettings.get().default_sale_type, Sale.SaleType.PRESENCIAL)
 
 	def test_status_and_charge_rule_defaults_apply_only_to_new_sale(self):
 		rule = BillingChargeConfig.objects.create(name='Regra padrão da venda', due_days=3)
-		response = self.client.post(reverse('sale_default_type_setting'), {
-			'default_sale_type': Sale.SaleType.DISTANCIA,
-			'default_sale_status': Sale.Status.PRONTO,
-			'default_charge_config_id': str(rule.pk),
-		})
-		self.assertEqual(response.status_code, 200)
+		response = self.client.post(reverse('sale_settings'), self._settings_payload(
+			default_sale_type=Sale.SaleType.DISTANCIA,
+			default_sale_status=Sale.Status.PRONTO,
+			default_charge_config=str(rule.pk),
+			billing_trigger_status=SaleSettings.BillingTrigger.PRONTO,
+			repeated_item_behavior=SaleSettings.RepeatedItemBehavior.SUM_QUANTITY,
+		))
+		self.assertRedirects(response, reverse('sale_settings'))
 		settings = SaleSettings.get()
 		self.assertEqual(settings.default_sale_status, Sale.Status.PRONTO)
 		self.assertEqual(settings.default_charge_config, rule)
+		self.assertEqual(settings.billing_trigger_status, SaleSettings.BillingTrigger.PRONTO)
+		self.assertEqual(settings.repeated_item_behavior, SaleSettings.RepeatedItemBehavior.SUM_QUANTITY)
 
 		response = self.client.get(reverse('sale_create'))
 		self.assertEqual(response.context['form']['status'].value(), Sale.Status.PRONTO)
@@ -273,27 +305,31 @@ class SaleStatusSaveTests(TestCase):
 	def test_default_charge_rule_can_be_cleared_and_inactive_rule_is_rejected(self):
 		rule = BillingChargeConfig.objects.create(name='Regra inativa', is_active=False)
 		settings = SaleSettings.get()
-		response = self.client.post(reverse('sale_default_type_setting'), {
-			'default_sale_type': Sale.SaleType.DISTANCIA,
-			'default_sale_status': Sale.Status.CANCELADO,
-			'default_charge_config_id': str(rule.pk),
-		})
-		self.assertEqual(response.status_code, 400)
+		response = self.client.post(reverse('sale_settings'), self._settings_payload(
+			default_sale_type=Sale.SaleType.DISTANCIA,
+			default_sale_status=Sale.Status.CANCELADO,
+			default_charge_config=str(rule.pk),
+		))
+		self.assertEqual(response.status_code, 200)
+		self.assertTrue(response.context['form'].errors)
 		settings.refresh_from_db()
 		self.assertEqual(settings.default_sale_type, Sale.SaleType.PRESENCIAL)
 		self.assertEqual(settings.default_sale_status, Sale.Status.RASCUNHO)
 
-		response = self.client.post(reverse('sale_default_type_setting'), {
-			'default_sale_status': Sale.Status.PRONTO,
-			'default_charge_config_id': str(rule.pk),
-		})
-		self.assertEqual(response.status_code, 400)
+		response = self.client.post(reverse('sale_settings'), self._settings_payload(
+			default_sale_status=Sale.Status.PRONTO,
+			default_charge_config=str(rule.pk),
+		))
+		self.assertEqual(response.status_code, 200)
+		self.assertIn('default_charge_config', response.context['form'].errors)
 		settings.refresh_from_db()
 		self.assertEqual(settings.default_sale_status, Sale.Status.RASCUNHO)
 
 		active_rule = BillingChargeConfig.objects.create(name='Regra ativa')
-		self.client.post(reverse('sale_default_type_setting'), {'default_charge_config_id': str(active_rule.pk)})
-		self.client.post(reverse('sale_default_type_setting'), {'default_charge_config_id': ''})
+		self.client.post(reverse('sale_settings'), self._settings_payload(default_charge_config=str(active_rule.pk)))
+		settings.refresh_from_db()
+		self.assertEqual(settings.default_charge_config, active_rule)
+		self.client.post(reverse('sale_settings'), self._settings_payload(default_charge_config=''))
 		settings.refresh_from_db()
 		self.assertIsNone(settings.default_charge_config)
 
@@ -304,10 +340,9 @@ class SaleStatusSaveTests(TestCase):
 			SaleSettings.RepeatedItemBehavior.SEPARATE_LINES,
 		)
 
-		response = self.client.post(reverse('sale_settings'), {
-			'billing_trigger_status': SaleSettings.BillingTrigger.FINALIZADA,
-			'repeated_item_behavior': SaleSettings.RepeatedItemBehavior.SUM_QUANTITY,
-		}, follow=True)
+		response = self.client.post(reverse('sale_settings'), self._settings_payload(
+			repeated_item_behavior=SaleSettings.RepeatedItemBehavior.SUM_QUANTITY,
+		), follow=True)
 
 		self.assertRedirects(response, reverse('sale_settings'))
 		self.assertContains(response, 'Configurações de vendas salvas com sucesso.', count=1)
