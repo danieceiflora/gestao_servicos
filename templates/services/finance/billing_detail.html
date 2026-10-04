@@ -183,7 +183,7 @@
                                 data-method="{{ inst.editable_gateway_charge.get_method_display|default:'' }}"
                                 data-discount-type="{{ inst.discount_type }}"
                                 data-discount-value="{{ inst.discount_value|stringformat:'.2f' }}"
-                                data-discount-due-days="{{ inst.discount_due_days }}"
+                                data-discount-deadline="{{ inst.discount_deadline|date:'Y-m-d' }}"
                                 data-interest-monthly="{{ inst.interest_monthly|stringformat:'.2f' }}"
                                 data-fine-type="{{ inst.fine_type }}"
                                 data-fine-value="{{ inst.fine_value|stringformat:'.2f' }}"
@@ -495,18 +495,18 @@
 <!-- Modal de Edição de Parcela -->
 <div id="edit-installment-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-        <div class="p-8 overflow-y-auto">
+        <div class="p-5 sm:p-8 overflow-y-auto">
             <h3 class="text-xl font-black text-slate-900 tracking-tighter mb-1">Editar Parcela</h3>
             <p id="edit-modal-desc" class="text-sm text-slate-500 font-medium mb-6"></p>
 
             <div id="edit-modal-gateway-note" class="hidden text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6">
                 Esta parcela tem uma cobrança <strong id="edit-modal-gateway-method"></strong> ativa no gateway —
-                ela será atualizada com os novos dados (mesmo boleto/PIX, sem reemitir), incluindo desconto/juros/multa.
+                ela será atualizada no Asaas. Após alterar valor ou vencimento, use os novos códigos de pagamento exibidos nesta página.
             </div>
 
             <form id="edit-installment-form" method="POST" class="space-y-4">
                 {% csrf_token %}
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="space-y-1.5">
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vencimento</label>
                         <input type="date" name="due_date" id="edit-due-date" required
@@ -521,37 +521,52 @@
 
                 <div class="space-y-1.5 pt-2 border-t border-slate-100">
                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Desconto por Antecipação</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <select name="discount_type" id="edit-discount-type"
-                                class="rounded-xl border-2 border-slate-200 px-2 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
-                            <option value="NONE">Sem desconto</option>
-                            <option value="FIXED">Valor Fixo (R$)</option>
-                            <option value="PERCENTAGE">Percentual (%)</option>
-                        </select>
-                        <input type="number" step="0.01" min="0" name="discount_value" id="edit-discount-value" placeholder="Valor"
-                               class="rounded-xl border-2 border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
-                        <input type="number" step="1" min="0" name="discount_due_days" id="edit-discount-due-days" placeholder="Dias antes"
-                               class="rounded-xl border-2 border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <label for="edit-discount-type" class="block text-xs font-semibold text-slate-600">Tipo de desconto</label>
+                            <select name="discount_type" id="edit-discount-type" onchange="toggleEditDiscount()"
+                                    class="w-full rounded-xl border-2 border-slate-200 px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none">
+                                <option value="NONE">Sem desconto</option>
+                                <option value="FIXED">Valor fixo (R$)</option>
+                                <option value="PERCENTAGE">Percentual (%)</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label for="edit-discount-value" class="block text-xs font-semibold text-slate-600">Valor do desconto</label>
+                            <input type="number" step="0.01" min="0" name="discount_value" id="edit-discount-value"
+                                   class="w-full rounded-xl border-2 border-slate-200 px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none">
+                        </div>
+                        <div class="space-y-1 sm:col-span-2">
+                            <label for="edit-discount-deadline" class="block text-xs font-semibold text-slate-600">Data limite do desconto</label>
+                            <input type="date" name="discount_deadline" id="edit-discount-deadline"
+                                   class="w-full rounded-xl border-2 border-slate-200 px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none">
+                        </div>
                     </div>
-                    <p class="text-[9px] text-slate-400 ml-1">Nº de dias antes do vencimento em que o desconto deixa de valer.</p>
+                    <p class="text-xs text-slate-500 ml-1">O desconto vale até esta data, inclusive.</p>
                 </div>
 
                 <div class="space-y-1.5">
                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Juros e Multa por Atraso</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <div class="flex items-center gap-1">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <label for="edit-interest-monthly" class="block text-xs font-semibold text-slate-600">Juros (% ao mês)</label>
                             <input type="number" step="0.01" min="0" name="interest_monthly" id="edit-interest-monthly" placeholder="Juros"
-                                   class="w-full rounded-xl border-2 border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
-                            <span class="text-[9px] text-slate-400 whitespace-nowrap">%/mês</span>
+                                   class="w-full rounded-xl border-2 border-slate-200 px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none">
                         </div>
-                        <select name="fine_type" id="edit-fine-type"
-                                class="rounded-xl border-2 border-slate-200 px-2 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
-                            <option value="NONE">Sem multa</option>
-                            <option value="FIXED">Valor Fixo (R$)</option>
-                            <option value="PERCENTAGE">Percentual (%)</option>
-                        </select>
-                        <input type="number" step="0.01" min="0" name="fine_value" id="edit-fine-value" placeholder="Valor"
-                               class="rounded-xl border-2 border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 focus:border-blue-500 outline-none transition-all">
+                        <div class="space-y-1">
+                            <label for="edit-fine-type" class="block text-xs font-semibold text-slate-600">Tipo de multa</label>
+                            <select name="fine_type" id="edit-fine-type" onchange="toggleEditFine()"
+                                    class="w-full rounded-xl border-2 border-slate-200 px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none">
+                                <option value="NONE">Sem multa</option>
+                                <option value="FIXED">Valor fixo (R$)</option>
+                                <option value="PERCENTAGE">Percentual (%)</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1 sm:col-span-2">
+                            <label for="edit-fine-value" class="block text-xs font-semibold text-slate-600">Valor da multa</label>
+                            <input type="number" step="0.01" min="0" name="fine_value" id="edit-fine-value"
+                                   class="w-full rounded-xl border-2 border-slate-200 px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-blue-500 outline-none">
+                        </div>
                     </div>
                 </div>
 
@@ -698,10 +713,12 @@
         document.getElementById('edit-amount').value = d.amount;
         document.getElementById('edit-discount-type').value = d.discountType || 'NONE';
         document.getElementById('edit-discount-value').value = d.discountValue;
-        document.getElementById('edit-discount-due-days').value = d.discountDueDays;
+        document.getElementById('edit-discount-deadline').value = d.discountDeadline || '';
+        toggleEditDiscount();
         document.getElementById('edit-interest-monthly').value = d.interestMonthly;
         document.getElementById('edit-fine-type').value = d.fineType || 'NONE';
         document.getElementById('edit-fine-value').value = d.fineValue;
+        toggleEditFine();
 
         if (d.hasCharge === 'true') {
             document.getElementById('edit-modal-gateway-method').textContent = d.method;
@@ -714,6 +731,23 @@
         modal.classList.remove('hidden');
         modal.classList.add('flex');
         if (window.lucide) window.lucide.createIcons();
+    }
+
+    function toggleEditDiscount() {
+        const enabled = document.getElementById('edit-discount-type').value !== 'NONE';
+        const value = document.getElementById('edit-discount-value');
+        const deadline = document.getElementById('edit-discount-deadline');
+        value.disabled = !enabled;
+        deadline.disabled = !enabled;
+        value.required = enabled;
+        deadline.required = enabled;
+    }
+
+    function toggleEditFine() {
+        const enabled = document.getElementById('edit-fine-type').value !== 'NONE';
+        const value = document.getElementById('edit-fine-value');
+        value.disabled = !enabled;
+        value.required = enabled;
     }
 
     function closeEditModal() {

@@ -8,7 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.core.paginator import Paginator
 from decimal import Decimal
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import json
 import calendar as _cal
 from core.formatting import format_money_br
@@ -686,6 +686,7 @@ def sale_list(request):
 @login_required
 @user_passes_test(is_manager)
 def sale_create(request):
+    sale_settings = SaleSettings.get()
     if request.method == 'POST':
         form = SaleForm(request.POST)
         formset = SaleItemFormSet(request.POST)
@@ -756,11 +757,21 @@ def sale_create(request):
                          form.errors.as_json(), [f.errors.as_json() for f in formset], formset.non_form_errors())
             messages.error(request, "Por favor, corrija os erros no formulário.")
     else:
-        form = SaleForm()
+        form = SaleForm(initial={
+            'sale_type': sale_settings.default_sale_type,
+            'status': sale_settings.default_sale_status,
+        })
         formset = SaleItemFormSet(queryset=SaleItem.objects.none())
     
     from integracoes.models import SystemConfig as _SC
     due_days = _SC.load().billing_default_due_days or 1
+    default_charge_config = sale_settings.default_charge_config
+    if request.method == 'POST':
+        selected_charge_config_id = request.POST.get('charge_config_id', '')
+    elif default_charge_config and default_charge_config.is_active:
+        selected_charge_config_id = str(default_charge_config.pk)
+    else:
+        selected_charge_config_id = ''
 
     context = {
         'form': form,
@@ -768,7 +779,12 @@ def sale_create(request):
         'title': 'Nova Venda (PDV)',
         'products': Product.objects.filter(is_active=True),
         'clients': Client.objects.all().order_by('name'),
-        'repeated_item_behavior': SaleSettings.get().repeated_item_behavior,
+        'repeated_item_behavior': sale_settings.repeated_item_behavior,
+        'default_sale_type': sale_settings.default_sale_type,
+        'default_sale_status': sale_settings.default_sale_status,
+        'default_charge_config_id': sale_settings.default_charge_config_id or '',
+        'sale_status_choices': [choice for choice in Sale.Status.choices if choice[0] != Sale.Status.CANCELADO],
+        'selected_charge_config_id': selected_charge_config_id,
     }
     context.update(_charge_config_panel_context(PaymentMethod.objects.filter(ativo=True), due_days))
     return render(request, 'services/sale_form.html', context)
@@ -867,6 +883,7 @@ def sale_detail(request, number):
 
     from fiscal.models import NFeConfig
     nfe_config = NFeConfig.load()
+    sale_settings = SaleSettings.get()
 
     context = {
         'sale': sale,
@@ -878,7 +895,15 @@ def sale_detail(request, number):
         'title': f'Venda #{sale.number}',
         'products': Product.objects.filter(is_active=True),
         'clients': Client.objects.all().order_by('name'),
-        'repeated_item_behavior': SaleSettings.get().repeated_item_behavior,
+        'repeated_item_behavior': sale_settings.repeated_item_behavior,
+        'default_sale_type': sale_settings.default_sale_type,
+        'default_sale_status': sale_settings.default_sale_status,
+        'default_charge_config_id': sale_settings.default_charge_config_id or '',
+        'sale_status_choices': [choice for choice in Sale.Status.choices if choice[0] != Sale.Status.CANCELADO],
+        'selected_charge_config_id': (
+            request.POST.get('charge_config_id', '') if request.method == 'POST'
+            else str(sale.billing.charge_config_id or '') if hasattr(sale, 'billing') else ''
+        ),
         'initial_installments': initial_installments,
         'returns': sale.returns.all().prefetch_related('items__sale_item__product') if hasattr(sale, 'returns') else [],
         'nfe_config': nfe_config,
@@ -1288,7 +1313,7 @@ def billing_create_for_task(request, task_id):
 @login_required
 @user_passes_test(is_manager)
 def billing_list(request):
-    """Lista de todas as cobranças (Contas a Receber)."""
+    """Lista cobranças por data de criação, com período padrão de sete dias."""
     from django.db.models import Q
     billings = (
         Billing.objects.all()
@@ -1310,10 +1335,39 @@ def billing_list(request):
             pass
         billings = billings.filter(q_filter)
 
+    if 'date_from' not in request.GET and 'date_to' not in request.GET:
+        today = local_today()
+        date_from = (today - timedelta(days=6)).isoformat()
+        date_to = today.isoformat()
+    else:
+        date_from = request.GET.get('date_from', '').strip()
+        date_to = request.GET.get('date_to', '').strip()
+
+    date_error = ''
+    try:
+        from_date = date.fromisoformat(date_from) if date_from else None
+        to_date = date.fromisoformat(date_to) if date_to else None
+    except ValueError:
+        from_date = to_date = None
+        date_error = 'Informe datas válidas no filtro.'
+
+    if not date_error and from_date and to_date and from_date > to_date:
+        date_error = 'A data inicial não pode ser posterior à data final.'
+    if date_error:
+        billings = billings.none()
+    else:
+        if from_date:
+            billings = billings.filter(created_at__date__gte=from_date)
+        if to_date:
+            billings = billings.filter(created_at__date__lte=to_date)
+
     context = {
         'billings': billings,
         'q': q,
         'status_filter': status,
+        'date_from': date_from,
+        'date_to': date_to,
+        'date_error': date_error,
         'title': 'Contas a Receber',
         'active_menu': 'finance'
     }
@@ -2275,6 +2329,48 @@ def sale_settings_view(request):
         'form': form,
         'settings': obj,
         'active_menu': 'sales',
+    })
+
+
+@login_required
+@user_passes_test(is_manager)
+@require_POST
+def sale_default_type_setting(request):
+    from pagamentos.models import BillingChargeConfig
+
+    settings = SaleSettings.get()
+    update_fields = []
+    if 'default_sale_type' in request.POST:
+        sale_type = request.POST['default_sale_type']
+        if sale_type not in Sale.SaleType.values:
+            return JsonResponse({'error': 'Selecione um tipo de venda válido.'}, status=400)
+        settings.default_sale_type = sale_type
+        update_fields.append('default_sale_type')
+    if 'default_sale_status' in request.POST:
+        status = request.POST['default_sale_status']
+        if status not in Sale.Status.values or status == Sale.Status.CANCELADO:
+            return JsonResponse({'error': 'Selecione um status padrão válido.'}, status=400)
+        settings.default_sale_status = status
+        update_fields.append('default_sale_status')
+    if 'default_charge_config_id' in request.POST:
+        config_id = request.POST['default_charge_config_id']
+        if config_id:
+            if not config_id.isdecimal():
+                return JsonResponse({'error': 'Selecione uma regra de cobrança ativa.'}, status=400)
+            config = BillingChargeConfig.objects.filter(pk=config_id, is_active=True).first()
+            if not config:
+                return JsonResponse({'error': 'Selecione uma regra de cobrança ativa.'}, status=400)
+            settings.default_charge_config = config
+        else:
+            settings.default_charge_config = None
+        update_fields.append('default_charge_config')
+    if not update_fields:
+        return JsonResponse({'error': 'Informe ao menos uma configuração.'}, status=400)
+    settings.save(update_fields=update_fields)
+    return JsonResponse({
+        'default_sale_type': settings.default_sale_type,
+        'default_sale_status': settings.default_sale_status,
+        'default_charge_config_id': settings.default_charge_config_id or '',
     })
 
 

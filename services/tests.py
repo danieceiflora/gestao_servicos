@@ -6,6 +6,7 @@ from unittest.mock import patch
 import json
 
 from integracoes.models import SystemConfig
+from pagamentos.models import BillingChargeConfig
 from .forms import SaleForm
 from .models import (
 	Client, Professional, Property, ServiceItem, ServiceOrder,
@@ -218,6 +219,83 @@ class SaleStatusSaveTests(TestCase):
 
 		self.assertEqual(response.context['repeated_item_behavior'], 'SUM_QUANTITY')
 		self.assertContains(response, "const REPEATED_ITEM_BEHAVIOR = 'SUM_QUANTITY'")
+
+	def test_default_sale_type_setting_applies_to_new_sales_only(self):
+		settings = SaleSettings.get()
+		self.assertEqual(settings.default_sale_type, Sale.SaleType.PRESENCIAL)
+		response = self.client.get(reverse('sale_create'))
+		self.assertEqual(response.context['form']['sale_type'].value(), Sale.SaleType.PRESENCIAL)
+		self.assertContains(response, 'Configurações')
+
+		response = self.client.post(reverse('sale_default_type_setting'), {
+			'default_sale_type': Sale.SaleType.DISTANCIA,
+		})
+		self.assertEqual(response.status_code, 200)
+		self.assertFalse(Sale.objects.exists())
+		settings.refresh_from_db()
+		self.assertEqual(settings.default_sale_type, Sale.SaleType.DISTANCIA)
+		response = self.client.get(reverse('sale_create'))
+		self.assertEqual(response.context['form']['sale_type'].value(), Sale.SaleType.DISTANCIA)
+
+		sale = Sale.objects.create(user=self.user, sale_type=Sale.SaleType.PRESENCIAL)
+		response = self.client.get(reverse('sale_detail', args=[sale.number]))
+		self.assertEqual(response.context['form']['sale_type'].value(), Sale.SaleType.PRESENCIAL)
+
+	def test_default_sale_type_setting_rejects_invalid_value(self):
+		response = self.client.post(reverse('sale_default_type_setting'), {
+			'default_sale_type': 'INVALIDO',
+		})
+		self.assertEqual(response.status_code, 400)
+		self.assertEqual(SaleSettings.get().default_sale_type, Sale.SaleType.PRESENCIAL)
+
+	def test_status_and_charge_rule_defaults_apply_only_to_new_sale(self):
+		rule = BillingChargeConfig.objects.create(name='Regra padrão da venda', due_days=3)
+		response = self.client.post(reverse('sale_default_type_setting'), {
+			'default_sale_type': Sale.SaleType.DISTANCIA,
+			'default_sale_status': Sale.Status.PRONTO,
+			'default_charge_config_id': str(rule.pk),
+		})
+		self.assertEqual(response.status_code, 200)
+		settings = SaleSettings.get()
+		self.assertEqual(settings.default_sale_status, Sale.Status.PRONTO)
+		self.assertEqual(settings.default_charge_config, rule)
+
+		response = self.client.get(reverse('sale_create'))
+		self.assertEqual(response.context['form']['status'].value(), Sale.Status.PRONTO)
+		self.assertEqual(response.context['selected_charge_config_id'], str(rule.pk))
+		self.assertContains(response, f'<option value="{rule.pk}" selected')
+
+		sale = Sale.objects.create(user=self.user, status=Sale.Status.RASCUNHO)
+		response = self.client.get(reverse('sale_detail', args=[sale.number]))
+		self.assertEqual(response.context['form']['status'].value(), Sale.Status.RASCUNHO)
+		self.assertEqual(response.context['selected_charge_config_id'], '')
+
+	def test_default_charge_rule_can_be_cleared_and_inactive_rule_is_rejected(self):
+		rule = BillingChargeConfig.objects.create(name='Regra inativa', is_active=False)
+		settings = SaleSettings.get()
+		response = self.client.post(reverse('sale_default_type_setting'), {
+			'default_sale_type': Sale.SaleType.DISTANCIA,
+			'default_sale_status': Sale.Status.CANCELADO,
+			'default_charge_config_id': str(rule.pk),
+		})
+		self.assertEqual(response.status_code, 400)
+		settings.refresh_from_db()
+		self.assertEqual(settings.default_sale_type, Sale.SaleType.PRESENCIAL)
+		self.assertEqual(settings.default_sale_status, Sale.Status.RASCUNHO)
+
+		response = self.client.post(reverse('sale_default_type_setting'), {
+			'default_sale_status': Sale.Status.PRONTO,
+			'default_charge_config_id': str(rule.pk),
+		})
+		self.assertEqual(response.status_code, 400)
+		settings.refresh_from_db()
+		self.assertEqual(settings.default_sale_status, Sale.Status.RASCUNHO)
+
+		active_rule = BillingChargeConfig.objects.create(name='Regra ativa')
+		self.client.post(reverse('sale_default_type_setting'), {'default_charge_config_id': str(active_rule.pk)})
+		self.client.post(reverse('sale_default_type_setting'), {'default_charge_config_id': ''})
+		settings.refresh_from_db()
+		self.assertIsNone(settings.default_charge_config)
 
 	def test_repeated_item_setting_defaults_to_separate_and_can_be_changed(self):
 		settings = SaleSettings.get()

@@ -12,37 +12,52 @@
 
         <div class="w-full overflow-x-auto md:w-auto">
             <div class="min-w-max bg-white border border-slate-200 rounded-lg p-1 flex gap-1 shadow-sm">
-                <a href="?status={% if q %}status=&q={{ q }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if not status_filter %}bg-slate-900 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Todos</a>
-                <a href="?status=PENDENTE{% if q %}&q={{ q }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if status_filter == 'PENDENTE' %}bg-amber-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pendentes</a>
-                <a href="?status=PARCIAL{% if q %}&q={{ q }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if status_filter == 'PARCIAL' %}bg-blue-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Parciais</a>
-                <a href="?status=PAGO{% if q %}&q={{ q }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if status_filter == 'PAGO' %}bg-emerald-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pagos</a>
+                <a href="?status=&amp;date_from={{ date_from|urlencode }}&amp;date_to={{ date_to|urlencode }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if not status_filter %}bg-slate-900 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Todos</a>
+                <a href="?status=PENDENTE&amp;date_from={{ date_from|urlencode }}&amp;date_to={{ date_to|urlencode }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if status_filter == 'PENDENTE' %}bg-amber-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pendentes</a>
+                <a href="?status=PARCIAL&amp;date_from={{ date_from|urlencode }}&amp;date_to={{ date_to|urlencode }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if status_filter == 'PARCIAL' %}bg-blue-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Parciais</a>
+                <a href="?status=PAGO&amp;date_from={{ date_from|urlencode }}&amp;date_to={{ date_to|urlencode }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}" class="px-3 py-1.5 text-xs font-bold rounded-md transition-all {% if status_filter == 'PAGO' %}bg-emerald-500 text-white shadow-md{% else %}text-slate-500 hover:bg-slate-50{% endif %}">Pagos</a>
             </div>
         </div>
     </div>
 
-    <!-- Busca -->
-    <form method="get" class="flex flex-col sm:flex-row gap-2">
+    <!-- Busca e período de criação -->
+    <form method="get" class="flex flex-col sm:flex-row sm:flex-wrap gap-2">
         {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
         <div class="relative flex-1 sm:max-w-sm">
             <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none"></i>
             <input type="search" name="q" value="{{ q }}" placeholder="Buscar por cliente ou nº da cobrança…"
                    class="w-full pl-9 pr-4 py-2.5 text-sm font-medium bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-slate-400 transition-colors shadow-sm">
         </div>
+        <label class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            De
+            <input type="date" name="date_from" value="{{ date_from }}" aria-label="Data de criação inicial"
+                   class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm">
+        </label>
+        <label class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            Até
+            <input type="date" name="date_to" value="{{ date_to }}" aria-label="Data de criação final"
+                   class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm">
+        </label>
         <button type="submit"
                 class="px-4 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-sm">
-            Buscar
+            Filtrar
         </button>
         {% if q %}
-        <a href="?status={{ status_filter }}"
+        <a href="?status={{ status_filter|urlencode }}&amp;date_from={{ date_from|urlencode }}&amp;date_to={{ date_to|urlencode }}"
            class="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-900 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors">
             Limpar
         </a>
         {% endif %}
+        <a href="?date_from=&amp;date_to={% if status_filter %}&amp;status={{ status_filter|urlencode }}{% endif %}{% if q %}&amp;q={{ q|urlencode }}{% endif %}"
+           class="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-900 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors">
+            Todas as datas
+        </a>
     </form>
+    {% if date_error %}<p class="text-sm font-medium text-red-600">{{ date_error }}</p>{% endif %}
 
     <!-- Tabela de Cobranças -->
-    <div class="hidden md:block bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
+    <div class="hidden xl:block min-w-0 max-w-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="max-w-full overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50/50 border-b border-slate-100">
@@ -51,10 +66,11 @@
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Origem</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vencimento</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">vct desconto</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Meio de Pagto</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Valor Total</th>
                         <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Saldo Devedor</th>
-                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest"></th>
+                        <th scope="col" class="sticky right-0 z-20 w-20 min-w-20 bg-slate-50 px-3 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Abrir</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50">
@@ -98,11 +114,18 @@
                                     {% if next_inst.status == 'ATRASADO' %}
                                         <p class="text-[9px] text-red-500 font-black uppercase tracking-wide">Atrasada</p>
                                     {% endif %}
-                                    {% if next_inst.discount_amount > 0 %}
-                                        <p class="text-[9px] text-emerald-600 font-bold" title="Válido até {{ next_inst.discount_deadline|date:'d/m/Y' }} — paga com desconto, R$ {{ next_inst.discounted_amount|floatformat:2 }}">
-                                            -R$ {{ next_inst.discount_amount|floatformat:2 }} até {{ next_inst.discount_deadline|date:"d/m" }}
-                                        </p>
-                                    {% endif %}
+                                {% else %}
+                                    <span class="text-sm text-slate-300">—</span>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% with next_inst=billing.next_installment %}
+                                {% if next_inst.discount_deadline and next_inst.discount_amount > 0 %}
+                                    <span class="text-sm font-bold text-emerald-700">{{ next_inst.discount_deadline|date:"d/m/Y" }}</span>
+                                    <p class="text-[9px] text-emerald-600 font-bold" title="Valor com desconto: R$ {{ next_inst.discounted_amount|floatformat:2 }}">
+                                        -R$ {{ next_inst.discount_amount|floatformat:2 }}
+                                    </p>
                                 {% else %}
                                     <span class="text-sm text-slate-300">—</span>
                                 {% endif %}
@@ -132,20 +155,20 @@
                                 </span>
                             {% endwith %}
                         </td>
-                        <td class="px-6 py-4 text-right">
-                            <a href="{% url 'billing_detail' billing.id %}" class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white transition-all">
+                        <td class="sticky right-0 z-10 w-20 min-w-20 border-l border-slate-100 bg-white px-3 py-4 text-center group-hover:bg-slate-50">
+                            <a href="{% url 'billing_detail' billing.id %}" aria-label="Abrir detalhes da cobrança #{{ billing.number }}" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 transition-all">
                                 <i data-lucide="chevron-right" class="w-4 h-4"></i>
                             </a>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="px-6 py-20 text-center">
+                        <td colspan="10" class="px-6 py-20 text-center">
                             <div class="flex flex-col items-center gap-3">
                                 <div class="bg-slate-50 p-4 rounded-full">
                                     <i data-lucide="receipt" class="w-8 h-8 text-slate-300"></i>
                                 </div>
-                                <p class="text-slate-400 font-medium">Nenhuma cobrança encontrada.</p>
+                                <p class="text-slate-400 font-medium">Nenhuma cobrança encontrada para o período e os filtros selecionados.</p>
                             </div>
                         </td>
                     </tr>
@@ -154,7 +177,7 @@
             </table>
         </div>
     </div>
-    <div class="md:hidden space-y-3">
+    <div class="xl:hidden space-y-3">
         {% for billing in billings %}
         <a href="{% url 'billing_detail' billing.id %}" class="block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50">
             <div class="flex items-start justify-between gap-3">
@@ -164,10 +187,13 @@
             <dl class="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-xs">
                 <div><dt class="text-slate-400">Valor total</dt><dd class="mt-1 font-black text-slate-900">R$ {{ billing.total_amount|floatformat:2 }}</dd></div>
                 <div class="text-right"><dt class="text-slate-400">Saldo devedor</dt><dd class="mt-1 font-black text-red-600">R$ {{ billing.get_remaining_balance|floatformat:2 }}</dd></div>
-                {% with next_inst=billing.next_installment %}{% if next_inst %}<div class="col-span-2"><dt class="text-slate-400">Próximo vencimento</dt><dd class="mt-1 font-semibold text-slate-700">{{ next_inst.due_date|date:"d/m/Y" }}</dd></div>{% endif %}{% endwith %}
+                {% with next_inst=billing.next_installment %}
+                <div><dt class="text-slate-400">Próximo vencimento</dt><dd class="mt-1 font-semibold text-slate-700">{% if next_inst %}{{ next_inst.due_date|date:"d/m/Y" }}{% else %}—{% endif %}</dd></div>
+                <div class="text-right"><dt class="text-slate-400">Vencimento com desconto</dt><dd class="mt-1 font-semibold text-emerald-700">{% if next_inst.discount_deadline and next_inst.discount_amount > 0 %}{{ next_inst.discount_deadline|date:"d/m/Y" }}{% else %}—{% endif %}</dd></div>
+                {% endwith %}
             </dl>
         </a>
-        {% empty %}<div class="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Nenhuma cobrança encontrada.</div>{% endfor %}
+        {% empty %}<div class="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Nenhuma cobrança encontrada para o período e os filtros selecionados.</div>{% endfor %}
     </div>
 </div>
 {% endblock %}

@@ -92,6 +92,7 @@ urlpatterns = [
     path('vendas/', views_finance.sale_list, name='sale_list'),
     path('vendas/criar/', views_finance.sale_create, name='sale_create'),
     path('vendas/configuracoes/', views_finance.sale_settings_view, name='sale_settings'),
+    path('vendas/configuracoes/tipo-padrao/', views_finance.sale_default_type_setting, name='sale_default_type_setting'),
     path('vendas/exportar/', views_finance.sale_export_csv, name='sale_export_csv'),
     path('vendas/devolucoes/<int:return_id>/aprovar/', views_finance.sale_return_approve, name='sale_return_approve'),
     path('vendas/devolucoes/<int:return_id>/cancelar/', views_finance.sale_return_cancel, name='sale_return_cancel'),

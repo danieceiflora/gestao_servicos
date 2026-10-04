@@ -30,6 +30,20 @@ STATUS_MAP = {
 
 class AsaasGateway(BasePaymentGateway):
 
+    def _split_fixed_value(self, data: ChargeData) -> float:
+        """Valor destinado à subconta, calculado sobre o menor pagamento possível."""
+        discount_amount = self._discount_amount(data.amount, data.discount_type, data.discount_value)
+        worst_case_value = data.amount - discount_amount
+        from services.payment_fees import calculate_fee
+        product = settings.INTEGRATED_PAYMENT_PRODUCTS[
+            'ASAAS_PIX' if data.method == 'PIX' else 'ASAAS_BOLETO'
+        ]
+        margin = calculate_fee(worst_case_value, {
+            'percent': str(product['percent']), 'minimum': str(product['minimum']),
+            'maximum': str(product['maximum']), 'fixed': '0',
+        })
+        return float(round(max(worst_case_value - margin, Decimal('0')), 2))
+
     def __init__(self):
         env = getattr(settings, 'ASAAS_ENVIRONMENT', 'SANDBOX')
         self.api_key = getattr(settings, 'ASAAS_API_KEY', '')
@@ -173,19 +187,7 @@ class AsaasGateway(BasePaymentGateway):
         """
         split_kwargs = None
         if wallet_id:
-            discount_amount = self._discount_amount(data.amount, data.discount_type, data.discount_value)
-            worst_case_value = data.amount - discount_amount
-
-            from services.payment_fees import calculate_fee
-            product = settings.INTEGRATED_PAYMENT_PRODUCTS[
-                'ASAAS_PIX' if data.method == 'PIX' else 'ASAAS_BOLETO'
-            ]
-            margin = calculate_fee(worst_case_value, {
-                'percent': str(product['percent']), 'minimum': str(product['minimum']),
-                'maximum': str(product['maximum']), 'fixed': '0',
-            })
-            client_amount = max(worst_case_value - margin, Decimal('0'))
-            split_kwargs = {'fixedValue': float(round(client_amount, 2))}
+            split_kwargs = {'fixedValue': self._split_fixed_value(data)}
 
         customer_id = self._get_or_create_customer(
             data.customer_name, data.customer_document, data.customer_email
@@ -263,11 +265,10 @@ class AsaasGateway(BasePaymentGateway):
             'expiration_date': pix.get('expirationDate', ''),
         }
 
-    def update_charge(self, external_id: str, data: ChargeData) -> ChargeResult:
+    def update_charge(self, external_id: str, data: ChargeData, wallet_id: str = '') -> ChargeResult:
         """Atualiza valor/vencimento (e desconto/juros/multa) de uma cobrança já
         existente — PUT /payments/{id} do Asaas. Mantém a mesma cobrança (mesmo
-        boleto/PIX, mesmo external_id); não recria nem envia customer/billingType/split,
-        que não mudam numa atualização."""
+        boleto/PIX, mesmo external_id); não recria nem envia customer/billingType."""
         billing_type = 'PIX' if data.method == 'PIX' else 'BOLETO'
         payload = {
             'value': float(data.amount),
@@ -281,15 +282,37 @@ class AsaasGateway(BasePaymentGateway):
                 'dueDateLimitDays': data.discount_due_days,
                 'type': data.discount_type,
             }
+        else:
+            payload['discount'] = {'value': 0}
         if data.interest_monthly > 0:
             payload['interest'] = {'value': float(round(data.interest_monthly, 2))}
+        else:
+            payload['interest'] = {'value': 0}
         if data.fine_type and data.fine_type != 'NONE' and data.fine_value > 0:
             payload['fine'] = {
                 'value': float(round(data.fine_value, 2)),
                 'type': data.fine_type,
             }
+        else:
+            payload['fine'] = {'value': 0}
+
+        if wallet_id:
+            payload['split'] = [{'walletId': wallet_id, 'fixedValue': self._split_fixed_value(data)}]
 
         result = self._put(f'payments/{external_id}', payload)
+        if Decimal(str(result['value'])) != data.amount or (
+            result.get('dueDate') and result['dueDate'] != payload['dueDate']
+        ):
+            raise ChargeRejected('O Asaas retornou valor ou vencimento diferente do solicitado.')
+        for term in ('discount', 'interest', 'fine'):
+            if term in result:
+                returned = result[term] or {}
+                if Decimal(str(returned.get('value') or 0)) != Decimal(str(payload[term]['value'])):
+                    raise ChargeRejected(f'O Asaas não confirmou a atualização de {term}.')
+        if wallet_id and 'split' in result:
+            matched = next((item for item in (result['split'] or []) if item.get('walletId') == wallet_id), None)
+            if not matched or Decimal(str(matched.get('fixedValue') or 0)) != Decimal(str(payload['split'][0]['fixedValue'])):
+                raise ChargeRejected('O Asaas não confirmou a atualização do split.')
 
         charge = ChargeResult(
             external_id=external_id,

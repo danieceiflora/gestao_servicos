@@ -305,7 +305,6 @@ def installment_update(request, installment_pk):
     try:
         new_due_date = date_type.fromisoformat(due_date_str)
         new_amount = Decimal(amount_str)
-        discount_due_days = int(request.POST.get('discount_due_days', '0') or 0)
         discount_value = _parse_decimal(request.POST.get('discount_value'))
         interest_monthly = _parse_decimal(request.POST.get('interest_monthly'))
         fine_value = _parse_decimal(request.POST.get('fine_value'))
@@ -315,17 +314,56 @@ def installment_update(request, installment_pk):
 
     discount_type = request.POST.get('discount_type', '').strip() or Installment.DiscountType.NONE
     if discount_type not in Installment.DiscountType.values:
-        discount_type = Installment.DiscountType.NONE
+        messages.error(request, 'Tipo de desconto inválido.')
+        return redirect('billing_detail', pk=installment.billing_id)
     fine_type = request.POST.get('fine_type', '').strip() or Installment.FineType.NONE
     if fine_type not in Installment.FineType.values:
-        fine_type = Installment.FineType.NONE
+        messages.error(request, 'Tipo de multa inválido.')
+        return redirect('billing_detail', pk=installment.billing_id)
+
+    if not all(value.is_finite() for value in (new_amount, discount_value, interest_monthly, fine_value)):
+        messages.error(request, 'Informe valores numéricos válidos.')
+        return redirect('billing_detail', pk=installment.billing_id)
 
     if new_amount <= 0:
         messages.error(request, 'O valor deve ser maior que zero.')
         return redirect('billing_detail', pk=installment.billing_id)
 
-    if discount_value < 0 or discount_due_days < 0 or interest_monthly < 0 or fine_value < 0:
+    money_limit = Decimal('99999999.99')
+    if (new_amount > money_limit or discount_value > money_limit or fine_value > money_limit
+            or interest_monthly > Decimal('9999.99')
+            or any(value.as_tuple().exponent < -2 for value in
+                   (new_amount, discount_value, interest_monthly, fine_value))):
+        messages.error(request, 'Valores fora do limite permitido ou com mais de duas casas decimais.')
+        return redirect('billing_detail', pk=installment.billing_id)
+
+    if discount_value < 0 or interest_monthly < 0 or fine_value < 0:
         messages.error(request, 'Valores de desconto/juros/multa não podem ser negativos.')
+        return redirect('billing_detail', pk=installment.billing_id)
+
+    if discount_type == Installment.DiscountType.NONE:
+        discount_value = Decimal('0')
+        discount_due_days = 0
+    else:
+        try:
+            deadline = date_type.fromisoformat(request.POST.get('discount_deadline', '').strip())
+        except ValueError:
+            messages.error(request, 'Informe uma data limite válida para o desconto.')
+            return redirect('billing_detail', pk=installment.billing_id)
+        if deadline > new_due_date or discount_value <= 0:
+            messages.error(request, 'O desconto deve ser positivo e sua data limite não pode ultrapassar o vencimento.')
+            return redirect('billing_detail', pk=installment.billing_id)
+        if (discount_type == Installment.DiscountType.PERCENTAGE and discount_value >= 100) or (
+            discount_type == Installment.DiscountType.FIXED and discount_value >= new_amount
+        ):
+            messages.error(request, 'O desconto não pode alcançar ou superar o valor da parcela.')
+            return redirect('billing_detail', pk=installment.billing_id)
+        discount_due_days = (new_due_date - deadline).days
+
+    if fine_type == Installment.FineType.NONE:
+        fine_value = Decimal('0')
+    elif fine_value <= 0 or (fine_type == Installment.FineType.PERCENTAGE and fine_value > 100):
+        messages.error(request, 'Informe um valor válido para a multa.')
         return redirect('billing_detail', pk=installment.billing_id)
 
     already_paid = installment.get_total_paid()
@@ -333,13 +371,12 @@ def installment_update(request, installment_pk):
         messages.error(request, f'O valor não pode ser menor que o já recebido ({format_money_br(already_paid, include_symbol=True)}).')
         return redirect('billing_detail', pk=installment.billing_id)
 
-    active_charge = installment.gateway_charges.filter(
-        status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.OVERDUE]
-    ).order_by('-created_at').first()
-
     try:
         with transaction.atomic():
             locked = lock_open_installment(installment.pk)
+            active_charge = locked.gateway_charges.filter(
+                status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.OVERDUE]
+            ).order_by('-created_at').first()
 
             # Aplica as edições ANTES de montar charge_kwargs — assim, se houver
             # cobrança ativa no gateway, ela já é atualizada com os novos termos.
@@ -368,7 +405,7 @@ def installment_update(request, installment_pk):
                     external_reference=str(locked.pk),
                     **charge_kwargs,
                 )
-                result = gw.update_charge(active_charge.external_id, data)
+                result = gw.update_charge(active_charge.external_id, data, wallet_id=active_charge.config.wallet_id)
 
                 active_charge.status = result.status
                 active_charge.amount = result.amount

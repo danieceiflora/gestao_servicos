@@ -89,8 +89,8 @@ class BillingChargeConfig(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'Regra de Cobrança'
-        verbose_name_plural = 'Regras de Cobrança'
+        verbose_name = 'configuração de Cobrança'
+        verbose_name_plural = 'configurações de Cobrança'
         ordering = ['name']
         constraints = [
             models.UniqueConstraint(

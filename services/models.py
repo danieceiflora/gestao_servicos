@@ -2540,6 +2540,25 @@ class SaleSettings(models.Model):
         default=RepeatedItemBehavior.SEPARATE_LINES,
         verbose_name="Ao adicionar o mesmo produto",
     )
+    default_sale_type = models.CharField(
+        max_length=20,
+        choices=Sale.SaleType.choices,
+        default=Sale.SaleType.PRESENCIAL,
+        verbose_name="Tipo padrão de venda",
+    )
+    default_sale_status = models.CharField(
+        max_length=20,
+        choices=Sale.Status.choices,
+        default=Sale.Status.RASCUNHO,
+        verbose_name="Status padrão da venda",
+    )
+    default_charge_config = models.ForeignKey(
+        'pagamentos.BillingChargeConfig',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='+',
+        verbose_name="Regra de cobrança padrão para vendas",
+    )
 
     pos_default_client = models.ForeignKey(
         Client, on_delete=models.PROTECT, null=True, blank=True,

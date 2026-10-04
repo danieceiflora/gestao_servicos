@@ -19,7 +19,7 @@ Opcionalmente: suggested_value (valor de referência fixo; ignorado se window.ge
             <label class="block text-xs font-medium text-slate-600 mb-1.5">Selecione uma regra (opcional)</label>
             <select name="charge_config_id" id="charge-config-select"
                     class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                <option value=""
+                <option value="" {% if not selected_charge_config_id %}selected{% endif %}
                         data-auto="0"
                         data-method=""
                         data-method-id=""
@@ -35,7 +35,7 @@ Opcionalmente: suggested_value (valor de referência fixo; ignorado se window.ge
                     Sem regra — cobrança manual via gateway
                 </option>
                 {% for cfg in charge_configs %}
-                <option value="{{ cfg.pk }}"
+                <option value="{{ cfg.pk }}" {% if selected_charge_config_id == cfg.pk|stringformat:"s" %}selected{% endif %}
                         data-auto="{{ cfg.auto_send_to_gateway|yesno:'1,0' }}"
                         data-method="{{ cfg.default_payment_method.descricao|default:'' }}"
                         data-method-id="{{ cfg.default_payment_method_id|default:'' }}"
