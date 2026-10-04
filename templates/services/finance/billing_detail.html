@@ -180,7 +180,7 @@
                                 data-amount="{{ inst.amount|stringformat:'.2f' }}"
                                 data-number="{{ inst.installment_number }}"
                                 data-has-charge="{% if inst.editable_gateway_charge %}true{% else %}false{% endif %}"
-                                data-method="{{ inst.editable_gateway_charge.get_method_display|default:'' }}"
+                                data-method="{% if inst.editable_gateway_charge.method == 'BOLETO' %}Boleto Híbrido{% else %}{{ inst.editable_gateway_charge.get_method_display|default:'' }}{% endif %}"
                                 data-discount-type="{{ inst.discount_type }}"
                                 data-discount-value="{{ inst.discount_value|stringformat:'.2f' }}"
                                 data-discount-deadline="{{ inst.discount_deadline|date:'Y-m-d' }}"
@@ -209,7 +209,7 @@
                                         {% if charge.method == 'PIX' %}
                                             <i data-lucide="zap" class="h-2.5 w-2.5"></i> Gateway · PIX
                                         {% else %}
-                                            <i data-lucide="file-text" class="h-2.5 w-2.5"></i> Gateway · Boleto
+                                            <i data-lucide="file-text" class="h-2.5 w-2.5"></i> Gateway · Boleto Híbrido
                                         {% endif %}
                                     </span>
                                     {% endif %}
@@ -233,7 +233,7 @@
                     </div>
                 </div>
 
-                <!-- Seção Gateway de Pagamentos (PIX / Boleto) -->
+                <!-- Seção Gateway de Pagamentos (PIX / Boleto Híbrido) -->
                 {# Exibe cobranças digitais pagas em modo leitura (rastreabilidade) ou ativas para ação #}
                 {% if inst.status != 'CANCELADO' %}
                 <div class="border-t border-slate-100 px-6 py-4 bg-slate-50/60">
@@ -255,7 +255,7 @@
                                 </span>
                                 {% else %}
                                 <span class="inline-flex items-center gap-1 font-bold text-blue-700">
-                                    <i data-lucide="file-text" class="h-3.5 w-3.5"></i> Boleto
+                                    <i data-lucide="file-text" class="h-3.5 w-3.5"></i> Boleto Híbrido
                                 </span>
                                 {% endif %}
                                 <span class="text-slate-400">Venc. {{ charge.due_date|date:"d/m/Y" }}</span>
@@ -290,12 +290,12 @@
                                     {% elif charge.method == 'BOLETO' and charge.is_active and charge.invoice_url %}
                                     <a href="{{ charge.invoice_url }}" target="_blank"
                                        class="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold transition-colors">
-                                        <i data-lucide="external-link" class="h-3.5 w-3.5"></i> Abrir Boleto
+                                        <i data-lucide="external-link" class="h-3.5 w-3.5"></i> Abrir Boleto Híbrido
                                     </a>
                                     {% elif charge.method == 'BOLETO' and charge.boleto_url and charge.is_active %}
                                     <a href="{{ charge.boleto_url }}" target="_blank"
                                        class="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold transition-colors">
-                                        <i data-lucide="external-link" class="h-3.5 w-3.5"></i> Abrir Boleto
+                                        <i data-lucide="external-link" class="h-3.5 w-3.5"></i> Abrir Boleto Híbrido
                                     </a>
                                     {% endif %}
                                 {% endif %}
@@ -309,9 +309,8 @@
                     </div>
                     {% endif %}
 
-                    {# Botões de geração somente para parcelas não pagas — Lacuna 9 (anti-duplo-clique) #}
-                    {% if inst.status != 'PAGO' %}
-                    {% with has_active=inst.gateway_charges.all %}
+                    {# Só permite gerar outra cobrança quando nenhuma ativa ou recebida existe. #}
+                    {% if inst.status != 'PAGO' and not inst.has_gateway_charge_blocking_generation %}
                     {% if gateway_config.can_generate_charges %}
                         <div class="flex flex-wrap gap-2 {% if inst.gateway_charges.all %}mt-3{% endif %}">
                             {% if gateway_config.is_sandbox %}
@@ -330,12 +329,12 @@
                             {% endif %}
                             {% if gateway_config.boleto_enabled %}
                             <form method="post" action="{% url 'pagamentos:installment_create_charge' installment_pk=inst.pk %}"
-                                  onsubmit="disableSubmit(this, 'Gerando Boleto...')">
+                                  onsubmit="disableSubmit(this, 'Gerando Boleto Híbrido...')">
                                 {% csrf_token %}
                                 <input type="hidden" name="method" value="BOLETO">
                                 <button type="submit"
                                         class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
-                                    <i data-lucide="file-text" class="h-3 w-3"></i> Gerar Boleto
+                                    <i data-lucide="file-text" class="h-3 w-3"></i> Gerar Boleto Híbrido
                                 </button>
                             </form>
                             {% endif %}
@@ -344,7 +343,7 @@
                         <a href="{% url 'pagamentos:gateway_config' %}"
                            class="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors">
                             <i data-lucide="settings" class="h-3 w-3"></i>
-                            Configurar gateway para gerar PIX/Boleto
+                            Configurar gateway para gerar PIX/Boleto Híbrido
                         </a>
                     {% else %}
                         <span class="text-xs text-amber-600 inline-flex items-center gap-1">
@@ -352,7 +351,6 @@
                             Gateway aguardando aprovação ({{ gateway_config.get_status_display }})
                         </span>
                     {% endif %}
-                    {% endwith %}
                     {% endif %}
                 </div>
                 {% endif %}

@@ -146,6 +146,81 @@ class InstallmentUpdateTests(TestCase):
         gateway_factory.assert_not_called()
 
 
+class InstallmentChargeGenerationTests(TestCase):
+    def setUp(self):
+        user = User.objects.create_superuser(username='charge-generation', password='secret')
+        self.client.force_login(user)
+        customer = Client.objects.create(name='Cliente Cobrança', cpf='12345678901')
+        self.billing = Billing.objects.create(client=customer, total_amount=Decimal('100.00'))
+        self.due_date = local_today() + timedelta(days=10)
+        self.installment = Installment.objects.create(
+            billing=self.billing, installment_number=1,
+            due_date=self.due_date, amount=Decimal('100.00'),
+        )
+        self.config = GatewayConfig.load()
+        self.config.wallet_id = 'wallet_client'
+        self.config.status = GatewayConfig.Status.APPROVED
+        self.config.boleto_enabled = True
+        self.config.accept_current_fee_terms(user)
+        self.config.save()
+        self.detail_url = reverse('billing_detail', args=[self.billing.pk])
+        self.create_url = reverse('pagamentos:installment_create_charge', args=[self.installment.pk])
+
+    def add_charge(self, status):
+        return GatewayCharge.objects.create(
+            installment=self.installment, config=self.config,
+            external_id=f'pay_{status}', method='BOLETO', status=status,
+            amount=Decimal('100.00'), due_date=self.due_date,
+            invoice_url='https://example.com/fatura',
+        )
+
+    def test_generation_buttons_follow_charge_status_and_boleto_label(self):
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, 'Gerar PIX')
+        self.assertContains(response, 'Gerar Boleto Híbrido')
+
+        charge = self.add_charge(GatewayCharge.Status.CANCELLED)
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, 'Gerar PIX')
+        self.assertContains(response, 'Gerar Boleto Híbrido')
+        self.assertContains(response, 'Boleto Híbrido')
+
+        for status in (
+            GatewayCharge.Status.PENDING, GatewayCharge.Status.OVERDUE,
+            GatewayCharge.Status.RECEIVED, GatewayCharge.Status.CONFIRMED,
+        ):
+            with self.subTest(status=status):
+                charge.status = status
+                charge.save(update_fields=['status'])
+                response = self.client.get(self.detail_url)
+                self.assertNotContains(response, 'Gerar PIX')
+                self.assertNotContains(response, 'Gerar Boleto Híbrido')
+                self.assertContains(response, 'Boleto Híbrido')
+                if status in (GatewayCharge.Status.PENDING, GatewayCharge.Status.OVERDUE):
+                    self.assertContains(response, 'Abrir Boleto Híbrido')
+
+    def test_direct_post_does_not_create_second_overdue_charge(self):
+        self.add_charge(GatewayCharge.Status.OVERDUE)
+        with patch('pagamentos.views._get_gateway') as gateway_factory:
+            response = self.client.post(self.create_url, {'method': 'PIX'}, follow=True)
+        self.assertContains(response, 'Já existe uma cobrança Boleto Híbrido')
+        self.assertEqual(GatewayCharge.objects.count(), 1)
+        gateway_factory.assert_not_called()
+
+    def test_cancelled_charge_allows_new_generation(self):
+        self.add_charge(GatewayCharge.Status.CANCELLED)
+        result = ChargeResult(
+            external_id='pay_new', status='PENDING', method='PIX',
+            amount=Decimal('100.00'), due_date=self.due_date,
+        )
+        with patch('pagamentos.views._get_gateway') as gateway_factory:
+            gateway_factory.return_value.create_charge.return_value = result
+            response = self.client.post(self.create_url, {'method': 'PIX'})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(GatewayCharge.objects.count(), 2)
+        gateway_factory.return_value.create_charge.assert_called_once()
+
+
 class AsaasInstallmentUpdatePayloadTests(TestCase):
     def charge_data(self, **changes):
         params = {

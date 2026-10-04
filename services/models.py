@@ -1216,6 +1216,14 @@ class Installment(models.Model):
         return self.gateway_charges.filter(status__in=['PENDING', 'OVERDUE']).order_by('-created_at').first()
 
     @property
+    def has_gateway_charge_blocking_generation(self):
+        """Uma cobrança ainda exigível ou recebida impede nova emissão."""
+        return any(
+            charge.status in ('PENDING', 'OVERDUE', 'RECEIVED', 'CONFIRMED')
+            for charge in self.gateway_charges.all()
+        )
+
+    @property
     def gateway_pix_code(self):
         # Usa editable_gateway_charge (PENDING/OVERDUE) e não active_gateway_charge (só PENDING):
         # a régua de cobrança dispara justamente para parcelas já vencidas, cuja cobrança no

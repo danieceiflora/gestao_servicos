@@ -186,12 +186,14 @@ def installment_create_charge(request, installment_pk):
         messages.error(request, 'Método inválido.')
         return redirect('billing_detail', pk=installment.billing_id)
 
-    existing = installment.gateway_charges.filter(
-        status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
-                    GatewayCharge.Status.CONFIRMED]
-    ).first()
+    blocking_statuses = [
+        GatewayCharge.Status.PENDING, GatewayCharge.Status.OVERDUE,
+        GatewayCharge.Status.RECEIVED, GatewayCharge.Status.CONFIRMED,
+    ]
+    existing = installment.gateway_charges.filter(status__in=blocking_statuses).first()
     if existing:
-        messages.warning(request, f'Já existe uma cobrança {existing.get_method_display()} ativa para esta parcela.')
+        existing_method = 'Boleto Híbrido' if existing.method == GatewayCharge.Method.BOLETO else existing.get_method_display()
+        messages.warning(request, f'Já existe uma cobrança {existing_method} para esta parcela.')
         return redirect('billing_detail', pk=installment.billing_id)
 
     config = GatewayConfig.load()
@@ -203,7 +205,7 @@ def installment_create_charge(request, installment_pk):
         messages.error(request, 'PIX não está habilitado nas configurações do gateway.')
         return redirect('billing_detail', pk=installment.billing_id)
     if method == 'BOLETO' and not config.boleto_enabled:
-        messages.error(request, 'Boleto não está habilitado nas configurações do gateway.')
+        messages.error(request, 'Boleto Híbrido não está habilitado nas configurações do gateway.')
         return redirect('billing_detail', pk=installment.billing_id)
 
     client = installment.billing.client
@@ -224,12 +226,10 @@ def installment_create_charge(request, installment_pk):
             # evita que duas requisições concorrentes (ex: staff pelo admin e cliente pela
             # página pública, quase ao mesmo tempo) criem 2 cobranças duplicadas no gateway.
             locked_installment = lock_open_installment(installment.pk)
-            existing = locked_installment.gateway_charges.filter(
-                status__in=[GatewayCharge.Status.PENDING, GatewayCharge.Status.RECEIVED,
-                            GatewayCharge.Status.CONFIRMED]
-            ).first()
+            existing = locked_installment.gateway_charges.filter(status__in=blocking_statuses).first()
             if existing:
-                messages.warning(request, f'Já existe uma cobrança {existing.get_method_display()} ativa para esta parcela.')
+                existing_method = 'Boleto Híbrido' if existing.method == GatewayCharge.Method.BOLETO else existing.get_method_display()
+                messages.warning(request, f'Já existe uma cobrança {existing_method} para esta parcela.')
                 return redirect('billing_detail', pk=installment.billing_id)
 
             gw = _get_gateway()
@@ -266,7 +266,8 @@ def installment_create_charge(request, installment_pk):
                 discount_value=charge_kwargs.get('discount_value') or Decimal('0'),
                 discount_due_days=charge_kwargs.get('discount_due_days') or 0,
             )
-        messages.success(request, f'{method} gerado com sucesso!')
+        generated_method = 'Boleto Híbrido' if method == 'BOLETO' else 'PIX'
+        messages.success(request, f'{generated_method} gerado com sucesso!')
     except Exception as e:
         logger.exception('Erro ao criar cobrança no gateway')
         messages.error(request, f'Erro ao gerar cobrança: {e}')
