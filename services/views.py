@@ -2044,15 +2044,27 @@ def service_order_report_pdf(request, order_id):
 @login_required
 @permission_required('services.change_serviceorder', raise_exception=True)
 def service_order_send_budget(request, order_id):
+    from integracoes.models import ManualMessageConfig
+
     order = get_object_or_404(ServiceOrder, id=order_id)
     client_name = order.client_property.client.name
-    client_phone = order.client_property.client.phones.first()
-    
-    if not client_phone:
-        messages.error(request, "Cliente não possui telefone cadastrado.")
-        return redirect('service_order_detail', order_id=order.id)
-    
-    phone_e164 = format_phone_e164(client_phone.phone)
+    manual_config = ManualMessageConfig.objects.filter(trigger='ENVIO_ORCAMENTO', is_active=True).first()
+    fixed_recipient = bool(manual_config and manual_config.recipient_type == 'FIXED')
+    if fixed_recipient:
+        phone_e164 = manual_config.fixed_phone
+        contact_name = f'Orçamento OS {order.number}'
+        if not phone_e164:
+            messages.error(request, 'Configure um número fixo para o envio de orçamento.')
+            return redirect('service_order_detail', order_id=order.id)
+    else:
+        client_phone = order.client_property.client.phones.first()
+        if not client_phone:
+            messages.error(request, "Cliente não possui telefone cadastrado.")
+            return redirect('service_order_detail', order_id=order.id)
+        phone_e164 = format_phone_e164(client_phone.phone)
+        contact_name = client_name
+
+    recipient_label = 'o número fixo' if fixed_recipient else client_name
     
     try:
         # 1. Gerar PDF (sempre — pode ser usado como anexo pelo template ou fallback)
@@ -2067,18 +2079,18 @@ def service_order_send_budget(request, order_id):
             trigger='ENVIO_ORCAMENTO',
             instance=order,
             phone=phone_e164,
-            contact_name=client_name,
+            contact_name=contact_name,
             extra_attachment=attachment,
         )
 
         if sent:
-            success_msg = f"Orçamento enviado para {client_name} via WhatsApp!"
+            success_msg = f"Orçamento enviado para {recipient_label} via WhatsApp!"
             response = True  # sinaliza que houve envio para atualizar status da OS
             conversation_id = None
         else:
             # Fallback legado: template fixo em SystemConfig ou mensagem simples
             cw = ChatwootClient()
-            contact = cw.search_contact(phone_e164) or cw.create_contact(client_name, phone_e164)
+            contact = cw.search_contact(phone_e164) or cw.create_contact(contact_name, phone_e164)
             if not contact:
                 raise Exception("Não foi possível localizar ou criar o contato no Chatwoot.")
             conversation = cw.get_or_create_conversation(contact['id'])
@@ -2100,10 +2112,10 @@ def service_order_send_budget(request, order_id):
                     attachment=attachment,
                     content=None,
                 )
-                success_msg = f"Orçamento enviado para {client_name} via WhatsApp (Template legado)!"
+                success_msg = f"Orçamento enviado para {recipient_label} via WhatsApp (Template legado)!"
             else:
                 response = cw.send_message(conversation_id, "Segue o orçamento solicitado em anexo.", attachments=[attachment])
-                success_msg = f"Orçamento enviado para {client_name} via WhatsApp!"
+                success_msg = f"Orçamento enviado para {recipient_label} via WhatsApp!"
             
         if response:
             if response is True:

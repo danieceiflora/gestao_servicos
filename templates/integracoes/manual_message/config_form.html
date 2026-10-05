@@ -32,6 +32,30 @@
             </label>
         </div>
 
+        {% if trigger == 'ENVIO_ORCAMENTO' %}
+        <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Destinatário (Para quem?)</h2>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label for="recipient_type_select" class="text-sm font-bold text-slate-700">Tipo de Envio</label>
+                    <select name="recipient_type" id="recipient_type_select" required
+                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                        {% for val, label in recipient_choices %}
+                        <option value="{{ val }}" {% if config.recipient_type == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div id="fixed_phone_field" class="space-y-2 {% if config.recipient_type != 'FIXED' %}hidden{% endif %}">
+                    <label for="fixed_phone" class="text-sm font-bold text-slate-700">Número de Telefone</label>
+                    <input type="tel" name="fixed_phone" id="fixed_phone" value="{{ config.fixed_phone|default:'' }}"
+                           placeholder="Ex: 5567999999999" {% if config.recipient_type == 'FIXED' %}required{% else %}disabled{% endif %}
+                           class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all">
+                    {% if recipient_error %}<p class="text-xs text-red-600">{{ recipient_error }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Bloco: Template e Variáveis -->
         <div class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
             <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">Template e Mapeamento de Variáveis</h2>
@@ -76,6 +100,19 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        const recipientTypeSelect = document.getElementById('recipient_type_select');
+        if (recipientTypeSelect) {
+            const fixedPhoneField = document.getElementById('fixed_phone_field');
+            const fixedPhoneInput = document.getElementById('fixed_phone');
+            function toggleRecipientFields() {
+                const isFixed = recipientTypeSelect.value === 'FIXED';
+                fixedPhoneField.classList.toggle('hidden', !isFixed);
+                fixedPhoneInput.disabled = !isFixed;
+                fixedPhoneInput.required = isFixed;
+            }
+            recipientTypeSelect.addEventListener('change', toggleRecipientFields);
+            toggleRecipientFields();
+        }
         document.body.addEventListener('htmx:afterSwap', function(evt) {
             if (typeof lucide !== 'undefined') lucide.createIcons();
         });

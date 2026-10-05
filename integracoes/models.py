@@ -527,8 +527,18 @@ class ManualMessageConfig(models.Model):
         ('STATIC_PDF', 'PDF Estático (upload)'),
     ]
 
+    RECIPIENT_CHOICES = [
+        ('CLIENT', 'Número do cliente'),
+        ('FIXED', 'Número fixo'),
+    ]
+
     trigger = models.CharField('Gatilho', max_length=50, choices=TRIGGER_CHOICES, unique=True)
     template_name = models.CharField('Template WhatsApp (Meta)', max_length=100)
+    recipient_type = models.CharField(
+        'Tipo de Destinatário', max_length=20,
+        choices=RECIPIENT_CHOICES, default='CLIENT',
+    )
+    fixed_phone = models.CharField('Telefone Fixo', max_length=20, blank=True, default='')
     header_media_type = models.CharField(
         'Mídia do Cabeçalho', max_length=20,
         choices=HEADER_MEDIA_CHOICES, default='NONE',

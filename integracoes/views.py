@@ -919,6 +919,7 @@ def manual_message_config_list(request):
 @user_passes_test(lambda u: u.is_staff)
 def manual_message_config_edit(request, trigger):
     from .models import ManualMessageConfig, ManualMessageVariable
+    from services.utils import format_phone_e164
 
     TRIGGER_MODEL = {
         'ENVIO_ORCAMENTO':  'ServiceOrder',
@@ -935,28 +936,49 @@ def manual_message_config_edit(request, trigger):
     api = MetaCloudAPI(config_obj.meta_waba_id, config_obj.meta_access_token)
     templates = api.get_templates().get('data', [])
 
+    recipient_error = None
     if request.method == 'POST':
-        config.template_name = request.POST.get('template_name', '').strip()
-        config.header_media_type = request.POST.get('header_media_type', 'NONE')
-        config.is_active = 'is_active' in request.POST
-        if request.FILES.get('static_media_file'):
-            config.static_media_file = request.FILES['static_media_file']
-        config.save()
+        if trigger == 'ENVIO_ORCAMENTO':
+            recipient_type = request.POST.get('recipient_type', 'CLIENT')
+            fixed_phone = request.POST.get('fixed_phone', '').strip()
+            if recipient_type not in dict(ManualMessageConfig.RECIPIENT_CHOICES):
+                recipient_error = 'Selecione um tipo de destinatário válido.'
+            elif recipient_type == 'FIXED':
+                digits = re.sub(r'\D', '', fixed_phone)
+                if (not re.fullmatch(r'[+\d\s().-]+', fixed_phone)
+                        or not (len(digits) in (10, 11) or
+                                (len(digits) in (12, 13) and digits.startswith('55')))):
+                    recipient_error = 'Informe um telefone válido com DDD, com ou sem o código 55.'
+                else:
+                    fixed_phone = format_phone_e164(fixed_phone)
+            config.recipient_type = recipient_type
+            config.fixed_phone = fixed_phone
 
-        config.variables.all().delete()
-        indices = request.POST.getlist('var_index[]')
-        paths = request.POST.getlist('var_path[]')
-        for i, path in zip(indices, paths):
-            if path:
-                ManualMessageVariable.objects.create(config=config, index=int(i), field_path=path, component='BODY')
-        btn_indices = request.POST.getlist('btn_var_index[]')
-        btn_paths = request.POST.getlist('btn_var_path[]')
-        for i, path in zip(btn_indices, btn_paths):
-            if path:
-                ManualMessageVariable.objects.create(config=config, index=int(i), field_path=path, component='BUTTON')
+        if recipient_error:
+            messages.error(request, recipient_error)
+            config.template_name = request.POST.get('template_name', '').strip()
+        else:
+            config.template_name = request.POST.get('template_name', '').strip()
+            config.header_media_type = request.POST.get('header_media_type', 'NONE')
+            config.is_active = 'is_active' in request.POST
+            if request.FILES.get('static_media_file'):
+                config.static_media_file = request.FILES['static_media_file']
+            config.save()
 
-        messages.success(request, f'Mensagem "{TRIGGER_LABELS[trigger]}" configurada.')
-        return redirect('integracoes:manual_message_config_list')
+            config.variables.all().delete()
+            indices = request.POST.getlist('var_index[]')
+            paths = request.POST.getlist('var_path[]')
+            for i, path in zip(indices, paths):
+                if path:
+                    ManualMessageVariable.objects.create(config=config, index=int(i), field_path=path, component='BODY')
+            btn_indices = request.POST.getlist('btn_var_index[]')
+            btn_paths = request.POST.getlist('btn_var_path[]')
+            for i, path in zip(btn_indices, btn_paths):
+                if path:
+                    ManualMessageVariable.objects.create(config=config, index=int(i), field_path=path, component='BUTTON')
+
+            messages.success(request, f'Mensagem "{TRIGGER_LABELS[trigger]}" configurada.')
+            return redirect('integracoes:manual_message_config_list')
 
     return render(request, 'integracoes/manual_message/config_form.html', {
         'config': config,
@@ -964,6 +986,8 @@ def manual_message_config_edit(request, trigger):
         'trigger_label': TRIGGER_LABELS[trigger],
         'model_name': model_name,
         'templates': templates,
+        'recipient_choices': ManualMessageConfig.RECIPIENT_CHOICES,
+        'recipient_error': recipient_error,
     })
 
 

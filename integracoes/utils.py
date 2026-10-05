@@ -509,13 +509,16 @@ def dispatch_manual_message(trigger: str, instance, phone: str, contact_name: st
         if btn_url_params:
             btn_data = {'type': 'url_suffix', 'params': btn_url_params}
 
-        cw.send_template(
+        response = cw.send_template(
             conversation_id=conversation['id'],
             template_name=config.template_name,
             variables=variables,
             attachment=attachment,
             button_data=btn_data,
         )
+        if not response:
+            logger.error('dispatch_manual_message: Chatwoot não confirmou o envio para %s', phone)
+            return False
         logger.info(f'dispatch_manual_message: {trigger} → {phone}')
         return True
     except Exception as e:
