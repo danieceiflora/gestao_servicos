@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.messages import get_messages
 from django.test import TestCase
 from django.urls import reverse
 
@@ -119,3 +120,96 @@ class RecordedFeeTests(TestCase):
         apply_charge_status(charge.pk, 'RECEIVED', '99.00')
         payment.refresh_from_db()
         self.assertEqual(payment.valor_liquido, Decimal('94.75'))
+
+
+class ManualReceiptGatewayCancellationTests(TestCase):
+    def setUp(self):
+        user = User.objects.create_user(username='receipt-manager', role=User.Roles.MANAGER, phone='')
+        self.client.force_login(user)
+        client = Client.objects.create(name='Cliente baixa', cpf='52998224725')
+        self.method = PaymentMethod.objects.create(
+            descricao='Dinheiro', tipo_provedor='DINHEIRO', codigo_sefaz='01',
+        )
+        self.billing = Billing.objects.create(client=client, total_amount=100)
+        self.installment = Installment.objects.create(
+            billing=self.billing, amount=100, installment_number=1, due_date=date.today(),
+        )
+
+    def charge(self, external_id, status):
+        return GatewayCharge.objects.create(
+            installment=self.installment, config=GatewayConfig.load(),
+            external_id=external_id, method='PIX', status=status,
+            amount=100, due_date=date.today(),
+        )
+
+    def pay(self, amount):
+        return self.client.post(reverse('installment_pay', args=[self.installment.pk]), {
+            'payment_method[]': [str(self.method.pk)],
+            'payment_amount[]': [str(amount)],
+            'payment_date[]': ['2026-09-29'],
+        })
+
+    @patch('pagamentos.gateways.asaas.AsaasGateway')
+    def test_partial_receipt_cancels_pending_and_overdue_charges(self, gateway_class):
+        pending = self.charge('pay_pending', GatewayCharge.Status.PENDING)
+        overdue = self.charge('pay_overdue', GatewayCharge.Status.OVERDUE)
+        received = self.charge('pay_received', GatewayCharge.Status.RECEIVED)
+        gateway_class.return_value.cancel_charge.return_value = True
+
+        response = self.pay(40)
+
+        self.assertEqual(response.status_code, 302)
+        self.installment.refresh_from_db()
+        self.assertEqual(self.installment.status, Installment.Status.PARCIAL)
+        self.assertEqual(SalePayment.objects.get(installment=self.installment).valor_bruto, 40)
+        pending.refresh_from_db()
+        overdue.refresh_from_db()
+        received.refresh_from_db()
+        self.assertEqual(pending.status, GatewayCharge.Status.CANCELLED)
+        self.assertEqual(overdue.status, GatewayCharge.Status.CANCELLED)
+        self.assertEqual(received.status, GatewayCharge.Status.RECEIVED)
+        self.assertCountEqual(
+            [call.args[0] for call in gateway_class.return_value.cancel_charge.call_args_list],
+            ['pay_pending', 'pay_overdue'],
+        )
+
+    @patch('pagamentos.gateways.asaas.AsaasGateway')
+    def test_full_receipt_cancels_overdue_charge(self, gateway_class):
+        charge = self.charge('pay_full', GatewayCharge.Status.OVERDUE)
+        gateway_class.return_value.cancel_charge.return_value = True
+
+        self.pay(100)
+
+        self.installment.refresh_from_db()
+        charge.refresh_from_db()
+        self.assertEqual(self.installment.status, Installment.Status.PAGO)
+        self.assertEqual(charge.status, GatewayCharge.Status.CANCELLED)
+        gateway_class.return_value.cancel_charge.assert_called_once_with('pay_full')
+
+    @patch('pagamentos.gateways.asaas.AsaasGateway')
+    def test_failed_cancellation_keeps_receipt_and_warns(self, gateway_class):
+        unconfirmed = self.charge('pay_unconfirmed', GatewayCharge.Status.PENDING)
+        errored = self.charge('pay_errored', GatewayCharge.Status.OVERDUE)
+        gateway_class.return_value.cancel_charge.side_effect = [False, TimeoutError('timeout')]
+
+        response = self.pay(40)
+
+        self.assertEqual(SalePayment.objects.get(installment=self.installment).valor_bruto, 40)
+        unconfirmed.refresh_from_db()
+        errored.refresh_from_db()
+        self.assertEqual(unconfirmed.status, GatewayCharge.Status.PENDING)
+        self.assertEqual(errored.status, GatewayCharge.Status.OVERDUE)
+        notices = list(get_messages(response.wsgi_request))
+        self.assertTrue(any('Pagamento de' in str(notice) for notice in notices))
+        self.assertTrue(any(
+            'pay_unconfirmed' in str(notice) and 'pay_errored' in str(notice) and notice.level_tag == 'warning'
+            for notice in notices
+        ))
+
+    @patch('pagamentos.gateways.asaas.AsaasGateway')
+    def test_receipt_without_active_charge_skips_gateway(self, gateway_class):
+        self.charge('pay_cancelled', GatewayCharge.Status.CANCELLED)
+
+        self.pay(100)
+
+        gateway_class.assert_not_called()

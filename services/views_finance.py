@@ -3,8 +3,9 @@ from django.contrib import messages
 from django.views.decorators.http import require_POST
 from .sale_cancellation import cancel_sale, has_receipts, guard_installment_payment, lock_open_installment
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Sum, Q, F, Avg, Count
-from django.db import transaction
+from django.db.models import Sum, Q, F, Avg, Count, Max
+from django.db import transaction, IntegrityError
+from django.core import signing
 from django.utils import timezone
 from django.core.paginator import Paginator
 from decimal import Decimal
@@ -41,6 +42,48 @@ def _sale_target_status(request, form):
     if request.POST.get('save_as_draft') == '1':
         return Sale.Status.RASCUNHO
     return form.cleaned_data['status']
+
+
+SALE_NUMBER_PREVIEW_SALT = 'services.sale_number_preview'
+
+
+def _next_sale_number():
+    return (Sale.objects.aggregate(Max('number'))['number__max'] or 1000) + 1
+
+
+def _posted_sale_number_preview(request):
+    token = request.POST.get('sale_number_preview', '')
+    if not token:
+        return None
+    try:
+        data = signing.loads(token, salt=SALE_NUMBER_PREVIEW_SALT)
+    except signing.BadSignature:
+        return None
+    if not isinstance(data, dict):
+        return None
+    number = data.get('number')
+    if data.get('user_id') != request.user.pk or type(number) is not int or number < 1001:
+        return None
+    return number
+
+
+def _save_new_sale_with_preview(sale, preview_number):
+    """Resolve a prévia no primeiro INSERT; o índice único decide eventuais corridas."""
+    candidate = preview_number if not Sale.objects.filter(number=preview_number).exists() else None
+    for _ in range(5):
+        sale.number = candidate
+        try:
+            # Savepoint: um conflito de unicidade não invalida a transação da venda.
+            with transaction.atomic():
+                sale.save()
+            return
+        except IntegrityError:
+            if not Sale.objects.filter(number=sale.number).exists():
+                raise
+            sale.pk = None
+            sale._state.adding = True
+            candidate = None
+    raise IntegrityError('Não foi possível atribuir um número único à venda. Tente novamente.')
 
 @login_required
 @user_passes_test(is_manager)
@@ -687,6 +730,8 @@ def sale_list(request):
 @user_passes_test(is_manager)
 def sale_create(request):
     sale_settings = SaleSettings.get()
+    displayed_preview = _posted_sale_number_preview(request) if request.method == 'POST' else None
+    preview_number = displayed_preview if displayed_preview is not None else _next_sale_number()
     if request.method == 'POST':
         form = SaleForm(request.POST)
         formset = SaleItemFormSet(request.POST)
@@ -704,7 +749,7 @@ def sale_create(request):
                     # de itens, total e parcelas estarem prontos.
                     sale.status = Sale.Status.RASCUNHO
                     sale.stock_reduced = False
-                    sale.save()
+                    _save_new_sale_with_preview(sale, preview_number)
 
                     formset.instance = sale
                     items = formset.save()
@@ -741,6 +786,12 @@ def sale_create(request):
                         request,
                         f"Venda #{sale.number} salva como {sale.get_status_display()}!",
                     )
+                    if displayed_preview is not None and sale.number != displayed_preview:
+                        messages.warning(
+                            request,
+                            f'O número previsto #{displayed_preview} já foi usado. '
+                            f'Esta venda foi salva com o número #{sale.number}.'
+                        )
                     if is_draft:
                         return redirect('sale_detail', number=sale.number)
                     if request.POST.get('save_and_new') == '1':
@@ -781,6 +832,11 @@ def sale_create(request):
         'clients': Client.objects.all().order_by('name'),
         'repeated_item_behavior': sale_settings.repeated_item_behavior,
         'selected_charge_config_id': selected_charge_config_id,
+        'preview_number': preview_number,
+        'preview_number_token': signing.dumps(
+            {'number': preview_number, 'user_id': request.user.pk},
+            salt=SALE_NUMBER_PREVIEW_SALT,
+        ),
     }
     context.update(_charge_config_panel_context(PaymentMethod.objects.filter(ativo=True), due_days))
     return render(request, 'services/sale_form.html', context)
@@ -1507,33 +1563,51 @@ def installment_pay(request, pk):
             
         billing.save()
 
-        # Cancela cobranças pendentes no gateway para evitar pagamento duplo
-        if installment.status == Installment.Status.PAGO:
-            _cancel_pending_gateway_charges(installment)
+        # Uma cobrança pelo valor original não deve continuar exigível após baixa parcial.
+        failed_charge_ids = _cancel_active_gateway_charges(installment) if total_this_time > 0 else []
 
         messages.success(request, f"Pagamento de {format_money_br(total_this_time, include_symbol=True)} registrado para a parcela {installment.installment_number}!")
+        if failed_charge_ids:
+            messages.warning(
+                request,
+                'Não foi possível confirmar o cancelamento no gateway da(s) cobrança(s) '
+                f'{", ".join(failed_charge_ids)}. O recebimento foi registrado; verifique essas cobranças no gateway.'
+            )
 
     return redirect('billing_detail', pk=installment.billing.id)
 
 
-def _cancel_pending_gateway_charges(installment):
-    """Cancela no Asaas todas as cobranças PENDING da parcela para evitar pagamento duplo."""
+def _cancel_active_gateway_charges(installment):
+    """Cancela cobranças exigíveis e retorna IDs cujo cancelamento não foi confirmado."""
     from pagamentos.gateways.asaas import AsaasGateway
     from pagamentos.models import GatewayCharge
 
-    pending_charges = installment.gateway_charges.filter(status=GatewayCharge.Status.PENDING)
-    if not pending_charges.exists():
-        return
+    active_charges = list(installment.gateway_charges.filter(status__in=[
+        GatewayCharge.Status.PENDING, GatewayCharge.Status.OVERDUE,
+    ]))
+    if not active_charges:
+        return []
 
-    gw = AsaasGateway()
-    for charge in pending_charges:
+    failed_charge_ids = []
+    try:
+        gw = AsaasGateway()
+    except Exception:
+        logger.exception('Erro ao iniciar gateway após baixa manual da parcela %s', installment.pk)
+        return [charge.external_id for charge in active_charges]
+
+    for charge in active_charges:
         try:
-            gw.cancel_charge(charge.external_id)
+            if not gw.cancel_charge(charge.external_id):
+                failed_charge_ids.append(charge.external_id)
+                logger.warning('Gateway não confirmou cancelamento da cobrança %s após baixa manual', charge.external_id)
+                continue
             charge.status = GatewayCharge.Status.CANCELLED
             charge.save(update_fields=['status', 'updated_at'])
             logger.info('Cobrança %s cancelada no gateway após baixa manual da parcela %s', charge.external_id, installment.pk)
         except Exception:
+            failed_charge_ids.append(charge.external_id)
             logger.exception('Erro ao cancelar cobrança %s no gateway após baixa manual', charge.external_id)
+    return failed_charge_ids
 
 
 def _apply_installment_form_data(installment, post_data):

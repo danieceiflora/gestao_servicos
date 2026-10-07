@@ -1,4 +1,5 @@
 from django.test import TestCase, override_settings
+from django.contrib.messages import get_messages
 from django.urls import reverse
 from django.utils import timezone
 from decimal import Decimal
@@ -199,6 +200,87 @@ class SaleStatusSaveTests(TestCase):
 		self.product.refresh_from_db()
 		self.assertEqual(self.product.current_stock, Decimal('10.0000'))
 
+	def test_new_sale_shows_and_keeps_available_preview(self):
+		page = self.client.get(reverse('sale_create'))
+		self.assertEqual(page.context['preview_number'], 1001)
+		self.assertContains(page, 'Venda #1001')
+		self.assertContains(page, '(prévia)')
+
+		response = self.client.post(reverse('sale_create'), self._payload(
+			Sale.Status.RASCUNHO,
+			sale_number_preview=page.context['preview_number_token'],
+		))
+
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(Sale.objects.get().number, 1001)
+		self.assertFalse(any(message.level_tag == 'warning' for message in get_messages(response.wsgi_request)))
+
+	def test_used_preview_gets_new_number_and_warns(self):
+		page = self.client.get(reverse('sale_create'))
+		Sale.objects.create(user=self.user, status=Sale.Status.RASCUNHO)
+
+		response = self.client.post(reverse('sale_create'), self._payload(
+			Sale.Status.RASCUNHO,
+			sale_number_preview=page.context['preview_number_token'],
+		))
+
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(list(Sale.objects.order_by('number').values_list('number', flat=True)), [1001, 1002])
+		self.assertTrue(any(
+			'#1001' in str(message) and '#1002' in str(message) and message.level_tag == 'warning'
+			for message in get_messages(response.wsgi_request)
+		))
+
+	def test_save_and_new_shows_next_preview(self):
+		page = self.client.get(reverse('sale_create'))
+		response = self.client.post(reverse('sale_create'), self._payload(
+			Sale.Status.FINALIZADA,
+			sale_number_preview=page.context['preview_number_token'],
+			save_and_new='1',
+		))
+
+		self.assertRedirects(response, reverse('sale_create'))
+		self.assertEqual(Sale.objects.get().number, 1001)
+		self.assertEqual(self.client.get(reverse('sale_create')).context['preview_number'], 1002)
+
+	def test_invalid_form_preserves_preview(self):
+		page = self.client.get(reverse('sale_create'))
+		payload = self._payload(
+			Sale.Status.RASCUNHO,
+			sale_number_preview=page.context['preview_number_token'],
+		)
+		payload['items-0-product'] = ''
+		response = self.client.post(reverse('sale_create'), payload)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.context['preview_number'], 1001)
+		self.assertEqual(response.context['preview_number_token'], page.context['preview_number_token'])
+		self.assertFalse(Sale.objects.exists())
+
+	def test_preview_collision_during_insert_retries_with_unique_number(self):
+		page = self.client.get(reverse('sale_create'))
+		Sale.objects.create(user=self.user, status=Sale.Status.RASCUNHO)
+		manager = Sale.objects
+		original_filter = manager.filter
+		stale_check = True
+
+		def filter_with_stale_first_check(*args, **kwargs):
+			nonlocal stale_check
+			if stale_check and kwargs.get('number') == 1001:
+				stale_check = False
+				return manager.none()
+			return original_filter(*args, **kwargs)
+
+		with patch.object(manager, 'filter', filter_with_stale_first_check):
+			response = self.client.post(reverse('sale_create'), self._payload(
+				Sale.Status.RASCUNHO,
+				sale_number_preview=page.context['preview_number_token'],
+			))
+
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(list(Sale.objects.order_by('number').values_list('number', flat=True)), [1001, 1002])
+		self.assertTrue(any(message.level_tag == 'warning' for message in get_messages(response.wsgi_request)))
+
 	def test_sale_accepts_repeated_product_as_independent_lines(self):
 		payload = self._payload(Sale.Status.RASCUNHO)
 		payload.update({
@@ -220,6 +302,116 @@ class SaleStatusSaveTests(TestCase):
 			[Decimal('1.00'), Decimal('3.00')],
 		)
 		self.assertEqual(sale.total_amount, Decimal('95.00'))
+
+	def test_removed_new_item_does_not_block_saving_other_items(self):
+		payload = self._payload(Sale.Status.RASCUNHO)
+		payload.update({
+			'items-TOTAL_FORMS': '2',
+			'items-0-product': '',
+			'items-0-quantity': '',
+			'items-0-unit_price': '',
+			'items-0-discount': '',
+			'items-0-DELETE': 'on',
+			'items-1-product': str(self.product.pk),
+			'items-1-quantity': '3',
+			'items-1-unit_price': '25.00',
+			'items-1-discount': '0.00',
+		})
+
+		response = self.client.post(reverse('sale_create'), payload)
+
+		self.assertEqual(response.status_code, 302)
+		sale = Sale.objects.get()
+		self.assertEqual(sale.items.count(), 1)
+		self.assertEqual(sale.items.get().quantity, Decimal('3.00'))
+
+	def test_removing_saved_item_and_adding_another_updates_sale(self):
+		sale = Sale.objects.create(user=self.user, status=Sale.Status.RASCUNHO)
+		old_item = SaleItem.objects.create(
+			sale=sale, product=self.product, quantity=Decimal('1'), unit_price=Decimal('25.00'),
+		)
+		payload = self._payload(Sale.Status.RASCUNHO)
+		payload.update({
+			'items-TOTAL_FORMS': '2',
+			'items-INITIAL_FORMS': '1',
+			'items-0-id': str(old_item.pk),
+			'items-0-product': '',
+			'items-0-quantity': '',
+			'items-0-unit_price': '',
+			'items-0-DELETE': 'on',
+			'items-1-product': str(self.product.pk),
+			'items-1-quantity': '2',
+			'items-1-unit_price': '25.00',
+			'items-1-discount': '0.00',
+		})
+
+		response = self.client.post(reverse('sale_detail', args=[sale.number]), payload)
+
+		self.assertEqual(response.status_code, 302)
+		self.assertFalse(SaleItem.objects.filter(pk=old_item.pk).exists())
+		self.assertEqual(sale.items.get().quantity, Decimal('2.00'))
+
+	def test_removed_middle_item_keeps_surrounding_items(self):
+		payload = self._payload(Sale.Status.RASCUNHO)
+		payload.update({
+			'items-TOTAL_FORMS': '3',
+			'items-1-product': '',
+			'items-1-quantity': '',
+			'items-1-unit_price': '',
+			'items-1-DELETE': 'on',
+			'items-2-product': str(self.product.pk),
+			'items-2-quantity': '3',
+			'items-2-unit_price': '25.00',
+			'items-2-discount': '0.00',
+		})
+
+		response = self.client.post(reverse('sale_create'), payload)
+
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(
+			list(Sale.objects.get().items.order_by('pk').values_list('quantity', flat=True)),
+			[Decimal('2.00'), Decimal('3.00')],
+		)
+
+	def test_removed_item_stays_hidden_after_other_validation_error(self):
+		payload = self._payload(Sale.Status.RASCUNHO)
+		payload.update({
+			'sale_type': 'INVALIDO',
+			'items-TOTAL_FORMS': '2',
+			'items-0-product': '',
+			'items-0-quantity': '',
+			'items-0-unit_price': '',
+			'items-0-DELETE': 'on',
+			'items-1-product': str(self.product.pk),
+			'items-1-quantity': '1',
+			'items-1-unit_price': '25.00',
+			'items-1-discount': '0.00',
+		})
+
+		response = self.client.post(reverse('sale_create'), payload)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertTrue(response.context['formset'].is_valid())
+		self.assertContains(response, 'id="item-0"')
+		self.assertContains(response, 'items-0-DELETE')
+		self.assertIn('hidden', response.content.decode().split('id="item-0"')[0].split('<tr')[-1])
+		self.assertNotContains(response, '• Item 1')
+
+	def test_all_items_removed_still_requires_one_item(self):
+		payload = self._payload(Sale.Status.RASCUNHO)
+		payload.update({
+			'items-0-product': '',
+			'items-0-quantity': '',
+			'items-0-unit_price': '',
+			'items-0-DELETE': 'on',
+		})
+
+		response = self.client.post(reverse('sale_create'), payload)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertFalse(response.context['formset'].is_valid())
+		self.assertTrue(response.context['formset'].non_form_errors())
+		self.assertFalse(Sale.objects.exists())
 
 	def test_sale_form_receives_repeated_item_setting(self):
 		settings = SaleSettings.get()

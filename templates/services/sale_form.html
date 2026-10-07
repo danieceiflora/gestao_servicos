@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static l10n %}
 
 {% block extra_head %}
 <style>
@@ -111,7 +111,7 @@
             </div>
             <div>
                 <h1 class="text-lg font-bold text-slate-900 tracking-tight leading-none">
-                    {% if is_detail %}Venda #{{ sale.number }}{% else %}Novo Pedido{% endif %}
+                    {% if is_detail %}Venda #{{ sale.number }}{% else %}Venda #{{ preview_number|unlocalize }} <span class="text-xs font-semibold text-amber-600">(prévia)</span>{% endif %}
                 </h1>
                 <p class="text-[10px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
                     {% if is_detail %}
@@ -123,7 +123,7 @@
                             Edição de Venda
                         {% endif %}
                     {% else %}
-                        Venda de Produtos
+                        Número confirmado ao salvar · Venda de Produtos
                     {% endif %}
                 </p>
             </div>
@@ -175,9 +175,10 @@
 
     <form method="POST" id="sale-form" class="flex-1 flex flex-col min-h-0">
         {% csrf_token %}
+        {% if not is_detail %}<input type="hidden" name="sale_number_preview" value="{{ preview_number_token }}">{% endif %}
         {{ formset.management_form }}
 
-        {% if form.errors or formset.errors %}
+        {% if form.errors or formset.is_bound and not formset.is_valid %}
         <div class="bg-red-50 border-b border-red-100 px-6 py-3 flex items-center justify-between">
             <div class="flex items-center gap-2 text-red-600">
                 <i data-lucide="alert-circle" class="w-4 h-4"></i>
@@ -196,11 +197,13 @@
                             <p class="text-[10px] font-medium">• Itens: {{ error }}</p>
                         {% endfor %}
                         {% for item_form in formset %}
+                            {% if not item_form.DELETE.value %}
                             {% for field in item_form %}
                                 {% for error in field.errors %}
                                     <p class="text-[10px] font-medium">• Item {{ forloop.parentloop.parentloop.counter }} — <strong>{{ field.label }}</strong>: {{ error }}</p>
                                 {% endfor %}
                             {% endfor %}
+                            {% endif %}
                         {% endfor %}
                     </div>
                 </div>
@@ -211,10 +214,10 @@
         
         <!-- Navegação de Abas -->
         <div class="flex overflow-x-auto border-b border-slate-200 bg-white shrink-0">
-            <button type="button" onclick="switchTab('items')" id="btn-tab-items" class="px-6 py-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 {% if not formset.errors %}border-slate-900 text-slate-900 bg-slate-50/50{% else %}border-transparent text-slate-400{% endif %}" data-tab-btn>
+            <button type="button" onclick="switchTab('items')" id="btn-tab-items" class="px-6 py-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 {% if not formset.is_bound or formset.is_valid %}border-slate-900 text-slate-900 bg-slate-50/50{% else %}border-transparent text-slate-400{% endif %}" data-tab-btn>
                 <i data-lucide="package" class="w-4 h-4"></i> 1. Itens
             </button>
-            <button type="button" onclick="switchTab('payment')" id="btn-tab-payment" class="px-6 py-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 {% if formset.errors or not form.errors %}border-transparent text-slate-400{% else %}border-slate-900 text-slate-900 bg-slate-50/50{% endif %}" data-tab-btn>
+            <button type="button" onclick="switchTab('payment')" id="btn-tab-payment" class="px-6 py-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 {% if not formset.is_bound or not formset.is_valid or not form.errors %}border-transparent text-slate-400{% else %}border-slate-900 text-slate-900 bg-slate-50/50{% endif %}" data-tab-btn>
                 <i data-lucide="credit-card" class="w-4 h-4"></i> 2. Financeiro
             </button>
             <button type="button" onclick="switchTab('fiscal')" id="btn-tab-fiscal" class="px-6 py-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 border-transparent text-slate-400" data-tab-btn>
@@ -231,7 +234,7 @@
         </div>
 
         <!-- ABA 1: ITENS -->
-        <div id="tab-items" class="{% if form.errors and not formset.errors and not 'client' in form.errors %}hidden{% endif %} flex-1 flex flex-col min-h-0">
+        <div id="tab-items" class="{% if form.errors and formset.is_valid and not 'client' in form.errors %}hidden{% endif %} flex-1 flex flex-col min-h-0">
             <!-- Info Cliente -->
             <div class="grid grid-cols-1 md:grid-cols-12 gap-6 px-6 py-4 border-b border-slate-100 shrink-0 bg-slate-50/30">
                 <div class="md:col-span-4">
@@ -361,7 +364,7 @@
                             </thead>
     <tbody id="formset-container" class="divide-y divide-slate-100">
         {% for item_form in formset %}
-        <tr class="item-row group hover:bg-slate-50/50 transition-colors" id="item-{{ forloop.counter0 }}"
+        <tr class="item-row group hover:bg-slate-50/50 transition-colors {% if item_form.DELETE.value %}hidden{% endif %}" id="item-{{ forloop.counter0 }}"
             data-cost="{{ item_form.instance.cost_price_ato|stringformat:'.2f' }}">
             <td class="px-6 py-3 text-[11px] font-medium text-slate-400 text-center">{{ forloop.counter }}</td>
             <td class="px-2 py-3">
@@ -712,7 +715,6 @@
         {% endif %}
 
         <div id="hidden-installments-container"></div>
-        <div id="deleted-items-container" class="hidden"></div>
     </form>
 </div>
 
@@ -732,6 +734,7 @@
         <td class="px-2 py-3 text-right text-[13px] font-bold text-slate-900 subtotal-display">R$ 0,00</td>
         <td class="px-6 py-3 text-center">
             <button type="button" onclick="removeItem(this)" class="text-slate-300 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            <div class="hidden">{{ formset.empty_form.DELETE }}</div>
         </td>
     </tr>
 </template>
@@ -970,21 +973,17 @@
 
     function removeItem(button) {
         const row = button.closest('.item-row');
-        const idInput = row.querySelector('input[name$="-id"]');
         const deleteInput = row.querySelector('input[name$="-DELETE"]');
-        const isExisting = idInput && idInput.value;
-
-        if (isExisting && deleteInput) {
-            deleteInput.checked = true;
-            // Move id/DELETE para fora da linha antes de remover, para o Django
-            // efetivar a exclusão real do item já salvo no banco.
-            const preservedContainer = document.getElementById('deleted-items-container');
-            preservedContainer.appendChild(idInput);
-            preservedContainer.appendChild(deleteInput);
-        }
-
-        row.remove();
+        if (!deleteInput) return;
+        deleteInput.checked = true;
+        hideDeletedItemRow(row);
         updateTotals();
+    }
+
+    function hideDeletedItemRow(row) {
+        row.classList.add('hidden');
+        // Campos ocultos continuam no POST, mas não podem bloquear a validação nativa.
+        row.querySelectorAll('[required]').forEach(input => { input.required = false; });
     }
 
     let globalTotal = 0;
@@ -1053,6 +1052,7 @@
     surchargeInput.addEventListener('input', updateTotals);
     
     document.addEventListener('DOMContentLoaded', () => {
+        formsetContainer.querySelectorAll('.item-row.hidden').forEach(hideDeletedItemRow);
         // Inicializar busca de cliente se já houver valor
         if (clientSelect.value && !clientSearch.value) {
             const selectedOption = clientSelect.querySelector(`option[value="${clientSelect.value}"]`);
@@ -1094,7 +1094,7 @@
         document.getElementById('client-search').disabled = true;
         {% endif %}
 
-        {% if formset.errors %}
+        {% if formset.is_bound and not formset.is_valid %}
             switchTab('items');
         {% elif form.errors %}
             {% if form.client.errors or form.status.errors %}
