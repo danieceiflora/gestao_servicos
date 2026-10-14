@@ -2,10 +2,11 @@
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from pagamentos.models import GatewayCharge
-from services.models import Billing, CashMovement, Installment, PaymentMethod, Sale, SalePayment
+from services.models import Billing, CashMovement, Installment, PaymentMethod, Sale, SalePayment, SaleRefund
 from services.payment_fees import calculate_fee, terms_for_method
 
 PAID = (GatewayCharge.Status.RECEIVED, GatewayCharge.Status.CONFIRMED)
@@ -74,7 +75,9 @@ def apply_charge_status(charge_id, status, net_value=None):
                     amount=charge.amount, payment_method=method, sale=sale,
                     created_by=sale.user, notes=f'PIX confirmado — pagamento #{payment.pk}',
                 )
-    inst.status, inst.paid_at = Installment.Status.PAGO, charge.paid_at
+    cancelled_sale = bool(sale and sale.status == Sale.Status.CANCELADO)
+    if not cancelled_sale:
+        inst.status, inst.paid_at = Installment.Status.PAGO, charge.paid_at
     if payment.fee_status != 'CONFIRMED' and not adopted and payment.fee_terms:
         fee_terms = payment.fee_terms or terms_for_method(method)
         fee = calculate_fee(charge.amount, fee_terms)
@@ -83,6 +86,18 @@ def apply_charge_status(charge_id, status, net_value=None):
         payment.fee_status = 'ESTIMATED'
         payment.fee_terms = fee_terms
         payment.save(update_fields=['valor_liquido', 'valor_tarifa', 'fee_status', 'fee_terms'])
+    if cancelled_sale:
+        received = SalePayment.objects.filter(Q(venda=sale) | Q(installment__billing__sale=sale)).distinct().aggregate(
+            total=Sum('valor_bruto'))['total'] or Decimal('0.00')
+        earlier_due = SaleRefund.objects.filter(sale=sale, kind=SaleRefund.Kind.RETURN).aggregate(
+            total=Sum('due_amount'))['total'] or Decimal('0.00')
+        refund, _ = SaleRefund.objects.select_for_update().get_or_create(
+            sale=sale, kind=SaleRefund.Kind.CANCELLATION,
+            defaults={'created_by': sale.user, 'due_amount': Decimal('0.00')},
+        )
+        refund.due_amount = max(received - earlier_due, Decimal('0.00'))
+        refund.save(update_fields=['due_amount'])
+        return charge
     inst.save(update_fields=['status', 'paid_at'])
     refresh_billing(billing)
     if sale and sale.pos_checkout_key:

@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Declaração de estorno #{{ refund.pk }}</title>
+<style>body{font:16px/1.6 Arial,sans-serif;color:#111;margin:0;background:#f3f4f6}main{max-width:760px;margin:30px auto;padding:48px;background:#fff;min-height:850px;box-sizing:border-box}h1{text-align:center;font-size:24px;margin:30px 0 55px}p{margin:24px 0}li{margin:8px 0}.actions{display:flex;justify-content:space-between}.signature{margin-top:110px;border-top:1px solid #111;text-align:center;padding-top:8px}.place{margin-top:75px}@media print{body{background:white}main{margin:0 auto;padding:20mm;max-width:none}.actions{display:none}}</style></head>
+<body><main><div class="actions"><a href="{% url 'sale_refund_detail' refund.pk %}">Voltar</a><button onclick="window.print()">Imprimir declaração</button></div>
+<h1>Declaração de recebimento de estorno</h1>
+<p>Eu, <strong>{{ refund.sale.client.name|default:'________________________________' }}</strong>, declaro ter recebido o valor de <strong>R$ {{ refund.paid_amount|floatformat:2 }}</strong> referente {% if refund.sale_return_id %}à devolução parcial{% else %}ao cancelamento{% endif %} da venda <strong>#{{ refund.sale.number }}</strong>.</p>
+<p><strong>Pagamentos registrados:</strong></p><ul>{% for payment in payments %}<li>{{ payment.paid_at|date:'d/m/Y' }} — {{ payment.get_method_display }} — R$ {{ payment.amount|floatformat:2 }}{% if payment.reference %} — Referência {{ payment.reference }}{% endif %}</li>{% endfor %}</ul>
+<p class="place">Local e data: __________________________________________</p><div class="signature">Assinatura do cliente</div>
+</main></body></html>

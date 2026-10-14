@@ -8,7 +8,7 @@ from django.urls import reverse
 
 from pagamentos.models import GatewayCharge, PosChargeAttempt
 from pagamentos.settlement import apply_charge_status
-from services.models import Billing, Installment, Sale, SaleItem, SalePayment, StockMovement, User
+from services.models import Billing, Installment, Sale, SaleItem, SalePayment, SaleRefund, StockMovement, User
 from services.sale_cancellation import cancel_sale, lock_open_installment
 from services.tests_pos_payments import PaymentFixtures
 
@@ -69,13 +69,15 @@ class SaleCancellationTests(PaymentFixtures, TestCase):
         self.assertTrue(cancel_sale(self.sale.pk, self.user).success)
         self.assertFalse(StockMovement.objects.exists())
 
-    def test_manual_partial_receipt_blocks_before_gateway(self):
+    def test_manual_partial_receipt_creates_refund(self):
         self.charge()
         SalePayment.objects.create(venda=self.sale, installment=self.inst, metodo_pagamento=self.cash,
                                    valor_bruto=10, valor_tarifa=0, valor_liquido=10, data_previsao=date.today())
-        self.assertFalse(cancel_sale(self.sale.pk, self.user).success)
-        self.cancel_gateway.get_charge.assert_not_called()
-        self.assert_active()
+        detail = self.client.get(reverse('sale_detail', kwargs={'number': self.sale.number}))
+        self.assertContains(detail, reverse('sale_cancel', kwargs={'number': self.sale.number}))
+        self.assertTrue(cancel_sale(self.sale.pk, self.user).success)
+        self.assertEqual(SaleRefund.objects.get(sale=self.sale).due_amount, 10)
+        self.assertEqual(SalePayment.objects.filter(venda=self.sale).count(), 1)
 
     def test_local_paid_gateway_blocks(self):
         self.charge(status='RECEIVED')
@@ -83,14 +85,14 @@ class SaleCancellationTests(PaymentFixtures, TestCase):
         self.cancel_gateway.cancel_charge.assert_not_called()
         self.assert_active()
 
-    def test_remote_receipt_is_committed_and_blocks_deletion(self):
+    def test_remote_receipt_is_preserved_and_refund_created(self):
         charge = self.charge()
         self.cancel_gateway.get_charge.return_value = self.result(status='RECEIVED', amount=150)
         self.cancel_gateway.get_charge.side_effect = None
-        self.assertFalse(cancel_sale(self.sale.pk, self.user).success)
+        self.assertTrue(cancel_sale(self.sale.pk, self.user).success)
         self.cancel_gateway.cancel_charge.assert_not_called()
         self.assertEqual(SalePayment.objects.get(gateway_charge=charge).valor_bruto, 150)
-        self.assert_active()
+        self.assertEqual(SaleRefund.objects.get(sale=self.sale).due_amount, 150)
 
     def test_false_response_does_not_cancel_locally(self):
         self.charge()
@@ -125,25 +127,25 @@ class SaleCancellationTests(PaymentFixtures, TestCase):
         charge.refresh_from_db()
         self.assertEqual(charge.status, 'CANCELLED')
 
-    def test_payment_wins_race_with_delete(self):
+    def test_payment_wins_race_with_delete_and_creates_refund(self):
         charge = self.charge()
         self.cancel_gateway.get_charge.side_effect = [self.result(amount=150), self.result(status='RECEIVED', amount=150)]
         self.cancel_gateway.cancel_charge.return_value = False
-        self.assertFalse(cancel_sale(self.sale.pk, self.user).success)
+        self.assertTrue(cancel_sale(self.sale.pk, self.user).success)
         self.assertTrue(SalePayment.objects.filter(gateway_charge=charge).exists())
-        self.assert_active()
+        self.assertEqual(SaleRefund.objects.get(sale=self.sale).due_amount, 150)
 
-    def test_webhook_receipt_during_delete_is_preserved(self):
+    def test_webhook_receipt_during_delete_becomes_refund(self):
         charge = self.charge()
         def receive_then_delete(external_id):
             apply_charge_status(charge.pk, 'RECEIVED', 148)
             return True
         self.cancel_gateway.cancel_charge.side_effect = receive_then_delete
-        self.assertFalse(cancel_sale(self.sale.pk, self.user).success)
+        self.assertTrue(cancel_sale(self.sale.pk, self.user).success)
         charge.refresh_from_db()
         self.assertEqual(charge.status, 'RECEIVED')
         self.assertTrue(SalePayment.objects.filter(gateway_charge=charge).exists())
-        self.assert_active()
+        self.assertEqual(SaleRefund.objects.get(sale=self.sale).due_amount, 150)
 
     def test_unknown_pos_emission_blocks(self):
         PosChargeAttempt.objects.create(installment=self.inst, state='UNKNOWN')
@@ -158,6 +160,18 @@ class SaleCancellationTests(PaymentFixtures, TestCase):
         apply_charge_status(charge.pk, 'PENDING')
         charge.refresh_from_db()
         self.assertEqual(charge.status, 'CANCELLED')
+
+    def test_late_gateway_receipt_after_cancellation_updates_refund_only(self):
+        charge = self.charge(status='CANCELLED')
+        self.assertTrue(cancel_sale(self.sale.pk, self.user).success)
+        apply_charge_status(charge.pk, 'RECEIVED', 147)
+        self.sale.refresh_from_db()
+        self.billing.refresh_from_db()
+        self.inst.refresh_from_db()
+        self.assertEqual(self.sale.status, 'CANCELADO')
+        self.assertEqual(self.billing.status, 'CANCELADO')
+        self.assertEqual(self.inst.status, 'CANCELADO')
+        self.assertEqual(SaleRefund.objects.get(sale=self.sale).due_amount, 150)
 
     def test_new_installment_operation_blocked_after_cancellation(self):
         cancel_sale(self.sale.pk, self.user)

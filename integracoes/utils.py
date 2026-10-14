@@ -3,6 +3,7 @@ from django.db.models import Model, Q
 from core.formatting import format_money_br
 from .models import NotificationConfig, NotificationVariable
 from .chatwoot_client import ChatwootClient
+from services.models import Billing
 
 logger = logging.getLogger(__name__)
 
@@ -343,6 +344,13 @@ def dispatch_dynamic_notification(instance, event_type, old_status=None):
     if model_name == 'Sale':
         configs = configs.filter(
             Q(sale_type_filter='') | Q(sale_type_filter=instance.sale_type)
+        )
+    elif model_name == 'Installment':
+        sale_type = Billing.objects.filter(pk=instance.billing_id).values_list(
+            'sale__sale_type', flat=True
+        ).first()
+        configs = configs.filter(
+            Q(sale_type_filter='') | Q(sale_type_filter=sale_type)
         )
     
     if not configs.exists():

@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% load l10n %}
+{% block title %}Estorno #{{ refund.pk }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl space-y-6 animate-in fade-in duration-500">
+    <nav aria-label="Navegação" class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+        <a href="{% url 'sale_refund_list' %}" class="transition-colors hover:text-slate-900">Estornos de vendas</a>
+        <i data-lucide="chevron-right" class="h-3 w-3"></i>
+        <span class="text-slate-900">Estorno #{{ refund.pk }}</span>
+    </nav>
+
+    <header class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+        <div class="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+            <div class="space-y-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <h1 class="text-3xl font-black tracking-tight text-slate-900">Estorno #{{ refund.pk }}</h1>
+                    <span class="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-wider {% if refund.status == 'PENDENTE' or refund.status == 'CONFERIR' %}border-amber-200 bg-amber-50 text-amber-700{% elif refund.status == 'PARCIAL' %}border-blue-200 bg-blue-50 text-blue-700{% elif refund.status == 'REALIZADO' %}border-emerald-200 bg-emerald-50 text-emerald-700{% else %}border-slate-200 bg-slate-50 text-slate-600{% endif %}">{{ refund.status_label }}</span>
+                </div>
+                <p class="text-sm font-medium text-slate-500">{{ refund.get_kind_display }} · Criado em {{ refund.created_at|date:'d/m/Y H:i' }}</p>
+                <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                    <div><span class="text-slate-400">Venda</span> <a href="{% url 'sale_detail' refund.sale.number %}" class="font-bold text-blue-700 hover:text-blue-900">#{{ refund.sale.number }}</a></div>
+                    <div><span class="text-slate-400">Cliente</span> <span class="font-semibold text-slate-800">{{ refund.sale.client.name|default:'Consumidor Final' }}</span></div>
+                    {% if refund.sale_return_id %}<div><span class="text-slate-400">Devolução</span> <span class="font-semibold text-slate-800">#{{ refund.sale_return_id }}</span></div>{% endif %}
+                </div>
+            </div>
+            <a href="{% url 'sale_refund_list' %}" class="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50">
+                <i data-lucide="arrow-left" class="h-4 w-4"></i> Voltar à lista
+            </a>
+        </div>
+    </header>
+
+    <div class="grid gap-4 sm:grid-cols-3">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Valor a devolver</p>
+            <p class="mt-2 text-2xl font-black tracking-tight text-slate-900">R$ {{ refund.due_amount|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-widest text-emerald-600">Já registrado</p>
+            <p class="mt-2 text-2xl font-black tracking-tight text-emerald-700">R$ {{ refund.paid_amount|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-2xl border border-amber-100 bg-amber-50/50 p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-widest text-amber-700">Restante</p>
+            <p class="mt-2 text-2xl font-black tracking-tight text-amber-800">R$ {{ refund.remaining_amount|floatformat:2 }}</p>
+        </div>
+    </div>
+
+    {% if refund.balance_reduction %}
+    <div class="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900">
+        <i data-lucide="info" class="mt-0.5 h-4 w-4 shrink-0"></i>
+        <p><strong>R$ {{ refund.balance_reduction|floatformat:2 }}</strong> abatidos do saldo a receber desta venda.</p>
+    </div>
+    {% endif %}
+
+    {% if refund.review_required %}
+    <section class="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+        <div class="border-b border-amber-100 bg-amber-50 px-5 py-4 sm:px-6">
+            <h2 class="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-amber-900"><i data-lucide="clipboard-check" class="h-4 w-4"></i> Conferir devolução histórica</h2>
+            <p class="mt-2 text-sm text-amber-800">Informe quanto deve ser estornado ao cliente. Pagamentos antigos podem ser registrados com a data original após esta conferência. Informe zero somente se não houve devolução de dinheiro. Valor original: <strong>R$ {{ refund.sale_return.total_refund|floatformat:2 }}</strong>.</p>
+        </div>
+        <form method="post" action="{% url 'sale_refund_review' refund.pk %}" class="flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:p-6">
+            {% csrf_token %}
+            <label for="refund-due-amount" class="block flex-1 text-xs font-bold uppercase tracking-wider text-slate-500">Valor a devolver
+                <span class="mt-2 flex h-11 items-center overflow-hidden rounded-xl border border-slate-300 bg-white focus-within:border-slate-500 focus-within:ring-2 focus-within:ring-slate-200"><span class="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-600">R$</span><input id="refund-due-amount" name="due_amount" type="text" inputmode="decimal" autocomplete="off" required maxlength="20" data-currency-br value="{{ refund.due_amount|floatformat:2 }}" class="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm font-semibold text-slate-900 outline-none"></span>
+            </label>
+            <button type="submit" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-amber-700 px-5 text-xs font-black text-white transition-colors hover:bg-amber-800"><i data-lucide="check" class="h-4 w-4"></i> Confirmar valor</button>
+        </form>
+    </section>
+    {% endif %}
+
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+            <div><h2 class="text-sm font-black uppercase tracking-wider text-slate-900">Pagamentos do estorno</h2><p class="mt-1 text-xs text-slate-500">Registre cada pagamento sem alterar o recebimento original da venda.</p></div>
+            {% if refund.paid_amount > 0 %}<a target="_blank" rel="noopener" href="{% url 'sale_refund_declaration' refund.pk %}" class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50"><i data-lucide="printer" class="h-4 w-4"></i> Imprimir declaração</a>{% endif %}
+        </div>
+        <div class="divide-y divide-slate-100 px-5 sm:px-6">
+            {% for payment in payments %}
+            <div class="flex flex-col gap-2 py-4 sm:flex-row sm:items-start sm:justify-between">
+                <div><p class="text-sm font-bold text-slate-800">{{ payment.get_method_display }} <span class="font-normal text-slate-400">· {{ payment.paid_at|date:'d/m/Y' }}</span></p>{% if payment.reference %}<p class="mt-1 text-xs text-slate-500">Referência: {{ payment.reference }}</p>{% endif %}{% if payment.notes %}<p class="mt-1 text-xs text-slate-500">{{ payment.notes }}</p>{% endif %}</div>
+                <strong class="text-base font-black text-emerald-700">R$ {{ payment.amount|floatformat:2 }}</strong>
+            </div>
+            {% empty %}<p class="py-8 text-center text-sm text-slate-500">Nenhum pagamento registrado.</p>{% endfor %}
+        </div>
+
+    </section>
+
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4 sm:px-6"><h2 class="text-sm font-black uppercase tracking-wider text-slate-900">Anexos</h2><p class="mt-1 text-xs text-slate-500">Comprovantes e documentos opcionais, até 20 MB por arquivo.</p></div>
+        <div class="px-5 py-4 sm:px-6">
+            <ul class="divide-y divide-slate-100">
+                {% for attachment in attachments %}
+                <li class="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                    <a href="{% url 'sale_refund_attachment' attachment.pk %}" class="flex min-w-0 items-center gap-2 font-semibold text-blue-700 hover:text-blue-900"><i data-lucide="paperclip" class="h-4 w-4 shrink-0"></i><span class="truncate">{{ attachment.original_name }}</span></a>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-slate-400">{{ attachment.uploaded_at|date:'d/m/Y H:i' }}</span>
+                        <form method="post" action="{% url 'sale_refund_attachment_delete' attachment.pk %}" onsubmit="return confirm('Excluir este arquivo anexado? Esta ação não pode ser desfeita.');">
+                            {% csrf_token %}
+                            <button type="submit" class="rounded-lg px-2 py-1 text-xs font-bold text-red-700 transition-colors hover:bg-red-50">Excluir</button>
+                        </form>
+                    </div>
+                </li>
+                {% empty %}<li class="py-3 text-sm text-slate-500">Nenhum arquivo anexado.</li>{% endfor %}
+            </ul>
+        </div>
+        <form method="post" action="{% url 'sale_refund_upload' refund.pk %}" enctype="multipart/form-data" class="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            {% csrf_token %}
+            <div class="flex min-w-0 flex-wrap items-center gap-3">
+                <input id="refund-files" type="file" name="files" multiple required aria-describedby="refund-file-names" class="sr-only peer">
+                <label for="refund-files" class="inline-flex min-h-10 cursor-pointer items-center rounded-xl border border-slate-300 bg-white px-4 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100 peer-focus-visible:ring-2 peer-focus-visible:ring-slate-500">Selecionar arquivos</label>
+                <span id="refund-file-names" aria-live="polite" class="min-w-0 break-all text-xs text-slate-500">Nenhum arquivo selecionado</span>
+            </div>
+            <button type="submit" class="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100"><i data-lucide="upload" class="h-4 w-4"></i> Enviar arquivos</button>
+        </form>
+    </section>
+
+    {% if not refund.review_required and refund.remaining_amount > 0 %}
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4 sm:px-6"><h2 class="text-sm font-black uppercase tracking-wider text-slate-900">Registrar pagamento</h2><p class="mt-1 text-xs text-slate-500">Informe os dados do valor devolvido ao cliente.</p></div>
+        <form method="post" action="{% url 'sale_refund_pay' refund.pk %}" class="space-y-5 p-5 sm:p-6">
+            {% csrf_token %}
+            <div class="grid gap-4 sm:grid-cols-2">
+                <label for="refund-payment-amount" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Valor pago
+                    <span class="mt-2 flex h-11 items-center overflow-hidden rounded-xl border border-slate-300 bg-white focus-within:border-slate-500 focus-within:ring-2 focus-within:ring-slate-200"><span class="border-r border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-600">R$</span><input id="refund-payment-amount" name="amount" type="text" inputmode="decimal" autocomplete="off" required maxlength="20" data-currency-br placeholder="0,00" class="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm font-semibold text-slate-900 outline-none"></span>
+                    <span class="mt-1 block text-[11px] font-medium normal-case tracking-normal text-slate-400">Máximo: R$ {{ refund.remaining_amount|floatformat:2 }}</span>
+                </label>
+                <label for="refund-payment-date" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Data do pagamento
+                    <input id="refund-payment-date" name="paid_at" type="text" inputmode="numeric" autocomplete="off" required maxlength="10" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" title="Informe a data no formato dd/mm/aaaa" placeholder="dd/mm/aaaa" value="{{ today|date:'d/m/Y' }}" class="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200">
+                </label>
+                <label for="refund-payment-method" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Método
+                    <select id="refund-payment-method" name="method" required class="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"><option value="">Selecione</option>{% for value,label in payment_methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+                </label>
+                <label for="refund-payment-reference" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Referência / ID do gateway
+                    <input id="refund-payment-reference" name="reference" type="text" maxlength="150" class="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200">
+                </label>
+                <label for="refund-payment-notes" class="block text-xs font-bold uppercase tracking-wider text-slate-500 sm:col-span-2">Observações
+                    <textarea id="refund-payment-notes" name="notes" rows="3" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"></textarea>
+                </label>
+            </div>
+            <div class="flex justify-end"><button type="submit" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-xs font-black text-white transition-colors hover:bg-slate-800"><i data-lucide="check-circle" class="h-4 w-4"></i> Registrar pagamento</button></div>
+        </form>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('[data-currency-br]').forEach((input) => {
+    input.addEventListener('blur', () => {
+        const raw = input.value.trim().replace(/R\$|\s/g, '');
+        if (!raw) return;
+        let normalized = raw;
+        if (raw.includes(',')) normalized = raw.replace(/\./g, '').replace(',', '.');
+        else if (/^\d{1,3}(\.\d{3})+$/.test(raw)) normalized = raw.replace(/\./g, '');
+        const amount = Number(normalized);
+        if (Number.isFinite(amount) && amount >= 0) input.value = formatMoneyBR(amount);
+    });
+});
+const refundFiles = document.getElementById('refund-files');
+const refundFileNames = document.getElementById('refund-file-names');
+refundFiles?.addEventListener('change', () => {
+    const names = Array.from(refundFiles.files, (file) => file.name);
+    refundFileNames.textContent = names.length ? names.join(', ') : 'Nenhum arquivo selecionado';
+});
+</script>
+{% endblock %}

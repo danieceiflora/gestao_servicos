@@ -233,11 +233,37 @@ class SaleAdmin(admin.ModelAdmin):
         return str(obj.uuid.hex)[:8]
     uuid_short.short_description = "ID"
 
+class FinancialSubcategoryInline(admin.TabularInline):
+    model = FinancialCategory
+    fk_name = 'parent'
+    fields = ['name']
+    extra = 1
+    verbose_name = 'Subcategoria'
+    verbose_name_plural = 'Subcategorias'
+
+
 @admin.register(FinancialCategory)
 class FinancialCategoryAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category_type']
-    list_filter = ['category_type']
-    search_fields = ['name']
+    list_display = ['name', 'parent', 'category_type']
+    list_filter = ['category_type', 'parent']
+    list_select_related = ['parent']
+    search_fields = ['name', 'parent__name']
+    inlines = [FinancialSubcategoryInline]
+
+    def get_inline_instances(self, request, obj=None):
+        if obj is None or obj.parent_id:
+            return []
+        return super().get_inline_instances(request, obj)
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is not None and obj.parent_id:
+            return ['category_type']
+        return super().get_readonly_fields(request, obj)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'parent':
+            kwargs['queryset'] = FinancialCategory.objects.filter(parent__isnull=True).order_by('name')
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 @admin.register(BankAccount)

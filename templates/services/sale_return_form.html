@@ -114,6 +114,7 @@
                                        data-item-id="{{ item.pk }}"
                                        data-unit-price="{{ item.unit_price|unlocalize }}"
                                        data-discount="{{ item.discount|unlocalize }}"
+                                       data-factor="{{ return_factor|unlocalize }}"
                                        data-max-qty="{{ item.quantity }}"
                                        disabled
                                        oninput="updateRefundTotal()"
@@ -199,7 +200,7 @@
             const discount = parseFloat(input.dataset.discount || 0);
             const maxQty = parseFloat(input.dataset.maxQty || 1);
             const unitDiscount = maxQty > 0 ? discount / maxQty : 0;
-            total += (unitPrice - unitDiscount) * qty;
+            total += (unitPrice - unitDiscount) * qty * parseFloat(input.dataset.factor || 1);
             count++;
         });
 

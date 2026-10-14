@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize_sale_type_filter(model_name, value):
-    if model_name != 'Sale':
+    if model_name not in ('Sale', 'Installment'):
         return ''
     valid_values = {choice[0] for choice in NotificationConfig.SALE_TYPE_CHOICES}
     return value if value in valid_values else ''

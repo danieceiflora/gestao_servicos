@@ -138,15 +138,15 @@
             </a>
             {% endif %}
 
-            {% if sale_has_receipts and sale.status != 'CANCELADO' %}<p class="text-sm text-amber-700">Venda com recebimentos: trate a devolução/estorno antes de cancelar.</p>{% endif %}
-            {% if is_detail and sale.status != 'CANCELADO' and not sale_has_receipts %}
-            <form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="if(this.dataset.busy)return false;if(!confirm('Cancelar a venda, a conta a receber e as cobranças abertas no gateway? O estoque será estornado se houver baixa.'))return false;this.dataset.busy='true';this.setAttribute('aria-busy','true');const button=this.querySelector('button');button.disabled=true;button.textContent='Cancelando…';">
+            {% if is_detail and sale.status != 'CANCELADO' %}
+            <form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="if(this.dataset.busy)return false;if(!confirm('Cancelar a venda e as cobranças abertas? Valores já recebidos ficarão pendentes de estorno.'))return false;this.dataset.busy='true';this.setAttribute('aria-busy','true');const button=this.querySelector('button');button.disabled=true;button.textContent='Cancelando…';">
                 {% csrf_token %}
                 <button type="submit" class="px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-100 rounded-md transition-colors flex items-center gap-2">
                     <i data-lucide="trash-2" class="w-4 h-4"></i> CANCELAR VENDA
                 </button>
             </form>
             {% endif %}
+            {% if is_detail and sale.status == 'CANCELADO' and fiscal_pending %}<span class="rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900">Pendência fiscal: documento autorizado</span>{% endif %}
 
             {# Botão Duplicar — apenas em modo detalhe e venda não cancelada #}
             {% if is_detail and sale.status != 'CANCELADO' %}
@@ -639,6 +639,7 @@
                 {% endif %}
 
                 {# Tabela de devoluções #}
+                {% if refunds %}<div class="rounded-xl border border-amber-200 bg-amber-50 p-4"><h3 class="text-sm font-bold text-amber-900">Estornos vinculados</h3><div class="mt-2 space-y-1">{% for refund in refunds %}<p class="text-sm"><a class="font-semibold text-blue-700" href="{% url 'sale_refund_detail' refund.pk %}">Estorno #{{ refund.pk }}</a> · {{ refund.get_kind_display }} · R$ {{ refund.due_amount|floatformat:2 }} · {{ refund.status_label }}</p>{% endfor %}</div></div>{% endif %}
                 <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="px-8 py-5 border-b border-slate-100 bg-slate-50/50">
                         <h3 class="text-xs font-black text-slate-900 uppercase tracking-widest">Devoluções Registradas</h3>

@@ -62,7 +62,7 @@
                     <!-- Gatilho -->
                     <div class="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-500">
                         <span class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-medium">{{ config.get_model_name_display }}</span>
-                        {% if config.model_name == 'Sale' %}
+                        {% if config.model_name == 'Sale' or config.model_name == 'Installment' %}
                         <span class="px-1.5 py-0.5 bg-violet-50 rounded text-violet-700 font-medium">
                             {% if config.sale_type_filter %}{{ config.get_sale_type_filter_display }}{% else %}Todas as vendas{% endif %}
                         </span>

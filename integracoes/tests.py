@@ -15,7 +15,7 @@ from integracoes.views import (
 from integracoes.models import NotificationConfig, PlatformSubscription, PlatformInvoice
 from integracoes.chatwoot_client import ChatwootClient
 from integracoes.utils import dispatch_dynamic_notification
-from services.models import Sale, ServiceOrder, User
+from services.models import Billing, Installment, Sale, ServiceOrder, User
 
 
 class SaleNotificationTypeFilterTests(TestCase):
@@ -82,6 +82,94 @@ class SaleNotificationTypeFilterTests(TestCase):
         )
 
         chatwoot.send_template.assert_called_once()
+
+
+class InstallmentNotificationTypeFilterTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='vendedor-parcela', password='x', is_staff=True)
+        self.sale = Sale.objects.create(
+            user=self.user, status=Sale.Status.RASCUNHO,
+            sale_type=Sale.SaleType.DISTANCIA,
+        )
+        self.billing = Billing.objects.create(sale=self.sale, total_amount=100)
+        self.installment = Installment.objects.create(
+            billing=self.billing, installment_number=1,
+            due_date=timezone.localdate(), amount=100,
+        )
+
+    def _create_config(self, event_type='CRIAR', sale_type_filter=''):
+        return NotificationConfig.objects.create(
+            name='Aviso de parcela', model_name='Installment',
+            event_type=event_type, sale_type_filter=sale_type_filter,
+            template_name='parcela', recipient_type='FIXED',
+            fixed_phone='5511999999999',
+        )
+
+    @patch('integracoes.utils.ChatwootClient')
+    def test_distance_filter_applies_to_all_installment_events(self, chatwoot_cls):
+        chatwoot = chatwoot_cls.return_value
+        chatwoot.create_contact.return_value = {'id': 10}
+        chatwoot.get_or_create_conversation.return_value = {'id': 20}
+
+        for event in ('CRIAR', 'MUDANCA_STATUS', 'PAGAMENTO_PARCIAL', 'PAGAMENTO_INTEGRAL'):
+            with self.subTest(event=event):
+                config = self._create_config(event, Sale.SaleType.DISTANCIA)
+                for sale_type, sends in (
+                    (Sale.SaleType.DISTANCIA, True),
+                    (Sale.SaleType.PRESENCIAL, False),
+                    (None, False),
+                ):
+                    with self.subTest(sale_type=sale_type):
+                        self.sale.sale_type = sale_type or Sale.SaleType.DISTANCIA
+                        self.sale.save(update_fields=['sale_type'])
+                        self.billing.sale = self.sale if sale_type else None
+                        self.billing.save(update_fields=['sale'])
+                        chatwoot_cls.reset_mock()
+                        dispatch_dynamic_notification(self.installment, event)
+                        if sends:
+                            chatwoot.send_template.assert_called_once()
+                        else:
+                            chatwoot_cls.assert_not_called()
+                config.delete()
+
+    @patch('integracoes.utils.ChatwootClient')
+    def test_unfiltered_rule_sends_for_every_billing_origin(self, chatwoot_cls):
+        self._create_config()
+        chatwoot = chatwoot_cls.return_value
+        chatwoot.create_contact.return_value = {'id': 10}
+        chatwoot.get_or_create_conversation.return_value = {'id': 20}
+
+        for sale_type in (Sale.SaleType.DISTANCIA, Sale.SaleType.PRESENCIAL, None):
+            with self.subTest(sale_type=sale_type):
+                self.sale.sale_type = sale_type or Sale.SaleType.DISTANCIA
+                self.sale.save(update_fields=['sale_type'])
+                self.billing.sale = self.sale if sale_type else None
+                self.billing.save(update_fields=['sale'])
+                chatwoot_cls.reset_mock()
+                dispatch_dynamic_notification(self.installment, 'CRIAR')
+                chatwoot.send_template.assert_called_once()
+
+    @patch('integracoes.views.MetaCloudAPI.get_templates', return_value={'data': []})
+    @patch('integracoes.views._validate_template_variables', return_value=[])
+    def test_create_and_edit_preserve_filter(self, _validate, _templates):
+        self.client.force_login(self.user)
+        form = {
+            'name': 'Aviso de parcela', 'model_name': 'Installment',
+            'event_type': 'CRIAR', 'sale_type_filter': Sale.SaleType.DISTANCIA,
+            'template_name': 'parcela', 'recipient_type': 'FIXED',
+            'fixed_phone': '5511999999999',
+        }
+        create_url = reverse('integracoes:notification_config_create')
+        self.assertContains(self.client.get(create_url), 'id="sale_type_filter"')
+        self.assertEqual(self.client.post(create_url, form).status_code, 302)
+        config = NotificationConfig.objects.get(name='Aviso de parcela')
+        self.assertEqual(config.sale_type_filter, Sale.SaleType.DISTANCIA)
+
+        edit_url = reverse('integracoes:notification_config_edit', args=[config.pk])
+        self.assertContains(self.client.get(edit_url), 'value="DISTANCIA" selected')
+        self.assertEqual(self.client.post(edit_url, form).status_code, 302)
+        config.refresh_from_db()
+        self.assertEqual(config.sale_type_filter, Sale.SaleType.DISTANCIA)
 
 
 class ChatwootTemplateButtonHistoryTests(TestCase):

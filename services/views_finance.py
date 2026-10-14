@@ -3,24 +3,26 @@ from django.contrib import messages
 from django.views.decorators.http import require_POST
 from .sale_cancellation import cancel_sale, has_receipts, guard_installment_payment, lock_open_installment
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Sum, Q, F, Avg, Count, Max
+from django.db.models import Sum, Q, F, Avg, Count, Max, Exists, OuterRef
 from django.db import transaction, IntegrityError
 from django.core import signing
 from django.utils import timezone
 from django.core.paginator import Paginator
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, date, timedelta
 import json
 import calendar as _cal
 from core.formatting import format_money_br
 from core.tz_utils import local_today, safe_make_aware
-from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory, SaleReturn, SaleReturnItem, ProductVariant, SaleSettings, ServiceOrder, Billing, Installment
+from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory, SaleReturn, SaleReturnItem, SaleRefund, SaleRefundPayment, SaleRefundAttachment, ProductVariant, SaleSettings, ServiceOrder, Billing, Installment
 from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet, FinanceSettingsForm, SaleSettingsForm
 from .expense_engine import generate_expense_installments
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, FileResponse
 import csv
 import logging
+import re
 from io import BytesIO
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 from dateutil.relativedelta import relativedelta
@@ -662,7 +664,10 @@ def sale_receipt(request, number):
 @login_required
 @user_passes_test(is_manager)
 def sale_list(request):
-    sales = Sale.objects.all().select_related('client', 'user').order_by('-created_at')
+    from fiscal.models import NFeDocument
+    sales = Sale.objects.all().select_related('client', 'user').annotate(
+        fiscal_pending=Exists(NFeDocument.objects.filter(sale_id=OuterRef('pk'), status=NFeDocument.Status.AUTORIZADO)),
+    ).order_by('-created_at')
 
     q = request.GET.get('q', '').strip()
     status_filter = request.GET.get('status', '').strip()
@@ -944,6 +949,8 @@ def sale_detail(request, number):
         'can_edit': can_edit,
         'is_detail': True,
         'sale_has_receipts': has_receipts(sale),
+        'refunds': sale.refunds.prefetch_related('payments').order_by('-created_at'),
+        'fiscal_pending': sale.status == Sale.Status.CANCELADO and sale.fiscal_documents.filter(status='AUTORIZADO').exists(),
         'title': f'Venda #{sale.number}',
         'products': Product.objects.filter(is_active=True),
         'clients': Client.objects.all().order_by('name'),
@@ -1106,6 +1113,8 @@ def sale_export_csv(request):
 @user_passes_test(is_manager)
 def sale_return_create(request, number):
     sale = get_object_or_404(Sale, number=number)
+    items_total = sale.items.aggregate(total=Sum('subtotal'))['total'] or Decimal('0.00')
+    return_factor = sale.total_amount / items_total if items_total > 0 else Decimal('1')
 
     if sale.status == Sale.Status.CANCELADO:
         messages.error(request, "Não é possível criar devolução para venda cancelada.")
@@ -1127,7 +1136,7 @@ def sale_return_create(request, number):
         for item_id, qty_str in zip(item_ids, quantities):
             try:
                 qty = Decimal(str(qty_str).replace(',', '.').strip())
-                if qty <= 0:
+                if not qty.is_finite() or qty.as_tuple().exponent < -2 or qty <= 0:
                     continue
                 sale_item = sale.items.get(pk=item_id)
                 already_returned = SaleReturnItem.objects.filter(
@@ -1138,10 +1147,10 @@ def sale_return_create(request, number):
                 if qty > available_to_return:
                     messages.error(request, f"Quantidade de devolução para {sale_item.product.name} excede o saldo disponível ({available_to_return}).")
                     return redirect('sale_return_create', number=number)
-                refund = (sale_item.unit_price - sale_item.discount / sale_item.quantity) * qty
+                refund = (sale_item.subtotal / sale_item.quantity * qty * return_factor).quantize(Decimal('0.01'))
                 items_to_return.append((sale_item, qty, refund, str(item_id) in restocks))
                 total_refund += refund
-            except (ValueError, SaleItem.DoesNotExist):
+            except (ValueError, InvalidOperation, SaleItem.DoesNotExist):
                 continue
 
         if not items_to_return:
@@ -1170,6 +1179,7 @@ def sale_return_create(request, number):
 
     context = {
         'sale': sale,
+        'return_factor': return_factor,
         'title': f'Devolução — Venda #{sale.number}',
     }
     return render(request, 'services/sale_return_form.html', context)
@@ -1185,19 +1195,13 @@ def sale_return_approve(request, return_id):
         return redirect('sale_detail', number=sale_return.sale.number)
 
     if request.method == 'POST':
-        with transaction.atomic():
-            for return_item in sale_return.items.all():
-                if return_item.restock:
-                    target = return_item.sale_item.variant if return_item.sale_item.variant else return_item.sale_item.product
-                    target.increase_stock(
-                        return_item.quantity,
-                        user=request.user,
-                        reason=StockMovement.Reason.DEVOLUCAO,
-                        notes=f"Devolução #{sale_return.pk} — Venda #{sale_return.sale.number}"
-                    )
-            sale_return.status = SaleReturn.Status.APROVADA
-            sale_return.save()
-        messages.success(request, f"Devolução #{sale_return.pk} aprovada e estoque atualizado.")
+        from .sale_refunds import approve_return
+        try:
+            approve_return(sale_return.pk, request.user)
+            messages.success(request, f"Devolução #{sale_return.pk} aprovada; saldo e estorno atualizados. Cobranças abertas do gateway foram canceladas e podem ser geradas novamente para o saldo restante.")
+        except Exception as exc:
+            logger.exception('Falha ao aprovar devolução %s', sale_return.pk)
+            messages.error(request, f'Não foi possível aprovar a devolução: {exc}')
 
     return redirect('sale_detail', number=sale_return.sale.number)
 
@@ -1217,6 +1221,139 @@ def sale_return_cancel(request, return_id):
         messages.success(request, f"Devolução #{sale_return.pk} cancelada.")
 
     return redirect('sale_detail', number=sale_return.sale.number)
+
+
+@login_required
+@user_passes_test(is_manager)
+def sale_refund_list(request):
+    refunds = SaleRefund.objects.select_related('sale', 'sale__client', 'sale_return').prefetch_related('payments').order_by('-created_at')
+    state = request.GET.get('status', '').upper()
+    if state in ('PENDENTE', 'PARCIAL', 'REALIZADO', 'CONFERIR', 'ABATIDO'):
+        refunds = [refund for refund in refunds if refund.status == state]
+    return render(request, 'services/finance/sale_refund_list.html', {'refunds': refunds, 'status_filter': state, 'title': 'Estornos de vendas'})
+
+
+@login_required
+@user_passes_test(is_manager)
+def sale_refund_detail(request, refund_id):
+    refund = get_object_or_404(SaleRefund.objects.select_related('sale', 'sale__client', 'sale_return'), pk=refund_id)
+    return render(request, 'services/finance/sale_refund_detail.html', {
+        'refund': refund, 'payment_methods': SaleRefundPayment.Method.choices,
+        'payments': refund.payments.select_related('created_by').order_by('paid_at', 'pk'),
+        'attachments': refund.attachments.order_by('-uploaded_at'),
+        'today': local_today(),
+        'title': f'Estorno #{refund.pk}',
+    })
+
+
+def _parse_refund_money(raw):
+    """Accept Brazilian display currency and plain decimal values from forms."""
+    value = re.sub(r'\s+', '', raw or '').removeprefix('R$')
+    if not re.fullmatch(r'\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[,.]\d{1,2})?', value):
+        raise ValueError('Valor inválido.')
+    if ',' in value:
+        value = value.replace('.', '').replace(',', '.')
+    elif re.fullmatch(r'\d{1,3}(?:\.\d{3})+', value):
+        value = value.replace('.', '')
+    return Decimal(value)
+
+
+@login_required
+@user_passes_test(is_manager)
+@require_POST
+def sale_refund_review(request, refund_id):
+    with transaction.atomic():
+        refund = get_object_or_404(SaleRefund.objects.select_for_update().select_related('sale_return'), pk=refund_id)
+        if not refund.review_required or not refund.sale_return_id:
+            messages.error(request, 'Este estorno não precisa de conferência.')
+            return redirect('sale_refund_detail', refund_id=refund_id)
+        try:
+            amount = _parse_refund_money(request.POST.get('due_amount', ''))
+            if not amount.is_finite() or amount.as_tuple().exponent < -2 or amount < 0 or amount > refund.sale_return.total_refund:
+                raise ValueError
+        except (ValueError, ArithmeticError):
+            messages.error(request, 'Informe um valor válido, entre zero e o valor da devolução.')
+            return redirect('sale_refund_detail', refund_id=refund_id)
+        refund.due_amount = amount
+        refund.review_required = False
+        refund.save(update_fields=['due_amount', 'review_required'])
+    messages.success(request, 'Valor do estorno histórico conferido.')
+    return redirect('sale_refund_detail', refund_id=refund_id)
+
+
+@login_required
+@user_passes_test(is_manager)
+@require_POST
+def sale_refund_pay(request, refund_id):
+    from .sale_refunds import record_refund_payment
+    try:
+        amount = _parse_refund_money(request.POST.get('amount', ''))
+        method = request.POST.get('method', '')
+        raw_paid_at = request.POST.get('paid_at', '')
+        if re.fullmatch(r'\d{2}/\d{2}/\d{4}', raw_paid_at):
+            paid_at = datetime.strptime(raw_paid_at, '%d/%m/%Y').date()
+        else:
+            # Compatibilidade com formulários antigos que enviavam a data ISO.
+            paid_at = date.fromisoformat(raw_paid_at)
+        if (not amount.is_finite() or amount.as_tuple().exponent < -2
+                or method not in SaleRefundPayment.Method.values or paid_at > local_today()):
+            raise ValueError('Valor ou método inválido.')
+        payment = record_refund_payment(
+            refund_id, amount=amount, method=method, paid_at=paid_at,
+            reference=request.POST.get('reference', '').strip()[:150],
+            notes=request.POST.get('notes', '').strip(), user=request.user,
+        )
+        messages.success(request, f'Estorno de R$ {payment.amount:.2f} registrado.')
+    except (ValueError, ArithmeticError):
+        messages.error(request, 'Confira o valor, a data e o método do estorno.')
+    return redirect('sale_refund_detail', refund_id=refund_id)
+
+
+@login_required
+@user_passes_test(is_manager)
+@require_POST
+def sale_refund_upload(request, refund_id):
+    refund = get_object_or_404(SaleRefund, pk=refund_id)
+    files = request.FILES.getlist('files')
+    if not files or any(file.size > 20 * 1024 * 1024 for file in files):
+        messages.error(request, 'Selecione arquivos de até 20 MB cada.')
+        return redirect('sale_refund_detail', refund_id=refund_id)
+    for file in files:
+        SaleRefundAttachment.objects.create(refund=refund, file=file, original_name=Path(file.name).name[:255], uploaded_by=request.user)
+    messages.success(request, f'{len(files)} arquivo(s) anexado(s).')
+    return redirect('sale_refund_detail', refund_id=refund_id)
+
+
+@login_required
+@user_passes_test(is_manager)
+def sale_refund_attachment(request, attachment_id):
+    attachment = get_object_or_404(SaleRefundAttachment, pk=attachment_id)
+    return FileResponse(attachment.file.open('rb'), as_attachment=True, filename=attachment.original_name)
+
+
+@login_required
+@user_passes_test(is_manager)
+@require_POST
+def sale_refund_attachment_delete(request, attachment_id):
+    attachment = get_object_or_404(SaleRefundAttachment, pk=attachment_id)
+    refund_id = attachment.refund_id
+    attachment.file.delete(save=False)
+    attachment.delete()
+    messages.success(request, 'Arquivo excluído.')
+    return redirect('sale_refund_detail', refund_id=refund_id)
+
+
+@login_required
+@user_passes_test(is_manager)
+def sale_refund_declaration(request, refund_id):
+    refund = get_object_or_404(SaleRefund.objects.select_related('sale', 'sale__client'), pk=refund_id)
+    if refund.paid_amount <= 0:
+        messages.error(request, 'Registre um pagamento do estorno antes de imprimir a declaração.')
+        return redirect('sale_refund_detail', refund_id=refund_id)
+    return render(request, 'services/finance/sale_refund_declaration.html', {
+        'refund': refund, 'payments': refund.payments.order_by('paid_at', 'pk'),
+        'title': f'Declaração de estorno #{refund.pk}',
+    })
 
 
 # --- CRIAÇÃO DE COBRANÇA COM PARCELAMENTO LIVRE ---
@@ -1683,6 +1820,18 @@ def billing_generate_for_task(request, task_id):
 
 # --- CONTAS A PAGAR (DESPESAS) ---
 
+def _expense_category_filter_ids(category_id):
+    try:
+        category = FinancialCategory.objects.filter(pk=int(category_id)).first()
+    except (TypeError, ValueError):
+        return []
+    if category is None:
+        return []
+    if category.parent_id:
+        return [category.pk]
+    return [category.pk, *category.subcategories.values_list('pk', flat=True)]
+
+
 @login_required
 @user_passes_test(is_manager)
 def expense_list(request):
@@ -1701,8 +1850,9 @@ def expense_list(request):
     ).update(status=ExpenseInstallment.Status.ATRASADO)
 
     installments = ExpenseInstallment.objects.select_related(
-        'expense', 'expense__supplier', 'expense__category',
-        'recurrence_rule', 'recurrence_rule__supplier'
+        'expense', 'expense__supplier', 'expense__category', 'expense__category__parent',
+        'recurrence_rule', 'recurrence_rule__supplier',
+        'recurrence_rule__category', 'recurrence_rule__category__parent',
     ).order_by('due_date')
 
     if q:
@@ -1731,8 +1881,10 @@ def expense_list(request):
             pass
 
     if category_id:
+        category_ids = _expense_category_filter_ids(category_id)
         installments = installments.filter(
-            Q(expense__category_id=category_id) | Q(recurrence_rule__category_id=category_id)
+            Q(expense__category_id__in=category_ids) |
+            Q(recurrence_rule__category_id__in=category_ids)
         )
 
     today = local_today()
@@ -1751,7 +1903,14 @@ def expense_list(request):
 
     recurrence_rules = RecurrenceRule.objects.select_related('supplier', 'category').order_by('-created_at')
     bank_accounts = BankAccount.objects.filter(is_active=True).order_by('name')
-    categories = FinancialCategory.objects.all().order_by('name')
+    categories = sorted(
+        FinancialCategory.objects.select_related('parent'),
+        key=lambda category: (
+            (category.parent.name if category.parent_id else category.name).casefold(),
+            category.parent_id is not None,
+            category.name.casefold(),
+        ),
+    )
 
     context = {
         'installments': installments_page,
@@ -2050,8 +2209,9 @@ def installment_payment_delete(request, payment_pk):
 def expense_installments_export(request):
     """Exporta parcelas filtradas como planilha Excel."""
     qs = ExpenseInstallment.objects.select_related(
-        'expense', 'expense__supplier', 'expense__category',
+        'expense', 'expense__supplier', 'expense__category', 'expense__category__parent',
         'recurrence_rule', 'recurrence_rule__supplier',
+        'recurrence_rule__category', 'recurrence_rule__category__parent',
     ).order_by('due_date')
 
     q = request.GET.get('q', '').strip()
@@ -2081,7 +2241,11 @@ def expense_installments_export(request):
         except ValueError:
             pass
     if category_id:
-        qs = qs.filter(expense__category_id=category_id)
+        category_ids = _expense_category_filter_ids(category_id)
+        qs = qs.filter(
+            Q(expense__category_id__in=category_ids) |
+            Q(recurrence_rule__category_id__in=category_ids)
+        )
 
     wb = Workbook()
     ws = wb.active
@@ -2115,12 +2279,12 @@ def expense_installments_export(request):
             supplier = inst.recurrence_rule.supplier.display_name
             description = inst.recurrence_rule.description
             if inst.recurrence_rule.category:
-                category = inst.recurrence_rule.category.name
+                category = str(inst.recurrence_rule.category)
         elif inst.expense:
             supplier = inst.expense.supplier.display_name
             description = inst.expense.description
             if inst.expense.category:
-                category = inst.expense.category.name
+                category = str(inst.expense.category)
 
         row = [
             inst.due_date.strftime('%d/%m/%Y'),

@@ -6,7 +6,7 @@ from .models import (
     ServiceMedia, ServiceItem, ServiceOrderTeam, Professional,
     ProfessionalRole, ProfessionalScheduleBlock,
     ServiceOrderTask, ServicePayment, Product, StockMovement,
-    Sale, SaleItem, Supplier, PaymentMethod, Expense, ProductComposition, ExpenseInstallment,
+    Sale, SaleItem, Supplier, PaymentMethod, Expense, FinancialCategory, ProductComposition, ExpenseInstallment,
     FinanceSettings, SaleSettings, ProductVariant, PurchaseInvoice, PurchaseInvoiceItem
 )
 from integracoes.models import SystemConfig
@@ -1231,6 +1231,16 @@ ExpenseInstallmentFormSet = inlineformset_factory(
 )
 
 
+class FinancialCategorySelect(forms.Select):
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        category = getattr(value, 'instance', None)
+        if category:
+            option['attrs']['data-parent-id'] = category.parent_id or ''
+            option['attrs']['data-category-name'] = category.name
+        return option
+
+
 class ExpenseForm(forms.ModelForm):
     INPUT_CLASS = 'flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
 
@@ -1249,7 +1259,7 @@ class ExpenseForm(forms.ModelForm):
         ]
         widgets = {
             'supplier': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 search-select'}),
-            'category': forms.Select(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
+            'category': FinancialCategorySelect(attrs={'data-category-picker': ''}),
             'description': forms.TextInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'}),
             'total_amount': forms.NumberInput(attrs={'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
             'issue_date': forms.DateInput(
@@ -1263,6 +1273,9 @@ class ExpenseForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['category'].queryset = FinancialCategory.objects.select_related('parent').order_by('name')
+        self.fields['category'].empty_label = 'Sem categoria'
+
         # Pré-popula end_date ao editar uma despesa com regra de recorrência
         if self.instance and self.instance.pk and self.instance.recurrence_rule:
             self.fields['end_date'].initial = self.instance.recurrence_rule.end_date

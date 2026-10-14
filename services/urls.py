@@ -52,6 +52,14 @@ urlpatterns = [
     
     # --- CONTAS A RECEBER (FINANCEIRO CENTRALIZADO) ---
     path('financeiro/contas-a-receber/', views_finance.billing_list, name='billing_list'),
+    path('financeiro/estornos/', views_finance.sale_refund_list, name='sale_refund_list'),
+    path('financeiro/estornos/<int:refund_id>/', views_finance.sale_refund_detail, name='sale_refund_detail'),
+    path('financeiro/estornos/<int:refund_id>/conferir/', views_finance.sale_refund_review, name='sale_refund_review'),
+    path('financeiro/estornos/<int:refund_id>/pagamento/', views_finance.sale_refund_pay, name='sale_refund_pay'),
+    path('financeiro/estornos/<int:refund_id>/anexos/', views_finance.sale_refund_upload, name='sale_refund_upload'),
+    path('financeiro/estornos/anexos/<int:attachment_id>/', views_finance.sale_refund_attachment, name='sale_refund_attachment'),
+    path('financeiro/estornos/anexos/<int:attachment_id>/excluir/', views_finance.sale_refund_attachment_delete, name='sale_refund_attachment_delete'),
+    path('financeiro/estornos/<int:refund_id>/declaracao/', views_finance.sale_refund_declaration, name='sale_refund_declaration'),
     path('financeiro/contas-a-receber/<uuid:pk>/', views_finance.billing_detail, name='billing_detail'),
     path('financeiro/parcelas/<int:pk>/pagar/', views_finance.installment_pay, name='installment_pay'),
     path('ordens/<uuid:order_id>/gerar-cobranca/', views_finance.billing_generate_for_os, name='billing_generate_for_os'),

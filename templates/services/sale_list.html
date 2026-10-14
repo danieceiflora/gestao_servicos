@@ -12,6 +12,7 @@
             <p class="mt-1 text-sm text-slate-500">Gestão de vendas diretas e PDV</p>
         </div>
         <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:gap-3">
+            <a href="{% url 'sale_refund_list' %}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700">ESTORNOS</a>
             <a href="{% url 'sale_settings' %}"
                class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
                title="Configurações de Vendas" aria-label="Configurações de Vendas">
@@ -216,6 +217,7 @@
                             {% else %}
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{{ sale.get_status_display }}</span>
                             {% endif %}
+                            {% if sale.status == 'CANCELADO' and sale.fiscal_pending %}<div class="mt-1 text-[10px] font-bold text-amber-700">Pendência fiscal</div>{% endif %}
                         </td>
                         <td class="px-5 py-3.5 text-right">
                             <details class="sale-actions inline-block text-left">
@@ -240,6 +242,7 @@
                                             Duplicar
                                         </button>
                                     </form>
+                                    {% if sale.status != 'CANCELADO' %}<form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="return confirm('Cancelar esta venda? Valores recebidos ficarão pendentes de estorno.')" class="border-t border-slate-100">{% csrf_token %}<button class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50">Cancelar venda</button></form>{% endif %}
                                 </div>
                             </details>
                         </td>
@@ -319,6 +322,7 @@
                                 Duplicar
                             </button>
                         </form>
+                        {% if sale.status != 'CANCELADO' %}<form action="{% url 'sale_cancel' number=sale.number %}" method="POST" onsubmit="return confirm('Cancelar esta venda? Valores recebidos ficarão pendentes de estorno.')" class="border-t border-slate-100">{% csrf_token %}<button class="flex min-h-11 w-full items-center gap-2 px-4 text-left text-xs font-bold text-red-700">Cancelar venda</button></form>{% endif %}
                     </div>
                 </details>
             </article>

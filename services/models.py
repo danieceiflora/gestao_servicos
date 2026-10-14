@@ -1523,7 +1523,7 @@ class Sale(models.Model):
         Bloqueia se a venda estiver FINALIZADA ou se houver uma cobrança vinculada
         com parcelas geradas (Contas a Receber).
         """
-        if self.status == self.Status.FINALIZADA:
+        if self.status in (self.Status.FINALIZADA, self.Status.CANCELADO):
             return False
 
         if not hasattr(self, 'billing'):
@@ -1640,6 +1640,73 @@ class SaleReturnItem(models.Model):
     class Meta:
         verbose_name = "Item da Devolução"
         verbose_name_plural = "Itens da Devolução"
+
+
+class SaleRefund(models.Model):
+    class Kind(models.TextChoices):
+        CANCELLATION = 'CANCELLATION', 'Cancelamento da venda'
+        RETURN = 'RETURN', 'Devolução parcial'
+
+    sale = models.ForeignKey(Sale, on_delete=models.PROTECT, related_name='refunds')
+    sale_return = models.OneToOneField(SaleReturn, on_delete=models.PROTECT, null=True, blank=True, related_name='refund')
+    kind = models.CharField(max_length=15, choices=Kind.choices)
+    due_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    balance_reduction = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    review_required = models.BooleanField(default=False)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def paid_amount(self):
+        return self.payments.aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
+
+    @property
+    def remaining_amount(self):
+        return max(self.due_amount - self.paid_amount, Decimal('0.00'))
+
+    @property
+    def status(self):
+        if self.review_required:
+            return 'CONFERIR'
+        if self.due_amount <= 0:
+            return 'ABATIDO'
+        if self.paid_amount >= self.due_amount:
+            return 'REALIZADO'
+        return 'PARCIAL' if self.paid_amount else 'PENDENTE'
+
+    @property
+    def status_label(self):
+        return {
+            'CONFERIR': 'A conferir', 'ABATIDO': 'Sem estorno a pagar',
+            'REALIZADO': 'Realizado', 'PARCIAL': 'Parcial', 'PENDENTE': 'Pendente',
+        }[self.status]
+
+
+class SaleRefundPayment(models.Model):
+    class Method(models.TextChoices):
+        DINHEIRO = 'DINHEIRO', 'Dinheiro'
+        PIX = 'PIX', 'Pix'
+        TRANSFERENCIA = 'TRANSFERENCIA', 'Transferência bancária'
+        CARTAO = 'CARTAO', 'Cartão'
+        BOLETO = 'BOLETO', 'Boleto'
+        OUTRO = 'OUTRO', 'Outro'
+
+    refund = models.ForeignKey(SaleRefund, on_delete=models.PROTECT, related_name='payments')
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    method = models.CharField(max_length=20, choices=Method.choices)
+    paid_at = models.DateField()
+    reference = models.CharField(max_length=150, blank=True)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class SaleRefundAttachment(models.Model):
+    refund = models.ForeignKey(SaleRefund, on_delete=models.PROTECT, related_name='attachments')
+    file = models.FileField(upload_to='sale_refunds/%Y/%m/')
+    original_name = models.CharField(max_length=255)
+    uploaded_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
 
 # --- FRENTE DE CAIXA ---
@@ -2444,6 +2511,11 @@ class PushNotificationJob(models.Model):
 
 class FinancialCategory(models.Model):
     name = models.CharField(max_length=100, verbose_name="Nome")
+    parent = models.ForeignKey(
+        'self', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='subcategories', verbose_name="Categoria principal",
+        help_text='Opcional. Subcategorias usam o mesmo tipo da categoria principal.',
+    )
     category_type = models.CharField(
         max_length=10, 
         choices=[('ENTRADA', 'Entrada'), ('SAIDA', 'Saída')], 
@@ -2455,8 +2527,29 @@ class FinancialCategory(models.Model):
         verbose_name = "Categoria Financeira"
         verbose_name_plural = "Categorias Financeiras"
 
+    def clean(self):
+        super().clean()
+        if self.parent_id:
+            if self.parent_id == self.pk:
+                raise ValidationError({'parent': 'Uma categoria não pode ser subcategoria de si mesma.'})
+            if self.pk and self.subcategories.exists():
+                raise ValidationError({'parent': 'Uma categoria com subcategorias não pode se tornar subcategoria.'})
+            if self.parent.parent_id:
+                raise ValidationError({'parent': 'Selecione uma categoria principal, sem outro nível acima.'})
+            self.category_type = self.parent.category_type
+        elif self.pk and self.subcategories.exclude(category_type=self.category_type).exists():
+            raise ValidationError({
+                'category_type': 'Altere ou remova as subcategorias antes de mudar o tipo desta categoria.'
+            })
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        if self.parent_id and kwargs.get('update_fields') is not None:
+            kwargs['update_fields'] = set(kwargs['update_fields']) | {'category_type'}
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return self.name
+        return f"{self.parent.name} / {self.name}" if self.parent_id else self.name
 
 
 class BankAccount(models.Model):

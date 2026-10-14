@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Estornos de vendas{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl space-y-6 animate-in fade-in duration-500">
+    <header class="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div><h1 class="text-2xl font-black tracking-tight text-slate-900">Estornos de vendas</h1><p class="mt-1 text-sm text-slate-500">Acompanhe cancelamentos e devoluções parciais.</p></div>
+        <a href="{% url 'sale_list' %}" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50"><i data-lucide="arrow-left" class="h-4 w-4"></i> Ver vendas</a>
+    </header>
+
+    <nav aria-label="Filtrar estornos" class="flex flex-wrap gap-2">
+        <a href="{% url 'sale_refund_list' %}" class="rounded-xl border px-4 py-2 text-xs font-bold transition-colors {% if not status_filter %}border-slate-900 bg-slate-900 text-white{% else %}border-slate-200 bg-white text-slate-600 hover:bg-slate-50{% endif %}">Todos</a>
+        <a href="?status=PENDENTE" class="rounded-xl border px-4 py-2 text-xs font-bold transition-colors {% if status_filter == 'PENDENTE' %}border-slate-900 bg-slate-900 text-white{% else %}border-slate-200 bg-white text-slate-600 hover:bg-slate-50{% endif %}">Pendentes</a>
+        <a href="?status=PARCIAL" class="rounded-xl border px-4 py-2 text-xs font-bold transition-colors {% if status_filter == 'PARCIAL' %}border-slate-900 bg-slate-900 text-white{% else %}border-slate-200 bg-white text-slate-600 hover:bg-slate-50{% endif %}">Parciais</a>
+        <a href="?status=REALIZADO" class="rounded-xl border px-4 py-2 text-xs font-bold transition-colors {% if status_filter == 'REALIZADO' %}border-slate-900 bg-slate-900 text-white{% else %}border-slate-200 bg-white text-slate-600 hover:bg-slate-50{% endif %}">Realizados</a>
+        <a href="?status=CONFERIR" class="rounded-xl border px-4 py-2 text-xs font-bold transition-colors {% if status_filter == 'CONFERIR' %}border-slate-900 bg-slate-900 text-white{% else %}border-slate-200 bg-white text-slate-600 hover:bg-slate-50{% endif %}">A conferir</a>
+        <a href="?status=ABATIDO" class="rounded-xl border px-4 py-2 text-xs font-bold transition-colors {% if status_filter == 'ABATIDO' %}border-slate-900 bg-slate-900 text-white{% else %}border-slate-200 bg-white text-slate-600 hover:bg-slate-50{% endif %}">Sem estorno</a>
+    </nav>
+
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-5 py-4 sm:px-6"><h2 class="text-xs font-black uppercase tracking-widest text-slate-900">Registros de estorno</h2></div>
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[800px] text-left">
+                <thead class="border-b border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500"><tr><th class="px-5 py-4">Estorno</th><th class="px-5 py-4">Venda / cliente</th><th class="px-5 py-4">Origem</th><th class="px-5 py-4 text-right">A devolver</th><th class="px-5 py-4 text-right">Restante</th><th class="px-5 py-4">Situação</th><th class="px-5 py-4 text-right">Ação</th></tr></thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for refund in refunds %}
+                    <tr class="transition-colors hover:bg-slate-50/70">
+                        <td class="px-5 py-4"><strong class="text-sm text-slate-900">#{{ refund.pk }}</strong><p class="mt-1 text-xs text-slate-400">{{ refund.created_at|date:'d/m/Y' }}</p></td>
+                        <td class="px-5 py-4"><a href="{% url 'sale_detail' refund.sale.number %}" class="text-sm font-bold text-blue-700 hover:text-blue-900">Venda #{{ refund.sale.number }}</a><p class="mt-1 text-xs text-slate-500">{{ refund.sale.client.name|default:'Consumidor Final' }}</p></td>
+                        <td class="px-5 py-4 text-xs font-medium text-slate-600">{{ refund.get_kind_display }}</td>
+                        <td class="whitespace-nowrap px-5 py-4 text-right text-sm font-bold text-slate-800">R$ {{ refund.due_amount|floatformat:2 }}</td>
+                        <td class="whitespace-nowrap px-5 py-4 text-right text-sm font-black text-slate-900">R$ {{ refund.remaining_amount|floatformat:2 }}</td>
+                        <td class="px-5 py-4"><span class="inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide {% if refund.status == 'PENDENTE' or refund.status == 'CONFERIR' %}border-amber-200 bg-amber-50 text-amber-700{% elif refund.status == 'PARCIAL' %}border-blue-200 bg-blue-50 text-blue-700{% elif refund.status == 'REALIZADO' %}border-emerald-200 bg-emerald-50 text-emerald-700{% else %}border-slate-200 bg-slate-50 text-slate-600{% endif %}">{{ refund.status_label }}</span></td>
+                        <td class="px-5 py-4 text-right"><a href="{% url 'sale_refund_detail' refund.pk %}" class="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100">Abrir <i data-lucide="arrow-up-right" class="h-3.5 w-3.5"></i></a></td>
+                    </tr>
+                    {% empty %}<tr><td colspan="7" class="px-5 py-16 text-center"><i data-lucide="rotate-ccw" class="mx-auto h-9 w-9 text-slate-300"></i><p class="mt-3 text-sm font-medium text-slate-500">Nenhum estorno encontrado.</p></td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -5,17 +5,17 @@ from functools import wraps
 
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect
 
 from pagamentos.gateways.asaas import AsaasGateway
 from pagamentos.models import GatewayCharge, PosChargeAttempt
 from pagamentos.settlement import PAID, apply_charge_status
-from .models import Billing, Installment, Sale, SalePayment, StockMovement
+from .models import Billing, Installment, Sale, SalePayment, SaleRefund, SaleReturn, SaleReturnItem, StockMovement
 from .pos_payments import lock_sale, _adopt_result
 
 logger = logging.getLogger(__name__)
-PAID_MESSAGE = 'Esta venda possui valores recebidos. Trate a devolução/estorno separadamente antes de cancelar.'
+PAID_MESSAGE = 'Há uma cobrança recebida sem baixa conciliada. Verifique o gateway antes de cancelar.'
 
 
 def has_receipts(sale):
@@ -65,9 +65,8 @@ def cancel_sale(sale_id, user):
     billing = Billing.objects.select_for_update().filter(sale=sale).first()
     if billing:
         list(Installment.objects.select_for_update().filter(billing=billing).order_by('pk'))
-    if has_receipts(sale):
-        return CancellationResult(False, PAID_MESSAGE)
-
+    if SaleRefund.objects.filter(sale=sale, review_required=True).exists():
+        return CancellationResult(False, 'Confira os estornos de devoluções antigas antes de cancelar esta venda.')
     gateway = AsaasGateway()
     # An in-flight/uncertain POS emission must not be left payable after cancellation.
     attempts = PosChargeAttempt.objects.select_for_update().filter(installment__billing__sale=sale, charge__isnull=True)
@@ -91,11 +90,9 @@ def cancel_sale(sale_id, user):
                 continue
             result = gateway.get_charge(charge.external_id)
             apply_charge_status(charge.pk, result.status, result.net_value)
-            charge.status = result.status
-        if has_receipts(sale):
-            return CancellationResult(False, PAID_MESSAGE)
+            charge.refresh_from_db(fields=['status'])
         for charge in charges:
-            if charge.status in (GatewayCharge.Status.CANCELLED, GatewayCharge.Status.REFUNDED):
+            if charge.status in (GatewayCharge.Status.CANCELLED, GatewayCharge.Status.REFUNDED, *PAID):
                 continue
             if charge.status not in (GatewayCharge.Status.PENDING, GatewayCharge.Status.OVERDUE):
                 return CancellationResult(False, 'A cobrança não está em um estado que permita cancelamento. Verifique o gateway.')
@@ -103,22 +100,41 @@ def cancel_sale(sale_id, user):
                 result = gateway.get_charge(charge.external_id)
                 apply_charge_status(charge.pk, result.status, result.net_value)
                 if result.status in PAID:
-                    return CancellationResult(False, PAID_MESSAGE)
+                    continue
                 if result.status != GatewayCharge.Status.CANCELLED:
                     return CancellationResult(False, 'O gateway não confirmou todos os cancelamentos. A venda permanece ativa; tente novamente para concluir. Cancelamentos já confirmados foram preservados.')
             apply_charge_status(charge.pk, GatewayCharge.Status.CANCELLED)
+            charge.refresh_from_db(fields=['status'])
+            if charge.status in PAID:
+                continue
     except Exception:
         logger.exception('Falha no gateway ao cancelar venda %s', sale.pk)
         return CancellationResult(False, 'Não foi possível confirmar todos os cancelamentos no gateway. A venda permanece ativa; tente novamente para reconciliar e concluir. Cancelamentos já confirmados foram preservados.')
 
-    if has_receipts(sale):
+    unrecorded_paid = GatewayCharge.objects.filter(installment__billing__sale=sale, status__in=PAID, settlement__isnull=True).exists()
+    if unrecorded_paid:
         return CancellationResult(False, PAID_MESSAGE)
     if sale.stock_reduced:
         for item in sale.items.select_related('product', 'variant').order_by('product_id', 'variant_id'):
+            restored = SaleReturnItem.objects.filter(
+                sale_item=item, restock=True, sale_return__status=SaleReturn.Status.APROVADA,
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            quantity = max(item.quantity - restored, 0)
+            if not quantity:
+                continue
             target = item.variant or item.product
             target = type(target).objects.select_for_update().get(pk=target.pk)
-            target.increase_stock(item.quantity, user=user, reason=StockMovement.Reason.DEVOLUCAO,
+            target.increase_stock(quantity, user=user, reason=StockMovement.Reason.DEVOLUCAO,
                                   notes=f'Estorno Venda Cancelada: #{sale.number}')
+    SaleReturn.objects.filter(sale=sale, status=SaleReturn.Status.PENDENTE).update(status=SaleReturn.Status.CANCELADA)
+    received = SalePayment.objects.filter(Q(venda=sale) | Q(installment__billing__sale=sale)).distinct().aggregate(
+        total=Sum('valor_bruto'))['total'] or 0
+    prior_refunds = SaleRefund.objects.filter(sale=sale, kind=SaleRefund.Kind.RETURN).aggregate(
+        total=Sum('due_amount'))['total'] or 0
+    due = max(received - prior_refunds, 0)
+    if due:
+        SaleRefund.objects.get_or_create(sale=sale, kind=SaleRefund.Kind.CANCELLATION,
+                                         defaults={'due_amount': due, 'created_by': user})
     if billing:
         billing.installments.update(status=Installment.Status.CANCELADO)
         billing.status = Billing.Status.CANCELADO
@@ -126,4 +142,4 @@ def cancel_sale(sale_id, user):
     sale.status = Sale.Status.CANCELADO
     sale.stock_reduced = False
     sale.save(update_fields=['status', 'stock_reduced', 'updated_at'])
-    return CancellationResult(True, 'Venda, conta a receber e cobranças canceladas. Estoque estornado quando havia baixa.')
+    return CancellationResult(True, 'Venda e cobranças canceladas. Consulte os estornos pendentes quando houver recebimentos.')

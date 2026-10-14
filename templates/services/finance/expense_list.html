@@ -1,6 +1,10 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/financial-category-picker.css' %}">
+{% endblock %}
+
 {% block content %}
 <!-- Modal de Baixa de Pagamento -->
 <dialog id="payment-dialog"
@@ -95,10 +99,10 @@
                                 class="flex h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 w-36">
                             <input type="date" name="date_to" value="{{ current_date_to }}" title="Vencimento até"
                                 class="flex h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 w-36">
-                            <select name="category" class="flex h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
+                            <select name="category" data-category-picker data-category-picker-width="filter" data-category-placeholder="Todas categorias" aria-label="Categoria" class="flex h-10 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
                                 <option value="">Todas categorias</option>
                                 {% for cat in categories %}
-                                <option value="{{ cat.pk }}" {% if current_category == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+                                <option value="{{ cat.pk }}" data-parent-id="{{ cat.parent_id|default_if_none:'' }}" data-category-name="{{ cat.name }}" {% if current_category == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat }}</option>
                                 {% endfor %}
                             </select>
                             <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-slate-200 bg-white hover:bg-slate-100 h-10 px-4">
@@ -627,4 +631,8 @@
         document.getElementById('forecast-end').value = `${y}-${m}-${lastDay}`;
     });
 </script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/financial-category-picker.js' %}" defer></script>
 {% endblock %}
