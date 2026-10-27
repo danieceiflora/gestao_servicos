@@ -67,38 +67,46 @@ class ClientForm(forms.ModelForm):
             }),
             'name': forms.TextInput(attrs={
                 'placeholder': 'Nome completo ou Razão Social',
+                'autocomplete': 'name',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
             # PF
             'cpf': forms.TextInput(attrs={
                 'placeholder': '000.000.000-00',
+                'autocomplete': 'off',
                 'class': 'cpf-mask w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pf-field',
                 'data-mask': '000.000.000-00'
             }),
             'rg': forms.TextInput(attrs={
                 'placeholder': 'RG',
+                'autocomplete': 'off',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pf-field'
             }),
             # PJ
             'trade_name': forms.TextInput(attrs={
                 'placeholder': 'Nome Fantasia',
+                'autocomplete': 'organization',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pj-field'
             }),
             'cnpj': forms.TextInput(attrs={
                 'placeholder': '00.000.000/0000-00',
+                'autocomplete': 'off',
                 'class': 'cnpj-mask w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pj-field',
                 'data-mask': '00.000.000/0000-00'
             }),
             'state_registration': forms.TextInput(attrs={
                 'placeholder': 'Inscrição Estadual',
+                'autocomplete': 'off',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pj-field'
             }),
             'municipal_registration': forms.TextInput(attrs={
                 'placeholder': 'Inscrição Municipal',
+                'autocomplete': 'off',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pj-field'
             }),
             'contact_person': forms.TextInput(attrs={
                 'placeholder': 'Nome do responsável/contato',
+                'autocomplete': 'name',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pj-field'
             }),
         }
@@ -138,6 +146,7 @@ class ClientPhoneForm(forms.ModelForm):
         widgets = {
             'phone': forms.TextInput(attrs={
                 'placeholder': '(00) 00000-0000',
+                'autocomplete': 'tel',
                 'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500'
             }),
         }
@@ -158,9 +167,20 @@ PhoneFormSet = inlineformset_factory(
     max_num=10
 )
 
+class ClientEmailForm(forms.ModelForm):
+    class Meta:
+        model = ClientEmail
+        fields = ['email', 'is_primary']
+        widgets = {
+            'email': forms.EmailInput(attrs={
+                'autocomplete': 'email',
+                'class': 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500',
+            }),
+        }
+
 EmailFormSet = inlineformset_factory(
     Client, ClientEmail, 
-    fields=['email', 'is_primary'], 
+    form=ClientEmailForm,
     extra=1, 
     can_delete=True,
     max_num=10

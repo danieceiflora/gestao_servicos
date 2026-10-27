@@ -20,7 +20,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .utils.pdf_generator import BudgetPDFGenerator, CompletionPDFGenerator
 from integracoes.chatwoot_client import ChatwootClient
 from .models import (
-    User, Client, Property, ServiceOrder, ServiceMedia, ServiceItem,
+    User, Client, ClientPhone, Property, ServiceOrder, ServiceMedia, ServiceItem,
     Professional, ProfessionalRole, ServiceOrderTeam, ProfessionalScheduleBlock,
     ServiceOrderTask, ServicePayment, Occurrence, Product, Service, ServiceCategory,
     TaskChecklistResponse, StockMovement, PaymentMethod
@@ -302,10 +302,31 @@ def client_edit(request, client_id):
         property_formset = PropertyFormSet(request.POST, instance=client, prefix='properties')
 
         if form.is_valid() and phone_formset.is_valid() and email_formset.is_valid() and property_formset.is_valid():
-            form.save()
-            phone_formset.save()
-            email_formset.save()
-            property_formset.save()
+            with transaction.atomic():
+                form.save()
+
+                # Process phone deletions explicitly so the edit flow cannot
+                # report success while a marked contact remains attached.
+                phones_to_save = phone_formset.save(commit=False)
+                for phone in phones_to_save:
+                    phone.save()
+                for deleted_phone in phone_formset.deleted_objects:
+                    deleted_phone.delete()
+
+                # The browser also submits an explicit ID list on removal,
+                # independent of the formset DELETE checkbox state.
+                phone_ids_to_delete = [
+                    int(phone_id)
+                    for phone_id in request.POST.getlist('phones_deleted_ids')
+                    if phone_id.isdigit()
+                ]
+                ClientPhone.objects.filter(
+                    client=client,
+                    pk__in=phone_ids_to_delete,
+                ).delete()
+
+                email_formset.save()
+                property_formset.save()
             messages.success(request, 'Dados do cliente atualizados com sucesso!')
             return redirect('client_list')
         else:

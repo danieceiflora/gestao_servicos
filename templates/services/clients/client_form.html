@@ -22,10 +22,10 @@
             
             <!-- Tipo de Cliente -->
             <div class="space-y-3">
-                <label class="text-sm font-medium text-slate-700">Tipo de Cliente *</label>
+                <p class="text-sm font-medium text-slate-700">Tipo de Cliente *</p>
                 <div class="grid grid-cols-2 gap-4">
                     <label class="relative flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all hover:bg-slate-50 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
-                        <input type="radio" name="client_type" value="PF" {% if not form.client_type.value or form.client_type.value == 'PF' %}checked{% endif %} class="w-4 h-4 text-blue-600">
+                        <input type="radio" id="id_client_type_pf" name="client_type" autocomplete="off" value="PF" {% if not form.client_type.value or form.client_type.value == 'PF' %}checked{% endif %} class="w-4 h-4 text-blue-600">
                         <div>
                             <div class="flex items-center gap-2">
                                 <i data-lucide="user" class="h-5 w-5 text-blue-600"></i>
@@ -36,7 +36,7 @@
                     </label>
                     
                     <label class="relative flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all hover:bg-slate-50 has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
-                        <input type="radio" name="client_type" value="PJ" {% if form.client_type.value == 'PJ' %}checked{% endif %} class="w-4 h-4 text-blue-600">
+                        <input type="radio" id="id_client_type_pj" name="client_type" autocomplete="off" value="PJ" {% if form.client_type.value == 'PJ' %}checked{% endif %} class="w-4 h-4 text-blue-600">
                         <div>
                             <div class="flex items-center gap-2">
                                 <i data-lucide="building-2" class="h-5 w-5 text-blue-600"></i>
@@ -51,7 +51,7 @@
             
             <!-- Campos Comuns -->
             <div class="space-y-2">
-                <label class="text-sm font-medium text-slate-700" id="name-label">
+                <label for="{{ form.name.id_for_label }}" class="text-sm font-medium text-slate-700" id="name-label">
                     <span class="pf-only">Nome Completo *</span>
                     <span class="pj-only hidden">Razão Social *</span>
                 </label>
@@ -62,12 +62,12 @@
             <!-- Campos Pessoa Física -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pf-only">
                 <div class="space-y-2">
-                    <label class="text-sm font-medium text-slate-700">CPF</label>
+                    <label for="{{ form.cpf.id_for_label }}" class="text-sm font-medium text-slate-700">CPF</label>
                     {{ form.cpf }}
                     {% if form.cpf.errors %}<p class="text-xs text-red-500">{{ form.cpf.errors }}</p>{% endif %}
                 </div>
                 <div class="space-y-2">
-                    <label class="text-sm font-medium text-slate-700">RG</label>
+                    <label for="{{ form.rg.id_for_label }}" class="text-sm font-medium text-slate-700">RG</label>
                     {{ form.rg }}
                     {% if form.rg.errors %}<p class="text-xs text-red-500">{{ form.rg.errors }}</p>{% endif %}
                 </div>
@@ -76,7 +76,7 @@
             <!-- Campos Pessoa Jurídica -->
             <div class="space-y-6 pj-only hidden">
                 <div class="space-y-2">
-                    <label class="text-sm font-medium text-slate-700">Nome Fantasia</label>
+                    <label for="{{ form.trade_name.id_for_label }}" class="text-sm font-medium text-slate-700">Nome Fantasia</label>
                     {{ form.trade_name }}
                     {% if form.trade_name.errors %}<p class="text-xs text-red-500">{{ form.trade_name.errors }}</p>{% endif %}
                     <p class="text-xs text-slate-500">Nome comercial da empresa</p>
@@ -84,12 +84,12 @@
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-2">
-                        <label class="text-sm font-medium text-slate-700">CNPJ</label>
+                        <label for="{{ form.cnpj.id_for_label }}" class="text-sm font-medium text-slate-700">CNPJ</label>
                         {{ form.cnpj }}
                         {% if form.cnpj.errors %}<p class="text-xs text-red-500">{{ form.cnpj.errors }}</p>{% endif %}
                     </div>
                     <div class="space-y-2">
-                        <label class="text-sm font-medium text-slate-700">Inscrição Estadual</label>
+                        <label for="{{ form.state_registration.id_for_label }}" class="text-sm font-medium text-slate-700">Inscrição Estadual</label>
                         {{ form.state_registration }}
                         {% if form.state_registration.errors %}<p class="text-xs text-red-500">{{ form.state_registration.errors }}</p>{% endif %}
                     </div>
@@ -97,12 +97,12 @@
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-2">
-                        <label class="text-sm font-medium text-slate-700">Inscrição Municipal</label>
+                        <label for="{{ form.municipal_registration.id_for_label }}" class="text-sm font-medium text-slate-700">Inscrição Municipal</label>
                         {{ form.municipal_registration }}
                         {% if form.municipal_registration.errors %}<p class="text-xs text-red-500">{{ form.municipal_registration.errors }}</p>{% endif %}
                     </div>
                     <div class="space-y-2">
-                        <label class="text-sm font-medium text-slate-700">Responsável/Contato *</label>
+                        <label for="{{ form.contact_person.id_for_label }}" class="text-sm font-medium text-slate-700">Responsável/Contato *</label>
                         {{ form.contact_person }}
                         {% if form.contact_person.errors %}<p class="text-xs text-red-500">{{ form.contact_person.errors }}</p>{% endif %}
                         <p class="text-xs text-slate-500">Pessoa responsável pela empresa</p>
@@ -112,7 +112,7 @@
         </section>
 
         <!-- SEÇÃO 2: CONTATOS -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 gap-8">
             <!-- Telefones -->
             <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -123,20 +123,21 @@
                     <button type="button" onclick="addForm('phones')" class="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors">+ ADICIONAR</button>
                 </div>
                 {{ phone_formset.management_form }}
+                <div id="phones-deletion-inputs"></div>
                 <div id="phones-formset-container" class="space-y-4">
                     {% for f in phone_formset %}
                     <div class="phones-form flex items-end gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 relative group">
                         {{ f.id }}
                         <div class="flex-1 space-y-2">
-                            <label class="text-[10px] font-bold uppercase text-slate-400">Número</label>
+                            <label for="{{ f.phone.id_for_label }}" class="text-[10px] font-bold uppercase text-slate-400">Número</label>
                             {{ f.phone }}
                             {% if f.phone.errors %}<p class="text-[10px] text-red-500">{{ f.phone.errors }}</p>{% endif %}
                         </div>
                         <div class="flex items-center gap-2 pb-2">
                             {{ f.is_primary }}
-                            <label class="text-xs text-slate-500">Wpp</label>
+                            <label for="{{ f.is_primary.id_for_label }}" class="text-xs text-slate-500">Wpp</label>
                         </div>
-                        <div class="absolute -top-2 -right-2 hidden group-hover:block">
+                        <div class="absolute -top-2 -right-2 ">
                             <button type="button" onclick="removeForm(this, 'phones')" class="h-6 w-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center border border-red-200 hover:bg-red-600 hover:text-white transition-colors">
                                 <i data-lucide="x" class="h-3 w-3"></i>
                             </button>
@@ -162,14 +163,15 @@
                     <div class="emails-form flex items-end gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 relative group">
                         {{ f.id }}
                         <div class="flex-1 space-y-2">
-                            <label class="text-[10px] font-bold uppercase text-slate-400">E-mail</label>
+                            <label for="{{ f.email.id_for_label }}" class="text-[10px] font-bold uppercase text-slate-400">E-mail</label>
                             {{ f.email }}
                             {% if f.email.errors %}<p class="text-[10px] text-red-500">{{ f.email.errors }}</p>{% endif %}
                         </div>
                         <div class="flex items-center gap-2 pb-2">
                             {{ f.is_primary }}
+                            <label for="{{ f.is_primary.id_for_label }}" class="text-xs text-slate-500">Principal</label>
                         </div>
-                        <div class="absolute -top-2 -right-2 hidden group-hover:block">
+                        <div class="absolute -top-2 -right-2 ">
                             <button type="button" onclick="removeForm(this, 'emails')" class="h-6 w-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center border border-red-200 hover:bg-red-600 hover:text-white transition-colors">
                                 <i data-lucide="x" class="h-3 w-3"></i>
                             </button>
@@ -199,7 +201,7 @@
                 <div class="properties-form rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6 relative group">
                     {{ f.id }}
                     
-                    <div class="absolute -top-3 -right-3 hidden group-hover:block z-10">
+                    <div class="absolute -top-3 -right-3  z-10">
                         <button type="button" onclick="removeForm(this, 'properties')" class="h-8 w-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center border border-red-200 hover:bg-red-600 hover:text-white transition-all shadow-sm">
                             <i data-lucide="x" class="h-4 w-4"></i>
                         </button>
@@ -208,12 +210,12 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="space-y-2">
-                            <label class="text-sm font-medium text-slate-700">Classificação</label>
+                            <label for="{{ f.classification.id_for_label }}" class="text-sm font-medium text-slate-700">Classificação</label>
                             {{ f.classification }}
                             {% if f.classification.errors %}<p class="text-[10px] text-red-500">{{ f.classification.errors }}</p>{% endif %}
                         </div>
                         <div class="space-y-2">
-                            <label class="text-sm font-medium text-slate-700">CEP</label>
+                            <label for="{{ f.cep.id_for_label }}" class="text-sm font-medium text-slate-700">CEP</label>
                             {{ f.cep }}
                             {% if f.cep.errors %}<p class="text-[10px] text-red-500">{{ f.cep.errors }}</p>{% endif %}
                         </div>
@@ -221,17 +223,17 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div class="md:col-span-2 space-y-2">
-                            <label class="text-sm font-medium text-slate-700">Endereço Completo</label>
+                            <label for="{{ f.address.id_for_label }}" class="text-sm font-medium text-slate-700">Endereço Completo</label>
                             {{ f.address }}
                             {% if f.address.errors %}<p class="text-[10px] text-red-500">{{ f.address.errors }}</p>{% endif %}
                         </div>
                         <div class="space-y-2">
-                            <label class="text-sm font-medium text-slate-700">Número</label>
+                            <label for="{{ f.number.id_for_label }}" class="text-sm font-medium text-slate-700">Número</label>
                             {{ f.number }}
                             {% if f.number.errors %}<p class="text-[10px] text-red-500">{{ f.number.errors }}</p>{% endif %}
                         </div>
                         <div class="space-y-2">
-                            <label class="text-sm font-medium text-slate-700">Complemento</label>
+                            <label for="{{ f.complement.id_for_label }}" class="text-sm font-medium text-slate-700">Complemento</label>
                             {{ f.complement }}
                             {% if f.complement.errors %}<p class="text-[10px] text-red-500">{{ f.complement.errors }}</p>{% endif %}
                         </div>
@@ -239,22 +241,22 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div class="md:col-span-1 space-y-2">
-                            <label class="text-sm font-medium text-slate-700">Bairro</label>
+                            <label for="{{ f.neighborhood.id_for_label }}" class="text-sm font-medium text-slate-700">Bairro</label>
                             {{ f.neighborhood }}
                             {% if f.neighborhood.errors %}<p class="text-[10px] text-red-500">{{ f.neighborhood.errors }}</p>{% endif %}
                         </div>
                         <div class="md:col-span-1 space-y-2">
-                            <label class="text-sm font-medium text-slate-700">Cidade</label>
+                            <label for="{{ f.city.id_for_label }}" class="text-sm font-medium text-slate-700">Cidade</label>
                             {{ f.city }}
                             {% if f.city.errors %}<p class="text-[10px] text-red-500">{{ f.city.errors }}</p>{% endif %}
                         </div>
                         <div class="md:col-span-1 space-y-2">
-                            <label class="text-sm font-medium text-slate-700">UF</label>
+                            <label for="{{ f.state.id_for_label }}" class="text-sm font-medium text-slate-700">UF</label>
                             {{ f.state }}
                             {% if f.state.errors %}<p class="text-[10px] text-red-500">{{ f.state.errors }}</p>{% endif %}
                         </div>
                         <div class="md:col-span-1 space-y-2">
-                            <label class="text-sm font-medium text-slate-700">Cód. IBGE</label>
+                            <label for="{{ f.ibge_code.id_for_label }}" class="text-sm font-medium text-slate-700">Cód. IBGE</label>
                             {{ f.ibge_code }}
                             {% if f.ibge_code.errors %}<p class="text-[10px] text-red-500">{{ f.ibge_code.errors }}</p>{% endif %}
                         </div>
@@ -278,19 +280,19 @@
                         </div>
 
                         <div class="space-y-1 mb-2">
-                            <label class="text-[10px] font-bold uppercase text-slate-400">Link do Google Maps (Opcional)</label>
-                            <input type="text" class="w-full text-sm border-slate-200 rounded-lg px-3 py-2" placeholder="Cole o link aqui para extrair as coordenadas..." oninput="extractCoordinatesFromUrl(this)">
+                            <label for="id_maps_link_{{ f.prefix }}-url" class="text-[10px] font-bold uppercase text-slate-400">Link do Google Maps (Opcional)</label>
+                            <input type="url" id="id_maps_link_{{ f.prefix }}-url" name="maps_link_{{ f.prefix }}-url" autocomplete="off" class="w-full text-sm border-slate-200 rounded-lg px-3 py-2" placeholder="Cole o link aqui para extrair as coordenadas..." oninput="extractCoordinatesFromUrl(this)">
                             <p class="text-[10px] text-slate-400">Ex: https://www.google.com/maps?q=-16.695...,-49.277...</p>
                         </div>
                         
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-1">
-                                <label class="text-[10px] font-bold uppercase text-slate-400">Latitude</label>
+                                <label for="{{ f.latitude.id_for_label }}" class="text-[10px] font-bold uppercase text-slate-400">Latitude</label>
                                 {{ f.latitude }}
                                 {% if f.latitude.errors %}<p class="text-[10px] text-red-500">{{ f.latitude.errors }}</p>{% endif %}
                             </div>
                             <div class="space-y-1">
-                                <label class="text-[10px] font-bold uppercase text-slate-400">Longitude</label>
+                                <label for="{{ f.longitude.id_for_label }}" class="text-[10px] font-bold uppercase text-slate-400">Longitude</label>
                                 {{ f.longitude }}
                                 {% if f.longitude.errors %}<p class="text-[10px] text-red-500">{{ f.longitude.errors }}</p>{% endif %}
                             </div>
@@ -358,8 +360,9 @@
         const totalForms = document.querySelector(`#id_${prefix}-TOTAL_FORMS`);
         const currentCount = parseInt(totalForms.value);
         const forms = container.getElementsByClassName(`${prefix}-form`);
-        const newForm = forms[0].cloneNode(true);
-        const regex = new RegExp(`${prefix}-(\\d)-`, 'g');
+        const sourceForm = Array.from(forms).find(form => !form.classList.contains('hidden')) || forms[0];
+        const newForm = sourceForm.cloneNode(true);
+        const regex = new RegExp(`${prefix}-(\\d+)-`, 'g');
         newForm.innerHTML = newForm.innerHTML.replace(regex, `${prefix}-${currentCount}-`);
         const inputs = newForm.querySelectorAll('input, select');
         inputs.forEach(input => {
@@ -519,13 +522,19 @@
             input.removeAttribute('required');
         });
 
+        const deleteCheckbox = container.querySelector('input[name*="-DELETE"]');
+        if (deleteCheckbox) deleteCheckbox.checked = true;
         if (idField && idField.value) {
-            const deleteCheckbox = container.querySelector('input[name*="-DELETE"]');
-            if (deleteCheckbox) deleteCheckbox.checked = true;
+            if (prefix === 'phones') {
+                const deletionInputs = document.getElementById('phones-deletion-inputs');
+                const deletedPhoneId = document.createElement('input');
+                deletedPhoneId.type = 'hidden';
+                deletedPhoneId.name = 'phones_deleted_ids';
+                deletedPhoneId.value = idField.value;
+                deletionInputs.appendChild(deletedPhoneId);
+            }
             container.classList.add('hidden');
         } else {
-            const totalForms = document.querySelector(`#id_${prefix}-TOTAL_FORMS`);
-            totalForms.value = parseInt(totalForms.value) - 1;
             container.remove();
         }
     }

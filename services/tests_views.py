@@ -1,6 +1,6 @@
 from django.test import TestCase, Client
 from django.urls import reverse
-from .models import Client as ServiceClient, Property, ServiceOrder, User
+from .models import Client as ServiceClient, ClientPhone, Property, ServiceOrder, User
 
 class ServiceOrderListViewTest(TestCase):
     def setUp(self):
@@ -82,3 +82,93 @@ class ServiceOrderListViewTest(TestCase):
         response = self.client_obj.get(reverse('service_order_list'), {'q': 'Nonexistent'})
         self.assertEqual(len(response.context['orders']), 0)
         self.assertContains(response, "Nenhuma ordem encontrada")
+
+
+class ClientPhoneDeletionViewTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username='client-phone-admin',
+            email='admin@example.com',
+            password='password123',
+            phone='',
+        )
+        self.client.force_login(self.user)
+        self.client_obj = ServiceClient.objects.create(name='Cliente Teste')
+
+    def _edit_payload(self, phones, initial_phone_count):
+        payload = {
+            'client_type': 'PF',
+            'name': self.client_obj.name,
+            'phones-TOTAL_FORMS': str(initial_phone_count + 1),
+            'phones-INITIAL_FORMS': str(initial_phone_count),
+            'emails-TOTAL_FORMS': '1',
+            'emails-INITIAL_FORMS': '0',
+            'properties-TOTAL_FORMS': '0',
+            'properties-INITIAL_FORMS': '0',
+        }
+        payload.update(phones)
+        return payload
+
+    def test_marked_existing_phone_is_deleted_when_edit_succeeds(self):
+        phone = ClientPhone.objects.create(client=self.client_obj, phone='11987654321')
+        payload = self._edit_payload({
+            'phones-0-id': str(phone.pk),
+            'phones-0-phone': phone.phone,
+            'phones_deleted_ids': str(phone.pk),
+        }, initial_phone_count=1)
+
+        response = self.client.post(
+            reverse('client_edit', args=[self.client_obj.pk]), payload
+        )
+
+        if response.status_code != 302:
+            self.fail(
+                f'Edit failed: client={response.context["form"].errors}, '
+                f'phones={response.context["phone_formset"].errors}, '
+                f'emails={response.context["email_formset"].errors}, '
+                f'properties={response.context["property_formset"].errors}'
+            )
+        self.assertRedirects(response, reverse('client_list'))
+        self.assertFalse(ClientPhone.objects.filter(pk=phone.pk).exists())
+
+    def test_deleting_middle_phone_keeps_other_phone(self):
+        removed = ClientPhone.objects.create(client=self.client_obj, phone='11987654321')
+        retained = ClientPhone.objects.create(client=self.client_obj, phone='11912345678')
+        payload = self._edit_payload({
+            'phones-0-id': str(removed.pk),
+            'phones-0-phone': removed.phone,
+            'phones_deleted_ids': str(removed.pk),
+            'phones-1-id': str(retained.pk),
+            'phones-1-phone': retained.phone,
+        }, initial_phone_count=2)
+
+        response = self.client.post(
+            reverse('client_edit', args=[self.client_obj.pk]), payload
+        )
+
+        if response.status_code != 302:
+            self.fail(
+                f'Edit failed: client={response.context["form"].errors}, '
+                f'phones={response.context["phone_formset"].errors}, '
+                f'emails={response.context["email_formset"].errors}, '
+                f'properties={response.context["property_formset"].errors}'
+            )
+        self.assertRedirects(response, reverse('client_list'))
+        self.assertFalse(ClientPhone.objects.filter(pk=removed.pk).exists())
+        self.assertTrue(ClientPhone.objects.filter(pk=retained.pk).exists())
+
+    def test_invalid_edit_does_not_apply_phone_deletion(self):
+        phone = ClientPhone.objects.create(client=self.client_obj, phone='11987654321')
+        payload = self._edit_payload({
+            'phones-0-id': str(phone.pk),
+            'phones-0-phone': phone.phone,
+            'phones_deleted_ids': str(phone.pk),
+        }, initial_phone_count=1)
+        payload['name'] = ''
+
+        response = self.client.post(
+            reverse('client_edit', args=[self.client_obj.pk]), payload
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(ClientPhone.objects.filter(pk=phone.pk).exists())
