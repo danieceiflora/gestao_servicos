@@ -150,8 +150,18 @@ def payment_method_toggle(request, pk):
 @user_passes_test(is_manager)
 def finance_dashboard(request):
     now = timezone.now()
-    month = int(request.GET.get('month', now.month))
-    year = int(request.GET.get('year', now.year))
+
+    def _period_param(name, default, minimum, maximum=None):
+        try:
+            value = int(request.GET.get(name, default))
+        except (TypeError, ValueError):
+            return default
+        if value < minimum or (maximum is not None and value > maximum):
+            return default
+        return value
+
+    month = _period_param('month', now.month, 1, 12)
+    year = _period_param('year', now.year, 1, 9998)
 
     tz = timezone.get_current_timezone()
     start_of_month = safe_make_aware(datetime(year, month, 1), tz)
