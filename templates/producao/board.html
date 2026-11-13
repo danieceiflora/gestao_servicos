@@ -35,10 +35,11 @@
     perderia o que está digitando a cada atualização.
     {% endcomment %}
     <form id="board-filters" method="GET"
+          data-preserve-submit-button="true"
           hx-get="{% url 'producao:board' %}"
           hx-target="#board-inner" hx-select="#board-inner" hx-swap="outerHTML"
-          hx-push-url="true"
-          class="ui-card p-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
+          hx-push-url="true" hx-indicator="#poll-dot"
+          class="ui-hx-form ui-card p-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
         <div class="xl:col-span-4">
             <label for="board-q" class="ui-label">Buscar</label>
             <input type="search" id="board-q" name="q" value="{{ filters.search }}"

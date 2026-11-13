@@ -24,7 +24,7 @@
 
             {% if can_operate and not order.is_terminal %}
             <div class="flex flex-wrap items-center gap-2">
-                <form method="POST" action="{% url 'producao:order_priority' order.number %}"
+                <form class="ui-hx-form" method="POST" data-preserve-submit-button="true" action="{% url 'producao:order_priority' order.number %}"
                       hx-post="{% url 'producao:order_priority' order.number %}"
                       hx-target="#order-body" hx-swap="outerHTML">
                     {% csrf_token %}
@@ -37,7 +37,7 @@
                 </form>
 
                 {% if order.waiting_material %}
-                <form method="POST" action="{% url 'producao:order_waiting_material' order.number %}"
+                <form class="ui-hx-form" method="POST" data-preserve-submit-button="true" action="{% url 'producao:order_waiting_material' order.number %}"
                       hx-post="{% url 'producao:order_waiting_material' order.number %}"
                       hx-target="#order-body" hx-swap="outerHTML">
                     {% csrf_token %}
@@ -128,7 +128,7 @@
                     {% if can_operate and not order.is_terminal and item.status != 'CANCELADO' %}
                     <div class="flex shrink-0 items-center gap-2">
                         {% if item.status == 'PENDENTE' %}
-                        <form method="POST" action="{% url 'producao:item_start' item.pk %}"
+                        <form class="ui-hx-form" method="POST" data-preserve-submit-button="true" action="{% url 'producao:item_start' item.pk %}"
                               hx-post="{% url 'producao:item_start' item.pk %}"
                               hx-target="#order-body" hx-swap="outerHTML">
                             {% csrf_token %}
@@ -138,7 +138,7 @@
                         </form>
                         {% endif %}
                         {% if item.status != 'CONCLUIDO' %}
-                        <form method="POST" action="{% url 'producao:item_finish' item.pk %}"
+                        <form class="ui-hx-form" method="POST" data-preserve-submit-button="true" action="{% url 'producao:item_finish' item.pk %}"
                               hx-post="{% url 'producao:item_finish' item.pk %}"
                               hx-target="#order-body" hx-swap="outerHTML">
                             {% csrf_token %}
@@ -147,7 +147,7 @@
                             </button>
                         </form>
                         {% else %}
-                        <form method="POST" action="{% url 'producao:item_reopen' item.pk %}"
+                        <form class="ui-hx-form" method="POST" data-preserve-submit-button="true" action="{% url 'producao:item_reopen' item.pk %}"
                               hx-post="{% url 'producao:item_reopen' item.pk %}"
                               hx-target="#order-body" hx-swap="outerHTML">
                             {% csrf_token %}

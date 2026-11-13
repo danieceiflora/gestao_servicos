@@ -7038,6 +7038,10 @@
     vertical-align: top;
     color: var(--color-slate-600);
   }
+  .ui-hx-form.htmx-request button[type="submit"] {
+    pointer-events: none;
+    opacity: 60%;
+  }
   .mobile-nav-group {
     margin-top: calc(var(--spacing) * 5);
     border-top-style: var(--tw-border-style);

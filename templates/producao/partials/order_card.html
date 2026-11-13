@@ -57,7 +57,7 @@
         </a>
         {% if can_operate %}
             {% if order.waiting_material %}
-            <form method="POST" action="{% url 'producao:order_waiting_material' order.number %}"
+            <form class="ui-hx-form" method="POST" data-preserve-submit-button="true" action="{% url 'producao:order_waiting_material' order.number %}"
                   hx-post="{% url 'producao:order_waiting_material' order.number %}"
                   hx-target="#board-inner" hx-swap="outerHTML"
                   hx-include="#board-filters">

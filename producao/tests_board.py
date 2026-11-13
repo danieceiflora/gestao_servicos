@@ -110,6 +110,26 @@ class BoardViewTests(BoardTestMixin, TestCase):
                 self.assertNotIn('{#', body)
                 self.assertNotIn('#}', body)
 
+    def test_htmx_forms_opt_out_of_the_global_submit_feedback(self):
+        """O feedback global de submit troca o botão por "Aguarde..." e conta
+        com a navegação para desfazer. Numa troca HTMX a página não recarrega,
+        então sem o opt-out o botão fica travado para sempre."""
+        import re
+
+        order, _ = self.make_order()
+        prod.set_waiting_material(order, user=self.manager, note='x')
+        for url in (reverse('producao:board'),
+                    reverse('producao:order_detail', args=[order.number])):
+            body = self.client.get(url).content.decode()
+            htmx_forms = [
+                tag for tag in re.findall(r'<form\b[^>]*>', body)
+                if 'hx-get=' in tag or 'hx-post=' in tag
+            ]
+            self.assertTrue(htmx_forms, f'nenhum form HTMX em {url}')
+            for tag in htmx_forms:
+                with self.subTest(url=url, form=tag[:80]):
+                    self.assertIn('data-preserve-submit-button="true"', tag)
+
     def test_board_lists_order(self):
         order, _ = self.make_order()
         response = self.client.get(reverse('producao:board'))
