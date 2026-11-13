@@ -105,7 +105,8 @@ def _approve_return_local(return_id, user):
             target = item.sale_item.variant or item.sale_item.product
             target = type(target).objects.select_for_update().get(pk=target.pk)
             target.increase_stock(item.quantity, user=user, reason=StockMovement.Reason.DEVOLUCAO,
-                                  notes=f'Devolução #{ret.pk} — Venda #{sale.number}')
+                                  notes=f'Devolução #{ret.pk} — Venda #{sale.number}',
+                                  explode_composition=True)
     ret.status = SaleReturn.Status.APROVADA
     ret.save(update_fields=['status'])
     return SaleRefund.objects.create(

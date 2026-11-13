@@ -681,13 +681,19 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
-    def reduce_stock(self, quantity, user=None, reason=None, notes=None, service_order=None):
+    def reduce_stock(self, quantity, user=None, reason=None, notes=None, service_order=None,
+                     _visited=None, _depth=0):
         """
         Reduz o estoque do produto e, se for composto, reduz também os componentes.
+
+        `_visited`/`_depth` cortam composições circulares (A -> B -> A, ou um
+        produto componente de si mesmo), que o banco não impede e que sem a
+        guarda viram RecursionError em cima de uma venda.
         """
         from django.db import transaction
         from .models import StockMovement
-        
+        from .utils.bom import MAX_BOM_DEPTH
+
         with transaction.atomic():
             # Reduz o estoque do produto principal
             self.current_stock -= quantity
@@ -707,24 +713,40 @@ class Product(models.Model):
 
             # Se for composto, reduz os componentes recursivamente
             if self.format == self.Format.COM_COMPOSICAO:
-                for comp in self.compositions.all():
+                path = (_visited or frozenset()) | {self.pk}
+                if _depth >= MAX_BOM_DEPTH:
+                    return
+                for comp in self.compositions.select_related('component'):
+                    if comp.component_id in path:
+                        continue
                     comp_qty = comp.quantity * quantity
                     comp.component.reduce_stock(
-                        comp_qty, 
-                        user=user, 
-                        reason=reason, 
+                        comp_qty,
+                        user=user,
+                        reason=reason,
                         notes=f"Componente de {self.name}: {notes}" if notes else f"Componente de {self.name}",
-                        service_order=service_order
+                        service_order=service_order,
+                        _visited=path,
+                        _depth=_depth + 1,
                     )
 
-    def increase_stock(self, quantity, user=None, reason=None, notes=None, service_order=None):
+    def increase_stock(self, quantity, user=None, reason=None, notes=None, service_order=None,
+                       explode_composition=False, _visited=None, _depth=0):
         """
-        Aumenta o estoque do produto. Geralmente não aumenta componentes automaticamente
-        (pois a produção/entrada é do item final).
+        Aumenta o estoque do produto.
+
+        `explode_composition` existe para que um ESTORNO seja simétrico à
+        operação que ele reverte: `reduce_stock` consome os componentes de um
+        produto composto, então devolver só o pai vaza insumo a cada edição ou
+        cancelamento de venda. Passe True nos caminhos de reversão
+        (reedição/cancelamento de venda, devolução com restock, cancelamento de
+        OS) e mantenha o default False numa ENTRADA de verdade — uma nota de
+        compra de produto acabado não dá entrada nos componentes.
         """
         from django.db import transaction
         from .models import StockMovement
-        
+        from .utils.bom import MAX_BOM_DEPTH
+
         with transaction.atomic():
             self.current_stock += quantity
             self.save()
@@ -739,6 +761,25 @@ class Product(models.Model):
                 service_order=service_order,
                 saldo_apos=self.current_stock,
             )
+
+            if explode_composition and self.format == self.Format.COM_COMPOSICAO:
+                path = (_visited or frozenset()) | {self.pk}
+                if _depth >= MAX_BOM_DEPTH:
+                    return
+                for comp in self.compositions.select_related('component'):
+                    if comp.component_id in path:
+                        continue
+                    comp_qty = comp.quantity * quantity
+                    comp.component.increase_stock(
+                        comp_qty,
+                        user=user,
+                        reason=reason,
+                        notes=f"Componente de {self.name}: {notes}" if notes else f"Componente de {self.name}",
+                        service_order=service_order,
+                        explode_composition=True,
+                        _visited=path,
+                        _depth=_depth + 1,
+                    )
 
     class Meta:
         verbose_name = "Produto"
@@ -755,6 +796,22 @@ class ProductComposition(models.Model):
         verbose_name = "Composição de Produto"
         verbose_name_plural = "Composições de Produtos"
         unique_together = ('parent', 'component')
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        from .utils.bom import find_composition_cycle
+
+        super().clean()
+        # unique_together não impede parent == component, nem A -> B -> A.
+        cycle = find_composition_cycle(self.parent, self.component)
+        if cycle:
+            raise ValidationError({
+                'component': (
+                    'Esta composição criaria um ciclo (%s). Um produto não pode '
+                    'ser componente de si mesmo, direta ou indiretamente.'
+                    % ' → '.join(name or '?' for name in cycle)
+                )
+            })
 
     def __str__(self):
         return f"{self.quantity} x {self.component.name} em {self.parent.name}"
@@ -784,7 +841,15 @@ class ProductVariant(models.Model):
                 notes=notes,
             )
 
-    def increase_stock(self, quantity, user=None, reason=None, notes=None):
+    def increase_stock(self, quantity, user=None, reason=None, notes=None,
+                       explode_composition=False):
+        """`explode_composition` é aceito e ignorado de propósito.
+
+        Os caminhos de estorno resolvem o alvo como `item.variant or
+        item.product` e passam a flag sem saber qual dos dois caiu. Variação e
+        composição são formatos mutuamente exclusivos em `Product.Format`, logo
+        uma variação nunca tem ficha técnica para explodir.
+        """
         from django.db import transaction
         with transaction.atomic():
             self.current_stock += quantity
@@ -2025,7 +2090,10 @@ class ServiceOrder(models.Model):
                         item.quantity,
                         reason=StockMovement.Reason.DEVOLUCAO,
                         service_order=self,
-                        notes="Estorno automático por cancelamento da OS"
+                        notes="Estorno automático por cancelamento da OS",
+                        # Simétrico ao reduce_stock da conclusão, que consome os
+                        # componentes de produtos compostos.
+                        explode_composition=True,
                     )
                 self.stock_lowered = False
 

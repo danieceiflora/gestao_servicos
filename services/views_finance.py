@@ -883,7 +883,10 @@ def sale_detail(request, number):
                                 item.quantity,
                                 user=request.user,
                                 reason=StockMovement.Reason.DEVOLUCAO,
-                                notes=f"Estorno para Reedição da Venda: #{sale.number}"
+                                notes=f"Estorno para Reedição da Venda: #{sale.number}",
+                                # Simétrico ao reduce_stock logo abaixo, que consome
+                                # os componentes de produtos compostos.
+                                explode_composition=True,
                             )
 
                     sale = form.save(commit=False)

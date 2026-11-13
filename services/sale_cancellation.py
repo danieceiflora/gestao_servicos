@@ -125,7 +125,8 @@ def cancel_sale(sale_id, user):
             target = item.variant or item.product
             target = type(target).objects.select_for_update().get(pk=target.pk)
             target.increase_stock(quantity, user=user, reason=StockMovement.Reason.DEVOLUCAO,
-                                  notes=f'Estorno Venda Cancelada: #{sale.number}')
+                                  notes=f'Estorno Venda Cancelada: #{sale.number}',
+                                  explode_composition=True)
     SaleReturn.objects.filter(sale=sale, status=SaleReturn.Status.PENDENTE).update(status=SaleReturn.Status.CANCELADA)
     received = SalePayment.objects.filter(Q(venda=sale) | Q(installment__billing__sale=sale)).distinct().aggregate(
         total=Sum('valor_bruto'))['total'] or 0
