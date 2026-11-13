@@ -30,8 +30,10 @@
         {% endif %}
     </header>
 
-    {# Filtros — ficam FORA da região que o polling troca, senão o usuário
-       perderia o que está digitando a cada atualização. #}
+    {% comment %}
+    Filtros — ficam FORA da região que o polling troca, senão o usuário
+    perderia o que está digitando a cada atualização.
+    {% endcomment %}
     <form id="board-filters" method="GET"
           hx-get="{% url 'producao:board' %}"
           hx-target="#board-inner" hx-select="#board-inner" hx-swap="outerHTML"

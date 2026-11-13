@@ -1,7 +1,9 @@
-{# Região trocada pelo polling e pelas mutações do painel.
+{% comment %}
+Região trocada pelo polling e pelas mutações do painel.
 
-   Nada editável mora aqui: toda ação com digitação (quantidade parcial, o que
-   falta, dados da saída) vive no detalhe da OP, fora desta região. #}
+Nada editável mora aqui: toda ação com digitação (quantidade parcial, o que
+falta, dados da saída) vive no detalhe da OP, fora desta região.
+{% endcomment %}
 <div id="board-inner" data-version="{{ board_version }}">
     <input type="hidden" id="board-version" name="v" value="{{ board_version }}">
 

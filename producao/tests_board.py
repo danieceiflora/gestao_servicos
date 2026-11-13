@@ -97,6 +97,19 @@ class BoardViewTests(BoardTestMixin, TestCase):
         super().setUp()
         self.client.force_login(self.manager)
 
+    def test_pages_do_not_leak_template_comments(self):
+        """`{# #}` do Django só vale em UMA linha; em duas vira texto na tela."""
+        order, _ = self.make_order()
+        for url in (
+            reverse('producao:board'),
+            reverse('producao:order_detail', args=[order.number]),
+            reverse('producao:settings'),
+        ):
+            with self.subTest(url=url):
+                body = self.client.get(url).content.decode()
+                self.assertNotIn('{#', body)
+                self.assertNotIn('#}', body)
+
     def test_board_lists_order(self):
         order, _ = self.make_order()
         response = self.client.get(reverse('producao:board'))

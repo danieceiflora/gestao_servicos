@@ -62,9 +62,11 @@
                 </div>
             </div>
 
-            {# Código IBGE do município — preenchido automaticamente pela busca de CEP
-               (necessário para emissão de NFSe Nacional); sem input visível porque não
-               é algo que se digite manualmente. #}
+            {% comment %}
+            Código IBGE do município — preenchido automaticamente pela busca de CEP
+            (necessário para emissão de NFSe Nacional); sem input visível porque não
+            é algo que se digite manualmente.
+            {% endcomment %}
             <div class="hidden">{{ form.ibge_code }}</div>
 
             <div class="pt-4 border-t border-slate-100 space-y-4">
