@@ -865,7 +865,8 @@ class ProductForm(forms.ModelForm):
         model = Product
         fields = [
             'name', 'category', 'supplier', 'code', 'barcode', 'image', 
-            'unit_type', 'format', 'type', 'preco_custo', 'preco_custo_total',
+            'unit_type', 'format', 'type', 'requires_finishing',
+            'finishing_instructions', 'preco_custo', 'preco_custo_total',
             'preco_venda_total', 'default_unit_price', 'current_stock', 'min_stock', 'max_stock', 'is_active',
             'ncm', 'cest', 'cfop_padrao', 'origem_mercadoria',
             'csosn', 'cst_icms', 'cst_pis', 'cst_cofins',
@@ -877,6 +878,8 @@ class ProductForm(forms.ModelForm):
             'supplier': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
             'code': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
             'barcode': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
+            'requires_finishing': forms.CheckboxInput(attrs={'class': 'h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500'}),
+            'finishing_instructions': forms.Textarea(attrs={'rows': 3, 'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'placeholder': 'Ex: cortar em 3 peças de 1,20 m e dobrar a borda'}),
             'unit_type': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),
             'format': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all', 'onchange': 'toggleCompositionTab()'}),
             'type': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all'}),

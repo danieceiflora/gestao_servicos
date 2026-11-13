@@ -122,6 +122,23 @@
                         </div>
                     </div>
 
+                    {# Seção Produção / Expedição #}
+                    <div class="border border-slate-100 rounded-xl p-5 space-y-4">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">Produção / Expedição</p>
+                        <label for="{{ form.requires_finishing.id_for_label }}" class="flex items-start gap-3 cursor-pointer">
+                            {{ form.requires_finishing }}
+                            <span class="space-y-1">
+                                <span class="block text-sm font-bold text-slate-700">Exige acabamento/preparo</span>
+                                <span class="block text-xs text-slate-500">{{ form.requires_finishing.help_text }}</span>
+                            </span>
+                        </label>
+                        <div class="space-y-2">
+                            <label for="{{ form.finishing_instructions.id_for_label }}" class="text-sm font-bold text-slate-700">Instruções de preparo</label>
+                            {{ form.finishing_instructions }}
+                            <p class="text-xs text-slate-500">{{ form.finishing_instructions.help_text }}</p>
+                        </div>
+                    </div>
+
                     {# Seção Preços ao final #}
                     <div class="border border-slate-100 rounded-xl p-5 space-y-4">
                         <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">Preços</p>

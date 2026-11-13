@@ -649,6 +649,19 @@ class Product(models.Model):
     preco_venda_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="Preço Venda Total")
 
     default_unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Preço Padrão")
+
+    # Produção / Expedição
+    requires_finishing = models.BooleanField(
+        default=False, verbose_name="Exige acabamento/preparo",
+        help_text="Marque quando o item precisa de preparo antes de sair, mesmo "
+                  "sem ficha técnica — uma chapa que precisa ser cortada, por "
+                  "exemplo. Faz o item aparecer como Acabamento na expedição.",
+    )
+    finishing_instructions = models.TextField(
+        blank=True, verbose_name="Instruções de preparo",
+        help_text="Aparece no card da oficina, na expedição.",
+    )
+
     current_stock = models.DecimalField(max_digits=14, decimal_places=4, default=0, verbose_name="Estoque Atual")
     min_stock = models.DecimalField(max_digits=14, decimal_places=4, default=0, verbose_name="Estoque Mínimo")
     max_stock = models.DecimalField(max_digits=14, decimal_places=4, default=0, verbose_name="Estoque Máximo")
