@@ -10,8 +10,9 @@ REGRAS INVIOLÁVEIS
 * `sync_items()` chama `update_status()` uma única vez, no final.
 * Saves de item usam `update_fields=[...]`.
 * A OP nasce já no status correto: a sincronização calcula os itens, deriva o
-  status e faz um save. Sem flip de status na mesma transação, não há
-  notificação duplicada.
+  status e faz um save.
+* Notificação é uma por transição COMMITADA, não por chamada de
+  `_apply_status` — ver `_dispatch_status_notification`.
 
 PROPRIEDADE DOS CAMPOS DE `ProductionItem`
 ------------------------------------------
@@ -24,6 +25,7 @@ progresso do turno da oficina.
 """
 
 import logging
+import threading
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
@@ -38,6 +40,10 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: Mudanças de status pendentes de notificação, por transação.
+#: Ver `_dispatch_status_notification`.
+_notify_pending = threading.local()
 
 #: Tipos de etapa de OS que representam trabalho físico.
 PRODUCTION_TASK_TYPES = (
@@ -390,20 +396,37 @@ def _dispatch_status_notification(order, from_status, to_status):
     já enviada. `ProductionOrder` também não entra em
     `DYNAMIC_NOTIFICATION_MODELS`, para não dobrar o envio.
 
+    Uma notificação por transição COMMITADA, não por chamada. Concluir cinco
+    itens leva a OP de AGUARDANDO a EM_SEPARACAO e depois a PRONTO na mesma
+    transação; como o motor filtra a regra pelo status atual do objeto
+    (`integracoes/utils.py`), despachar as duas mudanças mandaria a mesma
+    mensagem de "pronto" duas vezes. O bucket guarda só o status de ORIGEM da
+    primeira mudança e resolve o destino no commit.
+
     Sem nenhuma `NotificationConfig` cadastrada, nada é enviado.
     """
-    pk, old = order.pk, from_status
+    bucket = getattr(_notify_pending, 'origins', None)
+    if bucket is None:
+        bucket = _notify_pending.origins = {}
+    bucket.setdefault(order.pk, from_status)
+    transaction.on_commit(_drain_notifications)
 
-    def _send():
+
+def _drain_notifications():
+    bucket = getattr(_notify_pending, 'origins', None)
+    if not bucket:
+        return
+    _notify_pending.origins = {}
+    for pk, old_status in bucket.items():
         try:
             from integracoes.utils import dispatch_dynamic_notification
             fresh = ProductionOrder.objects.filter(pk=pk).first()
-            if fresh:
-                dispatch_dynamic_notification(fresh, 'MUDANCA_STATUS', old_status=old)
+            if fresh is None or fresh.status == old_status:
+                # Ida e volta na mesma transação: no fim nada mudou.
+                continue
+            dispatch_dynamic_notification(fresh, 'MUDANCA_STATUS', old_status=old_status)
         except Exception:
             logger.exception('Falha ao notificar mudança de status da OP %s', pk)
-
-    transaction.on_commit(_send)
 
 
 def _log(order, item=None, user=None, *, from_status='', to_status='', message=''):

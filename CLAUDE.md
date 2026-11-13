@@ -211,6 +211,116 @@ Categoria `IMPEDITIVA` bloqueia o fluxo normal de conclusão no app do técnico.
 
 ---
 
+## Módulo de Expedição / Produção (app `producao`)
+
+Fila de trabalho físico. Uma **Ordem de Produção (OP)** nasce quando uma venda
+ou uma **etapa de OS** atinge um status configurável em `/producao/configuracoes/`.
+
+```
+producao/
+  models.py       # ProductionSettings (singleton), ProductionOrder, ProductionItem, ProductionEvent
+  services.py     # TODO o domínio: sync_from_sale/sync_from_task, update_status, ações do operador
+  signals.py      # entrada automática na fila (debounce + on_commit)
+  permissions.py  # can_view / can_operate / can_manage
+  views.py        # board, board_partial (polling), order_detail, settings_view
+services/utils/bom.py   # explode_bom() / find_composition_cycle() — travessia da ficha técnica
+templates/producao/
+static/js/producao-board.js
+```
+
+### Premissa central: a OP NÃO movimenta estoque
+
+A baixa já acontece nos caminhos de venda (`views_finance`, `views_pos`,
+`pos_payments`) e de OS (`ServiceOrder.update_status`), e `Product.reduce_stock`
+já consome os componentes de produtos compostos. **Produção é um painel de
+trabalho, não documento de estoque.** `producao/tests_sync.py` trava isso:
+nenhuma ação de produção cria `StockMovement`.
+
+Por isso "aguardando material" é um **flag manual** do operador — o módulo não
+detecta falta de saldo sozinho.
+
+### Granularidade: uma OP por etapa de OS
+
+Os itens da OP de OS são `task.items.filter(product__isnull=False)`. Isso
+**dispensa** replicar a heurística anti-soma-dupla dos itens clonados do
+orçamento, e nenhum cálculo financeiro foi tocado. Consequência: `ServiceItem`
+com `task=None` (orçamento geral) nunca entra na fila.
+
+### Status
+
+`AGUARDANDO` → `EM_SEPARACAO` / `EM_PRODUCAO` → `PRONTO` → `ENTREGUE`.
+`AGUARDANDO_MATERIAL` tem prioridade sobre todos; `ENTREGUE` e `CANCELADO` são
+terminais e `update_status()` não os sobrescreve. Derivado dos itens em
+`producao.services.derive_status`.
+
+`delivery_mode`: `RETIRADA` | `TECNICO` | `ENVIO` (vendas com endereço de
+entrega preenchido nascem como `ENVIO`).
+
+### Regras invioláveis
+
+1. **`ProductionItem.save()` NÃO recalcula o status da OP.** Toda mutação passa
+   por `producao/services.py`. O anti-padrão a evitar é `ServiceItem.save()`,
+   que chama `update_status()` da OS e faz 20 saves num formset de 20 itens.
+2. `update_status()` nunca chama a sincronização; a sincronização chama
+   `update_status()` uma vez, no final.
+3. **`source_key` (`"sale_item:<pk>"`) é a chave de matching da sincronização,
+   nunca a FK.** As FKs de origem são `SET_NULL` porque `views_pos._save_cart`
+   apaga e recria todos os `SaleItem`, e o formset de `sale_detail` deleta de
+   verdade. `UniqueConstraint(production_order, source_key)` garante
+   idempotência.
+4. **A sincronização manda em** `quantity`, `description`, `product`,
+   `variant`. **Nunca toca** `quantity_done`, `status`, datas, `notes`.
+   Reduzir a quantidade abaixo do já produzido marca `needs_review`, nunca
+   trunca. Item removido da origem depois de iniciado vira `CANCELADO`, nunca
+   é apagado.
+5. **`RASCUNHO` não pode ser status de gatilho** — o form não o oferece.
+6. Permissões dedicadas `operate_production` / `manage_production`: o público
+   do painel é `COLABORADOR`, para quem `user.is_manager` é False.
+
+### Notificações — reuso de `NotificationConfig`
+
+`ProductionOrder` está registrado no motor existente, então as mensagens são
+configuradas em Notificações Automáticas escolhendo o modelo "Ordem de Produção".
+**Sem regra cadastrada, nada é enviado** — a opcionalidade é nativa.
+
+Registrar um model novo lá exige **seis** pontos, todos hardcoded:
+`MODEL_CHOICES` (`integracoes/models.py`), `CURATED_FIELDS` e o ramo de
+`get_mappable_fields(only_phones=True)` (`integracoes/utils.py`),
+`ajax_get_status_choices` e `status_labels` (`integracoes/views.py`), e o
+disparo. O mais fácil de esquecer é `ajax_get_status_choices` — sem ele os
+dropdowns de status ficam vazios e a regra é inutilizável.
+
+**`ProductionOrder` NÃO está em `DYNAMIC_NOTIFICATION_MODELS`** e não deve ser
+adicionado: o receiver genérico despacha dentro da transação (HTTP ao
+Chatwoot + PDF antes do commit). O disparo é explícito em
+`producao/services._dispatch_status_notification`, dentro de
+`transaction.on_commit`, com **uma notificação por transição commitada** —
+concluir 5 itens passa por dois status mas manda uma mensagem só.
+
+### Tempo real: polling HTMX, sem SSE/WebSocket
+
+`board_partial` responde **HTTP 204** quando a versão recebida bate com
+`services.board_version()`. O HTMX trata 204 como "não trocar nada", então
+scroll, foco e ícones ficam intactos de graça.
+
+- `hx-trigger="every 20s[shouldPollBoard()]"` — pausa com aba oculta, modal
+  aberto ou foco num campo (`static/js/producao-board.js`).
+- Filtros vivem **fora** da região trocada e viajam por `hx-include`.
+- **`lucide.createIcons()` depois de cada swap é obrigatório** —
+  `base_root.html` só inicializa os ícones no load.
+- Mutações alvejam a mesma região do polling, então não há corrida clique ×
+  atualização. Botões, não drag-and-drop.
+- Classes de cor de coluna vêm inteiras do Python: o Tailwind varre nomes
+  literais e `bg-{{ tone }}-100` nunca seria gerado.
+
+### Fora de escopo (decisão explícita)
+
+App offline do técnico não recebe dados de produção; entrada de produto
+acabado em estoque; regras de push configuráveis; roteiro de produção com
+etapas sequenciais por produto.
+
+---
+
 ## Integrações e Workflows
 
 - **Chatwoot**: disparo automático de mensagens em eventos de OS (recibo de pagamento, etc.)
@@ -256,3 +366,5 @@ O `parameter` deve conter **apenas o sufixo dinâmico** (ex: UUID), nunca a URL 
 3. **Itens sem task associada** adicionados via `order_item_add` quando já existe etapa EXECUCAO ficam invisíveis no `total_value` — ainda sem warning implementado.
 4. **`stock_lowered`** deve ser verificado antes de qualquer lógica de estoque manual para evitar duplicação.
 5. **`Http404` dentro de `try/except Exception`** é capturado como 400 — preferir `.filter().first()` com checagem explícita quando dentro de blocos genéricos.
+6. **`increase_stock(explode_composition=...)`** — `reduce_stock` consome os componentes de um produto `COM_COMPOSICAO`; `increase_stock` só devolve o pai, a menos que receba `explode_composition=True`. Passe True em **estorno** (reedição/cancelamento de venda, devolução com restock, cancelamento de OS) e mantenha False em **entrada** de verdade (nota de compra, ajuste manual).
+7. **Composição circular** não é impedida pelo banco (`unique_together` permite `parent == component`). Toda travessia da ficha técnica usa a guarda de `services/utils/bom.py`; `ProductComposition.clean()` rejeita a aresta antes de gravar.

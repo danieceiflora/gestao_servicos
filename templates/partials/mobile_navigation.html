@@ -29,7 +29,7 @@
             </section>
             {% endif %}
 
-            {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser or perms.services.operate_pos %}
+            {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser or perms.services.operate_pos or perms.producao.operate_production or perms.producao.view_productionorder %}
             <section class="mobile-nav-group"><h2 class="mobile-nav-label">Estoque e vendas</h2>
                 {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
                 <a href="{% url 'product_list' %}" class="mobile-nav-link {% if 'product' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="package"></i><span>Produtos</span></a>
@@ -38,6 +38,9 @@
                 {% if user.is_manager or perms.services.operate_pos %}<a href="{% url 'pos_home' %}" class="mobile-nav-link {% if 'pos_' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="scan-line"></i><span>Frente de Caixa</span></a>{% endif %}
                 {% if user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}
                 <a href="{% url 'sale_list' %}" class="mobile-nav-link {% if 'sale' in request.resolver_match.url_name %}mobile-nav-link-active{% endif %}"><i data-lucide="shopping-cart"></i><span>Vendas</span></a>
+                {% endif %}
+                {% if user.is_manager or perms.producao.operate_production or perms.producao.view_productionorder %}
+                <a href="{% url 'producao:board' %}" class="mobile-nav-link {% if request.resolver_match.app_name == 'producao' %}mobile-nav-link-active{% endif %}"><i data-lucide="hard-hat"></i><span>Expedição / Produção</span></a>
                 {% endif %}
             </section>
             {% endif %}

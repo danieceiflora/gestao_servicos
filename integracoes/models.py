@@ -110,6 +110,7 @@ class NotificationConfig(models.Model):
         ('Billing', 'Cobrança (Fatura)'),
         ('Installment', 'Parcela de Cobrança'),
         ('ExpenseInstallment', 'Parcela de Despesa (C. a Pagar)'),
+        ('ProductionOrder', 'Ordem de Produção (Expedição)'),
     ]
 
     EVENT_CHOICES = [

@@ -12,6 +12,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Modelos que recebem os gatilhos padrão CRIAR e MUDANCA_STATUS
+#
+# NÃO adicione `producao.ProductionOrder` aqui. `handle_dynamic_notifications`
+# despacha MUDANCA_STATUS sincronamente dentro do post_save, ou seja: chamada
+# HTTP ao Chatwoot/Meta e geração de PDF dentro da transação. Num tablet de
+# oficina isso seria um request lento a cada clique, e um rollback posterior
+# deixaria a mensagem já enviada. Aquele módulo despacha explicitamente em
+# `producao/services.py`, dentro de `transaction.on_commit` — incluir o model
+# aqui dobraria o envio.
 DYNAMIC_NOTIFICATION_MODELS = [
     ServiceOrder, ServiceOrderTask, Sale,
     Billing, Installment, ExpenseInstallment,

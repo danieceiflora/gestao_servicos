@@ -81,6 +81,27 @@ CURATED_FIELDS = {
         ('user.get_full_name',      'Vendedor > Nome'),
         ('user.username',           'Vendedor > Usuário'),
     ],
+    'ProductionOrder': [
+        ('number',                      'Produção > Número da OP'),
+        ('get_status_display',          'Produção > Situação'),
+        ('get_delivery_mode_display',   'Produção > Destino (retirada / técnico / envio)'),
+        ('get_priority_display',        'Produção > Prioridade'),
+        ('progress_percent',            'Produção > Progresso (%)'),
+        ('due_date',                    'Produção > Prazo'),
+        ('origin_label',                'Produção > Origem (ex: Venda #1001)'),
+        ('waiting_material_note',       'Produção > O que falta'),
+        ('carrier',                     'Produção > Transportadora'),
+        ('tracking_code',               'Produção > Código de Rastreio'),
+        ('delivered_to',                'Produção > Entregue a'),
+        ('client.display_name',         'Cliente > Nome Completo'),
+        ('client_phone',                'Cliente > Telefone / WhatsApp'),
+        ('technician_phone',            'Técnico da Etapa > Telefone / WhatsApp'),
+        ('sale.number',                 'Venda de Origem > Número'),
+        ('sale.public_page_url',        'Venda de Origem > Link da Página Pública'),
+        ('service_order.number',        'OS de Origem > Número'),
+        ('service_order.public_page_url', 'OS de Origem > Link da Página Pública'),
+        ('service_order_task.get_task_type_display', 'Etapa de Origem > Tipo'),
+    ],
     'Billing': [
         ('number',                  'Cobrança > Número'),
         ('get_status_display',      'Cobrança > Status'),
@@ -200,6 +221,13 @@ def get_mappable_fields(model_name, max_depth=3, only_phones=False):
             return [('client', 'Telefone do Cliente')]
         elif model_name == 'Installment':
             return [('billing.client', 'Telefone do Cliente')]
+        elif model_name == 'ProductionOrder':
+            # Sem este ramo a função cairia no `return CURATED_FIELDS.get(...)`
+            # final e ofereceria a lista inteira como se fosse telefone.
+            return [
+                ('client_phone', 'Telefone do Cliente'),
+                ('technician_phone', 'Telefone do Técnico da Etapa'),
+            ]
         elif model_name == 'ExpenseInstallment':
             return []
 

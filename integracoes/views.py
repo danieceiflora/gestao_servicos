@@ -727,6 +727,13 @@ def notification_config_list(request):
         'ATRASADO': 'Atrasado',
         'ATIVO': 'Ativo',
         'INATIVO': 'Inativo',
+        # ProductionOrder
+        'AGUARDANDO': 'Aguardando início',
+        'EM_SEPARACAO': 'Em separação',
+        'EM_PRODUCAO': 'Em produção',
+        'AGUARDANDO_MATERIAL': 'Aguardando material',
+        'PRONTO': 'Pronto',
+        'ENTREGUE': 'Entregue',
     }
     return render(request, 'integracoes/notifications/config_list.html', {
         'configs': configs,
@@ -1143,6 +1150,9 @@ def ajax_get_status_choices(request):
         choices = Installment.Status.choices
     elif model_name == 'ExpenseInstallment':
         choices = ExpenseInstallment.Status.choices
+    elif model_name == 'ProductionOrder':
+        from producao.models import ProductionOrder
+        choices = ProductionOrder.Status.choices
         
     return render(request, 'integracoes/notifications/partials/status_choices_select.html', {
         'choices': choices,
