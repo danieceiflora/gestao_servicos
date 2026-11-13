@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}OP #{{ order.number }} — Expedição{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl space-y-5 px-4 py-6">
+
+    <header class="ui-page-header">
+        <div class="ui-page-title-group">
+            <div class="ui-page-icon">
+                <i data-lucide="hard-hat" class="h-5 w-5"></i>
+            </div>
+            <div>
+                <h1 class="ui-page-title">Ordem de Produção #{{ order.number }}</h1>
+                <p class="ui-page-subtitle">
+                    {% if order.origin_url %}
+                        <a href="{{ order.origin_url }}" class="font-medium text-blue-600 hover:underline">{{ order.origin_label }}</a>
+                    {% else %}{{ order.origin_label }}{% endif %}
+                    {% if order.client %} · {{ order.client.name }}{% endif %}
+                </p>
+            </div>
+        </div>
+        <a href="{% url 'producao:board' %}" class="ui-button ui-button-secondary">
+            <i data-lucide="arrow-left" class="h-4 w-4"></i> Voltar ao painel
+        </a>
+    </header>
+
+    {% include 'producao/partials/order_body.html' %}
+</div>
+
+{# Modais ficam fora da região que o HTMX troca, para não perder digitação. #}
+<div id="modal-root"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/producao-board.js' %}"></script>
+{% endblock %}

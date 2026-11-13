@@ -1,0 +1,306 @@
+{# Corpo do detalhe da OP. Re-renderizado inteiro por cada ação HTMX. #}
+<div id="order-body" class="space-y-5">
+
+    {# --- Cabeçalho de situação --- #}
+    <section class="ui-card p-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="ui-badge
+                    {% if order.status == 'PRONTO' %}bg-emerald-100 text-emerald-800
+                    {% elif order.status == 'AGUARDANDO_MATERIAL' %}bg-red-100 text-red-800
+                    {% elif order.status == 'ENTREGUE' %}bg-slate-900 text-white
+                    {% elif order.status == 'CANCELADO' %}bg-slate-200 text-slate-600
+                    {% else %}bg-blue-100 text-blue-800{% endif %}">
+                    {{ order.get_status_display }}
+                </span>
+                <span class="ui-badge bg-slate-100 text-slate-700">{{ order.get_delivery_mode_display }}</span>
+                {% if order.priority == 'URGENTE' %}
+                <span class="ui-badge bg-red-100 text-red-700">Urgente</span>
+                {% endif %}
+                {% if order.due_date %}
+                <span class="ui-badge bg-slate-100 text-slate-700">Prazo {{ order.due_date|date:"d/m/Y" }}</span>
+                {% endif %}
+            </div>
+
+            {% if can_operate and not order.is_terminal %}
+            <div class="flex flex-wrap items-center gap-2">
+                <form method="POST" action="{% url 'producao:order_priority' order.number %}"
+                      hx-post="{% url 'producao:order_priority' order.number %}"
+                      hx-target="#order-body" hx-swap="outerHTML">
+                    {% csrf_token %}
+                    <input type="hidden" name="priority"
+                           value="{% if order.priority == 'URGENTE' %}NORMAL{% else %}URGENTE{% endif %}">
+                    <button type="submit" class="ui-button ui-button-secondary">
+                        <i data-lucide="flame" class="h-4 w-4"></i>
+                        {% if order.priority == 'URGENTE' %}Tirar urgência{% else %}Marcar urgente{% endif %}
+                    </button>
+                </form>
+
+                {% if order.waiting_material %}
+                <form method="POST" action="{% url 'producao:order_waiting_material' order.number %}"
+                      hx-post="{% url 'producao:order_waiting_material' order.number %}"
+                      hx-target="#order-body" hx-swap="outerHTML">
+                    {% csrf_token %}
+                    <input type="hidden" name="waiting" value="0">
+                    <button type="submit" class="ui-button ui-button-success">
+                        <i data-lucide="check-circle-2" class="h-4 w-4"></i> Material resolvido
+                    </button>
+                </form>
+                {% else %}
+                <button type="button" class="ui-button ui-button-secondary"
+                        onclick="document.getElementById('dlg-material').showModal()">
+                    <i data-lucide="alert-triangle" class="h-4 w-4"></i> Falta material
+                </button>
+                {% endif %}
+
+                {% if order.status == 'PRONTO' %}
+                <button type="button" class="ui-button ui-button-primary"
+                        onclick="document.getElementById('dlg-saida').showModal()">
+                    <i data-lucide="package-check" class="h-4 w-4"></i> Registrar saída
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        {% if order.waiting_material %}
+        <p class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <strong>Aguardando material.</strong>
+            {% if order.waiting_material_note %}{{ order.waiting_material_note }}{% endif %}
+        </p>
+        {% endif %}
+
+        {% if order.status == 'ENTREGUE' %}
+        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <p><strong>Saída registrada</strong> em {{ order.delivered_at|date:"d/m/Y H:i" }}.</p>
+            {% if order.delivered_to %}<p>Entregue a: {{ order.delivered_to }}</p>{% endif %}
+            {% if order.received_by_user %}<p>Recebido por: {{ order.received_by_user.get_full_name|default:order.received_by_user.username }}</p>{% endif %}
+            {% if order.carrier %}<p>Transportadora: {{ order.carrier }}{% if order.tracking_code %} — rastreio {{ order.tracking_code }}{% endif %}</p>{% endif %}
+            {% if order.delivery_notes %}<p class="mt-1 text-xs text-slate-500">{{ order.delivery_notes }}</p>{% endif %}
+        </div>
+        {% endif %}
+    </section>
+
+    {# --- Itens a preparar --- #}
+    <section class="ui-card overflow-hidden">
+        <div class="ui-card-header">
+            <h2 class="ui-card-title">Itens a preparar</h2>
+            <p class="ui-card-subtitle">
+                Produção não movimenta estoque — a baixa do pedido já aconteceu.
+                A ficha técnica abaixo é lista de separação.
+            </p>
+        </div>
+
+        <div class="divide-y divide-slate-100">
+            {% for row in rows %}
+            {% with item=row.item %}
+            <div class="p-4 {% if item.status == 'CANCELADO' %}bg-slate-50 opacity-70{% endif %}">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-900">
+                            {{ item.description }}
+                            <span class="ui-badge
+                                {% if item.kind == 'FABRICACAO' %}bg-blue-100 text-blue-800
+                                {% elif item.kind == 'ACABAMENTO' %}bg-amber-100 text-amber-800
+                                {% else %}bg-slate-100 text-slate-600{% endif %}">{{ item.kind_display }}</span>
+                            {% if item.needs_review %}
+                            <span class="ui-badge bg-red-100 text-red-700">Revisar</span>
+                            {% endif %}
+                        </p>
+                        <p class="mt-1 text-xs text-slate-500">
+                            {{ item.quantity|floatformat:"-2" }}
+                            {% if item.product %}{{ item.product.get_unit_type_display }}{% endif %}
+                            {% if item.quantity_done %}
+                                · prontos {{ item.quantity_done|floatformat:"-2" }}
+                            {% endif %}
+                            · {{ item.get_status_display }}
+                            {% if item.finished_by %}
+                                por {{ item.finished_by.get_full_name|default:item.finished_by.username }}
+                            {% endif %}
+                        </p>
+                        {% if item.product.finishing_instructions %}
+                        <p class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                            <i data-lucide="scissors" class="mr-1 inline h-3 w-3"></i>{{ item.product.finishing_instructions }}
+                        </p>
+                        {% endif %}
+                    </div>
+
+                    {% if can_operate and not order.is_terminal and item.status != 'CANCELADO' %}
+                    <div class="flex shrink-0 items-center gap-2">
+                        {% if item.status == 'PENDENTE' %}
+                        <form method="POST" action="{% url 'producao:item_start' item.pk %}"
+                              hx-post="{% url 'producao:item_start' item.pk %}"
+                              hx-target="#order-body" hx-swap="outerHTML">
+                            {% csrf_token %}
+                            <button type="submit" class="ui-button ui-button-secondary">
+                                <i data-lucide="play" class="h-4 w-4"></i> Iniciar
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if item.status != 'CONCLUIDO' %}
+                        <form method="POST" action="{% url 'producao:item_finish' item.pk %}"
+                              hx-post="{% url 'producao:item_finish' item.pk %}"
+                              hx-target="#order-body" hx-swap="outerHTML">
+                            {% csrf_token %}
+                            <button type="submit" class="ui-button ui-button-success">
+                                <i data-lucide="check" class="h-4 w-4"></i> Concluir
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="{% url 'producao:item_reopen' item.pk %}"
+                              hx-post="{% url 'producao:item_reopen' item.pk %}"
+                              hx-target="#order-body" hx-swap="outerHTML">
+                            {% csrf_token %}
+                            <button type="submit" class="ui-button ui-button-secondary">
+                                <i data-lucide="rotate-ccw" class="h-4 w-4"></i> Reabrir
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if row.components %}
+                <div class="mt-3 overflow-x-auto rounded-xl border border-slate-100">
+                    <table class="ui-table">
+                        <thead>
+                            <tr>
+                                <th>Componente</th>
+                                <th class="text-right">Necessário</th>
+                                <th class="text-right">Saldo atual</th>
+                                <th class="text-right">Na fila</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for comp in row.components %}
+                            <tr>
+                                <td>{{ comp.product.name }}</td>
+                                <td class="text-right font-bold">{{ comp.required|floatformat:"-2" }}</td>
+                                <td class="text-right {% if comp.stock < comp.required %}text-red-600 font-bold{% endif %}">
+                                    {{ comp.stock|floatformat:"-2" }}
+                                </td>
+                                <td class="text-right text-slate-500">{{ comp.reserved|floatformat:"-2" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+            {% endwith %}
+            {% empty %}
+            <div class="ui-empty-state">
+                <p class="text-sm text-slate-500">Nenhum item nesta ordem.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    {# --- Histórico --- #}
+    <section class="ui-card overflow-hidden">
+        <div class="ui-card-header">
+            <h2 class="ui-card-title">Histórico</h2>
+        </div>
+        <ol class="divide-y divide-slate-100">
+            {% for event in events %}
+            <li class="flex items-start gap-3 px-5 py-3">
+                <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300"></span>
+                <div class="min-w-0 text-sm">
+                    <p class="text-slate-700">
+                        {% if event.message %}{{ event.message }}
+                        {% else %}{{ event.from_status }} → {{ event.to_status }}{% endif %}
+                    </p>
+                    <p class="text-xs text-slate-400">
+                        {{ event.created_at|date:"d/m/Y H:i" }}
+                        {% if event.user %}· {{ event.user.get_full_name|default:event.user.username }}{% endif %}
+                    </p>
+                </div>
+            </li>
+            {% empty %}
+            <li class="px-5 py-6 text-center text-xs text-slate-400">Sem eventos ainda.</li>
+            {% endfor %}
+        </ol>
+    </section>
+
+    {# --- Modais --- #}
+    {% if can_operate and not order.is_terminal %}
+    <dialog id="dlg-material" class="w-[min(28rem,92vw)] rounded-2xl p-0 backdrop:bg-slate-900/50">
+        <form method="POST" action="{% url 'producao:order_waiting_material' order.number %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="waiting" value="1">
+            <h3 class="text-base font-black text-slate-900">Aguardando material</h3>
+            <p class="text-xs text-slate-500">
+                Isto é um sinalizador manual: o sistema não detecta falta de saldo
+                sozinho, porque a baixa do pedido já aconteceu antes da ordem chegar aqui.
+            </p>
+            <div>
+                <label for="material-note" class="ui-label">O que falta</label>
+                <input type="text" id="material-note" name="note" maxlength="255" autocomplete="off"
+                       class="ui-input" placeholder="Ex: bobina 0,43 — 2 unidades">
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" class="ui-button ui-button-secondary"
+                        onclick="document.getElementById('dlg-material').close()">Cancelar</button>
+                <button type="submit" class="ui-button ui-button-danger">Marcar como travada</button>
+            </div>
+        </form>
+    </dialog>
+
+    {% if order.status == 'PRONTO' %}
+    <dialog id="dlg-saida" class="w-[min(32rem,92vw)] rounded-2xl p-0 backdrop:bg-slate-900/50">
+        <form method="POST" action="{% url 'producao:order_deliver' order.number %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <h3 class="text-base font-black text-slate-900">
+                Registrar saída — {{ order.get_delivery_mode_display }}
+            </h3>
+
+            {% if order.delivery_mode == 'TECNICO' %}
+            <div>
+                <label for="recebido-por" class="ui-label">Recebido por</label>
+                <select id="recebido-por" name="received_by_user" class="ui-input">
+                    <option value="">—</option>
+                    {% for u in technician_users %}
+                    <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <div>
+                <label for="{{ deliver_form.delivered_to.id_for_label }}" class="ui-label">
+                    {{ deliver_form.delivered_to.label }}
+                </label>
+                {{ deliver_form.delivered_to }}
+            </div>
+
+            {% if order.delivery_mode == 'ENVIO' %}
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                    <label for="{{ deliver_form.carrier.id_for_label }}" class="ui-label">{{ deliver_form.carrier.label }}</label>
+                    {{ deliver_form.carrier }}
+                </div>
+                <div>
+                    <label for="{{ deliver_form.tracking_code.id_for_label }}" class="ui-label">{{ deliver_form.tracking_code.label }}</label>
+                    {{ deliver_form.tracking_code }}
+                </div>
+            </div>
+            {% endif %}
+
+            <div>
+                <label for="{{ deliver_form.delivery_notes.id_for_label }}" class="ui-label">{{ deliver_form.delivery_notes.label }}</label>
+                {{ deliver_form.delivery_notes }}
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button type="button" class="ui-button ui-button-secondary"
+                        onclick="document.getElementById('dlg-saida').close()">Cancelar</button>
+                <button type="submit" class="ui-button ui-button-primary">Confirmar saída</button>
+            </div>
+        </form>
+    </dialog>
+    {% endif %}
+    {% endif %}
+</div>
+<script>
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+</script>

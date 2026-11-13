@@ -1139,6 +1139,9 @@
   .w-72 {
     width: calc(var(--spacing) * 72);
   }
+  .w-80 {
+    width: calc(var(--spacing) * 80);
+  }
   .w-100 {
     width: calc(var(--spacing) * 100);
   }
@@ -1147,6 +1150,12 @@
   }
   .w-\[95\%\] {
     width: 95%;
+  }
+  .w-\[min\(28rem\,92vw\)\] {
+    width: min(28rem, 92vw);
+  }
+  .w-\[min\(32rem\,92vw\)\] {
+    width: min(32rem, 92vw);
   }
   .w-\[min\(88vw\,22rem\)\] {
     width: min(88vw, 22rem);
@@ -3832,6 +3841,11 @@
     transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
     transition-duration: var(--tw-duration, var(--default-transition-duration));
   }
+  .transition-shadow {
+    transition-property: box-shadow;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
   .transition-transform {
     transition-property: transform, translate, scale, rotate;
     transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
@@ -3935,13 +3949,6 @@
     &:is(:where(.group):hover *) {
       @media (hover: hover) {
         visibility: visible;
-      }
-    }
-  }
-  .group-hover\:block {
-    &:is(:where(.group):hover *) {
-      @media (hover: hover) {
-        display: block;
       }
     }
   }
@@ -6452,6 +6459,11 @@
       grid-column: span 4 / span 4;
     }
   }
+  .xl\:col-span-12 {
+    @media (width >= 80rem) {
+      grid-column: span 12 / span 12;
+    }
+  }
   .xl\:block {
     @media (width >= 80rem) {
       display: block;
@@ -6480,6 +6492,11 @@
   .xl\:max-w-md {
     @media (width >= 80rem) {
       max-width: var(--container-md);
+    }
+  }
+  .xl\:grid-cols-3 {
+    @media (width >= 80rem) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
   .xl\:grid-cols-4 {

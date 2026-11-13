@@ -1,0 +1,76 @@
+{% load money_tags %}
+<article class="rounded-xl border bg-white p-3 shadow-sm transition-shadow hover:shadow-md
+    {% if order.priority == 'URGENTE' %}border-red-300{% else %}border-slate-200{% endif %}">
+
+    <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+            <a href="{% url 'producao:order_detail' order.number %}"
+               class="text-sm font-black text-slate-900 hover:text-blue-600">OP #{{ order.number }}</a>
+            <p class="truncate text-xs text-slate-500">{{ order.origin_label }}</p>
+        </div>
+        {% if order.priority == 'URGENTE' %}
+        <span class="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-red-700">
+            Urgente
+        </span>
+        {% endif %}
+    </div>
+
+    {% if order.client %}
+    <p class="mt-2 flex items-center gap-1.5 truncate text-xs text-slate-600">
+        <i data-lucide="user" class="h-3 w-3 shrink-0 text-slate-400"></i>{{ order.client.name }}
+    </p>
+    {% endif %}
+
+    <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+        <span class="flex items-center gap-1">
+            <i data-lucide="truck" class="h-3 w-3 text-slate-400"></i>{{ order.get_delivery_mode_display }}
+        </span>
+        {% if order.due_date %}
+        <span class="flex items-center gap-1">
+            <i data-lucide="calendar" class="h-3 w-3 text-slate-400"></i>{{ order.due_date|date:"d/m/Y" }}
+        </span>
+        {% endif %}
+    </div>
+
+    {% with pct=order.progress_percent %}
+    <div class="mt-3">
+        <div class="flex items-center justify-between text-[10px] font-bold text-slate-400">
+            <span>{{ order.active_items|length }} item{{ order.active_items|length|pluralize:"ns" }}</span>
+            <span>{{ pct }}%</span>
+        </div>
+        <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div class="h-full rounded-full {% if pct == 100 %}bg-emerald-500{% else %}bg-blue-500{% endif %}"
+                 style="width: {{ pct }}%"></div>
+        </div>
+    </div>
+    {% endwith %}
+
+    {% if blocked and order.waiting_material_note %}
+    <p class="mt-2 rounded-lg bg-red-100 px-2 py-1 text-[11px] font-medium text-red-800">
+        Falta: {{ order.waiting_material_note }}
+    </p>
+    {% endif %}
+
+    <div class="mt-3 flex items-center gap-2">
+        <a href="{% url 'producao:order_detail' order.number %}"
+           class="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-center text-xs font-bold text-white hover:bg-slate-700">
+            Abrir
+        </a>
+        {% if can_operate %}
+            {% if order.waiting_material %}
+            <form method="POST" action="{% url 'producao:order_waiting_material' order.number %}"
+                  hx-post="{% url 'producao:order_waiting_material' order.number %}"
+                  hx-target="#board-inner" hx-swap="outerHTML"
+                  hx-include="#board-filters">
+                {% csrf_token %}
+                <input type="hidden" name="scope" value="board">
+                <input type="hidden" name="waiting" value="0">
+                <button type="submit" title="Material resolvido"
+                        class="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 hover:bg-emerald-100">
+                    <i data-lucide="check-circle-2" class="h-4 w-4"></i>
+                </button>
+            </form>
+            {% endif %}
+        {% endif %}
+    </div>
+</article>

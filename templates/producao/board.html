@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Expedição / Produção{% endblock %}
+
+{% block content %}
+<div class="px-4 py-6 space-y-5">
+
+    <header class="ui-page-header">
+        <div class="ui-page-title-group">
+            <div class="ui-page-icon">
+                <i data-lucide="hard-hat" class="h-5 w-5"></i>
+            </div>
+            <div>
+                <h1 class="ui-page-title">Expedição / Produção</h1>
+                <p class="ui-page-subtitle">
+                    Fila de preparo de vendas e etapas de OS.
+                    <span id="poll-stamp" class="text-slate-400"></span>
+                    <span id="poll-dot" class="htmx-indicator inline-flex items-center gap-1 text-blue-500">
+                        <i data-lucide="refresh-cw" class="h-3 w-3 animate-spin"></i>
+                    </span>
+                </p>
+            </div>
+        </div>
+        {% if can_manage %}
+        <a href="{% url 'producao:settings' %}" class="ui-button ui-button-secondary">
+            <i data-lucide="settings-2" class="h-4 w-4"></i>
+            Configurações
+        </a>
+        {% endif %}
+    </header>
+
+    {# Filtros — ficam FORA da região que o polling troca, senão o usuário
+       perderia o que está digitando a cada atualização. #}
+    <form id="board-filters" method="GET"
+          hx-get="{% url 'producao:board' %}"
+          hx-target="#board-inner" hx-select="#board-inner" hx-swap="outerHTML"
+          hx-push-url="true"
+          class="ui-card p-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
+        <div class="xl:col-span-4">
+            <label for="board-q" class="ui-label">Buscar</label>
+            <input type="search" id="board-q" name="q" value="{{ filters.search }}"
+                   placeholder="Nº da OP, pedido, cliente ou item"
+                   autocomplete="off" class="ui-input">
+        </div>
+        <div class="xl:col-span-2">
+            <label for="board-origin" class="ui-label">Origem</label>
+            <select id="board-origin" name="origin" class="ui-input">
+                <option value="">Todas</option>
+                {% for value, label in origin_choices %}
+                <option value="{{ value }}" {% if filters.origin == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="xl:col-span-2">
+            <label for="board-delivery" class="ui-label">Destino</label>
+            <select id="board-delivery" name="delivery_mode" class="ui-input">
+                <option value="">Todos</option>
+                {% for value, label in delivery_choices %}
+                <option value="{{ value }}" {% if filters.delivery_mode == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="xl:col-span-2">
+            <label for="board-priority" class="ui-label">Prioridade</label>
+            <select id="board-priority" name="priority" class="ui-input">
+                <option value="">Todas</option>
+                {% for value, label in priority_choices %}
+                <option value="{{ value }}" {% if filters.priority == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="xl:col-span-2">
+            <label for="board-status" class="ui-label">Situação</label>
+            <select id="board-status" name="status" class="ui-input">
+                <option value="">No painel</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex items-end gap-2 md:col-span-2 xl:col-span-12">
+            <button type="submit" class="ui-button ui-button-primary">
+                <i data-lucide="filter" class="h-4 w-4"></i> Aplicar
+            </button>
+            <a href="{% url 'producao:board' %}" class="ui-button ui-button-secondary">Limpar</a>
+            <span class="ml-auto text-xs text-slate-500">{{ total }} ordem{{ total|pluralize:"ns" }}</span>
+        </div>
+    </form>
+
+    {# Gatilho do polling. Vazio de propósito: só dispara o hx-get. #}
+    <div id="board-poll"
+         hx-get="{% url 'producao:board_partial' %}"
+         hx-trigger="every 20s[shouldPollBoard()], producao:refresh from:body"
+         hx-include="#board-filters, #board-version"
+         hx-target="#board-inner" hx-swap="outerHTML"
+         hx-sync="this:replace"
+         hx-indicator="#poll-dot"></div>
+
+    {% include 'producao/partials/board_inner.html' %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/producao-board.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+
+{% block title %}Configurações de Expedição / Produção{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl space-y-5 px-4 py-6">
+
+    <header class="ui-page-header">
+        <div class="ui-page-title-group">
+            <div class="ui-page-icon">
+                <i data-lucide="settings-2" class="h-5 w-5"></i>
+            </div>
+            <div>
+                <h1 class="ui-page-title">Configurações de Expedição / Produção</h1>
+                <p class="ui-page-subtitle">Quando e com quais itens a fila de preparo é alimentada</p>
+            </div>
+        </div>
+        <a href="{% url 'producao:board' %}" class="ui-button ui-button-secondary">
+            <i data-lucide="arrow-left" class="h-4 w-4"></i> Voltar ao painel
+        </a>
+    </header>
+
+    <form method="POST" class="space-y-4">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {{ form.non_field_errors.0 }}
+        </div>
+        {% endif %}
+
+        <section class="ui-card overflow-hidden">
+            <div class="ui-card-header">
+                <h2 class="ui-card-title">Módulo</h2>
+            </div>
+            <div class="p-6">
+                <label for="{{ form.enabled.id_for_label }}" class="flex items-start gap-3 cursor-pointer">
+                    {{ form.enabled }}
+                    <span>
+                        <span class="block text-sm font-bold text-slate-700">{{ form.enabled.label }}</span>
+                        <span class="block text-xs text-slate-500">{{ form.enabled.help_text }}</span>
+                    </span>
+                </label>
+            </div>
+        </section>
+
+        <section class="ui-card overflow-hidden">
+            <div class="ui-card-header">
+                <h2 class="ui-card-title">Entrada automática na fila</h2>
+                <p class="ui-card-subtitle">
+                    A ordem de produção nasce sozinha quando o pedido atinge um
+                    destes status. Sem nenhum marcado, nada entra na fila.
+                </p>
+            </div>
+            <div class="space-y-6 p-6">
+                <fieldset>
+                    <legend class="ui-label">{{ form.sale_trigger_statuses.label }}</legend>
+                    <p class="mb-3 text-xs text-slate-500">{{ form.sale_trigger_statuses.help_text }}</p>
+                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {% for choice in form.sale_trigger_statuses %}
+                        <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
+                            {{ choice.tag }} <span class="text-slate-700">{{ choice.choice_label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend class="ui-label">{{ form.task_trigger_statuses.label }}</legend>
+                    <p class="mb-3 text-xs text-slate-500">
+                        {{ form.task_trigger_statuses.help_text }}
+                        Tipos considerados: {{ form.task_type_labels }}.
+                        Cada etapa gera a sua própria ordem de produção.
+                    </p>
+                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {% for choice in form.task_trigger_statuses %}
+                        <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
+                            {{ choice.tag }} <span class="text-slate-700">{{ choice.choice_label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+
+                <label for="{{ form.require_task_approval.id_for_label }}" class="flex items-start gap-3 cursor-pointer">
+                    {{ form.require_task_approval }}
+                    <span>
+                        <span class="block text-sm font-bold text-slate-700">{{ form.require_task_approval.label }}</span>
+                        <span class="block text-xs text-slate-500">{{ form.require_task_approval.help_text }}</span>
+                    </span>
+                </label>
+
+                <label for="{{ form.skip_sale_linked_to_order.id_for_label }}" class="flex items-start gap-3 cursor-pointer">
+                    {{ form.skip_sale_linked_to_order }}
+                    <span>
+                        <span class="block text-sm font-bold text-slate-700">{{ form.skip_sale_linked_to_order.label }}</span>
+                        <span class="block text-xs text-slate-500">{{ form.skip_sale_linked_to_order.help_text }}</span>
+                    </span>
+                </label>
+            </div>
+        </section>
+
+        <section class="ui-card overflow-hidden">
+            <div class="ui-card-header">
+                <h2 class="ui-card-title">Itens e destino</h2>
+            </div>
+            <div class="space-y-5 p-6">
+                <div>
+                    <label for="{{ form.item_scope.id_for_label }}" class="ui-label">{{ form.item_scope.label }}</label>
+                    {{ form.item_scope }}
+                    <p class="mt-1 text-xs text-slate-500">
+                        Serviços e linhas de mão de obra nunca entram.
+                    </p>
+                </div>
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <div>
+                        <label for="{{ form.default_delivery_mode_sale.id_for_label }}" class="ui-label">
+                            {{ form.default_delivery_mode_sale.label }}
+                        </label>
+                        {{ form.default_delivery_mode_sale }}
+                        <p class="mt-1 text-xs text-slate-500">{{ form.default_delivery_mode_sale.help_text }}</p>
+                    </div>
+                    <div>
+                        <label for="{{ form.default_delivery_mode_order.id_for_label }}" class="ui-label">
+                            {{ form.default_delivery_mode_order.label }}
+                        </label>
+                        {{ form.default_delivery_mode_order }}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="ui-card p-5">
+            <h2 class="ui-card-title">Notificações</h2>
+            <p class="mt-1 text-sm text-slate-600">
+                As mensagens são opcionais e configuradas regra por regra em
+                <a href="{% url 'integracoes:notification_config_list' %}" class="font-medium text-blue-600 hover:underline">Notificações Automáticas</a>,
+                escolhendo o modelo <strong>Ordem de Produção</strong>. Sem nenhuma
+                regra cadastrada, o sistema não envia nada — o aviso fica por sua conta.
+            </p>
+        </section>
+
+        <div class="flex justify-end gap-2">
+            <a href="{% url 'producao:board' %}" class="ui-button ui-button-secondary">Cancelar</a>
+            <button type="submit" class="ui-button ui-button-primary">
+                <i data-lucide="save" class="h-4 w-4"></i> Salvar
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
