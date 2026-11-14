@@ -5,12 +5,8 @@
     <section class="ui-card p-5">
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div class="flex flex-wrap items-center gap-2">
-                <span class="ui-badge
-                    {% if order.status == 'PRONTO' %}bg-emerald-100 text-emerald-800
-                    {% elif order.status == 'AGUARDANDO_MATERIAL' %}bg-red-100 text-red-800
-                    {% elif order.status == 'ENTREGUE' %}bg-slate-900 text-white
-                    {% elif order.status == 'CANCELADO' %}bg-slate-200 text-slate-600
-                    {% else %}bg-blue-100 text-blue-800{% endif %}">
+                <span class="ui-badge {{ order.ui.badge }}">
+                    <i data-lucide="{{ order.ui.icon }}" class="h-3.5 w-3.5"></i>
                     {{ order.get_status_display }}
                 </span>
                 <span class="ui-badge bg-slate-100 text-slate-700">{{ order.get_delivery_mode_display }}</span>
@@ -94,35 +90,52 @@
         <div class="divide-y divide-slate-100">
             {% for row in rows %}
             {% with item=row.item %}
-            <div class="p-4 {% if item.status == 'CANCELADO' %}bg-slate-50 opacity-70{% endif %}">
+            <div class="border-l-4 {{ item.ui.accent }} p-4 {% if item.is_done %}bg-emerald-50/40{% elif item.status == 'CANCELADO' %}bg-slate-50 opacity-70{% endif %}">
                 <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div class="min-w-0">
-                        <p class="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-900">
-                            {{ item.description }}
-                            <span class="ui-badge
-                                {% if item.kind == 'FABRICACAO' %}bg-blue-100 text-blue-800
-                                {% elif item.kind == 'ACABAMENTO' %}bg-amber-100 text-amber-800
-                                {% else %}bg-slate-100 text-slate-600{% endif %}">{{ item.kind_display }}</span>
-                            {% if item.needs_review %}
-                            <span class="ui-badge bg-red-100 text-red-700">Revisar</span>
+                    <div class="flex min-w-0 items-start gap-3">
+                        <i data-lucide="{{ item.ui.icon }}"
+                           class="mt-0.5 h-5 w-5 shrink-0 {{ item.ui.color }}"
+                           title="{{ item.get_status_display }}"></i>
+                        <div class="min-w-0">
+                            <p class="flex flex-wrap items-center gap-2 text-sm font-bold
+                                      {% if item.status == 'CANCELADO' %}text-slate-400 line-through{% else %}text-slate-900{% endif %}">
+                                {{ item.description }}
+                                <span class="ui-badge {{ item.ui.badge }}">
+                                    <i data-lucide="{{ item.ui.icon }}" class="h-3 w-3"></i>
+                                    {{ item.get_status_display }}
+                                </span>
+                                <span class="ui-badge
+                                    {% if item.kind == 'FABRICACAO' %}bg-blue-100 text-blue-800
+                                    {% elif item.kind == 'ACABAMENTO' %}bg-amber-100 text-amber-800
+                                    {% else %}bg-slate-100 text-slate-600{% endif %}">
+                                    <i data-lucide="{% if item.kind == 'FABRICACAO' %}hammer{% elif item.kind == 'ACABAMENTO' %}scissors{% else %}package{% endif %}" class="h-3 w-3"></i>
+                                    {{ item.kind_display }}
+                                </span>
+                                {% if item.needs_review %}
+                                <span class="ui-badge bg-red-100 text-red-700">
+                                    <i data-lucide="alert-triangle" class="h-3 w-3"></i> Revisar
+                                </span>
+                                {% endif %}
+                            </p>
+                            <p class="mt-1 text-xs text-slate-500">
+                                {{ item.quantity|floatformat:"-2" }}
+                                {% if item.product %}{{ item.product.get_unit_type_display }}{% endif %}
+                                {% if item.quantity_done %}
+                                    · prontos {{ item.quantity_done|floatformat:"-2" }}
+                                {% endif %}
+                                {% if item.finished_by %}
+                                    · por {{ item.finished_by.get_full_name|default:item.finished_by.username }}
+                                {% endif %}
+                                {% if item.finished_at %}
+                                    em {{ item.finished_at|date:"d/m H:i" }}
+                                {% endif %}
+                            </p>
+                            {% if item.product.finishing_instructions %}
+                            <p class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                <i data-lucide="scissors" class="mr-1 inline h-3 w-3"></i>{{ item.product.finishing_instructions }}
+                            </p>
                             {% endif %}
-                        </p>
-                        <p class="mt-1 text-xs text-slate-500">
-                            {{ item.quantity|floatformat:"-2" }}
-                            {% if item.product %}{{ item.product.get_unit_type_display }}{% endif %}
-                            {% if item.quantity_done %}
-                                · prontos {{ item.quantity_done|floatformat:"-2" }}
-                            {% endif %}
-                            · {{ item.get_status_display }}
-                            {% if item.finished_by %}
-                                por {{ item.finished_by.get_full_name|default:item.finished_by.username }}
-                            {% endif %}
-                        </p>
-                        {% if item.product.finishing_instructions %}
-                        <p class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                            <i data-lucide="scissors" class="mr-1 inline h-3 w-3"></i>{{ item.product.finishing_instructions }}
-                        </p>
-                        {% endif %}
+                        </div>
                     </div>
 
                     {% if can_operate and not order.is_terminal and item.status != 'CANCELADO' %}
@@ -204,12 +217,10 @@
         <ol class="divide-y divide-slate-100">
             {% for event in events %}
             <li class="flex items-start gap-3 px-5 py-3">
-                <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300"></span>
+                <i data-lucide="{{ event.ui.icon }}"
+                   class="mt-0.5 h-4 w-4 shrink-0 {{ event.ui.color }}"></i>
                 <div class="min-w-0 text-sm">
-                    <p class="text-slate-700">
-                        {% if event.message %}{{ event.message }}
-                        {% else %}{{ event.from_status }} → {{ event.to_status }}{% endif %}
-                    </p>
+                    <p class="text-slate-700">{{ event.label }}</p>
                     <p class="text-xs text-slate-400">
                         {{ event.created_at|date:"d/m/Y H:i" }}
                         {% if event.user %}· {{ event.user.get_full_name|default:event.user.username }}{% endif %}
@@ -224,7 +235,7 @@
 
     {# --- Modais --- #}
     {% if can_operate and not order.is_terminal %}
-    <dialog id="dlg-material" class="w-[min(28rem,92vw)] rounded-2xl p-0 backdrop:bg-slate-900/50">
+    <dialog id="dlg-material" class="ui-modal">
         <form method="POST" action="{% url 'producao:order_waiting_material' order.number %}" class="p-6 space-y-4">
             {% csrf_token %}
             <input type="hidden" name="waiting" value="1">
@@ -247,7 +258,7 @@
     </dialog>
 
     {% if order.status == 'PRONTO' %}
-    <dialog id="dlg-saida" class="w-[min(32rem,92vw)] rounded-2xl p-0 backdrop:bg-slate-900/50">
+    <dialog id="dlg-saida" class="ui-modal">
         <form method="POST" action="{% url 'producao:order_deliver' order.number %}" class="p-6 space-y-4">
             {% csrf_token %}
             <h3 class="text-base font-black text-slate-900">

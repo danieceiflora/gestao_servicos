@@ -1,5 +1,6 @@
 """Views do painel, permissões e entrada automática pelos signals."""
 
+import io
 from decimal import Decimal
 
 from django.test import TestCase
@@ -129,6 +130,72 @@ class BoardViewTests(BoardTestMixin, TestCase):
             for tag in htmx_forms:
                 with self.subTest(url=url, form=tag[:80]):
                     self.assertIn('data-preserve-submit-button="true"', tag)
+
+    def test_detail_shows_status_icons_and_balanced_markup(self):
+        """Item concluido ganha icone/cor propria; cancelado e pendente tambem."""
+        order, sale = self.make_order()
+        SaleItem.objects.create(
+            sale=sale, product=self.produto, quantity=Decimal('1'),
+            unit_price=Decimal('10.00'),
+        )
+        prod.sync_from_sale(sale)
+        first, second = list(order.items.order_by('id'))
+        prod.finish_item(first, user=self.manager)
+        prod.start_item(second, user=self.manager)
+
+        body = self.client.get(
+            reverse('producao:order_detail', args=[order.number])
+        ).content.decode()
+
+        # Concluido -> verde, em andamento -> azul, ordem -> em separacao.
+        self.assertIn('data-lucide="check-circle-2"', body)
+        self.assertIn('text-emerald-600', body)
+        self.assertIn('data-lucide="play-circle"', body)
+        self.assertIn('text-blue-500', body)
+        self.assertIn('border-l-emerald-500', body)
+
+        # O wrapper do icone abriu uma <div> a mais; se o fechamento faltasse,
+        # o layout quebraria sem erro de template.
+        self.assertEqual(body.count('<div'), body.count('</div>'))
+
+    def test_history_events_carry_an_icon(self):
+        """Acoes de item gravam to_status, e e dele que sai o icone."""
+        from producao.models import ProductionEvent
+
+        order, _ = self.make_order()
+        item = order.items.first()
+        prod.finish_item(item, user=self.manager)
+
+        event = ProductionEvent.objects.filter(
+            production_item=item, message__startswith='Concluido',
+        ).first() or ProductionEvent.objects.filter(production_item=item).first()
+        self.assertEqual(event.to_status, ProductionItem.Status.CONCLUIDO)
+        self.assertEqual(event.ui['icon'], 'check-circle-2')
+        self.assertEqual(event.ui['color'], 'text-emerald-600')
+
+        # Evento sem transicao cai no icone neutro, nao em branco.
+        neutral = ProductionEvent.objects.create(
+            production_order=order, message='Quantidade ajustada para 2',
+        )
+        self.assertEqual(neutral.ui['icon'], 'info')
+        self.assertEqual(neutral.label, 'Quantidade ajustada para 2')
+
+    def test_deliver_modal_is_centered(self):
+        """O preflight do Tailwind zera margin em `*`, o que mata o
+        `margin: auto` que centraliza um <dialog> modal. A classe .ui-modal
+        devolve o m-auto."""
+        order, _ = self.make_order()
+        prod.finish_item(order.items.first(), user=self.manager)
+
+        body = self.client.get(
+            reverse('producao:order_detail', args=[order.number])
+        ).content.decode()
+        self.assertIn('<dialog id="dlg-saida" class="ui-modal">', body)
+        self.assertIn('<dialog id="dlg-material" class="ui-modal">', body)
+
+        css = io.open('static/dist/output.css', encoding='utf-8').read()
+        start = css.index('.ui-modal {')
+        self.assertIn('margin: auto;', css[start:start + 400])
 
     def test_board_lists_order(self):
         order, _ = self.make_order()

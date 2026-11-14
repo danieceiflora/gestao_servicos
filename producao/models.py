@@ -30,6 +30,69 @@ class DeliveryMode(models.TextChoices):
     ENVIO = 'ENVIO', 'Envio ao cliente'
 
 
+#: Ícone (Lucide) e cores por situação — serve tanto para item quanto para
+#: ordem, porque os valores dos dois enums não colidem.
+#:
+#: As classes são escritas por extenso de propósito: o Tailwind varre nomes
+#: literais (inclusive em arquivos .py), então algo como `text-{cor}-500`
+#: nunca seria gerado. Os nomes de ícone são os que o projeto já usa.
+STATUS_UI = {
+    # Itens de produção
+    'PENDENTE': {
+        'icon': 'circle-dashed', 'color': 'text-slate-400',
+        'badge': 'bg-slate-100 text-slate-600', 'accent': 'border-l-slate-200',
+    },
+    'EM_ANDAMENTO': {
+        'icon': 'play-circle', 'color': 'text-blue-500',
+        'badge': 'bg-blue-100 text-blue-800', 'accent': 'border-l-blue-400',
+    },
+    'CONCLUIDO': {
+        'icon': 'check-circle-2', 'color': 'text-emerald-600',
+        'badge': 'bg-emerald-100 text-emerald-800', 'accent': 'border-l-emerald-500',
+    },
+    # Ordens de produção
+    'AGUARDANDO': {
+        'icon': 'clock', 'color': 'text-slate-400',
+        'badge': 'bg-slate-100 text-slate-700', 'accent': 'border-l-slate-200',
+    },
+    'EM_SEPARACAO': {
+        'icon': 'package-search', 'color': 'text-amber-500',
+        'badge': 'bg-amber-100 text-amber-800', 'accent': 'border-l-amber-400',
+    },
+    'EM_PRODUCAO': {
+        'icon': 'hammer', 'color': 'text-blue-500',
+        'badge': 'bg-blue-100 text-blue-800', 'accent': 'border-l-blue-400',
+    },
+    'AGUARDANDO_MATERIAL': {
+        'icon': 'alert-triangle', 'color': 'text-red-500',
+        'badge': 'bg-red-100 text-red-800', 'accent': 'border-l-red-400',
+    },
+    'PRONTO': {
+        'icon': 'check-circle-2', 'color': 'text-emerald-600',
+        'badge': 'bg-emerald-100 text-emerald-800', 'accent': 'border-l-emerald-500',
+    },
+    'ENTREGUE': {
+        'icon': 'truck', 'color': 'text-slate-500',
+        'badge': 'bg-slate-900 text-white', 'accent': 'border-l-slate-800',
+    },
+    # Comum aos dois
+    'CANCELADO': {
+        'icon': 'x-circle', 'color': 'text-slate-300',
+        'badge': 'bg-slate-200 text-slate-600', 'accent': 'border-l-slate-200',
+    },
+}
+
+#: Eventos de histórico sem transição de status (ajuste de quantidade, nota).
+NEUTRAL_UI = {
+    'icon': 'info', 'color': 'text-slate-400',
+    'badge': 'bg-slate-100 text-slate-600', 'accent': 'border-l-slate-200',
+}
+
+
+def status_ui(status):
+    return STATUS_UI.get(status or '', NEUTRAL_UI)
+
+
 class ProductionSettings(models.Model):
     """Singleton de configuração, no padrão de `fiscal.NFeConfig.load()`."""
 
@@ -287,6 +350,11 @@ class ProductionOrder(models.Model):
     def is_terminal(self):
         return self.status in self.TERMINAL_STATUSES
 
+    @property
+    def ui(self):
+        """Ícone e cores da situação, para o template não montar classes."""
+        return status_ui(self.status)
+
 
 class ProductionItem(models.Model):
     class Status(models.TextChoices):
@@ -388,6 +456,14 @@ class ProductionItem(models.Model):
         return self.Kind(self.kind).label
 
     @property
+    def ui(self):
+        return status_ui(self.status)
+
+    @property
+    def is_done(self):
+        return self.status == self.Status.CONCLUIDO
+
+    @property
     def quantity_pending(self):
         return max(self.quantity - self.quantity_done, Decimal('0'))
 
@@ -421,5 +497,25 @@ class ProductionEvent(models.Model):
         verbose_name_plural = "Eventos de Produção"
         ordering = ['-created_at', '-id']
 
+    @property
+    def ui(self):
+        """Derivado de `to_status`.
+
+        As ações de item também gravam `to_status` (ver `producao/services.py`),
+        então o histórico ganha o mesmo ícone do item sem precisar de um campo
+        novo. Eventos puramente informativos caem no ícone neutro.
+        """
+        return status_ui(self.to_status)
+
+    @property
+    def label(self):
+        if self.message:
+            return self.message
+        labels = {s: str(l) for s, l in ProductionOrder.Status.choices}
+        labels.update({s: str(l) for s, l in ProductionItem.Status.choices})
+        origem = labels.get(self.from_status, self.from_status)
+        destino = labels.get(self.to_status, self.to_status)
+        return f"{origem} → {destino}" if origem or destino else "Evento"
+
     def __str__(self):
-        return self.message or f"{self.from_status} → {self.to_status}"
+        return self.label

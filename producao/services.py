@@ -254,7 +254,7 @@ def _update_existing_item(order, item, row, user):
     # A source_key sai do item antigo (liberando a UniqueConstraint) e vai para
     # o novo; o antigo fica como registro histórico cancelado.
     if item.product_id != getattr(row['product'], 'pk', None):
-        _log(order, item, user, message=(
+        _log(order, item, user, to_status=ProductionItem.Status.CANCELADO, message=(
             f'Produto da linha mudou — item substituído ({item.description})'
         ))
         item.status = ProductionItem.Status.CANCELADO
@@ -288,7 +288,7 @@ def _update_existing_item(order, item, row, user):
             item.status = ProductionItem.Status.PENDENTE
             item.finished_at = None
             changed += ['status', 'finished_at']
-            _log(order, item, user, message=(
+            _log(order, item, user, to_status=ProductionItem.Status.PENDENTE, message=(
                 f'Quantidade aumentou para {new_qty} — item reaberto'
             ))
         else:
@@ -322,7 +322,7 @@ def _handle_removed_item(order, item, user):
         return
     item.status = ProductionItem.Status.CANCELADO
     item.save(update_fields=['status', 'updated_at'])
-    _log(order, item, user, message=(
+    _log(order, item, user, to_status=ProductionItem.Status.CANCELADO, message=(
         f'Item removido do pedido depois de iniciado: {item.description}'
     ))
 
@@ -430,6 +430,12 @@ def _drain_notifications():
 
 
 def _log(order, item=None, user=None, *, from_status='', to_status='', message=''):
+    """Evento de histórico.
+
+    Ações de item gravam `to_status` com a nova situação DO ITEM. É isso que dá
+    ao histórico o mesmo ícone colorido do item (ver `ProductionEvent.ui`) sem
+    precisar de um campo de tipo de evento.
+    """
     ProductionEvent.objects.create(
         production_order=order, production_item=item, user=user,
         from_status=from_status or '', to_status=to_status or '',
@@ -449,7 +455,9 @@ def start_item(item, *, user=None):
         item.status = ProductionItem.Status.EM_ANDAMENTO
         item.started_at = item.started_at or timezone.now()
         item.save(update_fields=['status', 'started_at', 'updated_at'])
-        _log(item.production_order, item, user, message=f'Iniciado: {item.description}')
+        _log(item.production_order, item, user,
+             to_status=ProductionItem.Status.EM_ANDAMENTO,
+             message=f'Iniciado: {item.description}')
         update_status(item.production_order, user=user)
     return item
 
@@ -465,7 +473,9 @@ def finish_item(item, *, user=None, quantity_done=None):
         item.save(update_fields=[
             'quantity_done', 'status', 'finished_at', 'finished_by', 'started_at', 'updated_at',
         ])
-        _log(item.production_order, item, user, message=f'Concluído: {item.description}')
+        _log(item.production_order, item, user,
+             to_status=ProductionItem.Status.CONCLUIDO,
+             message=f'Concluído: {item.description}')
         update_status(item.production_order, user=user)
     return item
 
@@ -478,7 +488,9 @@ def reopen_item(item, *, user=None):
         item.finished_by = None
         item.needs_review = False
         item.save(update_fields=['status', 'finished_at', 'finished_by', 'needs_review', 'updated_at'])
-        _log(item.production_order, item, user, message=f'Reaberto: {item.description}')
+        _log(item.production_order, item, user,
+             to_status=ProductionItem.Status.PENDENTE,
+             message=f'Reaberto: {item.description}')
         update_status(item.production_order, user=user)
     return item
 
