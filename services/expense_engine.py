@@ -7,6 +7,16 @@ from .models import Expense, ExpenseInstallment
 
 logger = logging.getLogger(__name__)
 
+def split_expense_amount(total_amount, installments_count):
+    """Divide um total em parcelas de centavos e mantém a soma original."""
+    installments_count = max(int(installments_count), 1)
+    base_amount = (total_amount / Decimal(installments_count)).quantize(Decimal('0.01'))
+    remainder = total_amount - (base_amount * Decimal(installments_count))
+    amounts = [base_amount] * installments_count
+    amounts[-1] += remainder
+    return amounts
+
+
 def generate_expense_installments(expense, first_due_date=None):
     """
     Gera parcelas para uma despesa.
@@ -41,11 +51,7 @@ def generate_expense_installments(expense, first_due_date=None):
 
             total_amount = expense.total_amount
             
-            # Divisão do valor total pela quantidade de parcelas
-            # Usa quantize para garantir precisão de duas casas decimais
-            base_amount = (total_amount / Decimal(installments_count)).quantize(Decimal('0.01'))
-            sum_base = base_amount * Decimal(installments_count)
-            remainder = total_amount - sum_base
+            installment_amounts = split_expense_amount(total_amount, installments_count)
 
             current_date = first_due_date or expense.issue_date
             if not current_date:
@@ -54,17 +60,10 @@ def generate_expense_installments(expense, first_due_date=None):
             installments_to_create = []
 
             for i in range(1, installments_count + 1):
-                amount = base_amount
-                # Adiciona o restante (centavos de diferença) na primeira parcela ou última
-                # Geralmente no Brasil os centavos residuais ficam na primeira ou última.
-                # Aqui adicionamos na última.
-                if i == installments_count:
-                    amount += remainder
-
                 installment = ExpenseInstallment(
                     expense=expense,
                     installment_number=f"{i}/{installments_count}",
-                    amount=amount,
+                    amount=installment_amounts[i - 1],
                     due_date=current_date,
                     status=ExpenseInstallment.Status.PENDENTE
                 )

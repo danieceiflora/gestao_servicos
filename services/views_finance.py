@@ -16,7 +16,7 @@ from core.formatting import format_money_br
 from core.tz_utils import local_today, safe_make_aware
 from .models import ServiceOrderTask, ServiceOrderTeam, Professional, User, ServicePayment, Sale, SaleItem, Product, StockMovement, PaymentMethod, SalePayment, Expense, ExpenseInstallment, Client, RecurrenceRule, FinanceSettings, BankAccount, InstallmentPayment, PaymentAttachment, FinancialCategory, SaleReturn, SaleReturnItem, SaleRefund, SaleRefundPayment, SaleRefundAttachment, ProductVariant, SaleSettings, ServiceOrder, Billing, Installment
 from .forms import SaleForm, SaleItemFormSet, PaymentMethodForm, ExpenseForm, ExpenseInstallmentFormSet, FinanceSettingsForm, SaleSettingsForm
-from .expense_engine import generate_expense_installments
+from .expense_engine import generate_expense_installments, split_expense_amount
 from django.http import HttpResponse, JsonResponse, FileResponse
 import csv
 import logging
@@ -2347,10 +2347,15 @@ def render_expense_installments_preview(request):
     try:
         data = request.POST if request.method == 'POST' else request.GET
         
-        # Tenta pegar o valor de vários jeitos comuns
         total_amount_raw = data.get('total_amount', '0')
-        # Limpa possíveis caracteres indesejados (espaços, R$)
-        total_amount_raw = total_amount_raw.replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.')
+        total_amount_raw = total_amount_raw.replace('R$', '').replace(' ', '').replace('\u00a0', '')
+        # Com vírgula, trata como entrada pt-BR (ex.: 4.437,70). Sem vírgula,
+        # preserva o ponto decimal enviado pelo input type=number (ex.: 4437.70).
+        if ',' in total_amount_raw:
+            if total_amount_raw.count(',') != 1:
+                total_amount_raw = ''
+            else:
+                total_amount_raw = total_amount_raw.replace('.', '').replace(',', '.')
         try:
             total_amount = Decimal(total_amount_raw)
         except:
@@ -2376,16 +2381,11 @@ def render_expense_installments_preview(request):
 
         preview_data = []
         if installments_count > 0:
-            # Evita divisão por zero
-            div_count = Decimal(installments_count) if installments_count > 0 else Decimal('1')
-            base_amount = (total_amount / div_count).quantize(Decimal('0.01'))
-            remainder = total_amount - (base_amount * Decimal(installments_count))
+            installment_amounts = split_expense_amount(total_amount, installments_count)
             
             current_date = issue_date
             for i in range(1, installments_count + 1):
-                amount = base_amount
-                if i == installments_count:
-                    amount += remainder
+                amount = installment_amounts[i - 1]
                     
                 preview_data.append({
                     'installment_number': f"{i}/{installments_count}",
