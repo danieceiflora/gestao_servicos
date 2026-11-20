@@ -1,0 +1,115 @@
+{% extends help_layout %}
+
+{% block title %}Ajuda e Tutoriais | Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div class="help-home space-y-6">
+    <header class="ui-page-header">
+        <div class="ui-page-title-group">
+            <span class="ui-page-icon"><i data-lucide="book-open" class="h-5 w-5" aria-hidden="true"></i></span>
+            <div>
+                <h1 class="ui-page-title">Ajuda e Tutoriais</h1>
+                <p class="ui-page-subtitle">Escolha uma tarefa e acompanhe o passo a passo na tela.</p>
+            </div>
+        </div>
+        {% if can_manage_help %}
+        <a href="{% url 'admin:ajuda_article_changelist' %}" class="ui-button ui-button-secondary min-h-11">Gerenciar artigos</a>
+        {% endif %}
+    </header>
+
+    {% if help_layout == 'base_equipe.html' %}
+    <p class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">A Central de Ajuda é online e precisa de internet. Os tutoriais não ficam disponíveis no modo offline do aplicativo.</p>
+    {% endif %}
+
+    <section class="ui-card help-search-panel p-5" aria-labelledby="help-search-title">
+        <p class="help-eyebrow">Ajuda para o dia a dia</p>
+        <h2 id="help-search-title" class="help-search-heading">O que você precisa fazer?</h2>
+        <p class="mb-4 text-sm text-slate-600">Busque pelo nome da tarefa. Para acompanhar com imagens, marque “Somente com prints”.</p>
+        <form action="{% url 'ajuda:index' %}" method="get" class="space-y-4" role="search">
+            <div class="help-search-fields">
+                <div>
+                    <label for="help-query" class="ui-label">Buscar tutoriais</label>
+                    <div class="help-search-input-wrap">
+                        <i data-lucide="search" class="h-5 w-5 text-blue-600" aria-hidden="true"></i>
+                        <input id="help-query" type="search" name="q" value="{{ q }}" placeholder="Ex.: criar uma ordem de serviço" class="ui-input help-search-input min-h-11">
+                    </div>
+                </div>
+                <div>
+                    <label for="help-category" class="ui-label">Categoria</label>
+                    <select id="help-category" name="category" class="ui-input min-h-11">
+                        <option value="">Todas as categorias</option>
+                        {% for category in categories %}
+                        <option value="{{ category.slug }}"{% if selected_category == category.slug %} selected{% endif %}>{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+                <label class="help-filter inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" name="illustrated" value="1"{% if illustrated_only %} checked{% endif %} class="h-4 w-4 rounded border-slate-300">
+                    <i data-lucide="images" class="h-4 w-4" aria-hidden="true"></i> Somente com prints
+                </label>
+                <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" name="video" value="1"{% if videos_only %} checked{% endif %} class="h-4 w-4 rounded border-slate-300">
+                    Somente com vídeo
+                </label>
+                <button type="submit" class="ui-button ui-button-primary min-h-11">Buscar</button>
+                {% if q or videos_only or selected_category or illustrated_only %}<a href="{% url 'ajuda:index' %}" class="ui-button ui-button-secondary min-h-11">Limpar filtros</a>{% endif %}
+            </div>
+        </form>
+    </section>
+
+    {% if featured_articles and not q and not videos_only and not selected_category and not illustrated_only %}
+    <section aria-labelledby="help-featured-title" class="space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="help-featured-title" class="text-lg font-bold text-slate-900">Comece por uma tarefa</h2>
+            <span class="text-sm text-slate-500">Tutoriais em destaque</span>
+        </div>
+        <div class="grid gap-3 md:grid-cols-2">
+            {% for article in featured_articles %}{% include 'ajuda/partials/article_card.html' with article=article only %}{% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if categories %}
+    <section aria-labelledby="help-categories-title" class="space-y-3">
+        <h2 id="help-categories-title" class="text-base font-bold text-slate-900">Explore por categoria</h2>
+        <div class="help-category-list">
+            {% for category in categories %}
+            <a href="{{ category.get_absolute_url }}" class="help-category-link">
+                <i data-lucide="{{ category.icon|default:'book-open' }}" class="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true"></i>
+                <span>{{ category.name }}</span>
+                <span class="help-category-count" aria-label="{{ category.article_count }} artigos">{{ category.article_count }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <section aria-labelledby="help-results-title" class="space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="help-results-title" class="text-lg font-bold text-slate-900">{% if q or videos_only or selected_category or illustrated_only %}Resultados da busca{% elif not featured_articles %}Comece por uma tarefa{% else %}Todos os tutoriais{% endif %}</h2>
+            <p class="text-sm text-slate-500">{{ articles.paginator.count }} artigo{{ articles.paginator.count|pluralize:"s" }}</p>
+        </div>
+        {% if q %}<p class="text-sm text-slate-600 break-words">Busca por “{{ q }}”</p>{% endif %}
+        <div class="grid gap-3 md:grid-cols-2">
+            {% for article in articles %}
+                {% include 'ajuda/partials/article_card.html' with article=article only %}
+            {% empty %}
+                <div class="ui-card ui-empty-state md:col-span-2">
+                    <h3 class="font-semibold text-slate-900">Nenhum tutorial encontrado</h3>
+                    <p class="mt-2 text-sm text-slate-500">Tente outra palavra ou remova os filtros. Novos conteúdos podem ser publicados depois.</p>
+                    {% if q or videos_only or selected_category or illustrated_only %}<a href="{% url 'ajuda:index' %}" class="ui-button ui-button-secondary mt-4 min-h-11">Ver todos os tutoriais</a>{% endif %}
+                </div>
+            {% endfor %}
+        </div>
+        {% if articles.has_other_pages %}
+        <nav class="flex flex-wrap items-center justify-center gap-3 pt-4" aria-label="Paginação dos tutoriais">
+            {% if articles.has_previous %}<a href="{% querystring page=articles.previous_page_number %}" rel="prev" class="ui-button ui-button-secondary min-h-11">Anterior</a>{% endif %}
+            <span class="text-sm text-slate-600" aria-current="page">Página {{ articles.number }} de {{ articles.paginator.num_pages }}</span>
+            {% if articles.has_next %}<a href="{% querystring page=articles.next_page_number %}" rel="next" class="ui-button ui-button-secondary min-h-11">Próxima</a>{% endif %}
+        </nav>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

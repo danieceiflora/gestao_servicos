@@ -26,6 +26,7 @@ urlpatterns = [
     path('integracoes/pagamentos/', include('pagamentos.urls', namespace='pagamentos')),
     path('integracoes/fiscal/', include('fiscal.urls', namespace='fiscal')),
     path('producao/', include('producao.urls', namespace='producao')),
+    path('ajuda/', include('ajuda.urls', namespace='ajuda')),
     path('', include('services.urls')),
 ]
 

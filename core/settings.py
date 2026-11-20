@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'pagamentos',
     'fiscal',
     'producao',
+    'ajuda',
 ]
 
 # --- ASAAS PAYMENT GATEWAY ---

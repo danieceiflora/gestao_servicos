@@ -1,5 +1,6 @@
 {% extends 'base_root.html' %}
 {% load static %}
+{% load ajuda_tags %}
 
 {% block layout %}
     <!-- Desktop Header -->
@@ -248,6 +249,8 @@
                 </div>
                 {% endif %}
 
+                <a href="{% url 'ajuda:index' %}" class="inline-flex min-h-11 items-center gap-1 rounded-lg text-sm font-medium {% if request.resolver_match.app_name == 'ajuda' %}text-slate-900{% else %}text-slate-600{% endif %} hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"{% if request.resolver_match.app_name == 'ajuda' %} aria-current="page"{% endif %}>Ajuda e Tutoriais</a>
+
                 <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
                     <div class="relative group">
                         <div class="text-right hidden xl:block">
@@ -308,6 +311,8 @@
     <main id="main-content" class="flex-1 container mx-auto min-w-0 w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
         <!-- Django Messages -->
         {% include "partials/messages.html" %}
+
+        {% contextual_help %}
 
         {% block content %}{% endblock %}
     </main>

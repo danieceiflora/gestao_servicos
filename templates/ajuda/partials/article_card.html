@@ -1,0 +1,23 @@
+<article class="ui-card help-article-card">
+    {% if article.cover_url %}
+    <a href="{{ article.get_absolute_url }}" class="help-card-cover" tabindex="-1" aria-hidden="true">
+        <img src="{{ article.cover_url }}" alt="" loading="lazy" decoding="async" width="960" height="540">
+    </a>
+    {% endif %}
+    <div class="help-card-body p-5">
+    <div class="mb-3 flex flex-wrap items-center gap-2">
+        {% if article.category %}<span class="ui-badge bg-slate-100 text-slate-600">{{ article.category.name }}</span>{% endif %}
+        {% if article.cover_url %}<span class="ui-badge bg-blue-50 text-blue-700"><i data-lucide="images" class="h-3 w-3" aria-hidden="true"></i> Com prints</span>{% endif %}
+        {% if article.video_url %}<span class="ui-badge bg-blue-50 text-blue-700"><i data-lucide="play-circle" class="h-3 w-3" aria-hidden="true"></i> Com vídeo</span>{% endif %}
+    </div>
+    {% if not article.cover_url %}<span class="help-card-icon"><i data-lucide="{{ article.category.icon|default:'list-checks' }}" class="h-6 w-6" aria-hidden="true"></i></span>{% endif %}
+    <h3 class="text-lg font-semibold text-slate-900 break-words">
+        <a href="{{ article.get_absolute_url }}" class="inline-block rounded-lg underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900">{{ article.title }}</a>
+    </h3>
+    {% if article.summary %}<p class="help-card-summary mt-2 text-sm leading-relaxed text-slate-600 break-words">{{ article.summary|truncatechars:180 }}</p>{% endif %}
+    <div class="help-card-footer">
+        <a href="{{ article.get_absolute_url }}" class="ui-button ui-button-secondary min-h-11" aria-label="Ler tutorial: {{ article.title }}">Ler tutorial <i data-lucide="arrow-right" class="h-4 w-4" aria-hidden="true"></i></a>
+        {% if article.illustrated_step_count %}<span class="text-xs text-slate-500">Guia visual · {{ article.illustrated_step_count }} passo{{ article.illustrated_step_count|pluralize:"s" }} com print</span>{% endif %}
+    </div>
+    </div>
+</article>

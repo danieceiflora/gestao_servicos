@@ -1232,12 +1232,19 @@ class PaymentMethodForm(forms.ModelForm):
 # --- EXPENSE FORMS ---
 
 class ExpenseInstallmentForm(forms.ModelForm):
+    amount = forms.DecimalField(
+        localize=True,
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500',
+            'inputmode': 'decimal',
+        }),
+    )
+
     class Meta:
         model = ExpenseInstallment
         fields = ['installment_number', 'amount', 'due_date']
         widgets = {
             'installment_number': forms.TextInput(attrs={'class': 'w-full px-2 py-1 border rounded-lg bg-gray-50', 'readonly': 'readonly'}),
-            'amount': forms.NumberInput(attrs={'class': 'w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500', 'step': '0.01'}),
             'due_date': forms.DateInput(
                 format='%Y-%m-%d',
                 attrs={'type': 'date', 'class': 'w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500'}

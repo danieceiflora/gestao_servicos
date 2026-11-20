@@ -1,5 +1,6 @@
 {% extends 'base_root.html' %}
 {% load static %}
+{% load ajuda_tags %}
 
 {% block layout %}
     <!-- Header Simplificado -->
@@ -57,11 +58,23 @@
         {% endif %}
     </header>
 
+    {% if user.is_authenticated %}
+    <nav aria-label="Ajuda do aplicativo" class="border-b border-slate-200 bg-white px-4 py-2">
+        <a href="{% url 'ajuda:index' %}" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-slate-700 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900">
+            <i data-lucide="book-open" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+            <span>Ajuda e Tutoriais <span class="block text-xs font-normal text-slate-500">Online · precisa de internet · abre em nova aba</span></span>
+            <i data-lucide="external-link" class="h-4 w-4 shrink-0" aria-hidden="true"></i>
+        </a>
+    </nav>
+    {% endif %}
+
     <!-- Main Content -->
     <main class="flex-1 container mx-auto px-4 py-4 lg:py-6 pb-24">
         <!-- Messages -->
         {% include 'partials/messages.html' %}
-        
+
+        {% contextual_help %}
+
         {% block content %}{% endblock %}
     </main>
 

@@ -18,6 +18,7 @@
                 {% if not user.is_manager %}
                 <a href="{% url 'equipe_task_list' %}" class="mobile-nav-link {% if request.resolver_match.url_name == 'equipe_task_list' %}mobile-nav-link-active{% endif %}"><i data-lucide="list-checks"></i><span>Tarefas</span></a>
                 {% endif %}
+                <a href="{% url 'ajuda:index' %}" class="mobile-nav-link {% if request.resolver_match.app_name == 'ajuda' %}mobile-nav-link-active{% endif %}"{% if request.resolver_match.app_name == 'ajuda' %} aria-current="page"{% endif %}><i data-lucide="book-open" aria-hidden="true"></i><span>Ajuda e Tutoriais</span></a>
             </div>
 
             {% if perms.services.view_client or perms.services.view_professional or user.role == 'ADMIN' or user.role == 'MANAGER' or user.is_superuser %}

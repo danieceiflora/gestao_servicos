@@ -1,0 +1,218 @@
+[
+  {
+    "article_slug": "cadastrar-cliente-e-imovel",
+    "step_order": 10,
+    "filename": "cliente-buscar.webp",
+    "alt": "Procure o cliente e confira os imóveis antes de duplicar o cadastro. — tela real com dados fictícios e destaque numerado.",
+    "route": "/clientes/",
+    "highlight": "input[name=\"search\"], tbody tr",
+    "viewport": {
+      "width": 1280,
+      "height": 700
+    }
+  },
+  {
+    "article_slug": "cadastrar-cliente-e-imovel",
+    "step_order": 20,
+    "filename": "cliente-identificacao.webp",
+    "alt": "Escolha PF ou PJ, informe o nome e revise os contatos. — tela real com dados fictícios e destaque numerado.",
+    "route": "/clientes/novo/",
+    "highlight": "#unified-form > section:first-of-type, #phones-formset-container",
+    "viewport": {
+      "width": 1280,
+      "height": 1200
+    }
+  },
+  {
+    "article_slug": "cadastrar-cliente-e-imovel",
+    "step_order": 30,
+    "filename": "cliente-imovel.webp",
+    "alt": "Confira endereço, número e complemento do imóvel e finalize o cadastro. — tela real com dados fictícios e destaque numerado.",
+    "route": "/clientes/novo/",
+    "highlight": "#properties-formset-container, #unified-form button[type=\"submit\"]",
+    "viewport": {
+      "width": 1280,
+      "height": 1000
+    }
+  },
+  {
+    "article_slug": "agendar-os-com-etapas",
+    "step_order": 10,
+    "filename": "os-cliente-imovel.webp",
+    "alt": "No novo agendamento, selecione cliente e imóvel e avance para os detalhes. — tela real com dados fictícios e destaque numerado.",
+    "route": "/ordens/nova/",
+    "highlight": "#os-section-client, #wizard-progress",
+    "viewport": {
+      "width": 1280,
+      "height": 850
+    }
+  },
+  {
+    "article_slug": "agendar-os-com-etapas",
+    "step_order": 20,
+    "filename": "os-etapas-equipe.webp",
+    "alt": "Defina tipo, início, fim e equipe de cada etapa. — tela real com dados fictícios e destaque numerado.",
+    "route": "/ordens/nova/",
+    "highlight": "#tasks-container",
+    "viewport": {
+      "width": 1280,
+      "height": 1350
+    }
+  },
+  {
+    "article_slug": "agendar-os-com-etapas",
+    "step_order": 30,
+    "filename": "os-conflito-agenda.webp",
+    "alt": "Leia o conflito real de agenda. Altere o horário ou a equipe antes de tentar salvar. — tela real com dados fictícios e destaque numerado.",
+    "route": "/ordens/nova/",
+    "highlight": "#toast-container [role=\"alert\"]",
+    "viewport": {
+      "width": 1280,
+      "height": 850
+    }
+  },
+  {
+    "article_slug": "agendar-os-com-etapas",
+    "step_order": 40,
+    "filename": "os-conferir-resultado.webp",
+    "alt": "Confira a OS salva, o imóvel, o horário e a equipe da etapa. — tela real com dados fictícios e destaque numerado.",
+    "route": "/ordens/0ba24538-5b62-4934-bc9a-75266b1e676e/#etapas",
+    "highlight": "#tab-etapas",
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    }
+  },
+  {
+    "article_slug": "preparar-app-tecnico-offline",
+    "step_order": 10,
+    "filename": "tecnico-agenda.webp",
+    "alt": "Carregue Minha Agenda com internet e confira o atendimento esperado. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/",
+    "highlight": "#section-scheduled .task-list",
+    "viewport": {
+      "width": 430,
+      "height": 950
+    }
+  },
+  {
+    "article_slug": "preparar-app-tecnico-offline",
+    "step_order": 20,
+    "filename": "tecnico-sincronizar-filtros.webp",
+    "alt": "Sincronize e confira conexão, última sincronização e filtros. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/",
+    "highlight": "#btn-sync-now, #filter-status, #filter-hide-completed",
+    "viewport": {
+      "width": 430,
+      "height": 950
+    }
+  },
+  {
+    "article_slug": "preparar-app-tecnico-offline",
+    "step_order": 30,
+    "filename": "tecnico-info-atendimento.webp",
+    "alt": "Em Info, confira cliente, endereço e instruções antes de ficar sem conexão. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/#task/66765db2-ed2e-4691-a2fa-aab9584d0170",
+    "highlight": "#tab-panel-info",
+    "viewport": {
+      "width": 430,
+      "height": 950
+    }
+  },
+  {
+    "article_slug": "iniciar-tarefa-checklist-e-anexos",
+    "step_order": 10,
+    "filename": "tecnico-iniciar-servico.webp",
+    "alt": "Comece o trabalho usando INICIAR SERVIÇO AGORA. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/#task/66765db2-ed2e-4691-a2fa-aab9584d0170",
+    "highlight": "#info-btn-start",
+    "viewport": {
+      "width": 430,
+      "height": 950
+    }
+  },
+  {
+    "article_slug": "iniciar-tarefa-checklist-e-anexos",
+    "step_order": 20,
+    "filename": "tecnico-checklist.webp",
+    "alt": "Revise cada item do checklist e registre o resultado real da verificação. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/#task/66765db2-ed2e-4691-a2fa-aab9584d0170",
+    "highlight": "#tab-panel-checklist",
+    "viewport": {
+      "width": 430,
+      "height": 950
+    }
+  },
+  {
+    "article_slug": "iniciar-tarefa-checklist-e-anexos",
+    "step_order": 30,
+    "filename": "tecnico-anexos.webp",
+    "alt": "Adicione evidências no contexto certo; aqui estão os controles reais de Anexos. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/#task/66765db2-ed2e-4691-a2fa-aab9584d0170",
+    "highlight": "#tab-btn-add-media, #tab-btn-add-video",
+    "viewport": {
+      "width": 430,
+      "height": 950
+    }
+  },
+  {
+    "article_slug": "iniciar-tarefa-checklist-e-anexos",
+    "step_order": 40,
+    "filename": "tecnico-conferir-envios.webp",
+    "alt": "Ao recuperar internet, sincronize e confira o indicador e as pendências. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/#task/66765db2-ed2e-4691-a2fa-aab9584d0170",
+    "highlight": "#btn-sync-now, #last-sync-time, #online-status-indicator",
+    "viewport": {
+      "width": 430,
+      "height": 950
+    }
+  },
+  {
+    "article_slug": "finalizar-tarefa-e-sincronizar",
+    "step_order": 10,
+    "filename": "tecnico-revisar-checklist.webp",
+    "alt": "Antes de finalizar, revise checklist, anexos e ocorrências. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/#task/66765db2-ed2e-4691-a2fa-aab9584d0170",
+    "highlight": "#tab-panel-checklist",
+    "viewport": {
+      "width": 430,
+      "height": 950
+    }
+  },
+  {
+    "article_slug": "finalizar-tarefa-e-sincronizar",
+    "step_order": 20,
+    "filename": "tecnico-encerramento.webp",
+    "alt": "Na aba Concluir, informe quem recebeu e o relatório; assinatura é opcional. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/#task/66765db2-ed2e-4691-a2fa-aab9584d0170",
+    "highlight": "#sig-toggle-complete, #sig-customer-name, #sig-notes",
+    "viewport": {
+      "width": 430,
+      "height": 1100
+    }
+  },
+  {
+    "article_slug": "finalizar-tarefa-e-sincronizar",
+    "step_order": 30,
+    "filename": "tecnico-sem-recebimento.webp",
+    "alt": "Sem pagamento, mantenha o método desmarcado. Não registre promessa de pagamento. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/#task/66765db2-ed2e-4691-a2fa-aab9584d0170",
+    "highlight": "#sig-payment-section",
+    "viewport": {
+      "width": 430,
+      "height": 1100
+    }
+  },
+  {
+    "article_slug": "finalizar-tarefa-e-sincronizar",
+    "step_order": 40,
+    "filename": "tecnico-confirmar-finalizacao.webp",
+    "alt": "Revise antes de CONFIRMAR E FINALIZAR; depois sincronize. Captura antes da confirmação. — tela real com dados fictícios e destaque numerado.",
+    "route": "/app/#task/66765db2-ed2e-4691-a2fa-aab9584d0170",
+    "highlight": "#sig-btn-confirm",
+    "viewport": {
+      "width": 430,
+      "height": 1100
+    }
+  }
+]

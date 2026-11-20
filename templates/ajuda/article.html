@@ -1,0 +1,152 @@
+{% extends help_layout %}
+{% load static %}
+
+{% block title %}{{ article.title }} | Ajuda e Tutoriais{% endblock %}
+
+{% block content %}
+<div class="help-reader mx-auto space-y-6" data-help-guide>
+    <nav aria-label="Navegação estrutural" class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+        <a href="{% url 'ajuda:index' %}" class="inline-flex min-h-11 items-center rounded-lg text-slate-700 underline focus-visible:ring-2 focus-visible:ring-slate-900">Ajuda e Tutoriais</a>
+        {% if article.category %}
+        <span aria-hidden="true">/</span><a href="{{ article.category.get_absolute_url }}" class="inline-flex min-h-11 items-center rounded-lg text-slate-700 underline focus-visible:ring-2 focus-visible:ring-slate-900">{{ article.category.name }}</a>
+        {% endif %}
+        <span aria-hidden="true">/</span><span aria-current="page" class="break-words">{{ article.title }}</span>
+    </nav>
+    {% if help_layout == 'base_equipe.html' %}
+    <p class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">Ajuda online: este conteúdo precisa de internet e não faz parte dos dados offline do aplicativo.</p>
+    {% endif %}
+    <article class="space-y-6" aria-labelledby="help-article-title">
+        <header class="ui-card p-5 sm:p-6 space-y-3">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="help-eyebrow">Guia prático</span>
+                {% if article.illustrated_step_count %}<span class="ui-badge bg-blue-50 text-blue-700"><i data-lucide="images" class="h-4 w-4" aria-hidden="true"></i> Guia visual · {{ article.illustrated_step_count }} passo{{ article.illustrated_step_count|pluralize:"s" }} com print</span>{% endif %}
+            </div>
+            <h1 id="help-article-title" class="text-2xl font-bold tracking-tight text-slate-900 break-words">{{ article.title }}</h1>
+            {% if article.summary %}<p class="text-base text-slate-600 break-words">{{ article.summary }}</p>{% endif %}
+            {% if article.illustrated_step_count %}<p class="text-xs text-slate-500">Os prints deste guia usam dados de demonstração. Nomes e valores são exemplos.</p>{% endif %}
+            <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                {% if article.reviewed_at %}<p>Revisado em <time datetime="{{ article.reviewed_at|date:'c' }}">{{ article.reviewed_at|date:"d/m/Y" }}</time></p>{% endif %}
+                {% if article.updated_at %}<p>Atualizado em <time datetime="{{ article.updated_at|date:'c' }}">{{ article.updated_at|date:"d/m/Y" }}</time></p>{% endif %}
+            </div>
+            {% if can_manage_help %}<a href="{% url 'admin:ajuda_article_change' article.pk %}" class="ui-button ui-button-secondary min-h-11">Editar artigo</a>{% endif %}
+        </header>
+        <div class="help-reader-grid{% if steps %} help-reader-with-steps{% endif %}">
+        {% if steps %}
+        <aside class="help-guide-sidebar">
+            <nav class="ui-card p-5 help-guide-nav" aria-labelledby="help-outline-title">
+                <h2 id="help-outline-title" class="font-bold text-slate-900">Neste tutorial</h2>
+                <p class="mt-1 text-xs text-slate-500">Siga a sequência ou vá direto a um passo.</p>
+                <div class="help-reading-progress" data-help-progress hidden>
+                    <label for="help-progress" class="text-xs text-slate-600">Progresso de leitura</label>
+                    <progress id="help-progress" value="0" max="100" class="help-progress-bar">0%</progress>
+                </div>
+                <ol class="help-outline-list">
+                    {% for step in steps %}
+                    <li><a href="#passo-{{ forloop.counter }}" data-help-step-link><span class="help-outline-number" aria-hidden="true">{{ forloop.counter }}</span><span>{{ step.title }}</span></a></li>
+                    {% endfor %}
+                </ol>
+                {% if article.expected_result %}<a href="#help-result-title" class="help-outline-result">Conferir resultado <i data-lucide="check-check" class="h-4 w-4" aria-hidden="true"></i></a>{% endif %}
+            </nav>
+        </aside>
+        {% endif %}
+        <div class="help-guide-body space-y-6">
+        {% if article.objective %}
+        <section class="help-intro" aria-labelledby="help-objective-title">
+            <h2 id="help-objective-title" class="mb-2 text-sm font-bold text-slate-900">O que você vai fazer</h2>
+            <div class="space-y-3 text-sm leading-relaxed text-slate-700 break-words">{{ article.objective|linebreaks }}</div>
+        </section>
+        {% endif %}
+        {% if article.prerequisites %}
+        <section class="help-prerequisites" aria-labelledby="help-prerequisites-title">
+            <h2 id="help-prerequisites-title" class="mb-2 text-sm font-bold text-slate-900">Antes de começar</h2>
+            <div class="space-y-3 text-sm leading-relaxed text-slate-700 break-words">{{ article.prerequisites|linebreaks }}</div>
+        </section>
+        {% endif %}
+        {% if steps %}
+        <section aria-labelledby="help-steps-title" class="space-y-4">
+            <h2 id="help-steps-title" class="text-lg font-bold text-slate-900">Passo a passo</h2>
+            <ol class="space-y-6">
+                {% for step in steps %}
+                <li id="passo-{{ forloop.counter }}" class="ui-card help-step" data-help-step>
+                    <div class="help-step-layout{% if step.illustration_url %} help-step-illustrated{% endif %}">
+                    <div class="help-step-instructions">
+                        <p class="help-step-label">Passo {{ forloop.counter }} de {{ steps|length }}</p>
+                        <h3 class="text-lg font-semibold text-slate-900 break-words">{{ step.title }}</h3>
+                        {% if step.content %}<div class="mt-3 space-y-3 text-sm leading-relaxed text-slate-700 break-words">{{ step.content|linebreaks }}</div>{% endif %}
+                    </div>
+                    {% if step.illustration_url %}
+                    <figure class="help-step-figure">
+                        <a href="{{ step.illustration_url }}" class="help-step-image-link" data-help-enlarge data-help-image-alt="{{ step.image_alt|default:step.title }}" data-help-image-label="Print do passo {{ forloop.counter }}: {{ step.title }}" aria-label="Ampliar print do passo {{ forloop.counter }}">
+                            <img src="{{ step.illustration_url }}" alt="{{ step.image_alt|default:step.title }}" class="help-step-image" loading="lazy" decoding="async">
+                        </a>
+                        <figcaption class="help-step-caption">
+                            <span>{% if step.image_alt %}{{ step.image_alt }}{% else %}Tela do passo {{ forloop.counter }}{% endif %}</span>
+                            <button type="button" class="ui-button ui-button-secondary min-h-11" data-help-enlarge data-help-image-url="{{ step.illustration_url }}" data-help-image-alt="{{ step.image_alt|default:step.title }}" data-help-image-label="Print do passo {{ forloop.counter }}: {{ step.title }}" aria-label="Ampliar print do passo {{ forloop.counter }}" hidden><i data-lucide="expand" class="h-4 w-4" aria-hidden="true"></i> Ampliar print</button>
+                        </figcaption>
+                    </figure>
+                    {% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ol>
+        </section>
+        {% endif %}
+        {% if article.warnings or article.content %}
+        <details class="ui-card help-care"{% if article.warnings or not steps %} open{% endif %}>
+            <summary class="help-care-summary">Cuidados e dúvidas{% if article.warnings %}<span class="ui-badge bg-amber-50 text-amber-900">Atenção antes de continuar</span>{% endif %}</summary>
+            <div class="p-5 space-y-5">
+                {% if article.warnings %}
+                <section class="rounded-xl border border-amber-200 bg-amber-50 p-4" aria-labelledby="help-warnings-title">
+                    <h2 id="help-warnings-title" class="mb-2 font-bold text-amber-900">Atenção</h2>
+                    <div class="space-y-3 text-sm leading-relaxed text-amber-900 break-words">{{ article.warnings|linebreaks }}</div>
+                </section>
+                {% endif %}
+                {% if article.content %}
+                <section aria-labelledby="help-content-title">
+                    <h2 id="help-content-title" class="mb-2 font-bold text-slate-900">Orientações</h2>
+                    <div class="space-y-3 text-sm leading-relaxed text-slate-700 break-words">{{ article.content|linebreaks }}</div>
+                </section>
+                {% endif %}
+            </div>
+        </details>
+        {% endif %}
+        {% if video_embed_url %}
+        <section class="ui-card p-5 space-y-3" aria-labelledby="help-video-title">
+            <h2 id="help-video-title" class="text-lg font-bold text-slate-900">Tutorial em vídeo</h2>
+            <iframe src="{{ video_embed_url }}" title="Tutorial em vídeo: {{ article.title }}" class="aspect-video w-full rounded-xl border border-slate-200" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+            <p class="text-xs leading-relaxed text-slate-500">Vídeo hospedado em serviço externo. A incorporação não é uma proteção de acesso ao vídeo. A reprodução por streaming exige conexão com a internet.</p>
+        </section>
+        {% endif %}
+        {% if article.expected_result %}
+        <section class="rounded-xl border border-emerald-200 bg-emerald-50 p-4" aria-labelledby="help-result-title">
+            <h2 id="help-result-title" class="mb-2 font-bold text-emerald-900">Resultado esperado</h2>
+            <div class="space-y-3 text-sm leading-relaxed text-emerald-900 break-words">{{ article.expected_result|linebreaks }}</div>
+        </section>
+        {% endif %}
+        </div>
+        </div>
+    </article>
+    {% if related_articles %}
+    <section aria-labelledby="help-related-title" class="space-y-3">
+        <h2 id="help-related-title" class="text-lg font-bold text-slate-900">Tutoriais relacionados</h2>
+        <div class="grid gap-3 md:grid-cols-2">
+            {% for related_article in related_articles %}{% include 'ajuda/partials/article_card.html' with article=related_article only %}{% endfor %}
+        </div>
+    </section>
+    {% endif %}
+    <a href="{% url 'ajuda:index' %}" class="ui-button ui-button-secondary min-h-11">Voltar à Central de Ajuda</a>
+    <dialog id="help-print-dialog" class="help-print-dialog" aria-labelledby="help-print-dialog-title">
+        <div class="help-print-toolbar">
+            <h2 id="help-print-dialog-title" class="font-semibold text-slate-900">Print ampliado</h2>
+            <button type="button" class="ui-button ui-button-secondary min-h-11" data-help-close autofocus>Fechar <i data-lucide="x" class="h-4 w-4" aria-hidden="true"></i></button>
+        </div>
+        <p class="help-print-hint">Use a rolagem para explorar a imagem no tamanho original. Esc fecha a ampliação.</p>
+        <div class="help-print-scroll" tabindex="0" role="region" aria-label="Print ampliado; use as setas para rolar"><img data-help-dialog-image alt=""></div>
+    </dialog>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'js/help-guide.js' %}" defer></script>
+{% endblock %}

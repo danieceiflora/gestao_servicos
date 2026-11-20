@@ -9,6 +9,10 @@ echo "Iniciando Entrypoint..."
 echo "Executando migrações..."
 python manage.py migrate --noinput
 
+# Guias oficiais acompanham a versão; o comando preserva edições locais.
+echo "Sincronizando Central de Ajuda..."
+python manage.py sync_help_content
+
 # Coleta arquivos estáticos (garante que o volume montado seja atualizado)
 echo "Coletando arquivos estáticos..."
 python manage.py collectstatic --noinput

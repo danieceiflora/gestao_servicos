@@ -1,0 +1,11 @@
+{% load static %}
+{% if help_context_url %}
+<details class="ui-card mb-4" data-help-context-url="{{ help_context_url }}">
+    <summary class="min-h-11 cursor-pointer rounded-xl px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900">Como usar esta tela?</summary>
+    <div data-help-context-panel class="border-t border-slate-100 px-5 py-4" role="region" aria-label="Tutoriais desta tela" aria-live="polite">
+        <p class="text-sm text-slate-500">Conecte-se à internet para consultar a ajuda desta tela.</p>
+    </div>
+    <noscript><p class="px-5 pb-4 text-sm"><a href="{% url 'ajuda:index' %}" target="_blank" rel="noopener" class="underline">Abrir Ajuda e Tutoriais (online)</a></p></noscript>
+</details>
+<script src="{% static 'js/help-context.js' %}" defer></script>
+{% endif %}

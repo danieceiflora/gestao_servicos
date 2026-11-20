@@ -1,0 +1,19 @@
+{% if help_articles %}
+<div class="space-y-3 border-t border-slate-100 px-5 py-4">
+    <p class="text-sm text-slate-500">Tutoriais para orientar seu trabalho nesta tela.</p>
+    {% if help_is_technician or help_layout == 'base_equipe.html' %}
+    <p class="text-xs text-blue-700">Ajuda online: precisa de internet. Os links abrem em uma nova aba, sem sair do aplicativo.</p>
+    {% endif %}
+    <ul class="space-y-1">
+        {% for help_article in help_articles %}
+        <li><a href="{{ help_article.get_absolute_url }}"{% if help_is_technician or help_layout == 'base_equipe.html' %} target="_blank" rel="noopener"{% endif %} class="flex min-h-11 items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-700 underline underline-offset-4 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"><i data-lucide="book-open" class="h-4 w-4 shrink-0" aria-hidden="true"></i>{{ help_article.title }}{% if help_is_technician or help_layout == 'base_equipe.html' %}<span class="sr-only"> (nova aba; precisa de internet)</span>{% endif %}</a></li>
+        {% endfor %}
+    </ul>
+    <div class="flex flex-wrap gap-2">
+        {% if help_category %}<a href="{% url 'ajuda:category' help_category.slug %}"{% if help_is_technician or help_layout == 'base_equipe.html' %} target="_blank" rel="noopener"{% endif %} class="ui-button ui-button-secondary min-h-11">Ver categoria{% if help_is_technician or help_layout == 'base_equipe.html' %}<span class="sr-only"> (nova aba; precisa de internet)</span>{% endif %}</a>{% endif %}
+        <a href="{% url 'ajuda:index' %}"{% if help_is_technician or help_layout == 'base_equipe.html' %} target="_blank" rel="noopener"{% endif %} class="ui-button ui-button-secondary min-h-11">Ajuda e Tutoriais{% if help_is_technician or help_layout == 'base_equipe.html' %}<span class="sr-only"> (nova aba; precisa de internet)</span>{% endif %}</a>
+    </div>
+</div>
+{% else %}
+<p class="text-sm text-slate-500">Nenhum tutorial disponível para esta tela com seu acesso atual. Consulte <a href="{% url 'ajuda:index' %}" class="underline" target="_blank" rel="noopener">Ajuda e Tutoriais</a>.</p>
+{% endif %}

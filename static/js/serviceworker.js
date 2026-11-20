@@ -1,4 +1,17 @@
-const CACHE_NAME = 'gestao-servicos-v8';
+// v9 elimina shells antigos que ainda podiam conter títulos de ajuda contextual.
+// CacheStorage é separado do IndexedDB: filas e mídias pendentes não são apagadas.
+const CACHE_NAME = 'gestao-servicos-v9';
+
+function isHelpPath(pathname) {
+    return pathname === '/ajuda' || pathname.startsWith('/ajuda/');
+}
+
+function mayCacheResponse(response) {
+    if (!response || (!response.ok && response.type !== 'opaque')) return false;
+    // Um alias ou rota sem barra não deve guardar HTML autenticado redirecionado.
+    if (response.redirected || (response.url && isHelpPath(new URL(response.url).pathname))) return false;
+    return !/\bno-store\b/i.test(response.headers?.get('Cache-Control') || '');
+}
 
 // 🔓 Adicione aqui os caminhos das telas/menus principais que o técnico acessa
 const ASSETS_TO_CACHE = [
@@ -7,6 +20,7 @@ const ASSETS_TO_CACHE = [
     '/static/dist/output.css',
     '/static/js/offline-db.js',
     '/static/js/offline-app.js',
+    '/static/js/help-context.js',
     '/static/dourados-calhas.png',
     '/manifest.json',
     'https://unpkg.com/lucide@latest',
@@ -29,7 +43,7 @@ self.addEventListener('install', (event) => {
                     // Para CDNs externos lidamos com no-cors para evitar falha de CORS estrito no cacheamento
                     const request = new Request(asset, { mode: asset.startsWith('http') ? 'no-cors' : 'cors' });
                     const response = await fetch(request);
-                    if (response && (response.ok || response.type === 'opaque')) {
+                    if (mayCacheResponse(response)) {
                         await cache.put(request, response);
                     }
                 } catch (e) {
@@ -70,8 +84,9 @@ self.addEventListener('fetch', (event) => {
         return; 
     }
 
-    // 3. IGNORAR rotas administrativas internas do Django
-    if (url.pathname.startsWith('/admin/') || url.pathname.startsWith('/accounts/')) {
+    // 3. Ajuda autenticada é online: nunca guardar guias de outro perfil no cache.
+    // As rotas administrativas e de autenticação também ignoram o cache.
+    if (url.pathname.startsWith('/admin/') || url.pathname.startsWith('/accounts/') || isHelpPath(url.pathname)) {
         return;
     }
 
@@ -99,15 +114,12 @@ self.addEventListener('fetch', (event) => {
         fetch(event.request)
             .then((response) => {
                 // Se a página retornou com sucesso, salvamos uma cópia atualizada no cache
-                if (response && (response.ok || response.type === 'opaque')) {
+                if (mayCacheResponse(response)) {
                     const responseClone = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        try {
-                            cache.put(event.request, responseClone);
-                        } catch (e) {
-                            console.warn('[Service Worker] Falha ao salvar cache dinamico:', e);
-                        }
+                    const cacheWrite = caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone)).catch((error) => {
+                        console.warn('[Service Worker] Falha ao salvar cache dinamico:', error);
                     });
+                    event.waitUntil(cacheWrite);
                 }
                 return response;
             })
