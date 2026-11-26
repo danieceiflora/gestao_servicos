@@ -57,6 +57,13 @@
                         #{{ billing.sale.number }}
                         <i data-lucide="arrow-up-right" class="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-700 transition-colors"></i>
                     </a>
+                    {% if billing.sale.can_print_receipt %}
+                    <a href="{% url 'sale_receipt' billing.sale.number %}" target="_blank" rel="noopener"
+                       title="Imprimir cupom não fiscal"
+                       class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                        <i data-lucide="printer" class="h-3.5 w-3.5"></i> Cupom não fiscal
+                    </a>
+                    {% endif %}
                     {% endif %}
                 </div>
             </div>
